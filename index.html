@@ -9,6 +9,13 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <!-- NLS-1: Natural Lash Scan core detection/aggregation/observation
+       logic, extracted to its own plain script so it can be required
+       directly by Node tests (tests/lash-scan-core.test.js) with zero
+       duplication. No build step — loaded exactly like the other
+       plain <script> tags above, its exports land on window and are
+       consumed as bare globals by the code below, same as before. -->
+  <script src="lash-scan-core.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -290,8 +297,6 @@
       natLashContinueToRight: {ru:'Далее: правый глаз', en:'Next: right eye'},
       natLashViewProfile: {ru:'Смотреть профиль', en:'View profile'},
       natLashProfileTitle: {ru:'Профиль натуральных ресниц', en:'Natural Lash Profile'},
-      natLashVisibleCount: {ru:'Оценочное количество видимых ресниц', en:'Estimated visible lash count'},
-      natLashCountExplanation: {ru:'Часть натуральных ресниц может быть перекрыта или не различима камерой.', en:'Some natural lashes may overlap or may not be individually visible to the camera.'},
       natLashConfidenceLabel: {ru:'Достоверность оценки', en:'Confidence'},
       natLashVisualDensity: {ru:'Визуальная густота', en:'Visual density'},
       natLashDistribution: {ru:'Равномерность линии роста', en:'Lash line distribution'},
@@ -1285,317 +1290,17 @@
       const offset = eyeH * 0.12;
       return upper.map(p => ({ x: p.x, y: p.y + offset }));
     }
-    function curvePointAt(curvePts, t) {
-      const seg = clamp01(t) * (curvePts.length - 1);
-      const i = Math.min(curvePts.length - 2, Math.floor(seg));
-      const f = seg - i;
-      const a = curvePts[i], b = curvePts[i+1];
-      return { x: a.x + (b.x-a.x)*f, y: a.y + (b.y-a.y)*f };
-    }
-
-    // Classical ridge/valley detector: walks the lash line, and at
-    // each step looks for a local brightness minimum (a dark streak)
-    // against the locally-smoothed skin/lid baseline, above a fixed
-    // contrast floor. Each qualifying position is one "candidate" for
-    // that single frame — genuinely derived from that frame's pixels,
-    // not randomized. For the candidate's local direction and length
-    // it searches three ray angles above the lash line and keeps the
-    // darkest (most lash-like) one.
-    function detectVisibleLashCandidates(roi, lashLinePts) {
-      const { w, h } = roi;
-      const eyeH = Math.max(6, h * 0.55);
-      let gray;
-      try {
-        const data = roi.ctx.getImageData(0, 0, w, h).data;
-        gray = new Float32Array(w*h);
-        for (let i=0;i<w*h;i++) { const o=i*4; gray[i] = 0.299*data[o]+0.587*data[o+1]+0.114*data[o+2]; }
-      } catch (e) { return { candidates: [], steps: 0 }; }
-      const at = (x,y) => {
-        const xi = Math.max(0, Math.min(w-1, Math.round(x)));
-        const yi = Math.max(0, Math.min(h-1, Math.round(y)));
-        return gray[yi*w+xi];
-      };
-      const steps = Math.max(24, Math.min(72, Math.round(w * 0.6)));
-      const bandLen = Math.max(5, Math.round(h * 0.22));
-      // Stage 1.1: baseline reference band sits PAST the lash-search
-      // band (never shares a pixel with it), so it can't be pulled
-      // down by the very candidates it's judging — unlike the old
-      // baseline, which averaged the same band `profile` reads and
-      // collapsed toward the candidates' own darkness whenever nearby
-      // lashes were packed densely (verified: this silently dropped
-      // real, high-true-contrast candidates below CONTRAST_T purely
-      // because their neighbors were also dark).
-      const REF_GAP = 2;
-      const refBandLen = Math.max(4, Math.round(h * 0.15));
-      const profile = new Float32Array(steps), localRef = new Float32Array(steps);
-      for (let i=0;i<steps;i++) {
-        const p = curvePointAt(lashLinePts, i/(steps-1));
-        let minV = 255;
-        for (let dy=1; dy<=bandLen; dy++) { const v = at(p.x, p.y-dy); if (v < minV) minV = v; }
-        profile[i] = minV;
-        let refSum = 0, refN = 0;
-        for (let dy=bandLen+REF_GAP; dy<bandLen+REF_GAP+refBandLen; dy++) { refSum += at(p.x, p.y-dy); refN++; }
-        localRef[i] = refN ? refSum/refN : 255;
-      }
-      const baseline = new Float32Array(steps);
-      for (let i=0;i<steps;i++) {
-        let s=0,n=0;
-        for (let k=-4;k<=4;k++) { const j=i+k; if (j>=0 && j<steps) { s+=localRef[j]; n++; } }
-        baseline[i] = n ? s/n : localRef[i];
-      }
-      const CONTRAST_T = 12;
-      const ANGLES = [-25, 0, 25];
-      const raw = [];
-      for (let i=1;i<steps-1;i++) {
-        const isLocalMin = profile[i] <= profile[i-1] && profile[i] <= profile[i+1];
-        const contrast = baseline[i] - profile[i];
-        if (!isLocalMin || contrast <= CONTRAST_T) continue;
-        const p = curvePointAt(lashLinePts, i/(steps-1));
-        let best = { angle: 0, darkness: -Infinity, length: 0 };
-        for (const deg of ANGLES) {
-          const rad = deg * Math.PI/180, dx = Math.sin(rad), dy = -Math.cos(rad);
-          let sum = 0, cnt = 0, extent = 0;
-          const maxRay = Math.round(eyeH * 0.6);
-          for (let s=1; s<=maxRay; s++) {
-            const v = at(p.x+dx*s, p.y+dy*s);
-            if (s <= bandLen) { sum += (255-v); cnt++; }
-            if (baseline[i] - v > CONTRAST_T*0.5) extent = s;
-          }
-          const darkness = cnt ? sum/cnt : -Infinity;
-          if (darkness > best.darkness) best = { angle: deg, darkness, length: extent };
-        }
-        raw.push({ t: i/(steps-1), contrast, direction: best.angle, lengthPx: best.length, x: p.x, y: p.y });
-      }
-      // Stage 1.1: per-frame NMS by physical ROI distance (not by
-      // sample index / t-tolerance — that belongs to the cross-frame
-      // clustering in aggregateLashFrames). One physical lash can
-      // straddle two adjacent sample columns and pass the local-min
-      // test at both; two genuinely distinct lashes can never be
-      // closer than 2 sample columns (a local minimum can't sit next
-      // to another local minimum), so MIN_LASH_PX sits between those
-      // two distances.
-      const MIN_LASH_PX = 2;
-      const kept = [];
-      for (const c of raw) {
-        const last = kept[kept.length-1];
-        if (last && Math.hypot(c.x-last.x, c.y-last.y) < MIN_LASH_PX) {
-          if (c.contrast > last.contrast) kept[kept.length-1] = c;
-          continue;
-        }
-        kept.push(c);
-      }
-      const candidates = kept.map(c => ({ t: c.t, contrast: c.contrast, direction: c.direction, lengthPx: c.lengthPx }));
-      return { candidates, steps, eyeH };
-    }
-
-    // Temporal stabilization: a candidate must reappear at a close `t`
-    // position (within a small tolerance along the lash line) across
-    // the buffered frames to count as "stable". Stage 1.1: the old
-    // binary "support >= 60% of frames" cutoff is replaced with a
-    // graduated rule — anything that already cleared the old 60% bar
-    // is kept exactly as before (no regression); a candidate seen in
-    // 35-60% of frames gets a second chance ONLY if its contrast was
-    // also consistent across the frames it appeared in (a real lash
-    // flickering near the detection threshold stays similarly dark
-    // when it IS detected; noise doesn't); below 35% is an
-    // unconditional floor. A cluster-level merge (just under the
-    // spacing of two genuinely distinct lashes) guards against one
-    // real lash's position quantizing onto a different sample column
-    // from frame to frame and splitting into two adjacent soft-passing
-    // clusters — verified against synthetic tests to bring false
-    // positives to zero while keeping the recall gain from the softer
-    // support rule.
-    function aggregateLashFrames(frameSets) {
-      if (frameSets.length === 0) return { stable: [], framesUsed: 0, perFrameCounts: [] };
-      const TOL = 0.025;
-      const MIN_SUPPORT_FRAC = 0.35;
-      const OLD_SUPPORT_FRAC = 0.6;
-      const INCLUDE_SCORE = 0.55;
-      const all = [];
-      frameSets.forEach(f => f.candidates.forEach(c => all.push(c)));
-      all.sort((a,b) => a.t - b.t);
-      const clusters = [];
-      for (const c of all) {
-        let cl = clusters.find(cl => Math.abs(cl.center - c.t) < TOL);
-        if (!cl) { cl = { center: c.t, members: [] }; clusters.push(cl); }
-        cl.members.push(c);
-        cl.center = cl.members.reduce((a,m) => a+m.t, 0) / cl.members.length;
-      }
-      const stepsHint = (frameSets[0] && frameSets[0].steps) || 40;
-      const CLUSTER_MERGE_TOL = 1.4 / (stepsHint - 1);
-      clusters.sort((a,b) => a.center - b.center);
-      const merged = [];
-      for (const cl of clusters) {
-        const last = merged[merged.length-1];
-        if (last && Math.abs(cl.center - last.center) < CLUSTER_MERGE_TOL) {
-          const lastC = last.members.reduce((a,m) => a+m.contrast, 0) / last.members.length;
-          const clC = cl.members.reduce((a,m) => a+m.contrast, 0) / cl.members.length;
-          if (cl.members.length > last.members.length || (cl.members.length === last.members.length && clC > lastC)) merged[merged.length-1] = cl;
-          continue;
-        }
-        merged.push(cl);
-      }
-      const stable = merged.filter(cl => {
-        const supportRatio = cl.members.length / frameSets.length;
-        if (supportRatio < MIN_SUPPORT_FRAC) return false;
-        if (supportRatio >= OLD_SUPPORT_FRAC) return true;
-        const contrasts = cl.members.map(m => m.contrast);
-        const cStats = stdOf(contrasts);
-        const contrastStability = clamp01(1 - cStats.std / Math.max(cStats.mean, 1e-6));
-        return (0.6*supportRatio + 0.4*contrastStability) >= INCLUDE_SCORE;
-      }).map(cl => ({
-        t: cl.center, support: cl.members.length,
-        direction: cl.members.reduce((a,m) => a+m.direction, 0) / cl.members.length,
-        lengthPx: cl.members.reduce((a,m) => a+m.lengthPx, 0) / cl.members.length,
-      }));
-      return { stable, framesUsed: frameSets.length, perFrameCounts: frameSets.map(f => f.candidates.length) };
-    }
-
-    // Turns the stable candidate list into the qualitative, honestly-
-    // hedged observations shown to the user — a range for count, never
-    // a bare integer; Low/Medium/High density from real occupancy of
-    // the sampled lash line, not an absolute headcount; zone splits
-    // and direction/length normalized to the eye's OWN measurements.
-    // Three zones (Stage 1): INNER (t<1/3), CENTER (1/3<=t<2/3),
-    // OUTER (t>=2/3) — matches how a lash artist actually thinks about
-    // the lash line, replaces the earlier 4-way quartile split.
+    // NLS-1: curvePointAt, detectVisibleLashCandidates,
+    // aggregateLashFrames, computeLashConfidence,
+    // computeLashObservations and compareNaturalLashes moved to
+    // lash-scan-core.js (loaded as a plain global <script> above,
+    // right after face-api.js) so this core logic can be required
+    // directly by tests/lash-scan-core.test.js in Node with zero
+    // duplication. Behavior is unchanged except the arc-length zoning
+    // fix and the additive occupancy/confidence/sparse-area fields
+    // documented in that file — call sites below are unaffected,
+    // since the functions are still plain globals.
     const LASH_ZONE_KEYS = ['lashInner', 'lashCenter', 'lashOuter'];
-    const LASH_ZONE_NAMES = ['inner', 'center', 'outer'];
-
-    // Same "no fake 100%" geometric-mean pattern as computeConfidence()
-    // (Eye Profile), applied to the lash-count domain specifically —
-    // every factor here is derived from data already computed by
-    // aggregateLashFrames/assessLashFrameQuality, nothing invented:
-    //   support     — average, across stable clusters, of how many of
-    //                 the buffered frames actually confirmed each one
-    //                 (agg.stable[i].support / framesUsed)
-    //   imageQuality — this frame's real sharpness reading
-    //   distance    — how far past the bare minimum distance gate
-    //                 (widthFrac) this capture is, 0 at the floor
-    //   resolution  — how far past the bare minimum ROI-detail gate
-    //                 (roiMinDim) this capture is, 0 at the floor
-    //   consistency — how stable the RAW per-frame candidate count was
-    //                 across the buffer (low variance = more trustworthy)
-    function computeLashConfidence(factors) {
-      const f = {
-        support: clamp01(factors.support ?? 0.5),
-        imageQuality: clamp01(factors.imageQuality ?? 0.5),
-        distance: clamp01(factors.distance ?? 0.5),
-        resolution: clamp01(factors.resolution ?? 0.5),
-        consistency: clamp01(factors.consistency ?? 0.5),
-      };
-      const rescaled = Object.values(f).map(v => 0.35 + v * 0.65);
-      const score = clamp01(rescaled.reduce((a, b) => a * b, 1) ** (1 / rescaled.length));
-      return { score, factors: f };
-    }
-
-    function computeLashObservations(agg, steps, eyeH, qualityLevel, quality) {
-      const n = agg.stable.length;
-      if (steps === 0 || n === 0) {
-        return { hasData: false, framesUsed: agg.framesUsed };
-      }
-      const occupancy = n / steps;
-      const visualDensity = occupancy > 0.38 ? 'high' : occupancy > 0.20 ? 'medium' : 'low';
-      const spreadFrac = qualityLevel === 'high' ? 0.12 : qualityLevel === 'medium' ? 0.22 : 0.35;
-      const countLow = Math.max(0, Math.round(n * (1 - spreadFrac)));
-      const countHigh = Math.round(n * (1 + spreadFrac));
-
-      const zoneOf = (t) => t < 1/3 ? 0 : t < 2/3 ? 1 : 2;
-      const zoneCounts = [0,0,0], zoneDirSum = [0,0,0], zoneLenSum = [0,0,0];
-      agg.stable.forEach(c => { const z = zoneOf(c.t); zoneCounts[z]++; zoneDirSum[z]+=c.direction; zoneLenSum[z]+=c.lengthPx; });
-
-      // Each zone's density is normalized to how many of the SAMPLED
-      // lash-line positions actually fall in that third (not to the
-      // other zones' average) — a real per-zone occupancy, computed
-      // the same way as the overall occupancy above.
-      const zoneStepCounts = [0,0,0];
-      for (let i = 0; i < steps; i++) { zoneStepCounts[zoneOf(steps > 1 ? i/(steps-1) : 0)]++; }
-      const zoneOccupancy = zoneCounts.map((cnt,i) => zoneStepCounts[i] > 0 ? cnt/zoneStepCounts[i] : 0);
-      const zoneDensity = zoneOccupancy.map(occ => occ > 0.38 ? 'high' : occ > 0.20 ? 'medium' : 'low');
-
-      const zoneDirection = zoneCounts.map((cnt,i) => {
-        if (cnt === 0) return 'unknown';
-        const avg = zoneDirSum[i]/cnt;
-        return avg < -8 ? 'upward' : avg > 8 ? 'downward' : 'straight';
-      });
-      const zoneRelLen = zoneCounts.map((cnt,i) => {
-        if (cnt === 0) return 'unknown';
-        const avgLenNorm = (zoneLenSum[i]/cnt) / eyeH; // normalized to this eye's own opening — no mm, no physical calibration exists
-        return avgLenNorm > 0.85 ? 'long' : avgLenNorm > 0.55 ? 'medium' : 'short';
-      });
-      const overallLenBucket = (() => {
-        const vals = zoneRelLen.filter(v => v !== 'unknown');
-        if (vals.length === 0) return 'unknown';
-        const uniq = new Set(vals);
-        return uniq.size > 1 ? 'mixed' : vals[0];
-      })();
-
-      // Visible gaps: a zone counts as a gap only if ITS OWN occupancy
-      // is near-empty in absolute terms (well below the "low density"
-      // cutoff) — not just lower than its neighbors, which could flag
-      // a zone as a "gap" purely because the whole eye is sparse.
-      const GAP_OCCUPANCY = 0.10;
-      const gapZones = zoneOccupancy.map((occ,i) => occ < GAP_OCCUPANCY ? i : null).filter(v => v !== null);
-
-      const dirValues = zoneDirection.filter(d => d !== 'unknown');
-      const dominantDirection = dirValues.length === 0 ? 'unknown' : (new Set(dirValues).size > 1 ? 'mixed' : dirValues[0]);
-
-      const avgSupportRatio = agg.stable.reduce((a,c) => a + c.support/Math.max(agg.framesUsed,1), 0) / n;
-      const frameCounts = agg.perFrameCounts && agg.perFrameCounts.length ? agg.perFrameCounts : [n];
-      const frameStats = stdOf(frameCounts);
-      const consistency = clamp01(1 - frameStats.std / Math.max(frameStats.mean, 1));
-      const roiMinDim = quality ? Math.min(quality.roiWidth || 0, quality.roiHeight || 0) : 0;
-      const conf = computeLashConfidence({
-        support: avgSupportRatio,
-        imageQuality: quality ? clamp01(quality.sharpness / 150) : 0.5,
-        distance: quality ? clamp01((quality.widthFrac - 0.08) / (0.12 - 0.08)) : 0.5,
-        resolution: clamp01((roiMinDim - 60) / 60),
-        consistency,
-      });
-
-      const zones = {};
-      LASH_ZONE_NAMES.forEach((name, i) => {
-        zones[name] = {
-          estimatedCount: zoneCounts[i],
-          density: zoneDensity[i],
-          gaps: gapZones.includes(i),
-          apparentLength: zoneRelLen[i],
-          direction: zoneDirection[i],
-        };
-      });
-
-      return {
-        hasData: true, framesUsed: agg.framesUsed,
-        countLow, countHigh, visualDensity, occupancy,
-        zoneDensity, zoneDirection, zoneRelLen, overallLenBucket, gapZones,
-        dominantDirection,
-        confidence: conf.score, confidenceFactors: conf.factors,
-        zones,
-      };
-    }
-
-    // Left/right comparison — only ever compares REAL computed
-    // observations from both sides; if either side has no data, says
-    // so instead of guessing.
-    function compareNaturalLashes(left, right) {
-      if (!left?.hasData || !right?.hasData) return { hasComparison: false };
-      const countDiff = ((left.countLow+left.countHigh)/2) - ((right.countLow+right.countHigh)/2);
-      const densityRank = { low: 0, medium: 1, high: 2 };
-      const densityDiff = densityRank[left.visualDensity] - densityRank[right.visualDensity];
-      const zoneDiffs = LASH_ZONE_KEYS.map((_, i) => densityRank[left.zoneDensity[i]] - densityRank[right.zoneDensity[i]]);
-      const maxDiffIdx = zoneDiffs.reduce((best,d,i) => Math.abs(d) > Math.abs(zoneDiffs[best]) ? i : best, 0);
-      const gapDiff = LASH_ZONE_NAMES.map((name, i) => {
-        const l = left.gapZones.includes(i), r = right.gapZones.includes(i);
-        return l !== r ? { zone: name, side: l ? 'left' : 'right' } : null;
-      }).filter(Boolean);
-      return {
-        hasComparison: true,
-        countDiff, densityDiff,
-        notableZone: Math.abs(zoneDiffs[maxDiffIdx]) >= 1 ? maxDiffIdx : null,
-        notableZoneLowerSide: zoneDiffs[maxDiffIdx] < 0 ? 'left' : 'right',
-        gapDiff,
-      };
-    }
 
     function lashDensityLabel(d, lang) {
       return d==='high' ? (lang==='en'?'High':'Высокая') : d==='medium' ? (lang==='en'?'Medium':'Средняя') : (lang==='en'?'Low':'Низкая');
@@ -1629,7 +1334,10 @@
           return;
         }
         const sideName = en ? (side==='left'?'Left eye':'Right eye') : (side==='left'?'Левый глаз':'Правый глаз');
-        observations.push(`${sideName}: ${en?'visible lashes ≈':'видимые ресницы ≈'} ${obs.countLow}–${obs.countHigh}, ${en?'density':'густота'} — ${lashDensityLabel(obs.visualDensity, lang).toLowerCase()}, ${en?'distribution':'распределение'} — ${lashDistributionText(obs, lang).toLowerCase()}.`);
+        // NLS-1 count-safety fix: no lash-count-like number in
+        // master-facing text — occupancy (visualDensity) + distribution
+        // are the visible-base representation (see requirement 6).
+        observations.push(`${sideName}: ${en?'density':'густота'} — ${lashDensityLabel(obs.visualDensity, lang).toLowerCase()}, ${en?'distribution':'распределение'} — ${lashDistributionText(obs, lang).toLowerCase()}.`);
       });
       if (comparison?.hasComparison && comparison.notableZone !== null) {
         const zoneName = [en?'inner':'внутренней', en?'central':'центральной', en?'outer':'внешней'][comparison.notableZone];
@@ -3403,6 +3111,13 @@
       const [progress, setProgress] = useState(0);
       const [leftProfile, setLeftProfile] = useState(null);
       const [rightProfile, setRightProfile] = useState(null);
+      // NLS2 VALIDATION DIAGNOSTIC — scan-meta captured alongside each
+      // eye's obs (ROI dims / effective eye width aren't stored on obs
+      // itself, only exist as local variables in the tick below).
+      // debug-only, null in normal mode, purely additive. Remove
+      // together with the rest of the NLS2 validation build.
+      const [leftMeta, setLeftMeta] = useState(null);
+      const [rightMeta, setRightMeta] = useState(null);
 
       const sideRef = useRef(side); useEffect(() => { sideRef.current = side; }, [side]);
       const lockedRef = useRef(false); useEffect(() => { lockedRef.current = locked; }, [locked]);
@@ -3584,6 +3299,33 @@
             const obs = computeLashObservations(agg, steps, eyeH, qualityLevel, quality);
             obs.qualityLevel = qualityLevel;
             if (sd === 'left') setLeftProfile(obs); else setRightProfile(obs);
+            // NLS2 VALIDATION DIAGNOSTIC — debug-only scan-meta snapshot
+            // + compact machine-readable console log for real-iPhone
+            // capture review. Reads only already-computed values (obs,
+            // agg, quality) plus the ROI/eye-width locals above; does
+            // not alter obs or any measurement value. Remove together
+            // with the rest of the NLS2 validation build.
+            if (debugAvailable) {
+              const nls2Meta = {
+                side: sd,
+                roiW: effectiveRoi ? +effectiveRoi.w.toFixed(1) : null,
+                roiH: effectiveRoi ? +effectiveRoi.h.toFixed(1) : null,
+                effectiveEyeWidthPx: +eyeWidthPx.toFixed(1),
+                effectiveVisibleWidth: +effectiveVisibleWidth.toFixed(1),
+                framesAccepted: agg.framesUsed,
+                frameConsistency: obs.confidenceFactors ? obs.confidenceFactors.consistency : null,
+              };
+              if (sd === 'left') setLeftMeta(nls2Meta); else setRightMeta(nls2Meta);
+              console.log('[NLS2 VALIDATION]', {
+                side: sd,
+                roi: { w: nls2Meta.roiW, h: nls2Meta.roiH, effectiveEyeWidthPx: nls2Meta.effectiveEyeWidthPx },
+                quality: { level: qualityLevel, ok: quality.ok, sharpness: quality.sharpness, widthFrac: quality.widthFrac, framesAccepted: nls2Meta.framesAccepted, frameConsistency: nls2Meta.frameConsistency },
+                confidence: obs.confidence,
+                zones: obs.zones,
+                condition: obs.condition,
+                diagnostics: obs.diagnostics,
+              });
+            }
             setLocked(true);
             lockStartRef.current = now;
             completionRef.current = { candidates: agg.stable, lashLine: lashLineVideo };
@@ -3696,7 +3438,15 @@
       };
       const finish = () => {
         const comparison = compareNaturalLashes(leftProfile, rightProfile);
-        onCompleteRef.current({ left: leftProfile, right: rightProfile, comparison });
+        // NLS2 VALIDATION DIAGNOSTIC — one compact log after both eyes,
+        // plus debugMeta passed through onComplete (additive key,
+        // read only by the debug-gated panel in NaturalLashProfileScreen;
+        // left/right/comparison below are unchanged from before).
+        if (debugAvailable) console.log('[NLS2 VALIDATION COMPARISON]', comparison);
+        onCompleteRef.current({
+          left: leftProfile, right: rightProfile, comparison,
+          debugMeta: debugAvailable ? { left: leftMeta, right: rightMeta } : null,
+        });
       };
 
       const sideLabel = side === 'left' ? t('natLashLeftEyeLabel', lang) : t('natLashRightEyeLabel', lang);
@@ -4941,6 +4691,236 @@
       );
     }
 
+    // ============================================================
+    // NLS2 VALIDATION DIAGNOSTIC — temporary real-iPhone validation
+    // build for the Natural Lash Scan measurement layer. Everything
+    // in this block is debug-only (?debug=1), purely additive, reads
+    // already-computed values off `obs`/`comparison`/NLS2_THRESHOLDS
+    // and does not alter any measurement value. Remove this whole
+    // block (down to the closing "END NLS2 VALIDATION DIAGNOSTIC"
+    // marker) once real-device validation is complete.
+    // ============================================================
+    function nls2TriLabel(v) { return v === true ? 'TRUE' : v === false ? 'FALSE' : 'UNKNOWN'; }
+    function nls2Num(v, d) { return (v === null || v === undefined || Number.isNaN(v)) ? '—' : Number(v).toFixed(d == null ? 3 : d); }
+    function nls2Row(label, value) {
+      return (
+        <div className="flex justify-between text-[9px] gap-2">
+          <span className="text-textMuted">{label}</span>
+          <span className="text-lime-300 font-mono text-right break-all">{value}</span>
+        </div>
+      );
+    }
+    function Nls2SectionLabel({ children }) {
+      return <p className="text-[10px] font-semibold text-cyan-300 uppercase tracking-wider mt-3 mb-1 first:mt-0">{children}</p>;
+    }
+
+    function Nls2EyeValidationBlock({ label, obs, meta }) {
+      if (!obs || !obs.hasData) {
+        return (
+          <div>
+            <Nls2SectionLabel>{label}</Nls2SectionLabel>
+            <p className="text-[9px] text-textMuted">no data</p>
+          </div>
+        );
+      }
+      const zoneNames = (typeof LASH_ZONE_NAMES !== 'undefined') ? LASH_ZONE_NAMES : ['inner', 'center', 'outer'];
+      const diag = obs.diagnostics || {};
+      return (
+        <div>
+          <Nls2SectionLabel>{label} — scan-level (debug diagnostics, NOT lash count)</Nls2SectionLabel>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+            {nls2Row('overall confidence', nls2Num(obs.confidence, 2))}
+            {nls2Row('quality level', obs.qualityLevel || '—')}
+            {nls2Row('roi w×h (px)', meta ? `${nls2Num(meta.roiW,1)}×${nls2Num(meta.roiH,1)}` : '—')}
+            {nls2Row('effective eye width (px)', meta ? nls2Num(meta.effectiveEyeWidthPx, 1) : '—')}
+            {nls2Row('accepted frames', meta ? meta.framesAccepted : obs.framesUsed)}
+            {nls2Row('frame consistency', meta ? nls2Num(meta.frameConsistency, 2) : '—')}
+            {nls2Row('candidate structures (diagnostic, NOT lash count)', `${diag.candidateClusterCount ?? '—'} (${diag.candidateClusterCountLow ?? '—'}–${diag.candidateClusterCountHigh ?? '—'})`)}
+          </div>
+
+          <Nls2SectionLabel>{label} — per-zone</Nls2SectionLabel>
+          {zoneNames.map((zn) => {
+            const z = obs.zones ? obs.zones[zn] : null;
+            if (!z) return null;
+            return (
+              <div key={zn} className="mb-1.5 pb-1.5 border-b border-white/10 last:border-0">
+                <p className="text-[9px] text-cyan-200 uppercase">{zn}</p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                  {nls2Row('occupancy raw', nls2Num(z.occupancy, 3))}
+                  {nls2Row('occupancy level', z.occupancyLevel)}
+                  {nls2Row('zone confidence', nls2Num(z.confidence, 2))}
+                  {nls2Row('sparseArea', nls2TriLabel(z.sparseArea))}
+                  {nls2Row('visibleLengthRatio', nls2Num(z.visibleLengthRatio, 3))}
+                  {nls2Row('visibleLengthLevel', z.visibleLengthLevel)}
+                  {nls2Row('apparentDirection (HINT ONLY)', z.direction)}
+                </div>
+              </div>
+            );
+          })}
+
+          <Nls2SectionLabel>{label} — NLS-2 condition</Nls2SectionLabel>
+          {obs.condition && (
+            <>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mb-1.5">
+                {nls2Row('occupancyUniformity.level', obs.condition.occupancyUniformity.level)}
+                {nls2Row('occupancyUniformity.spread', nls2Num(obs.condition.occupancyUniformity.spread, 4))}
+                {nls2Row('occupancyUniformity.confidence', nls2Num(obs.condition.occupancyUniformity.confidence, 2))}
+                {nls2Row('visibleLengthUniformity.level', obs.condition.visibleLengthUniformity.level)}
+                {nls2Row('visibleLengthUniformity.dispersion', nls2Num(obs.condition.visibleLengthUniformity.dispersion, 4))}
+                {nls2Row('visibleLengthUniformity.confidence', nls2Num(obs.condition.visibleLengthUniformity.confidence, 2))}
+              </div>
+              {zoneNames.map((zn) => {
+                const c = obs.condition.zones ? obs.condition.zones[zn] : null;
+                if (!c) return null;
+                return (
+                  <div key={zn} className="mb-1.5 pb-1.5 border-b border-white/10 last:border-0">
+                    <p className="text-[9px] text-cyan-200 uppercase">{zn} condition</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                      {nls2Row('locallyReducedOccupancy', nls2TriLabel(c.locallyReducedOccupancy))}
+                      {nls2Row('relativeOccupancyReduction', nls2Num(c.relativeOccupancyReduction, 4))}
+                      {nls2Row('shortLashConcentration', nls2TriLabel(c.shortLashConcentration))}
+                      {nls2Row('shortCandidateFraction', nls2Num(c.shortCandidateFraction, 3))}
+                      {nls2Row('withinZoneLengthIrregular', nls2TriLabel(c.withinZoneLengthIrregular))}
+                      {nls2Row('visibleIrregularArea', nls2TriLabel(c.visibleIrregularArea))}
+                      {nls2Row('condition confidence', nls2Num(c.confidence, 2))}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // Status classification for L/R comparison fields — best-effort
+    // mapping onto the three states the validation spec asks for.
+    // `raw`===0 cannot be told apart from "genuinely zero difference"
+    // vs "inside dead zone" from the comparison object alone, so a
+    // rank/diff of exactly 0 is reported as IGNORED INSIDE DEAD ZONE
+    // (both read the same to a lash artist: "not a meaningful diff").
+    function nls2CompareStatus(raw) {
+      if (raw === null || raw === undefined) return 'UNAVAILABLE DUE TO CONFIDENCE';
+      if (Array.isArray(raw)) return raw.length > 0 ? 'ACCEPTED AS MEANINGFUL' : 'IGNORED INSIDE DEAD ZONE / NO DIFFERENCE';
+      return raw !== 0 ? 'ACCEPTED AS MEANINGFUL' : 'IGNORED INSIDE DEAD ZONE';
+    }
+    function nls2CompareValueText(raw) {
+      if (raw === null || raw === undefined) return '—';
+      if (Array.isArray(raw)) return raw.length ? raw.map(x => `${x.zone}:${x.side}`).join(', ') : '(none)';
+      return String(raw);
+    }
+
+    function Nls2ComparisonBlock({ comparison }) {
+      if (!comparison) return null;
+      if (!comparison.hasComparison) {
+        return (
+          <div>
+            <Nls2SectionLabel>L/R comparison</Nls2SectionLabel>
+            <p className="text-[9px] text-textMuted">UNAVAILABLE (one or both eyes missing data)</p>
+          </div>
+        );
+      }
+      const cc = comparison.conditionComparison || {};
+      const fields = [
+        ['overall occupancyDiff', comparison.occupancyDiff],
+        ['occupancy dead zone', comparison.occupancyDeadZone],
+        ['occupancyUniformityDiff', cc.occupancyUniformityDiff],
+        ['lengthUniformityDiff', cc.lengthUniformityDiff],
+        ['reducedOccupancyDiff (per zone)', cc.reducedOccupancyDiff],
+        ['irregularAreaDiff (per zone)', cc.irregularAreaDiff],
+      ];
+      return (
+        <div>
+          <Nls2SectionLabel>L/R comparison</Nls2SectionLabel>
+          <div className="space-y-1">
+            {fields.map(([label, raw]) => (
+              <div key={label} className="text-[9px]">
+                <div className="flex justify-between gap-2">
+                  <span className="text-textMuted">{label}</span>
+                  <span className="text-lime-300 font-mono text-right break-all">{nls2CompareValueText(raw)}</span>
+                </div>
+                {label !== 'occupancy dead zone' && (
+                  <div className="text-right text-cyan-300">{nls2CompareStatus(raw)}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function Nls2ThresholdsBlock() {
+      const t = (typeof NLS2_THRESHOLDS !== 'undefined') ? NLS2_THRESHOLDS : null;
+      if (!t) return null;
+      return (
+        <div>
+          <Nls2SectionLabel>Current empirical thresholds (display-only, not editable)</Nls2SectionLabel>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+            {Object.entries(t).map(([k, v]) => (
+              <div key={k} className="flex justify-between text-[9px]"><span className="text-textMuted">{k}</span><span className="text-textSecondary font-mono">{typeof v === 'number' ? v : String(v)}</span></div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function Nls2ChecklistBlock() {
+      const items = [
+        ['Test A — normal/even base', 'Expect: no random sparse flags, stable uniformity, no irregular-area false positives.'],
+        ['Test B — visibly sparser zone', 'Expect: correct zone identified, reduced occupancy appears for that zone.'],
+        ['Test C — visibly shorter/irregular zone', 'Expect: length difference / short-concentration response, no biological interpretation shown anywhere.'],
+        ['Test D — repeat scan, same eye', 'Expect: reasonably repeating results; small variation absorbed by dead zones (not flagged as a change).'],
+        ['Test E — intentionally poor capture', 'Expect: confidence falls, UNKNOWN appears instead of false confident conclusions.'],
+      ];
+      return (
+        <div>
+          <Nls2SectionLabel>Real-device validation checklist</Nls2SectionLabel>
+          <div className="space-y-1.5">
+            {items.map(([t2, d]) => (
+              <div key={t2} className="text-[9px]">
+                <p className="text-cyan-200 font-semibold">{t2}</p>
+                <p className="text-textMuted">{d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function Nls2ValidationPanel({ left, right, comparison, meta }) {
+      const [copied, setCopied] = useState(false);
+      const copy = () => {
+        try {
+          const payload = JSON.stringify({ left, right, comparison, meta }, null, 2);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(payload).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+          }
+        } catch (e) { /* clipboard unreliable on some iOS versions — panel above remains the source of truth */ }
+      };
+      return (
+        <Section title="NLS2 VALIDATION DIAGNOSTICS (temporary, debug build)" defaultOpen={false}>
+          <div className="select-text max-h-[70vh] overflow-y-auto overflow-x-hidden pr-1">
+            <p className="text-[9px] text-textMuted mb-2">Engineering diagnostics for real-device measurement validation. Not part of the product UI — does not expose lash count, health, damage, or safe-load claims.</p>
+            <Nls2EyeValidationBlock label="LEFT" obs={left} meta={meta ? meta.left : null} />
+            <div className="h-3" />
+            <Nls2EyeValidationBlock label="RIGHT" obs={right} meta={meta ? meta.right : null} />
+            <div className="h-3" />
+            <Nls2ComparisonBlock comparison={comparison} />
+            <div className="h-3" />
+            <Nls2ThresholdsBlock />
+            <div className="h-3" />
+            <Nls2ChecklistBlock />
+            <button onClick={copy} className="mt-3 w-full py-2 rounded-md text-[10px] font-semibold uppercase tracking-wide bg-white/[0.06] text-textSecondary border border-border press-scale">
+              {copied ? 'Copied' : 'Copy NLS Diagnostics'}
+            </button>
+          </div>
+        </Section>
+      );
+    }
+    // ============================================================
+    // END NLS2 VALIDATION DIAGNOSTIC
+    // ============================================================
+
     function LashEyeCard({ titleKey, obs, lang }) {
       if (!obs || !obs.hasData) {
         return (
@@ -4950,8 +4930,12 @@
           </div>
         );
       }
+      // NLS-1 count-safety fix: no lash-count-like row here (removed
+      // natLashVisibleCount/countLow-countHigh) — the audit concluded
+      // stable candidate clusters are not a defensible individual-lash
+      // estimate. occupancy/visualDensity below remains the master-
+      // facing representation of the visible lash base (requirement 6).
       const rows = [
-        [t('natLashVisibleCount', lang), `≈ ${obs.countLow}–${obs.countHigh}`],
         [t('natLashConfidenceLabel', lang), `${Math.round(obs.confidence*100)}%`],
         [t('natLashVisualDensity', lang), lashDensityLabel(obs.visualDensity, lang)],
         [t('natLashDistribution', lang), lashDistributionText(obs, lang)],
@@ -4970,7 +4954,6 @@
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-textMuted mt-2 leading-snug">{t('natLashCountExplanation', lang)}</p>
           <div className="grid grid-cols-3 gap-1.5 mt-3">
             {LASH_ZONE_KEYS.map((zk, i) => (
               <div key={zk} className="rounded-md p-1.5 text-center border border-border bg-white/[0.02]">
@@ -4985,8 +4968,11 @@
 
     function NaturalLashProfileScreen({ profile, onDone, onBack }) {
       const lang = useLang();
-      const { left, right, comparison } = profile;
+      const { left, right, comparison, debugMeta } = profile;
       const notes = generateLashApplicationNotes(left, right, comparison, lang);
+      // NLS2 VALIDATION DIAGNOSTIC — debug-only, remove together with
+      // the rest of the NLS2 validation build.
+      const nls2DebugAvailable = isDebugModeEnabled();
       return (
         <div className="h-full flex flex-col fade-in">
           <div className="p-4 flex justify-between items-center glass-strong">
@@ -5017,6 +5003,10 @@
                 ))}
               </div>
             </Section>
+
+            {nls2DebugAvailable && (
+              <Nls2ValidationPanel left={left} right={right} comparison={comparison} meta={debugMeta} />
+            )}
 
             <button onClick={onDone} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)]">
               {t('natLashDoneBtn', lang)}

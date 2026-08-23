@@ -3228,7 +3228,51 @@
 
           const roi = extractEyeROI(canvas, eyePts, browPts, 0.35);
           const eyeWidthPx = dist(eyePts[0], eyePts[3]) / scale;
-          const quality = assessLashFrameQuality(roi, metrics.ear, eyeWidthPx, video.videoWidth);
+          // The distance/size gate must compare eyeWidthPx against how
+          // much of the raw camera frame the user ACTUALLY SEES, not
+          // against video.videoWidth (the raw sensor frame). getUserMedia
+          // is requested with no aspectRatio/width/height constraint, so
+          // on iOS the raw stream is frequently landscape regardless of
+          // the portrait container; object-fit:cover then crops that
+          // wider raw frame down to what's shown on screen. Measuring
+          // against the uncropped raw width means the eye can fill the
+          // visible portrait preview yet still read as a tiny fraction
+          // of the much-wider raw frame — this is the exact mechanism
+          // behind "Поднесите ближе" firing when the eye already looks
+          // close. Fix: derive the VISIBLE slice (in raw video pixels)
+          // from the actual container box + object-fit:cover math, and
+          // gate against that instead. Orientation-agnostic — reduces to
+          // the old behavior (effective == full video) whenever the
+          // video's own aspect ratio already matches the container's
+          // (e.g. a stream that's natively portrait-shot), so a device
+          // that never had this problem sees no change at all.
+          const containerEl = containerRef.current;
+          const containerRect = containerEl ? containerEl.getBoundingClientRect() : null;
+          const containerW = containerRect && containerRect.width > 0 ? containerRect.width : video.videoWidth;
+          const containerH = containerRect && containerRect.height > 0 ? containerRect.height : video.videoHeight;
+          const coverScale = Math.max(containerW / video.videoWidth, containerH / video.videoHeight);
+          const effectiveVisibleWidth = containerW / coverScale;
+          const effectiveVisibleHeight = containerH / coverScale;
+          const quality = assessLashFrameQuality(roi, metrics.ear, eyeWidthPx, effectiveVisibleWidth);
+          // TEMP DIAGNOSTIC — remove after verifying the fix on a real
+          // device. Logs everything feeding the distance gate so a real
+          // "still too far" vs "gate still wrong" case can be told apart.
+          console.log('[NLS DIAG]', {
+            side: sd,
+            videoWidth: video.videoWidth, videoHeight: video.videoHeight,
+            containerW, containerH, coverScale: coverScale.toFixed(3),
+            effectiveVisibleWidth: effectiveVisibleWidth.toFixed(1), effectiveVisibleHeight: effectiveVisibleHeight.toFixed(1),
+            eyeWidthPx: eyeWidthPx.toFixed(1),
+            oldWidthFrac: (eyeWidthPx / video.videoWidth).toFixed(3),
+            widthFrac: quality.widthFrac?.toFixed(3),
+            newWidthFrac: quality.widthFrac?.toFixed(3),
+            roiW: roi ? roi.w.toFixed(1) : null,
+            roiH: roi ? roi.h.toFixed(1) : null,
+            roiMinDim: roi ? Math.min(roi.w, roi.h).toFixed(1) : null,
+            ear: metrics.ear?.toFixed(3),
+            sharpness: quality.sharpness?.toFixed(1), brightness: quality.brightness?.toFixed(1),
+            ok: quality.ok, reasons: quality.reasons,
+          });
 
           const lashLineLocal = roi ? detectLashLine(roi.eyeLocal) : null;
           const lashLineVideo = lashLineLocal ? lashLineLocal.map(p => ({ x: (p.x+roi.x0)/scale, y: (p.y+roi.y0)/scale })) : null;

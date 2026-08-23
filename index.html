@@ -225,6 +225,12 @@
       eyelidMild: {ru:'Лёгкое нависание', en:'Mild hooding'},
       eyelidOpen: {ru:'Открытое веко', en:'Open eyelid'},
       eyelidUncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation'},
+      eyelidTypeLabel: {ru:'Тип складки века', en:'Crease type'},
+      eyelidTypeSubLabel: {ru:'Пиксельный анализ видимости складки', en:'Pixel-based crease visibility'},
+      eyelidTypeOpenCrease: {ru:'Открытая складка (видна чётко)', en:'Visible / open crease'},
+      eyelidTypeHooded: {ru:'Нависшее веко (складка скрыта)', en:'Hooded eyelid'},
+      eyelidTypeMonolid: {ru:'Монолид (складка не выявлена)', en:'Monolid / no visible crease'},
+      eyelidTypeUncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation'},
       eyeHighlightTitle: {ru:'О ваших глазах', en:'Eye highlight'},
 
       shape_round: {ru:'Округлая', en:'Round'},
@@ -356,6 +362,13 @@
       photoErrorQuality: {ru:'Недостаточно качества для точного анализа. Используйте фото анфас при хорошем освещении, без сильного наклона головы и без перекрытия глаз.', en:'Image quality is insufficient for reliable analysis. Use a front-facing photo with good lighting and unobstructed eyes.'},
       photoTryAgain: {ru:'Выбрать другое фото', en:'Choose another photo'},
       cameraDenied: {ru:'Нет доступа к камере', en:'Camera access denied'},
+      reviewTitle: {ru:'Подтверждение анализа', en:'Confirm analysis'},
+      reviewIntro: {ru:'Проверьте результат AI и при необходимости исправьте его перед расчётом схем.', en:'Review the AI result and correct it before calculating lash designs.'},
+      reviewAiValue: {ru:'AI-значение', en:'AI value'},
+      reviewArtistValue: {ru:'Подтверждение мастера', en:'Artist confirmation'},
+      reviewConfirm: {ru:'Подтвердить и построить схемы', en:'Confirm and build designs'},
+      reviewRescan: {ru:'Повторить анализ', en:'Rescan'},
+      reviewUncertain: {ru:'Нужна ручная проверка', en:'Manual check recommended'},
     };
     function t(key, lang) { const e = STRINGS[key]; if (!e) return key; return e[lang] || e.ru; }
 
@@ -449,6 +462,102 @@
       const covByHeight = height > 0 ? gapCenter / height : 0;
       const shapeRatio = width / Math.max(height, 1);
       return { width, height, ear, widthRatio, tiltCorrected, hoodingRatio, hoodingRatioByWidth, shapeRatio, covCenterByWidth, covInnerByWidth, covOuterByWidth, covByHeight, apertureA, apertureB, apertureAsymmetry, innerTaperDeg, outerTaperDeg };
+    }
+
+    // ---- Eyelid CREASE detection — real pixel analysis, not landmark
+    // distance. --------------------------------------------------
+    // The 68-point landmark model has no point for the crease/fold
+    // itself, so the brow->lash-line GAP above (covCenterByWidth etc.)
+    // cannot tell "open eye where the crease just sits high" apart
+    // from "monolid with a similarly-sized gap because there is no
+    // fold at all" — both look like a wide gap. This looks for the
+    // fold as a real thing: a horizontal-ish brightness-gradient ridge
+    // crossing the eyelid skin between the brow and the lash line.
+    // Classical CV (grayscale row-gradient profile + prominence over a
+    // local baseline), fully deterministic on real captured pixels —
+    // same approach and same honesty rules as detectVisibleLashCandidates
+    // (Natural Lash Scan): a flat/noisy read reports low readQuality
+    // instead of guessing. Reuses extractEyeROI (defined below in the
+    // Natural Lash Scan section; function hoisting makes the forward
+    // reference safe) so there is only one ROI-cropping implementation.
+    function detectEyelidCrease(sourceCanvas, eyePoints, browPoints) {
+      const roi = extractEyeROI(sourceCanvas, eyePoints, browPoints, 0.45);
+      if (!roi || roi.w < 24 || roi.h < 16) return { valid: false };
+      let data;
+      try { data = roi.ctx.getImageData(0, 0, roi.w, roi.h).data; } catch (e) { return { valid: false }; }
+      const gray = new Float32Array(roi.w * roi.h);
+      for (let i = 0; i < roi.w * roi.h; i++) {
+        const o = i * 4;
+        gray[i] = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+      }
+
+      const eyeUpperY = Math.min(roi.eyeLocal[1].y, roi.eyeLocal[2].y);
+      const browBottomY = Math.max(...roi.browLocal.map(p => p.y));
+      // The search band: from just below the brow's lowest point down
+      // to the eye-opening's own upper contour — i.e. exactly the strip
+      // of skin where a crease fold could physically be.
+      const bandTop = Math.max(0, Math.round(browBottomY + (eyeUpperY - browBottomY) * 0.1));
+      const bandBottom = Math.min(roi.h - 1, Math.round(eyeUpperY));
+      const xMin = Math.max(0, Math.round(Math.min(roi.eyeLocal[0].x, roi.eyeLocal[3].x)));
+      const xMax = Math.min(roi.w, Math.round(Math.max(roi.eyeLocal[0].x, roi.eyeLocal[3].x)));
+      const bandW = xMax - xMin, rows = bandBottom - bandTop;
+      if (bandW < 8 || rows < 5) return { valid: false };
+
+      const rowGrad = new Float32Array(rows);
+      const rowMean = new Float32Array(rows);
+      for (let ry = 0; ry < rows; ry++) {
+        const y = bandTop + ry;
+        let sum = 0, gsum = 0, n = 0;
+        for (let x = xMin; x < xMax; x++) {
+          const idx = y * roi.w + x;
+          sum += gray[idx]; n++;
+          if (ry > 0) gsum += Math.abs(gray[idx] - gray[idx - roi.w]);
+        }
+        rowMean[ry] = n ? sum / n : 0;
+        rowGrad[ry] = n ? gsum / n : 0;
+      }
+
+      // Smooth the per-row gradient (3-row moving average) before
+      // looking for a ridge. Without this, picking the single highest
+      // of ~20-40 noisy row values (sensor/JPEG noise, stray hairs,
+      // pores) ALWAYS finds a "peak" somewhere — flat, crease-free skin
+      // produces one just as reliably as real fold does. Smoothing
+      // suppresses single-row noise spikes so what's left over is a
+      // ridge that genuinely spans more than one row, the way a real
+      // fold shadow does.
+      const smoothed = new Float32Array(rows);
+      for (let ry = 0; ry < rows; ry++) {
+        const a = rowGrad[Math.max(0, ry - 1)], b = rowGrad[ry], c = rowGrad[Math.min(rows - 1, ry + 1)];
+        smoothed[ry] = (a + b + c) / 3;
+      }
+      let peakIdx = 0, peakVal = smoothed[0];
+      for (let ry = 1; ry < rows; ry++) {
+        if (smoothed[ry] > peakVal) { peakVal = smoothed[ry]; peakIdx = ry; }
+      }
+      // Topographic prominence: how far the peak stands above the
+      // DEEPEST valley on whichever side is shallower — an absolute,
+      // noise-resistant measure of "how much does this ridge really
+      // stick out", unlike a peak/median ratio which blows up when the
+      // whole band is just uniformly flat (small denominator).
+      let minLeft = Infinity;
+      for (let ry = 0; ry <= peakIdx; ry++) minLeft = Math.min(minLeft, smoothed[ry]);
+      let minRight = Infinity;
+      for (let ry = peakIdx; ry < rows; ry++) minRight = Math.min(minRight, smoothed[ry]);
+      const prominence = peakVal - Math.max(minLeft, minRight);
+      // 0 = fold right under the brow, 1 = fold right at the lash line.
+      const creaseYFrac = rows > 1 ? peakIdx / (rows - 1) : 0.5;
+
+      // Rough proxy for whether the band even carries enough visual
+      // information to trust a "found" OR a "not found" read — flat,
+      // low-light, low-texture skin looks the same either way.
+      const meanOfMeans = rowMean.reduce((a, b) => a + b, 0) / rows;
+      const varOfMeans = rowMean.reduce((a, b) => a + (b - meanOfMeans) ** 2, 0) / rows;
+      const bandContrast = Math.sqrt(varOfMeans);
+      const sortedGrad = Array.from(rowGrad).sort((a, b) => a - b);
+      const gradBaseline = sortedGrad[Math.floor(sortedGrad.length * 0.5)] || 0;
+      const readQuality = clamp01((bandContrast - 2) / 10) * clamp01(gradBaseline / 3 + 0.3);
+
+      return { valid: true, prominence, peakVal, creaseYFrac, readQuality };
     }
 
     const REASON_MESSAGES = {
@@ -597,7 +706,7 @@
       return { color: true, hex: rgbToHex(rgb[0],rgb[1],rgb[2]), name: classifyIrisColor(rgb[0],rgb[1],rgb[2]), confidence };
     }
 
-    const EYE_METRIC_KEYS = ['widthRatio','width','height','tiltCorrected','hoodingRatio','hoodingRatioByWidth','shapeRatio','ear','covCenterByWidth','covInnerByWidth','covOuterByWidth','covByHeight','apertureA','apertureB','apertureAsymmetry','innerTaperDeg','outerTaperDeg'];
+    const EYE_METRIC_KEYS = ['widthRatio','width','height','tiltCorrected','hoodingRatio','hoodingRatioByWidth','shapeRatio','ear','covCenterByWidth','covInnerByWidth','covOuterByWidth','covByHeight','apertureA','apertureB','apertureAsymmetry','innerTaperDeg','outerTaperDeg','creaseValid','creaseProminence','creasePeak','creaseYFrac','creaseReadQuality'];
     function aggregateBuffer(buffer) {
       const pick = (side, key) => median(buffer.map(e => e[side][key]));
       const pickSide = (sideKey) => Object.fromEntries(EYE_METRIC_KEYS.map(k => [k, pick(sideKey, k)]));
@@ -847,10 +956,96 @@
       // goal/cautions, generateApplicationPlan) — derived from the same
       // richer signal above rather than a separate calculation, so
       // scoring behavior stays consistent with what the user now sees.
-      const isHooded = eyelidCategory === 'pronounced' || eyelidCategory === 'moderate';
-      const hoodedConfidence = eyelidCategory === 'uncertain' ? 0.25 : eyelidCategoryConfidence;
+      let isHooded = eyelidCategory === 'pronounced' || eyelidCategory === 'moderate';
+      let hoodedConfidence = eyelidCategory === 'uncertain' ? 0.25 : eyelidCategoryConfidence;
       const hoodingSignalsAgree = signalAgreement > 0.6 && lrAgreement > 0.6;
-      const hoodingLevel = eyelidCategory === 'pronounced' ? 'full' : eyelidCategory === 'moderate' ? 'partial' : 'none';
+      let hoodingLevel = eyelidCategory === 'pronounced' ? 'full' : eyelidCategory === 'moderate' ? 'partial' : 'none';
+
+      // ---- Eyelid TYPE — crease-aware classification ----
+      // Uses the NEW pixel-based crease read TOGETHER WITH the
+      // geometric coverageIndex/eyelidCategory above — never instead
+      // of it. eyelidCategory (and everything derived from it above:
+      // isHooded/hoodedConfidence/hoodingLevel that DESIGN_CATALOG
+      // scoring reads) is completely unchanged by this block; this
+      // adds a new, additional, crease-aware field on top.
+      //   openCrease — a fold line is visible with real skin showing
+      //                above it
+      //   hooded     — a fold line is visible but sits low (close to
+      //                the lash line) and/or the geometry above
+      //                independently already reads pronounced/moderate
+      //   monolid    — no fold line found despite a readable image —
+      //                a genuine "not found", not a bad read
+      //   uncertain  — image quality in the eyelid band (or the final
+      //                combined confidence) isn't enough to trust
+      //                either a "found" or "not found" call; NEVER
+      //                forced into one of the other three
+      const avgCreaseValid = (left.creaseValid + right.creaseValid) / 2;
+      const avgCreaseReadQuality = (left.creaseReadQuality + right.creaseReadQuality) / 2;
+      const avgCreaseProminence = (left.creaseProminence + right.creaseProminence) / 2;
+      const avgCreaseYFrac = (left.creaseYFrac + right.creaseYFrac) / 2;
+      const minCreasePeak = Math.min(left.creasePeak, right.creasePeak);
+      const minCreaseProminence = Math.min(left.creaseProminence, right.creaseProminence);
+      const creaseLrAgreement = clamp01(1 - Math.abs(left.creaseProminence - right.creaseProminence) / 8);
+
+      // Absolute gray-level floors, NOT a peak/baseline ratio. A ratio
+      // blows up the instant sensor/JPEG noise nudges one row a little
+      // above an already-tiny median — which is exactly the case
+      // (perfectly flat, crease-free skin) that most needs an honest
+      // "no fold found" instead of a false positive. Both the peak
+      // itself and its topographic prominence must clear a real floor
+      // — and the gate uses the WEAKER eye (min, not average) so one
+      // eye's borderline noise can't drag a genuinely below-floor read
+      // over the line just by averaging with the other eye.
+      const CREASE_PEAK_FLOOR = 7;
+      const CREASE_PROMINENCE_FLOOR = 5;
+      const creaseReadable = avgCreaseValid > 0.5 && avgCreaseReadQuality > 0.28;
+      const creaseFold = minCreasePeak > CREASE_PEAK_FLOOR && minCreaseProminence > CREASE_PROMINENCE_FLOOR;
+
+      let eyelidType;
+      if (!creaseReadable) {
+        eyelidType = 'uncertain';
+      } else if (!creaseFold) {
+        eyelidType = 'monolid';
+      } else if (avgCreaseYFrac > 0.62 || eyelidCategory === 'pronounced' || eyelidCategory === 'moderate') {
+        eyelidType = 'hooded';
+      } else {
+        eyelidType = 'openCrease';
+      }
+
+      // For the "no fold found" case, agreement reflects how far the
+      // metric that actually failed its floor sat below it, not a flat
+      // 0%/100% — a narrow miss reads as low-but-nonzero confidence.
+      const creasePeakRatio = minCreasePeak / CREASE_PEAK_FLOOR;
+      const creaseProminenceRatio = minCreaseProminence / CREASE_PROMINENCE_FLOOR;
+      const failingCreaseRatios = [creasePeakRatio, creaseProminenceRatio].filter(r => r <= 1);
+      const closestFailRatio = failingCreaseRatios.length ? Math.max(...failingCreaseRatios) : 0;
+      const eyelidTypeMeasurementAgreement = creaseFold
+        ? clamp01(1 - Math.abs(avgCreaseYFrac - (eyelidType === 'hooded' ? 0.75 : 0.4)) / 0.4)
+        : clamp01(1 - closestFailRatio);
+      const eyelidTypeConf = computeConfidence({
+        measurementAgreement: eyelidTypeMeasurementAgreement,
+        landmarkStability: stabilityFactor('hooding'),
+        imageQuality: clamp01(imageQuality * 0.4 + avgCreaseReadQuality * 0.6),
+        lrAgreement: creaseLrAgreement, poseQuality,
+      });
+      let eyelidTypeConfidence = eyelidTypeConf.score;
+      if (eyelidTypeConfidence < 0.32) eyelidType = 'uncertain';
+
+      // The crease-aware type is the authoritative semantic eyelid read.
+      // Keep the geometric exposure score for explainability, but never
+      // let it make a hooded eye look open to recommendations.
+      if (eyelidType === 'hooded') {
+        isHooded = true;
+        hoodedConfidence = Math.max(hoodedConfidence, eyelidTypeConfidence);
+        if (eyelidCategory === 'open' || eyelidCategory === 'mild') eyelidCategory = 'moderate';
+        hoodingLevel = eyelidCategory === 'pronounced' ? 'full' : 'partial';
+      } else if (eyelidType === 'monolid' && eyelidCategory === 'open') {
+        eyelidCategory = 'uncertain';
+        eyelidCategoryConfidence = Math.min(eyelidCategoryConfidence, 0.31);
+        isHooded = false;
+        hoodedConfidence = 0.25;
+        hoodingLevel = 'none';
+      }
 
       // ---- EYE SET ----
       const spacingRatio = interEyeDistance / ((left.width + right.width) / 2);
@@ -926,10 +1121,12 @@
         aggregated: { whRatio, avgTaperDeg: avgTaper, coverageIndex, heightCrossCheck, spacingRatio, relativeEyeSize },
         shapeScores, shapeDecision: eyeShapeCategory, shapeMargin, rawTopScore, shapeConfidenceFactors: shapeConf.factors,
         hoodingDecision: eyelidCategory, hoodingConfidenceFactors: hoodConf.factors,
+        eyelidTypeDecision: eyelidType, eyelidTypeConfidenceFactors: eyelidTypeConf.factors,
+        crease: { left: { valid: left.creaseValid > 0.5, peak: left.creasePeak, prominence: left.creaseProminence, yFrac: left.creaseYFrac, readQuality: left.creaseReadQuality }, right: { valid: right.creaseValid > 0.5, peak: right.creasePeak, prominence: right.creaseProminence, yFrac: right.creaseYFrac, readQuality: right.creaseReadQuality }, avgProminence: avgCreaseProminence, avgYFrac: avgCreaseYFrac, readable: creaseReadable, foldDetected: creaseFold },
         tiltConfidenceFactors: tiltConf.factors, spacingConfidenceFactors: spacingConf.factors,
         symmetryConfidenceFactors: symmetryReliability.factors,
         imageQuality, poseQuality, singleFrame,
-        notReliablyMeasurable: ['depth/protrusion (needs stereo or multi-angle capture)', 'true crease-line position (no crease landmark in this model)', 'scleral show relative to iris (no iris/pupil landmark in this model)'],
+        notReliablyMeasurable: ['depth/protrusion (needs stereo or multi-angle capture)', 'exact crease-line position when makeup/lighting/hair obscure it (pixel read, not a landmark — see eyelidType/eyelidTypeConfidence)', 'scleral show relative to iris (no iris/pupil landmark in this model)'],
       };
 
       return {
@@ -939,6 +1136,7 @@
         tiltTendency, tiltConfidence, tiltDegrees: avgTilt,
         isHooded, hoodedConfidence, hoodingSignalsAgree, hoodingRatio: avgHoodingA, hoodingLevel,
         eyelidCategory, eyelidCategoryConfidence,
+        eyelidType, eyelidTypeConfidence,
         isCloseSet, isWideSet, spacingRatio, spacingConfidence, eyeSetCategory,
         relativeEyeSize, eyeSizeCategory, eyeSizeConfidence,
         compositeAsymmetry, asymmetryBreakdown, symmetryCategory: symmetryCategoryFinal, symmetryConfidence,
@@ -2591,6 +2789,23 @@
           hasHadValidFrameRef.current = true;
           console.log('[LSA] VALID FRAME accepted into buffer');
 
+          // Crease pixel analysis only runs on frames already accepted
+          // by the quality gate above, same as the other per-frame CV
+          // work in this tick — cheap enough at this ~5fps tick rate.
+          const leftBrowPts = det.landmarks.getLeftEyeBrow(), rightBrowPts = det.landmarks.getRightEyeBrow();
+          const leftCrease = detectEyelidCrease(canvas, leftEye, leftBrowPts);
+          const rightCrease = detectEyelidCrease(canvas, rightEye, rightBrowPts);
+          leftMetrics.creaseValid = leftCrease.valid ? 1 : 0;
+          leftMetrics.creaseProminence = leftCrease.valid ? leftCrease.prominence : 0;
+          leftMetrics.creasePeak = leftCrease.valid ? leftCrease.peakVal : 0;
+          leftMetrics.creaseYFrac = leftCrease.valid ? leftCrease.creaseYFrac : 0.5;
+          leftMetrics.creaseReadQuality = leftCrease.valid ? leftCrease.readQuality : 0;
+          rightMetrics.creaseValid = rightCrease.valid ? 1 : 0;
+          rightMetrics.creaseProminence = rightCrease.valid ? rightCrease.prominence : 0;
+          rightMetrics.creasePeak = rightCrease.valid ? rightCrease.peakVal : 0;
+          rightMetrics.creaseYFrac = rightCrease.valid ? rightCrease.creaseYFrac : 0.5;
+          rightMetrics.creaseReadQuality = rightCrease.valid ? rightCrease.readQuality : 0;
+
           const qualityScore = det.detection.score * (1 - Math.min(1, Math.abs(headPose.roll)/30)) * (1 - Math.min(1, Math.abs(headPose.yawProxy)/0.4));
           const verticalAsymRaw = (headPose.leftEyeCenter.y - headPose.rightEyeCenter.y) / Math.max(headPose.interEyeDistance, 1);
           bufferRef.current.push({ t: now, leftMetrics, rightMetrics, headPose, qualityScore, faceBoxWidth: det.detection.box.width, verticalAsymRaw });
@@ -3187,6 +3402,20 @@
           console.log('[Photo] quality', quality);
           if (!quality.ok) { setState('error'); return; }
 
+          const leftBrowPts = det.landmarks.getLeftEyeBrow(), rightBrowPts = det.landmarks.getRightEyeBrow();
+          const leftCrease = detectEyelidCrease(canvas, leftEye, leftBrowPts);
+          const rightCrease = detectEyelidCrease(canvas, rightEye, rightBrowPts);
+          leftMetrics.creaseValid = leftCrease.valid ? 1 : 0;
+          leftMetrics.creaseProminence = leftCrease.valid ? leftCrease.prominence : 0;
+          leftMetrics.creasePeak = leftCrease.valid ? leftCrease.peakVal : 0;
+          leftMetrics.creaseYFrac = leftCrease.valid ? leftCrease.creaseYFrac : 0.5;
+          leftMetrics.creaseReadQuality = leftCrease.valid ? leftCrease.readQuality : 0;
+          rightMetrics.creaseValid = rightCrease.valid ? 1 : 0;
+          rightMetrics.creaseProminence = rightCrease.valid ? rightCrease.prominence : 0;
+          rightMetrics.creasePeak = rightCrease.valid ? rightCrease.peakVal : 0;
+          rightMetrics.creaseYFrac = rightCrease.valid ? rightCrease.creaseYFrac : 0.5;
+          rightMetrics.creaseReadQuality = rightCrease.valid ? rightCrease.readQuality : 0;
+
           const verticalAsymRaw = (headPose.leftEyeCenter.y - headPose.rightEyeCenter.y) / Math.max(headPose.interEyeDistance, 1);
           const frame = { t: 0, leftMetrics, rightMetrics, headPose, faceBoxWidth: det.detection.box.width, verticalAsymRaw };
           const aggregated = aggregateBuffer([frame, frame, frame]);
@@ -3319,11 +3548,15 @@
         : p.eyelidCategory === 'mild' ? t('eyelidMild', lang)
         : p.eyelidCategory === 'open' ? t('eyelidOpen', lang)
         : t('eyelidUncertain', lang);
+      const eyelidTypeLabel = p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
+        : p.eyelidType === 'hooded' ? t('eyelidTypeHooded', lang)
+        : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
+        : t('eyelidTypeUncertain', lang);
       const spacing = t('eyeSet_' + p.eyeSetCategory, lang);
       const eyeSize = t('eyeSize_' + p.eyeSizeCategory, lang);
       const symmetry = t('symmetry_' + p.symmetryCategory, lang);
       const irisName = iris?.name ? (lang==='en' ? IRIS_NAMES[iris.name].en : IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);
-      return { shape, tilt, hooding, spacing, eyeSize, symmetry, irisName };
+      return { shape, tilt, hooding, eyelidTypeLabel, spacing, eyeSize, symmetry, irisName };
     }
 
     // ---- Eye Highlight ----
@@ -3496,6 +3729,7 @@
             <Section title={t('eyeProfileTitle', lang)} defaultOpen>
               <EyeProfileRow icon="shape" label={t('shapeLabel', lang)} sublabel={t('shapeSubLabel', lang)} value={labels.shape} confidence={p.eyeShapeCategory === 'uncertain' ? undefined : p.eyeShapeConfidence} />
               <EyeProfileRow icon="lid" label={t('lidLabel', lang)} sublabel={t('lidSubLabel', lang)} value={labels.hooding} confidence={p.eyelidCategory === 'uncertain' ? undefined : p.eyelidCategoryConfidence} />
+              <EyeProfileRow icon="lid" label={t('eyelidTypeLabel', lang)} sublabel={t('eyelidTypeSubLabel', lang)} value={labels.eyelidTypeLabel} confidence={p.eyelidType === 'uncertain' ? undefined : p.eyelidTypeConfidence} />
               <EyeProfileRow icon="size" label={t('spacingLabel', lang)} sublabel={t('spacingSubLabel', lang)} value={labels.spacing} confidence={p.spacingConfidence} />
               <EyeProfileRow icon="position" label={t('tiltLabel', lang)} sublabel={t('tiltSubLabel', lang)} value={labels.tilt} confidence={p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? undefined : p.tiltConfidence} />
               <EyeProfileRow icon="size" label={t('eyeSizeLabel', lang)} sublabel={t('eyeSizeSubLabel', lang)} value={labels.eyeSize} confidence={p.eyeSizeConfidence} />
@@ -4080,6 +4314,21 @@
             <DebugFactorBars factors={d.hoodingConfidenceFactors} />
           </div>
           <div>
+            <p className="text-[10px] font-semibold text-accent uppercase tracking-wider mb-1">EYELID CREASE — PIXEL ANALYSIS</p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mb-1">
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">L peak</span><span className="text-textSecondary font-mono">{d.crease.left.peak.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">R peak</span><span className="text-textSecondary font-mono">{d.crease.right.peak.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">L prominence</span><span className="text-textSecondary font-mono">{d.crease.left.prominence.toFixed(3)}</span></div>
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">R prominence</span><span className="text-textSecondary font-mono">{d.crease.right.prominence.toFixed(3)}</span></div>
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">L yFrac</span><span className="text-textSecondary font-mono">{d.crease.left.yFrac.toFixed(3)}</span></div>
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">R yFrac</span><span className="text-textSecondary font-mono">{d.crease.right.yFrac.toFixed(3)}</span></div>
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">L readQuality</span><span className="text-textSecondary font-mono">{d.crease.left.readQuality.toFixed(3)}</span></div>
+              <div className="flex justify-between text-[9px]"><span className="text-textMuted">R readQuality</span><span className="text-textSecondary font-mono">{d.crease.right.readQuality.toFixed(3)}</span></div>
+            </div>
+            <p className="text-[9px] text-textSecondary">decision: <span className="text-cyan font-mono">{d.eyelidTypeDecision}</span> · readable: <span className="font-mono">{String(d.crease.readable)}</span> · foldDetected: <span className="font-mono">{String(d.crease.foldDetected)}</span></p>
+            <DebugFactorBars factors={d.eyelidTypeConfidenceFactors} />
+          </div>
+          <div>
             <p className="text-[10px] font-semibold text-accent uppercase tracking-wider mb-1">OUTER CORNER — CONFIDENCE</p>
             <DebugFactorBars factors={d.tiltConfidenceFactors} />
           </div>
@@ -4154,6 +4403,23 @@
                 {p.eyelidCategory !== 'uncertain' && <> — <span className="text-cyan">{(p.eyelidCategoryConfidence*100).toFixed(0)}%</span></>}
               </p>
               <p className="text-xs text-textSecondary">{p.hoodingSignalsAgree ? (lang==='en'?'Independent geometric signals (center, inner and outer brow-to-lid coverage, cross-checked against eye opening) agree.':'Независимые геометрические сигналы (центр, внутренний и внешний угол, сверка с раскрытием глаза) согласуются.') : (lang==='en'?'Signals disagree — estimate is approximate, confidence reduced.':'Сигналы расходятся — оценка приблизительная, доверие снижено.')}</p>
+            </div>
+
+            <div className="glass rounded-lg p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <ParamIcon name="lid" className="w-4 h-4 text-accent" />
+                <h3 className="label-tech">{t('eyelidTypeLabel', lang)}</h3>
+              </div>
+              <p className="text-sm text-textPrimary mb-1">
+                {p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
+                  : p.eyelidType === 'hooded' ? t('eyelidTypeHooded', lang)
+                  : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
+                  : t('eyelidTypeUncertain', lang)}
+                {p.eyelidType !== 'uncertain' && <> — <span className="text-cyan">{(p.eyelidTypeConfidence*100).toFixed(0)}%</span></>}
+              </p>
+              <p className="text-xs text-textSecondary">{lang==='en'
+                ? 'Based on real pixel analysis of the eyelid skin (looking for an actual fold line), combined with the geometric brow-to-lid coverage above — not distance alone.'
+                : 'Определено по пиксельному анализу кожи века (поиск реальной линии складки) в сочетании с геометрическим сигналом выше — не только по расстоянию.'}</p>
             </div>
 
             <div className="glass rounded-lg p-5">
@@ -4313,6 +4579,93 @@
       );
     }
 
+    function ReviewScreen({ result, onConfirm, onBack }) {
+      const lang = useLang();
+      const initial = result.eyeProfile;
+      const [values, setValues] = useState({
+        eyeShapeCategory: initial.eyeShapeCategory,
+        eyelidType: initial.eyelidType,
+        eyeSetCategory: initial.eyeSetCategory,
+        tiltTendency: initial.tiltTendency,
+        eyeSizeCategory: initial.eyeSizeCategory,
+        symmetryCategory: initial.symmetryCategory,
+      });
+      const optionLabels = {
+        eyeShapeCategory: { uncertain: t('shape_uncertain', lang), round: t('shape_round', lang), almond: t('shape_almond', lang), elongatedAlmond: t('shape_elongatedAlmond', lang), narrow: t('shape_narrow', lang) },
+        eyelidType: { uncertain: t('eyelidTypeUncertain', lang), hooded: t('eyelidTypeHooded', lang), monolid: t('eyelidTypeMonolid', lang), openCrease: t('eyelidTypeOpenCrease', lang) },
+        eyeSetCategory: { close: t('eyeSet_close', lang), balanced: t('eyeSet_balanced', lang), wide: t('eyeSet_wide', lang) },
+        tiltTendency: { upturned: t('tiltUpturned', lang), neutral: t('tiltNeutral', lang), downturned: t('tiltDownturned', lang), uncertain: t('tiltUncertain', lang) },
+        eyeSizeCategory: { small: t('eyeSize_small', lang), medium: t('eyeSize_medium', lang), large: t('eyeSize_large', lang) },
+        symmetryCategory: { balanced: t('symmetry_balanced', lang), mild: t('symmetry_mild', lang), noticeable: t('symmetry_noticeable', lang), uncertain: t('symmetry_uncertain', lang) },
+      };
+      const fields = [
+        ['eyeShapeCategory', t('shapeLabel', lang), ['uncertain', 'round', 'almond', 'elongatedAlmond', 'narrow']],
+        ['eyelidType', t('eyelidTypeLabel', lang), ['uncertain', 'hooded', 'monolid', 'openCrease']],
+        ['eyeSetCategory', t('spacingLabel', lang), ['close', 'balanced', 'wide']],
+        ['tiltTendency', t('tiltLabel', lang), ['upturned', 'neutral', 'downturned', 'uncertain']],
+        ['eyeSizeCategory', t('eyeSizeLabel', lang), ['small', 'medium', 'large']],
+        ['symmetryCategory', t('symmetryLabel', lang), ['balanced', 'mild', 'noticeable', 'uncertain']],
+      ];
+      const confirm = () => {
+        const legacyShape = { round: 'round', almond: 'almond', elongatedAlmond: 'elongated', narrow: 'mixed', uncertain: 'mixed' };
+        const eyelidCategory = values.eyelidType === 'hooded' ? 'moderate' : values.eyelidType === 'monolid' ? 'uncertain' : values.eyelidType === 'openCrease' ? 'open' : 'uncertain';
+        const confirmedProfile = {
+          ...initial,
+          ...values,
+          dominantShape: legacyShape[values.eyeShapeCategory],
+          isCloseSet: values.eyeSetCategory === 'close',
+          isWideSet: values.eyeSetCategory === 'wide',
+          isHooded: values.eyelidType === 'hooded',
+          hoodingLevel: values.eyelidType === 'hooded' ? 'partial' : 'none',
+          hoodedConfidence: values.eyelidType === 'hooded' ? Math.max(initial.eyelidTypeConfidence || 0, 0.8) : 0.25,
+          eyelidCategory,
+          eyelidCategoryConfidence: values.eyelidType === 'uncertain' ? 0.25 : 0.8,
+          eyeShapeConfidence: values.eyeShapeCategory === initial.eyeShapeCategory ? initial.eyeShapeConfidence : 0.8,
+          artistConfirmed: true,
+        };
+        onConfirm({
+          ...result,
+          eyeProfile: confirmedProfile,
+          originalAIProfile: initial,
+          designs: rankDesigns(confirmedProfile, lang),
+          artistConfirmed: true,
+        });
+      };
+      return (
+        <div className="h-full flex flex-col fade-in">
+          <div className="p-4 flex justify-between items-center glass-strong">
+            <BackButton onBack={onBack} />
+            <span className="text-sm font-medium text-textPrimary">{t('reviewTitle', lang)}</span>
+            <div className="w-10"></div>
+          </div>
+          <div className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-4">
+            <div className="relative rounded-lg overflow-hidden aspect-[4/5] border border-border">
+              <img src={result.originalImage} className="w-full h-full object-cover" alt="client" />
+              <ResultMeshOverlay landmarks={result.landmarks} imageWidth={result.imageWidth} imageHeight={result.imageHeight} />
+            </div>
+            <div className="glass rounded-lg p-4">
+              <p className="text-sm text-textSecondary leading-relaxed">{t('reviewIntro', lang)}</p>
+            </div>
+            <div className="glass rounded-lg p-4">
+              {fields.map(([key, label, options]) => (
+                <label key={key} className="block py-3 border-b border-border/60 last:border-0">
+                  <span className="block text-xs text-textSecondary mb-1.5">{label}</span>
+                  <select value={values[key]} onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))} className="w-full rounded-md bg-bg2 border border-border px-3 py-2.5 text-sm text-textPrimary">
+                    {options.map(option => <option key={option} value={option}>{optionLabels[key][option]}</option>)}
+                  </select>
+                  <span className="block text-[10px] text-textMuted mt-1">{t('reviewAiValue', lang)}: {optionLabels[key][initial[key]] || t('reviewUncertain', lang)}</span>
+                </label>
+              ))}
+            </div>
+            <button onClick={confirm} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)]">
+              {t('reviewConfirm', lang)}
+            </button>
+            <button onClick={onBack} className="w-full py-3 rounded-md border border-border text-sm text-textSecondary">{t('reviewRescan', lang)}</button>
+          </div>
+        </div>
+      );
+    }
+
     function App() {
       const [lang, setLangState] = useState(() => {
         try { return localStorage.getItem('lashStudioLang') || 'ru'; } catch (e) { return 'ru'; }
@@ -4353,7 +4706,8 @@
         return () => { cancelled = true; };
       }, [loadAttempt]);
 
-      const handleComplete = (rec) => { setResult(rec); setNaturalLashProfile(null); setScreen('hero'); };
+      const handleComplete = (rec) => { setResult(rec); setNaturalLashProfile(null); setScreen('review'); };
+      const handleReviewConfirm = (rec) => { setResult(rec); setScreen('hero'); };
       const retryLoad = () => setLoadAttempt(a => a + 1);
       const viewMap = (design) => { setActiveDesign(design); setScreen('lashmap'); };
       const handleLashScanComplete = (profile) => { setNaturalLashProfile(profile); setScreen('lashprofile'); };
@@ -4369,6 +4723,7 @@
             {screen === 'home' && <HomeScreen onLive={() => setScreen('scan')} onPhoto={() => setScreen('photo')} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} />}
             {screen === 'scan' && <LiveScanScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} onSetLang={setLang} />}
             {screen === 'photo' && <PhotoAnalysisScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} />}
+            {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} />}
             {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => setScreen('details')} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} />}
             {screen === 'catalog' && result && <AllDesignsScreen result={result} onSelect={viewMap} onBack={() => setScreen('hero')} />}
             {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={activeDesign} naturalLashProfile={naturalLashProfile} onBack={() => setScreen('hero')} />}

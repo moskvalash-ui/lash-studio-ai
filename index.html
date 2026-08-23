@@ -280,6 +280,7 @@
       natLashSearching: {ru:'Поиск глаза', en:'Searching for eye'},
       natLashScanningStatus: {ru:'Сканирование ресниц', en:'Scanning lashes'},
       natLashMoveCloserHint: {ru:'Поднесите глаз ближе для более точного анализа', en:'Move closer for a more accurate lash scan'},
+      natLashInsufficientResolutionHint: {ru:'Недостаточно деталей для анализа ресниц. Держите телефон неподвижно и обеспечьте хорошее освещение.', en:'Not enough detail for lash analysis. Hold the phone steady and use good lighting.'},
       natLashEyeClosedHint: {ru:'Не закрывайте глаз', en:'Keep the eye open'},
       natLashBlurryHint: {ru:'Слишком размыто — держите камеру устойчивее', en:'Too blurry — hold the camera steadier'},
       natLashTooDarkHint: {ru:'Недостаточно света', en:'More light is needed'},
@@ -1236,7 +1237,21 @@
       if (!roi) { reasons.push('lash_no_eye'); return { ok: false, reasons }; }
       const minDim = Math.min(roi.w, roi.h);
       const widthFrac = eyeWidthPx / Math.max(frameWidthPx, 1);
-      if (minDim < 60 || widthFrac < 0.22) reasons.push('lash_too_far');
+      // Real-iPhone diagnostic (video 480x640, container 393x571):
+      // widthFrac=0.078 at a visually normal, comfortable ~25-30cm
+      // distance (EAR/sharpness/brightness all healthy) — the old 0.22
+      // threshold implied ~8-11cm, near/beyond macro-focus range. 0.11
+      // targets a realistic ~18-22cm working distance instead of one
+      // photo's exact number.
+      if (widthFrac < 0.11) reasons.push('lash_too_far');
+      // Split from the distance gate: minDim<60 is an absolute pixel
+      // count on the (possibly downscaled) processing canvas, not a
+      // distance measurement — it answers "is there enough resolved
+      // detail in the ROI", which a low-resolution camera stream can
+      // fail even at a perfectly good distance. Telling the user to
+      // move closer for THIS doesn't help (and can make framing worse)
+      // — it's a genuinely different problem needing its own message.
+      if (minDim < 60) reasons.push('lash_insufficient_resolution');
       if (ear < 0.12) reasons.push('lash_eye_closed');
       const sharpness = estimateSharpness(roi.ctx, { x: 0, y: 0, width: roi.w, height: roi.h });
       if (sharpness < 5) reasons.push('lash_blurry');
@@ -3157,6 +3172,7 @@
     const NAT_LASH_HINT_KEYS = {
       lash_no_eye: 'natLashNoEyeHint', lash_too_far: 'natLashMoveCloserHint', lash_eye_closed: 'natLashEyeClosedHint',
       lash_blurry: 'natLashBlurryHint', lash_too_dark: 'natLashTooDarkHint', lash_too_bright: 'natLashTooBrightHint',
+      lash_insufficient_resolution: 'natLashInsufficientResolutionHint',
     };
     const NAT_LASH_FRAMES_NEEDED = 6;
 

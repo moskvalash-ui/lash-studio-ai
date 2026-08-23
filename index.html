@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>LASH STUDIO AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -52,7 +52,7 @@
     /* App shell + ambient background depth (section 25): almost-flat
        black, but with very faint blue glows and edge illumination so
        the interface reads as having depth rather than flat black. */
-    .app-container { max-width: 430px; margin: 0 auto; height: 100vh; position: relative; background: #02060B; overflow: hidden; }
+    .app-container { max-width: 430px; margin: 0 auto; height: 100vh; height: 100dvh; position: relative; background: #02060B; overflow: hidden; }
     .app-container::before {
       content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
       background:
@@ -4677,7 +4677,16 @@
             <span className="text-sm font-medium text-textPrimary">{t('reviewTitle', lang)}</span>
             <div className="w-10"></div>
           </div>
-          <div className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-4">
+          {/* Bottom padding here adds the iOS home-indicator / Safari
+              floating-toolbar safe area (which, in normal — not
+              "Add to Home Screen" — browsing, reports a real nonzero
+              env(safe-area-inset-bottom) exactly to let pages avoid
+              that overlap) ON TOP of the original 1rem (p-4) padding,
+              so the confirm button always scrolls fully clear of
+              on-screen browser chrome. env() resolves to 0 on desktop/
+              non-iOS, so this is exactly 1rem there — identical to
+              the unmodified p-4 default, desktop is unaffected. */}
+          <div className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
             <div className="relative rounded-lg overflow-hidden aspect-[4/5] border border-border">
               <img src={result.originalImage} className="w-full h-full object-cover" alt="client" />
               <ResultMeshOverlay landmarks={result.landmarks} imageWidth={result.imageWidth} imageHeight={result.imageHeight} />

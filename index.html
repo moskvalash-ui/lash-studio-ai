@@ -1237,13 +1237,14 @@
       if (!roi) { reasons.push('lash_no_eye'); return { ok: false, reasons }; }
       const minDim = Math.min(roi.w, roi.h);
       const widthFrac = eyeWidthPx / Math.max(frameWidthPx, 1);
-      // Real-iPhone diagnostic (video 480x640, container 393x571):
-      // widthFrac=0.078 at a visually normal, comfortable ~25-30cm
-      // distance (EAR/sharpness/brightness all healthy) — the old 0.22
-      // threshold implied ~8-11cm, near/beyond macro-focus range. 0.11
-      // targets a realistic ~18-22cm working distance instead of one
-      // photo's exact number.
-      if (widthFrac < 0.11) reasons.push('lash_too_far');
+      // Real-iPhone diagnostic round 2 (video 480x640, container
+      // 393x571): widthFrac=0.087 and 0.104 both still failed at 0.11
+      // on frames confirmed comfortable/usable (EAR/sharpness/
+      // brightness all healthy, roiMinDim already clearing 60).
+      // Lowered further to 0.08 to let a confirmed-good frame through
+      // this preliminary gate and see what the next pipeline stage
+      // does — not yet claimed as the final calibrated value.
+      if (widthFrac < 0.08) reasons.push('lash_too_far');
       // Split from the distance gate: minDim<60 is an absolute pixel
       // count on the (possibly downscaled) processing canvas, not a
       // distance measurement — it answers "is there enough resolved

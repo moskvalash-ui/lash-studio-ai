@@ -3178,6 +3178,13 @@
       const overlayCanvasRef = useRef(null);
       const procCanvasRef = useRef(null);
       if (!procCanvasRef.current) procCanvasRef.current = document.createElement('canvas');
+      // TEMP DIAGNOSTIC — on-screen overlay for real-device testing of
+      // the effectiveVisibleWidth fix, no Safari Web Inspector needed.
+      // Reuses the same ?debug=1 gate as the Details screen's debug
+      // panel; remove this whole block (state + overlay JSX below) once
+      // the real-iPhone test is done.
+      const debugAvailable = isDebugModeEnabled();
+      const [diag, setDiag] = useState(null);
 
       const [side, setSide] = useState('left');
       const [locked, setLocked] = useState(false);
@@ -3255,9 +3262,11 @@
           const effectiveVisibleHeight = containerH / coverScale;
           const quality = assessLashFrameQuality(roi, metrics.ear, eyeWidthPx, effectiveVisibleWidth);
           // TEMP DIAGNOSTIC — remove after verifying the fix on a real
-          // device. Logs everything feeding the distance gate so a real
-          // "still too far" vs "gate still wrong" case can be told apart.
-          console.log('[NLS DIAG]', {
+          // device. One snapshot object feeds both the console log and
+          // the on-screen overlay (below, gated on ?debug=1) so a real
+          // "still too far" vs "gate still wrong" case can be told apart
+          // directly on the phone, without Safari Web Inspector.
+          const diagSnapshot = {
             side: sd,
             videoWidth: video.videoWidth, videoHeight: video.videoHeight,
             containerW, containerH, coverScale: coverScale.toFixed(3),
@@ -3272,7 +3281,9 @@
             ear: metrics.ear?.toFixed(3),
             sharpness: quality.sharpness?.toFixed(1), brightness: quality.brightness?.toFixed(1),
             ok: quality.ok, reasons: quality.reasons,
-          });
+          };
+          console.log('[NLS DIAG]', diagSnapshot);
+          if (debugAvailable) setDiag(diagSnapshot);
 
           const lashLineLocal = roi ? detectLashLine(roi.eyeLocal) : null;
           const lashLineVideo = lashLineLocal ? lashLineLocal.map(p => ({ x: (p.x+roi.x0)/scale, y: (p.y+roi.y0)/scale })) : null;
@@ -3420,6 +3431,27 @@
               <span className="text-sm font-semibold text-textPrimary uppercase tracking-wide">{sideLabel}</span>
             </div>
             {!modelsLoaded && <div className="absolute inset-0 flex items-center justify-center bg-black/80"><p className="text-sm text-textSecondary">{t('modelsLoading', lang)}</p></div>}
+            {/* TEMP DIAGNOSTIC — on-screen [NLS DIAG] overlay, only when
+                ?debug=1 is active. Sits in the vignette's dark bottom-
+                left corner so it never covers the eye (center clear
+                ellipse) or the bottom hint/button panel below. Remove
+                this block together with the diag state/setDiag call
+                above once real-device testing is done. */}
+            {debugAvailable && diag && (
+              <div className="absolute left-2 bottom-2 z-30 max-w-[68%] pointer-events-none rounded-md bg-black/70 px-2 py-1.5 font-mono text-[9px] leading-tight text-lime-300">
+                <div>side: {diag.side}</div>
+                <div>eyeWidthPx: {diag.eyeWidthPx}</div>
+                <div>video: {diag.videoWidth}x{diag.videoHeight}</div>
+                <div>container: {diag.containerW}x{diag.containerH}</div>
+                <div>effVisW: {diag.effectiveVisibleWidth}</div>
+                <div>widthFrac: {diag.widthFrac}</div>
+                <div>roiW/H: {diag.roiW}/{diag.roiH}</div>
+                <div>roiMinDim: {diag.roiMinDim}</div>
+                <div>ear: {diag.ear}</div>
+                <div>sharp/bright: {diag.sharpness}/{diag.brightness}</div>
+                <div>reasons: {diag.reasons && diag.reasons.length ? diag.reasons.join(',') : '-'}</div>
+              </div>
+            )}
           </div>
           <div className="p-6 flex flex-col items-center gap-3 bg-bg">
             {!locked ? (

@@ -290,7 +290,9 @@
       natLashContinueToRight: {ru:'Далее: правый глаз', en:'Next: right eye'},
       natLashViewProfile: {ru:'Смотреть профиль', en:'View profile'},
       natLashProfileTitle: {ru:'Профиль натуральных ресниц', en:'Natural Lash Profile'},
-      natLashVisibleCount: {ru:'Видимые ресницы', en:'Visible lashes'},
+      natLashVisibleCount: {ru:'Оценочное количество видимых ресниц', en:'Estimated visible lash count'},
+      natLashCountExplanation: {ru:'Часть натуральных ресниц может быть перекрыта или не различима камерой.', en:'Some natural lashes may overlap or may not be individually visible to the camera.'},
+      natLashConfidenceLabel: {ru:'Достоверность оценки', en:'Confidence'},
       natLashVisualDensity: {ru:'Визуальная густота', en:'Visual density'},
       natLashDistribution: {ru:'Равномерность линии роста', en:'Lash line distribution'},
       natLashDirection: {ru:'Направление роста', en:'Growth direction'},
@@ -299,8 +301,7 @@
       natLashComparisonTitle: {ru:'Сравнение L/R', en:'L/R comparison'},
       natLashCharacteristicsTitle: {ru:'Визуальные характеристики', en:'Visual lash characteristics'},
       natLashZoneInner: {ru:'Inner', en:'Inner'},
-      natLashZoneBody: {ru:'Body', en:'Body'},
-      natLashZonePeak: {ru:'Peak', en:'Peak'},
+      natLashZoneCenter: {ru:'Center', en:'Center'},
       natLashZoneOuter: {ru:'Outer', en:'Outer'},
       lashNoLoadClaim: {ru:'AI оценивает только визуальные характеристики. Финальную технику, толщину и допустимую нагрузку мастер определяет после очной оценки натуральных ресниц.', en:'AI evaluates visual characteristics only. Final technique, thickness and appropriate load should be determined by the lash artist after an in-person assessment.'},
       lashObservationsTitle: {ru:'Натуральные ресницы', en:'Natural Lash Observations'},
@@ -1352,7 +1353,7 @@
     // dark streak found on every frame contributes ONE stable
     // candidate, never one per frame.
     function aggregateLashFrames(frameSets) {
-      if (frameSets.length === 0) return { stable: [], framesUsed: 0 };
+      if (frameSets.length === 0) return { stable: [], framesUsed: 0, perFrameCounts: [] };
       const TOL = 0.025;
       const need = Math.max(1, Math.ceil(frameSets.length * 0.6));
       const all = [];
@@ -1370,7 +1371,7 @@
         direction: cl.members.reduce((a,m) => a+m.direction, 0) / cl.members.length,
         lengthPx: cl.members.reduce((a,m) => a+m.lengthPx, 0) / cl.members.length,
       }));
-      return { stable, framesUsed: frameSets.length };
+      return { stable, framesUsed: frameSets.length, perFrameCounts: frameSets.map(f => f.candidates.length) };
     }
 
     // Turns the stable candidate list into the qualitative, honestly-
@@ -1378,8 +1379,40 @@
     // a bare integer; Low/Medium/High density from real occupancy of
     // the sampled lash line, not an absolute headcount; zone splits
     // and direction/length normalized to the eye's OWN measurements.
-    const LASH_ZONE_KEYS = ['lashInner', 'lashBody', 'lashPeak', 'lashOuter'];
-    function computeLashObservations(agg, steps, eyeH, qualityLevel) {
+    // Three zones (Stage 1): INNER (t<1/3), CENTER (1/3<=t<2/3),
+    // OUTER (t>=2/3) — matches how a lash artist actually thinks about
+    // the lash line, replaces the earlier 4-way quartile split.
+    const LASH_ZONE_KEYS = ['lashInner', 'lashCenter', 'lashOuter'];
+    const LASH_ZONE_NAMES = ['inner', 'center', 'outer'];
+
+    // Same "no fake 100%" geometric-mean pattern as computeConfidence()
+    // (Eye Profile), applied to the lash-count domain specifically —
+    // every factor here is derived from data already computed by
+    // aggregateLashFrames/assessLashFrameQuality, nothing invented:
+    //   support     — average, across stable clusters, of how many of
+    //                 the buffered frames actually confirmed each one
+    //                 (agg.stable[i].support / framesUsed)
+    //   imageQuality — this frame's real sharpness reading
+    //   distance    — how far past the bare minimum distance gate
+    //                 (widthFrac) this capture is, 0 at the floor
+    //   resolution  — how far past the bare minimum ROI-detail gate
+    //                 (roiMinDim) this capture is, 0 at the floor
+    //   consistency — how stable the RAW per-frame candidate count was
+    //                 across the buffer (low variance = more trustworthy)
+    function computeLashConfidence(factors) {
+      const f = {
+        support: clamp01(factors.support ?? 0.5),
+        imageQuality: clamp01(factors.imageQuality ?? 0.5),
+        distance: clamp01(factors.distance ?? 0.5),
+        resolution: clamp01(factors.resolution ?? 0.5),
+        consistency: clamp01(factors.consistency ?? 0.5),
+      };
+      const rescaled = Object.values(f).map(v => 0.35 + v * 0.65);
+      const score = clamp01(rescaled.reduce((a, b) => a * b, 1) ** (1 / rescaled.length));
+      return { score, factors: f };
+    }
+
+    function computeLashObservations(agg, steps, eyeH, qualityLevel, quality) {
       const n = agg.stable.length;
       if (steps === 0 || n === 0) {
         return { hasData: false, framesUsed: agg.framesUsed };
@@ -1390,11 +1423,19 @@
       const countLow = Math.max(0, Math.round(n * (1 - spreadFrac)));
       const countHigh = Math.round(n * (1 + spreadFrac));
 
-      const zoneOf = (t) => t < 0.25 ? 0 : t < 0.5 ? 1 : t < 0.75 ? 2 : 3;
-      const zoneCounts = [0,0,0,0], zoneDirSum = [0,0,0,0], zoneLenSum = [0,0,0,0];
+      const zoneOf = (t) => t < 1/3 ? 0 : t < 2/3 ? 1 : 2;
+      const zoneCounts = [0,0,0], zoneDirSum = [0,0,0], zoneLenSum = [0,0,0];
       agg.stable.forEach(c => { const z = zoneOf(c.t); zoneCounts[z]++; zoneDirSum[z]+=c.direction; zoneLenSum[z]+=c.lengthPx; });
-      const avgZoneCount = n / 4;
-      const zoneDensity = zoneCounts.map(cnt => avgZoneCount <= 0 ? 'low' : (cnt/avgZoneCount > 1.25 ? 'high' : cnt/avgZoneCount < 0.65 ? 'low' : 'medium'));
+
+      // Each zone's density is normalized to how many of the SAMPLED
+      // lash-line positions actually fall in that third (not to the
+      // other zones' average) — a real per-zone occupancy, computed
+      // the same way as the overall occupancy above.
+      const zoneStepCounts = [0,0,0];
+      for (let i = 0; i < steps; i++) { zoneStepCounts[zoneOf(steps > 1 ? i/(steps-1) : 0)]++; }
+      const zoneOccupancy = zoneCounts.map((cnt,i) => zoneStepCounts[i] > 0 ? cnt/zoneStepCounts[i] : 0);
+      const zoneDensity = zoneOccupancy.map(occ => occ > 0.38 ? 'high' : occ > 0.20 ? 'medium' : 'low');
+
       const zoneDirection = zoneCounts.map((cnt,i) => {
         if (cnt === 0) return 'unknown';
         const avg = zoneDirSum[i]/cnt;
@@ -1412,14 +1453,47 @@
         return uniq.size > 1 ? 'mixed' : vals[0];
       })();
 
-      // visible gaps: zones with near-zero support relative to the
-      // eye's own average, along contiguous stretches of the sampled line
-      const gapZones = zoneDensity.map((d,i) => d === 'low' && zoneCounts[i] < avgZoneCount*0.4).map((v,i)=>v?i:null).filter(v=>v!==null);
+      // Visible gaps: a zone counts as a gap only if ITS OWN occupancy
+      // is near-empty in absolute terms (well below the "low density"
+      // cutoff) — not just lower than its neighbors, which could flag
+      // a zone as a "gap" purely because the whole eye is sparse.
+      const GAP_OCCUPANCY = 0.10;
+      const gapZones = zoneOccupancy.map((occ,i) => occ < GAP_OCCUPANCY ? i : null).filter(v => v !== null);
+
+      const dirValues = zoneDirection.filter(d => d !== 'unknown');
+      const dominantDirection = dirValues.length === 0 ? 'unknown' : (new Set(dirValues).size > 1 ? 'mixed' : dirValues[0]);
+
+      const avgSupportRatio = agg.stable.reduce((a,c) => a + c.support/Math.max(agg.framesUsed,1), 0) / n;
+      const frameCounts = agg.perFrameCounts && agg.perFrameCounts.length ? agg.perFrameCounts : [n];
+      const frameStats = stdOf(frameCounts);
+      const consistency = clamp01(1 - frameStats.std / Math.max(frameStats.mean, 1));
+      const roiMinDim = quality ? Math.min(quality.roiWidth || 0, quality.roiHeight || 0) : 0;
+      const conf = computeLashConfidence({
+        support: avgSupportRatio,
+        imageQuality: quality ? clamp01(quality.sharpness / 150) : 0.5,
+        distance: quality ? clamp01((quality.widthFrac - 0.08) / (0.12 - 0.08)) : 0.5,
+        resolution: clamp01((roiMinDim - 60) / 60),
+        consistency,
+      });
+
+      const zones = {};
+      LASH_ZONE_NAMES.forEach((name, i) => {
+        zones[name] = {
+          estimatedCount: zoneCounts[i],
+          density: zoneDensity[i],
+          gaps: gapZones.includes(i),
+          apparentLength: zoneRelLen[i],
+          direction: zoneDirection[i],
+        };
+      });
 
       return {
         hasData: true, framesUsed: agg.framesUsed,
         countLow, countHigh, visualDensity, occupancy,
         zoneDensity, zoneDirection, zoneRelLen, overallLenBucket, gapZones,
+        dominantDirection,
+        confidence: conf.score, confidenceFactors: conf.factors,
+        zones,
       };
     }
 
@@ -1430,13 +1504,19 @@
       if (!left?.hasData || !right?.hasData) return { hasComparison: false };
       const countDiff = ((left.countLow+left.countHigh)/2) - ((right.countLow+right.countHigh)/2);
       const densityRank = { low: 0, medium: 1, high: 2 };
+      const densityDiff = densityRank[left.visualDensity] - densityRank[right.visualDensity];
       const zoneDiffs = LASH_ZONE_KEYS.map((_, i) => densityRank[left.zoneDensity[i]] - densityRank[right.zoneDensity[i]]);
       const maxDiffIdx = zoneDiffs.reduce((best,d,i) => Math.abs(d) > Math.abs(zoneDiffs[best]) ? i : best, 0);
+      const gapDiff = LASH_ZONE_NAMES.map((name, i) => {
+        const l = left.gapZones.includes(i), r = right.gapZones.includes(i);
+        return l !== r ? { zone: name, side: l ? 'left' : 'right' } : null;
+      }).filter(Boolean);
       return {
         hasComparison: true,
-        countDiff,
+        countDiff, densityDiff,
         notableZone: Math.abs(zoneDiffs[maxDiffIdx]) >= 1 ? maxDiffIdx : null,
         notableZoneLowerSide: zoneDiffs[maxDiffIdx] < 0 ? 'left' : 'right',
+        gapDiff,
       };
     }
 
@@ -1452,7 +1532,7 @@
     function lashDistributionText(obs, lang) {
       if (!obs.hasData) return lang==='en' ? 'Not enough data' : 'Недостаточно данных';
       if (obs.gapZones.length === 0) return lang==='en' ? 'Mostly even along the lash line' : 'В целом равномерная по линии роста';
-      const zoneName = (i) => [lang==='en'?'inner third':'внутренней трети', lang==='en'?'central zone':'центральной зоне', lang==='en'?'peak zone':'зоне пика', lang==='en'?'outer third':'внешней трети'][i];
+      const zoneName = (i) => [lang==='en'?'inner third':'внутренней трети', lang==='en'?'central zone':'центральной зоне', lang==='en'?'outer third':'внешней трети'][i];
       const zones = obs.gapZones.map(zoneName).join(lang==='en' ? ' and ' : ' и ');
       return lang==='en' ? `Slightly less even in the ${zones}` : `Небольшая неоднородность в ${zones}`;
     }
@@ -1475,7 +1555,7 @@
         observations.push(`${sideName}: ${en?'visible lashes ≈':'видимые ресницы ≈'} ${obs.countLow}–${obs.countHigh}, ${en?'density':'густота'} — ${lashDensityLabel(obs.visualDensity, lang).toLowerCase()}, ${en?'distribution':'распределение'} — ${lashDistributionText(obs, lang).toLowerCase()}.`);
       });
       if (comparison?.hasComparison && comparison.notableZone !== null) {
-        const zoneName = [en?'inner':'внутренней', en?'central':'центральной', en?'peak':'пиковой', en?'outer':'внешней'][comparison.notableZone];
+        const zoneName = [en?'inner':'внутренней', en?'central':'центральной', en?'outer':'внешней'][comparison.notableZone];
         const side = comparison.notableZoneLowerSide === 'left' ? (en?'left':'левого') : (en?'right':'правого');
         considerations.push(en
           ? `Visual density in the ${zoneName} zone is a little lower on the ${side} eye. The artist can factor this difference in when building the map.`
@@ -3322,10 +3402,19 @@
           if (bufferRef.current.length >= NAT_LASH_FRAMES_NEEDED) {
             const agg = aggregateLashFrames(bufferRef.current);
             const avgSharp = quality.sharpness, avgWidthFrac = quality.widthFrac;
-            const qualityLevel = (avgSharp > 25 && avgWidthFrac > 0.32) ? 'high' : (avgSharp > 12 && avgWidthFrac > 0.24) ? 'medium' : 'low';
+            // Recalibrated against real-iPhone [NLS DIAG] data after the
+            // effectiveVisibleWidth fix + distance gate (0.08): comfortable
+            // captures read widthFrac~0.087-0.104, nowhere near the old
+            // 0.32/0.24 (calibrated for the pre-fix, much larger raw-frame
+            // denominator). New floors are 1.05x/1.5x the 0.08 distance-gate
+            // floor itself, so a frame that only just clears the gate reads
+            // 'low', a normal working-distance frame (like both real
+            // samples) reads 'medium', and 'high' still means genuinely
+            // closer/larger framing, not an unreachable number.
+            const qualityLevel = (avgSharp > 25 && avgWidthFrac > 0.12) ? 'high' : (avgSharp > 12 && avgWidthFrac > 0.084) ? 'medium' : 'low';
             const steps = bufferRef.current[bufferRef.current.length-1].steps;
             const eyeH = bufferRef.current[bufferRef.current.length-1].eyeH;
-            const obs = computeLashObservations(agg, steps, eyeH, qualityLevel);
+            const obs = computeLashObservations(agg, steps, eyeH, qualityLevel, quality);
             obs.qualityLevel = qualityLevel;
             if (sd === 'left') setLeftProfile(obs); else setRightProfile(obs);
             setLocked(true);
@@ -4659,6 +4748,7 @@
       }
       const rows = [
         [t('natLashVisibleCount', lang), `≈ ${obs.countLow}–${obs.countHigh}`],
+        [t('natLashConfidenceLabel', lang), `${Math.round(obs.confidence*100)}%`],
         [t('natLashVisualDensity', lang), lashDensityLabel(obs.visualDensity, lang)],
         [t('natLashDistribution', lang), lashDistributionText(obs, lang)],
         [t('natLashDirection', lang), obs.zoneDirection.filter(d=>d!=='unknown').length ? lashDirectionLabel(obs.zoneDirection.find(d=>d!=='unknown'), lang) : t('insufficientData', lang)],
@@ -4676,10 +4766,11 @@
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-4 gap-1.5 mt-3">
+          <p className="text-[11px] text-textMuted mt-2 leading-snug">{t('natLashCountExplanation', lang)}</p>
+          <div className="grid grid-cols-3 gap-1.5 mt-3">
             {LASH_ZONE_KEYS.map((zk, i) => (
               <div key={zk} className="rounded-md p-1.5 text-center border border-border bg-white/[0.02]">
-                <p className="text-[8px] text-textMuted uppercase">{t(zk === 'lashInner' ? 'natLashZoneInner' : zk === 'lashBody' ? 'natLashZoneBody' : zk === 'lashPeak' ? 'natLashZonePeak' : 'natLashZoneOuter', lang)}</p>
+                <p className="text-[8px] text-textMuted uppercase">{t(zk === 'lashInner' ? 'natLashZoneInner' : zk === 'lashCenter' ? 'natLashZoneCenter' : 'natLashZoneOuter', lang)}</p>
                 <p className="text-[10px] font-semibold text-textPrimary mt-0.5">{lashDensityLabel(obs.zoneDensity[i], lang)}</p>
               </div>
             ))}

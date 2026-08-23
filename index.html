@@ -231,6 +231,8 @@
       eyelidTypeHooded: {ru:'Нависшее веко (складка скрыта)', en:'Hooded eyelid'},
       eyelidTypeMonolid: {ru:'Монолид (складка не выявлена)', en:'Monolid / no visible crease'},
       eyelidTypeUncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation'},
+      eyelidConflictPrefix: {ru:'Наиболее вероятный вариант:', en:'Most likely:'},
+      eyelidConflictExplain: {ru:'Пиксельный и геометрический анализ расходятся — результат нужно подтвердить визуально.', en:'Pixel-based and geometric analysis disagree — please confirm visually.'},
       eyeHighlightTitle: {ru:'О ваших глазах', en:'Eye highlight'},
 
       shape_round: {ru:'Округлая', en:'Round'},
@@ -1019,9 +1021,18 @@
       const creaseProminenceRatio = minCreaseProminence / CREASE_PROMINENCE_FLOOR;
       const failingCreaseRatios = [creasePeakRatio, creaseProminenceRatio].filter(r => r <= 1);
       const closestFailRatio = failingCreaseRatios.length ? Math.max(...failingCreaseRatios) : 0;
+      // A near-zero peak/prominence alone must NOT be read as strong
+      // evidence of "no crease" — it's equally consistent with a weak/
+      // low-quality capture that never usefully sampled the band at
+      // all (motion blur, bad ROI, harsh highlight). readQuality is
+      // the only signal that tells the two apart, so it caps how far
+      // "far below floor" can push confidence: near the 0.28 gate the
+      // ceiling stays low regardless of how deep the miss is; only a
+      // genuinely well-textured, well-lit band lets a flat reading
+      // become confidently monolid.
       const eyelidTypeMeasurementAgreement = creaseFold
         ? clamp01(1 - Math.abs(avgCreaseYFrac - (eyelidType === 'hooded' ? 0.75 : 0.4)) / 0.4)
-        : clamp01(1 - closestFailRatio);
+        : clamp01(1 - closestFailRatio) * clamp01((avgCreaseReadQuality - 0.28) / 0.35);
       const eyelidTypeConf = computeConfidence({
         measurementAgreement: eyelidTypeMeasurementAgreement,
         landmarkStability: stabilityFactor('hooding'),
@@ -1034,10 +1045,15 @@
       // The crease-aware type is the authoritative semantic eyelid read.
       // Keep the geometric exposure score for explainability, but never
       // let it make a hooded eye look open to recommendations.
+      // eyelidSignalsConflict is a pure read-only flag — it records
+      // whether this correction actually had to fire, purely for the
+      // UI to know when the two eyelid readouts disagree; it changes
+      // no threshold and no classification decision on its own.
+      let eyelidSignalsConflict = false;
       if (eyelidType === 'hooded') {
         isHooded = true;
         hoodedConfidence = Math.max(hoodedConfidence, eyelidTypeConfidence);
-        if (eyelidCategory === 'open' || eyelidCategory === 'mild') eyelidCategory = 'moderate';
+        if (eyelidCategory === 'open' || eyelidCategory === 'mild') { eyelidCategory = 'moderate'; eyelidSignalsConflict = true; }
         hoodingLevel = eyelidCategory === 'pronounced' ? 'full' : 'partial';
       } else if (eyelidType === 'monolid' && eyelidCategory === 'open') {
         eyelidCategory = 'uncertain';
@@ -1045,6 +1061,7 @@
         isHooded = false;
         hoodedConfidence = 0.25;
         hoodingLevel = 'none';
+        eyelidSignalsConflict = true;
       }
 
       // ---- EYE SET ----
@@ -1136,7 +1153,7 @@
         tiltTendency, tiltConfidence, tiltDegrees: avgTilt,
         isHooded, hoodedConfidence, hoodingSignalsAgree, hoodingRatio: avgHoodingA, hoodingLevel,
         eyelidCategory, eyelidCategoryConfidence,
-        eyelidType, eyelidTypeConfidence,
+        eyelidType, eyelidTypeConfidence, eyelidSignalsConflict,
         isCloseSet, isWideSet, spacingRatio, spacingConfidence, eyeSetCategory,
         relativeEyeSize, eyeSizeCategory, eyeSizeConfidence,
         compositeAsymmetry, asymmetryBreakdown, symmetryCategory: symmetryCategoryFinal, symmetryConfidence,
@@ -3548,15 +3565,21 @@
         : p.eyelidCategory === 'mild' ? t('eyelidMild', lang)
         : p.eyelidCategory === 'open' ? t('eyelidOpen', lang)
         : t('eyelidUncertain', lang);
-      const eyelidTypeLabel = p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
+      // Raw crease-read label — always the true computed value, used
+      // for the "most likely" note when the two eyelid signals
+      // disagree. The DISPLAYED label (below) is suppressed to
+      // "needs confirmation" in that case instead of showing a
+      // confident diagnosis next to a contradicting one.
+      const eyelidTypeRawLabel = p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
         : p.eyelidType === 'hooded' ? t('eyelidTypeHooded', lang)
         : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
         : t('eyelidTypeUncertain', lang);
+      const eyelidTypeLabel = p.eyelidSignalsConflict ? t('eyelidTypeUncertain', lang) : eyelidTypeRawLabel;
       const spacing = t('eyeSet_' + p.eyeSetCategory, lang);
       const eyeSize = t('eyeSize_' + p.eyeSizeCategory, lang);
       const symmetry = t('symmetry_' + p.symmetryCategory, lang);
       const irisName = iris?.name ? (lang==='en' ? IRIS_NAMES[iris.name].en : IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);
-      return { shape, tilt, hooding, eyelidTypeLabel, spacing, eyeSize, symmetry, irisName };
+      return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, spacing, eyeSize, symmetry, irisName };
     }
 
     // ---- Eye Highlight ----
@@ -3729,7 +3752,13 @@
             <Section title={t('eyeProfileTitle', lang)} defaultOpen>
               <EyeProfileRow icon="shape" label={t('shapeLabel', lang)} sublabel={t('shapeSubLabel', lang)} value={labels.shape} confidence={p.eyeShapeCategory === 'uncertain' ? undefined : p.eyeShapeConfidence} />
               <EyeProfileRow icon="lid" label={t('lidLabel', lang)} sublabel={t('lidSubLabel', lang)} value={labels.hooding} confidence={p.eyelidCategory === 'uncertain' ? undefined : p.eyelidCategoryConfidence} />
-              <EyeProfileRow icon="lid" label={t('eyelidTypeLabel', lang)} sublabel={t('eyelidTypeSubLabel', lang)} value={labels.eyelidTypeLabel} confidence={p.eyelidType === 'uncertain' ? undefined : p.eyelidTypeConfidence} />
+              <EyeProfileRow icon="lid" label={t('eyelidTypeLabel', lang)} sublabel={t('eyelidTypeSubLabel', lang)} value={labels.eyelidTypeLabel} confidence={(p.eyelidType === 'uncertain' || p.eyelidSignalsConflict) ? undefined : p.eyelidTypeConfidence} />
+              {p.eyelidSignalsConflict && (
+                <div className="pl-11 -mt-1 pb-3">
+                  <p className="text-[11px] text-textMuted leading-snug">{t('eyelidConflictPrefix', lang)} <span className="text-textSecondary">{labels.eyelidTypeRawLabel}</span></p>
+                  <p className="text-[10px] text-textMuted leading-snug mt-0.5">{t('eyelidConflictExplain', lang)}</p>
+                </div>
+              )}
               <EyeProfileRow icon="size" label={t('spacingLabel', lang)} sublabel={t('spacingSubLabel', lang)} value={labels.spacing} confidence={p.spacingConfidence} />
               <EyeProfileRow icon="position" label={t('tiltLabel', lang)} sublabel={t('tiltSubLabel', lang)} value={labels.tilt} confidence={p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? undefined : p.tiltConfidence} />
               <EyeProfileRow icon="size" label={t('eyeSizeLabel', lang)} sublabel={t('eyeSizeSubLabel', lang)} value={labels.eyeSize} confidence={p.eyeSizeConfidence} />
@@ -4411,15 +4440,25 @@
                 <h3 className="label-tech">{t('eyelidTypeLabel', lang)}</h3>
               </div>
               <p className="text-sm text-textPrimary mb-1">
-                {p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
+                {p.eyelidSignalsConflict ? t('eyelidTypeUncertain', lang)
+                  : p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
                   : p.eyelidType === 'hooded' ? t('eyelidTypeHooded', lang)
                   : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
                   : t('eyelidTypeUncertain', lang)}
-                {p.eyelidType !== 'uncertain' && <> — <span className="text-cyan">{(p.eyelidTypeConfidence*100).toFixed(0)}%</span></>}
+                {(p.eyelidType !== 'uncertain' && !p.eyelidSignalsConflict) && <> — <span className="text-cyan">{(p.eyelidTypeConfidence*100).toFixed(0)}%</span></>}
               </p>
-              <p className="text-xs text-textSecondary">{lang==='en'
+              {p.eyelidSignalsConflict && (
+                <p className="text-xs text-textSecondary mb-1">
+                  {t('eyelidConflictPrefix', lang)}{' '}
+                  {p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
+                    : p.eyelidType === 'hooded' ? t('eyelidTypeHooded', lang)
+                    : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
+                    : t('eyelidTypeUncertain', lang)}
+                </p>
+              )}
+              <p className="text-xs text-textSecondary">{p.eyelidSignalsConflict ? t('eyelidConflictExplain', lang) : (lang==='en'
                 ? 'Based on real pixel analysis of the eyelid skin (looking for an actual fold line), combined with the geometric brow-to-lid coverage above — not distance alone.'
-                : 'Определено по пиксельному анализу кожи века (поиск реальной линии складки) в сочетании с геометрическим сигналом выше — не только по расстоянию.'}</p>
+                : 'Определено по пиксельному анализу кожи века (поиск реальной линии складки) в сочетании с геометрическим сигналом выше — не только по расстоянию.')}</p>
             </div>
 
             <div className="glass rounded-lg p-5">

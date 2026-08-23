@@ -1208,7 +1208,17 @@
     // null if the eye box is degenerate — callers must treat that as
     // "no ROI available" and ask the user to reposition, never invent
     // one.
-    function extractEyeROI(sourceCanvas, eyePoints, browPoints, marginFrac) {
+    // sourceW/sourceH (optional) let a caller pass the source's real
+    // pixel bounds explicitly — needed for Stage 2B, where the source
+    // is the <video> element itself: HTMLVideoElement has no
+    // .width/.height pixel-buffer properties (only .videoWidth/
+    // .videoHeight), unlike a canvas. Omitted, this falls back to
+    // sourceCanvas.width/height exactly as before — both existing
+    // call sites (detectEyelidCrease, the processing-canvas ROI in
+    // NaturalLashScanScreen) are byte-for-byte unaffected.
+    function extractEyeROI(sourceCanvas, eyePoints, browPoints, marginFrac, sourceW, sourceH) {
+      const clampW = sourceW != null ? sourceW : sourceCanvas.width;
+      const clampH = sourceH != null ? sourceH : sourceCanvas.height;
       const xs = eyePoints.map(p=>p.x), ys = eyePoints.map(p=>p.y);
       const browYs = browPoints.map(p=>p.y);
       const x0raw = Math.min(...xs), x1raw = Math.max(...xs);
@@ -1217,7 +1227,7 @@
       if (w0 < 4 || h0 < 2) return null;
       const mx = w0 * marginFrac, my = h0 * marginFrac * 1.3;
       const x0 = Math.max(0, Math.round(x0raw - mx)), y0 = Math.max(0, Math.round(y0raw - my));
-      const x1 = Math.min(sourceCanvas.width, Math.round(x1raw + mx)), y1 = Math.min(sourceCanvas.height, Math.round(y1raw + my));
+      const x1 = Math.min(clampW, Math.round(x1raw + mx)), y1 = Math.min(clampH, Math.round(y1raw + my));
       const w = Math.max(1, x1-x0), h = Math.max(1, y1-y0);
       const roi = document.createElement('canvas');
       roi.width = w; roi.height = h;
@@ -3324,6 +3334,43 @@
     };
     const NAT_LASH_FRAMES_NEEDED = 6;
 
+    // Stage 2A — progressive getUserMedia resolution negotiation,
+    // NaturalLashScanScreen-only (the other getUserMedia call in this
+    // file, in the Live Scan screen, is untouched). Every attempt uses
+    // `ideal` only, never `exact`, so a device that can't meet a
+    // preferred resolution still gets a stream instead of an
+    // OverconstrainedError — the chain just degrades to the next,
+    // looser attempt. `track.getSettings()` after acquisition reports
+    // what the browser ACTUALLY negotiated; highResAvailable is judged
+    // against THAT, never against the requested constraint (a device
+    // can ask for 1080p and still be handed 480x640).
+    const CAMERA_ATTEMPTS = [
+      { video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16/9 }, frameRate: { ideal: 30 } } },
+      { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } },
+      { video: { facingMode: 'user', width: { min: 640, ideal: 1280 }, height: { min: 480, ideal: 720 } } },
+      { video: { facingMode: 'user' } },
+    ];
+    async function acquireCameraStream() {
+      let lastError = null;
+      for (let i = 0; i < CAMERA_ATTEMPTS.length; i++) {
+        const constraints = CAMERA_ATTEMPTS[i];
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          const track = stream.getVideoTracks()[0];
+          const settings = track ? track.getSettings() : {};
+          const highResAvailable = (settings.width || 0) >= 1280 && (settings.height || 0) >= 720;
+          return { stream, settings, requestedConstraints: constraints, attemptIndex: i, highResAvailable };
+        } catch (e) {
+          // OverconstrainedError (or any other rejection) never yields
+          // a stream — getUserMedia rejects instead of resolving — so
+          // there is nothing to stop/release before the next, looser
+          // attempt.
+          lastError = e;
+        }
+      }
+      throw lastError || new Error('getUserMedia failed for all attempts');
+    }
+
     // Separate, close-up-only analysis mode (Parts 6-30). Runs the same
     // real face-api detector as Live Scan/Photo Analysis — there is no
     // separate "lash model" to load — but only to keep locating the
@@ -3364,6 +3411,7 @@
       const loopRef = useRef(null);
       const overlayRafRef = useRef(null);
       const lastFrameRef = useRef(null); // { box, lashLine, rawCandidates, videoW, videoH, ts }
+      const cameraInfoRef = useRef(null); // { stream, settings, requestedConstraints, attemptIndex, highResAvailable } from acquireCameraStream()
       const smoothRef = useRef({ box: null, presence: 0 });
       const lockStartRef = useRef(-Infinity);
       const completionRef = useRef(null);
@@ -3399,6 +3447,31 @@
 
           const roi = extractEyeROI(canvas, eyePts, browPts, 0.35);
           const eyeWidthPx = dist(eyePts[0], eyePts[3]) / scale;
+
+          // Stage 2B — map the SAME landmarks face-api already found
+          // (on the downscaled `canvas` above, unchanged) into native
+          // <video> coordinates, and crop the lash ROI directly from
+          // the native frame instead of from the downscaled canvas.
+          // face-api's own input resolution is NOT increased — only
+          // the ROI source for the lash detector changes. Gated on
+          // highResAvailable: when the camera itself never negotiated
+          // above 1280x720, native extraction would just reproduce
+          // the same low-res crop the existing path already makes, so
+          // it's skipped and the original low-res path is used as-is
+          // (usingFallbackPath below reflects this per tick).
+          const mapScaleX = video.videoWidth / canvas.width;
+          const mapScaleY = video.videoHeight / canvas.height;
+          const toNative = (p) => ({ x: p.x * mapScaleX, y: p.y * mapScaleY });
+          const eyePtsNative = eyePts.map(toNative);
+          const browPtsNative = browPts.map(toNative);
+          const eyeWidthNativePx = dist(eyePtsNative[0], eyePtsNative[3]);
+          const camInfo = cameraInfoRef.current;
+          const nativeRoi = (camInfo && camInfo.highResAvailable)
+            ? extractEyeROI(video, eyePtsNative, browPtsNative, 0.35, video.videoWidth, video.videoHeight)
+            : null;
+          const roiIsNative = !!nativeRoi;
+          const usingFallbackPath = !roiIsNative;
+          const effectiveRoi = nativeRoi || roi;
           // The distance/size gate must compare eyeWidthPx against how
           // much of the raw camera frame the user ACTUALLY SEES, not
           // against video.videoWidth (the raw sensor frame). getUserMedia
@@ -3424,7 +3497,7 @@
           const coverScale = Math.max(containerW / video.videoWidth, containerH / video.videoHeight);
           const effectiveVisibleWidth = containerW / coverScale;
           const effectiveVisibleHeight = containerH / coverScale;
-          const quality = assessLashFrameQuality(roi, metrics.ear, eyeWidthPx, effectiveVisibleWidth);
+          const quality = assessLashFrameQuality(effectiveRoi, metrics.ear, eyeWidthPx, effectiveVisibleWidth);
           // TEMP DIAGNOSTIC — remove after verifying the fix on a real
           // device. One snapshot object feeds both the console log and
           // the on-screen overlay (below, gated on ?debug=1) so a real
@@ -3439,32 +3512,59 @@
             oldWidthFrac: (eyeWidthPx / video.videoWidth).toFixed(3),
             widthFrac: quality.widthFrac?.toFixed(3),
             newWidthFrac: quality.widthFrac?.toFixed(3),
-            roiW: roi ? roi.w.toFixed(1) : null,
-            roiH: roi ? roi.h.toFixed(1) : null,
-            roiMinDim: roi ? Math.min(roi.w, roi.h).toFixed(1) : null,
+            roiW: effectiveRoi ? effectiveRoi.w.toFixed(1) : null,
+            roiH: effectiveRoi ? effectiveRoi.h.toFixed(1) : null,
+            roiMinDim: effectiveRoi ? Math.min(effectiveRoi.w, effectiveRoi.h).toFixed(1) : null,
             ear: metrics.ear?.toFixed(3),
             sharpness: quality.sharpness?.toFixed(1), brightness: quality.brightness?.toFixed(1),
             ok: quality.ok, reasons: quality.reasons,
+            // Stage 2A/2B — camera negotiation + native-resolution ROI
+            // mapping, kept as its own nested block so it reads
+            // separately from the pre-existing distance-gate fields
+            // above rather than being interleaved with them.
+            camera: {
+              requestedAttempt: camInfo ? camInfo.attemptIndex : null,
+              requestedConstraints: camInfo ? camInfo.requestedConstraints : null,
+              actualSettings: camInfo ? { width: camInfo.settings.width, height: camInfo.settings.height, frameRate: camInfo.settings.frameRate, facingMode: camInfo.settings.facingMode } : null,
+              videoNative: { width: video.videoWidth, height: video.videoHeight },
+              faceApiInput: { width: canvas.width, height: canvas.height },
+              mapping: { scaleX: +mapScaleX.toFixed(3), scaleY: +mapScaleY.toFixed(3) },
+              eye: { side: sd, eyeWidthFaceSpace: +dist(eyePts[0], eyePts[3]).toFixed(1), eyeWidthNativeSpace: +eyeWidthNativePx.toFixed(1) },
+              roi: nativeRoi ? { nativeX: nativeRoi.x0, nativeY: nativeRoi.y0, nativeWidth: nativeRoi.w, nativeHeight: nativeRoi.h } : null,
+              highResAvailable: !!(camInfo && camInfo.highResAvailable),
+              usingFallbackPath,
+            },
           };
           console.log('[NLS DIAG]', diagSnapshot);
           if (debugAvailable) setDiag(diagSnapshot);
 
-          const lashLineLocal = roi ? detectLashLine(roi.eyeLocal) : null;
-          const lashLineVideo = lashLineLocal ? lashLineLocal.map(p => ({ x: (p.x+roi.x0)/scale, y: (p.y+roi.y0)/scale })) : null;
-          const boxVideo = roi ? { x: roi.x0/scale, y: roi.y0/scale, width: roi.w/scale, height: roi.h/scale } : null;
+          const lashLineLocal = effectiveRoi ? detectLashLine(effectiveRoi.eyeLocal) : null;
+          // roiIsNative: effectiveRoi's (x0,y0)/eyeLocal are already in
+          // native <video> pixels (cropped straight from `video`), so
+          // no /scale conversion applies — unlike the old low-res path,
+          // whose roi.x0/eyeLocal live in the downscaled `canvas`'s
+          // pixel space and must be divided by `scale` to reach native
+          // video coordinates (same conversion the app already used
+          // for eyeWidthPx above).
+          const lashLineVideo = lashLineLocal ? lashLineLocal.map(p => roiIsNative
+            ? { x: p.x + effectiveRoi.x0, y: p.y + effectiveRoi.y0 }
+            : { x: (p.x + effectiveRoi.x0) / scale, y: (p.y + effectiveRoi.y0) / scale }) : null;
+          const boxVideo = effectiveRoi ? (roiIsNative
+            ? { x: effectiveRoi.x0, y: effectiveRoi.y0, width: effectiveRoi.w, height: effectiveRoi.h }
+            : { x: effectiveRoi.x0 / scale, y: effectiveRoi.y0 / scale, width: effectiveRoi.w / scale, height: effectiveRoi.h / scale }) : null;
 
           if (!quality.ok) {
             setHintKey(NAT_LASH_HINT_KEYS[quality.reasons[0]] || 'natLashMoveCloserHint');
-            lastFrameRef.current = boxVideo ? { box: boxVideo, lashLine: lashLineVideo, rawCandidates: [], videoW: video.videoWidth, videoH: video.videoHeight, ts: now } : null;
+            lastFrameRef.current = boxVideo ? { box: boxVideo, lashLine: lashLineVideo, rawCandidates: [], videoW: video.videoWidth, videoH: video.videoHeight, ts: now, roiIsNative } : null;
             return;
           }
 
-          const det2 = detectVisibleLashCandidates(roi, lashLineLocal);
+          const det2 = detectVisibleLashCandidates(effectiveRoi, lashLineLocal);
           bufferRef.current.push(det2);
           if (bufferRef.current.length > 10) bufferRef.current.shift();
           setHintKey('natLashScanningStatus');
           setProgress(Math.min(1, bufferRef.current.length / NAT_LASH_FRAMES_NEEDED));
-          lastFrameRef.current = { box: boxVideo, lashLine: lashLineVideo, rawCandidates: det2.candidates, videoW: video.videoWidth, videoH: video.videoHeight, ts: now };
+          lastFrameRef.current = { box: boxVideo, lashLine: lashLineVideo, rawCandidates: det2.candidates, videoW: video.videoWidth, videoH: video.videoHeight, ts: now, roiIsNative };
 
           if (bufferRef.current.length >= NAT_LASH_FRAMES_NEEDED) {
             const agg = aggregateLashFrames(bufferRef.current);
@@ -3499,7 +3599,9 @@
         let stream;
         const start = async () => {
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+            const cam = await acquireCameraStream();
+            stream = cam.stream;
+            cameraInfoRef.current = cam;
             if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
           } catch (e) { setHintKey('natLashNoEyeHint'); return; }
           loopRef.current = setInterval(() => tickImplRef.current(), 220);
@@ -3539,6 +3641,22 @@
             s.box = s.box ? { x: lerpNum(s.box.x,targetBox.x,0.3), y: lerpNum(s.box.y,targetBox.y,0.3), width: lerpNum(s.box.width,targetBox.width,0.3), height: lerpNum(s.box.height,targetBox.height,0.3) } : targetBox;
             const lineDisp = f.lashLine ? f.lashLine.map(p => map(p.x,p.y)) : null;
             s.lashLine = lineDisp;
+            // TEMP DIAGNOSTIC — Stage 2B mapping verification only.
+            // Unlike s.box above (lerp-smoothed for visual polish),
+            // this is the RAW, unsmoothed native-ROI rect for this
+            // exact tick, drawn only when debug mode is on and only
+            // when the native (not fallback) ROI path was used —
+            // lets the mapping math be checked pixel-for-pixel against
+            // the live preview without smoothing hiding a mismatch.
+            s.debugNativeBox = (debugAvailable && f.roiIsNative) ? targetBox : null;
+          }
+
+          if (s.debugNativeBox) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(0,255,180,0.9)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(s.debugNativeBox.x, s.debugNativeBox.y, s.debugNativeBox.width, s.debugNativeBox.height);
+            ctx.restore();
           }
 
           if (s.presence > 0.01 && s.box) {
@@ -3623,6 +3741,25 @@
                 <div>ear: {diag.ear}</div>
                 <div>sharp/bright: {diag.sharpness}/{diag.brightness}</div>
                 <div>reasons: {diag.reasons && diag.reasons.length ? diag.reasons.join(',') : '-'}</div>
+              </div>
+            )}
+            {/* TEMP DIAGNOSTIC — Stage 2A/2B camera + native-ROI section,
+                separate from the pre-existing panel above so the two
+                don't get visually interleaved. Same removal note as
+                the block above: delete together once real-device
+                testing of Stage 2A/2B is done. */}
+            {debugAvailable && diag && diag.camera && (
+              <div className="absolute right-2 bottom-2 z-30 max-w-[68%] pointer-events-none rounded-md bg-black/70 px-2 py-1.5 font-mono text-[9px] leading-tight text-cyan-300">
+                <div>[Camera Diagnostics]</div>
+                <div>attempt: {diag.camera.requestedAttempt}</div>
+                <div>actual: {diag.camera.actualSettings ? `${diag.camera.actualSettings.width}x${diag.camera.actualSettings.height}@${diag.camera.actualSettings.frameRate ? Math.round(diag.camera.actualSettings.frameRate) : '?'}` : '-'}</div>
+                <div>videoNative: {diag.camera.videoNative.width}x{diag.camera.videoNative.height}</div>
+                <div>faceApiInput: {diag.camera.faceApiInput.width}x{diag.camera.faceApiInput.height}</div>
+                <div>mapScale: {diag.camera.mapping.scaleX}/{diag.camera.mapping.scaleY}</div>
+                <div>eyeW face/native: {diag.camera.eye.eyeWidthFaceSpace}/{diag.camera.eye.eyeWidthNativeSpace}</div>
+                <div>nativeROI: {diag.camera.roi ? `${diag.camera.roi.nativeWidth}x${diag.camera.roi.nativeHeight} @(${diag.camera.roi.nativeX},${diag.camera.roi.nativeY})` : '-'}</div>
+                <div>highResAvailable: {String(diag.camera.highResAvailable)}</div>
+                <div>usingFallbackPath: {String(diag.camera.usingFallbackPath)}</div>
               </div>
             )}
           </div>

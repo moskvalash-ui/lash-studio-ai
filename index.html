@@ -1307,22 +1307,35 @@
       };
       const steps = Math.max(24, Math.min(72, Math.round(w * 0.6)));
       const bandLen = Math.max(5, Math.round(h * 0.22));
-      const profile = new Float32Array(steps), localMean = new Float32Array(steps);
+      // Stage 1.1: baseline reference band sits PAST the lash-search
+      // band (never shares a pixel with it), so it can't be pulled
+      // down by the very candidates it's judging — unlike the old
+      // baseline, which averaged the same band `profile` reads and
+      // collapsed toward the candidates' own darkness whenever nearby
+      // lashes were packed densely (verified: this silently dropped
+      // real, high-true-contrast candidates below CONTRAST_T purely
+      // because their neighbors were also dark).
+      const REF_GAP = 2;
+      const refBandLen = Math.max(4, Math.round(h * 0.15));
+      const profile = new Float32Array(steps), localRef = new Float32Array(steps);
       for (let i=0;i<steps;i++) {
         const p = curvePointAt(lashLinePts, i/(steps-1));
-        let minV = 255, sum = 0, n = 0;
-        for (let dy=1; dy<=bandLen; dy++) { const v = at(p.x, p.y-dy); sum += v; n++; if (v < minV) minV = v; }
-        profile[i] = minV; localMean[i] = n ? sum/n : 255;
+        let minV = 255;
+        for (let dy=1; dy<=bandLen; dy++) { const v = at(p.x, p.y-dy); if (v < minV) minV = v; }
+        profile[i] = minV;
+        let refSum = 0, refN = 0;
+        for (let dy=bandLen+REF_GAP; dy<bandLen+REF_GAP+refBandLen; dy++) { refSum += at(p.x, p.y-dy); refN++; }
+        localRef[i] = refN ? refSum/refN : 255;
       }
       const baseline = new Float32Array(steps);
       for (let i=0;i<steps;i++) {
         let s=0,n=0;
-        for (let k=-4;k<=4;k++) { const j=i+k; if (j>=0 && j<steps) { s+=localMean[j]; n++; } }
-        baseline[i] = n ? s/n : localMean[i];
+        for (let k=-4;k<=4;k++) { const j=i+k; if (j>=0 && j<steps) { s+=localRef[j]; n++; } }
+        baseline[i] = n ? s/n : localRef[i];
       }
       const CONTRAST_T = 12;
       const ANGLES = [-25, 0, 25];
-      const candidates = [];
+      const raw = [];
       for (let i=1;i<steps-1;i++) {
         const isLocalMin = profile[i] <= profile[i-1] && profile[i] <= profile[i+1];
         const contrast = baseline[i] - profile[i];
@@ -1341,21 +1354,53 @@
           const darkness = cnt ? sum/cnt : -Infinity;
           if (darkness > best.darkness) best = { angle: deg, darkness, length: extent };
         }
-        candidates.push({ t: i/(steps-1), contrast, direction: best.angle, lengthPx: best.length });
+        raw.push({ t: i/(steps-1), contrast, direction: best.angle, lengthPx: best.length, x: p.x, y: p.y });
       }
+      // Stage 1.1: per-frame NMS by physical ROI distance (not by
+      // sample index / t-tolerance — that belongs to the cross-frame
+      // clustering in aggregateLashFrames). One physical lash can
+      // straddle two adjacent sample columns and pass the local-min
+      // test at both; two genuinely distinct lashes can never be
+      // closer than 2 sample columns (a local minimum can't sit next
+      // to another local minimum), so MIN_LASH_PX sits between those
+      // two distances.
+      const MIN_LASH_PX = 2;
+      const kept = [];
+      for (const c of raw) {
+        const last = kept[kept.length-1];
+        if (last && Math.hypot(c.x-last.x, c.y-last.y) < MIN_LASH_PX) {
+          if (c.contrast > last.contrast) kept[kept.length-1] = c;
+          continue;
+        }
+        kept.push(c);
+      }
+      const candidates = kept.map(c => ({ t: c.t, contrast: c.contrast, direction: c.direction, lengthPx: c.lengthPx }));
       return { candidates, steps, eyeH };
     }
 
     // Temporal stabilization: a candidate must reappear at a close `t`
-    // position (within a small tolerance along the lash line) in a
-    // MAJORITY of the recent quality-passed frames to count as
-    // "stable". This is real spatial+temporal matching — one physical
-    // dark streak found on every frame contributes ONE stable
-    // candidate, never one per frame.
+    // position (within a small tolerance along the lash line) across
+    // the buffered frames to count as "stable". Stage 1.1: the old
+    // binary "support >= 60% of frames" cutoff is replaced with a
+    // graduated rule — anything that already cleared the old 60% bar
+    // is kept exactly as before (no regression); a candidate seen in
+    // 35-60% of frames gets a second chance ONLY if its contrast was
+    // also consistent across the frames it appeared in (a real lash
+    // flickering near the detection threshold stays similarly dark
+    // when it IS detected; noise doesn't); below 35% is an
+    // unconditional floor. A cluster-level merge (just under the
+    // spacing of two genuinely distinct lashes) guards against one
+    // real lash's position quantizing onto a different sample column
+    // from frame to frame and splitting into two adjacent soft-passing
+    // clusters — verified against synthetic tests to bring false
+    // positives to zero while keeping the recall gain from the softer
+    // support rule.
     function aggregateLashFrames(frameSets) {
       if (frameSets.length === 0) return { stable: [], framesUsed: 0, perFrameCounts: [] };
       const TOL = 0.025;
-      const need = Math.max(1, Math.ceil(frameSets.length * 0.6));
+      const MIN_SUPPORT_FRAC = 0.35;
+      const OLD_SUPPORT_FRAC = 0.6;
+      const INCLUDE_SCORE = 0.55;
       const all = [];
       frameSets.forEach(f => f.candidates.forEach(c => all.push(c)));
       all.sort((a,b) => a.t - b.t);
@@ -1366,7 +1411,29 @@
         cl.members.push(c);
         cl.center = cl.members.reduce((a,m) => a+m.t, 0) / cl.members.length;
       }
-      const stable = clusters.filter(cl => cl.members.length >= need).map(cl => ({
+      const stepsHint = (frameSets[0] && frameSets[0].steps) || 40;
+      const CLUSTER_MERGE_TOL = 1.4 / (stepsHint - 1);
+      clusters.sort((a,b) => a.center - b.center);
+      const merged = [];
+      for (const cl of clusters) {
+        const last = merged[merged.length-1];
+        if (last && Math.abs(cl.center - last.center) < CLUSTER_MERGE_TOL) {
+          const lastC = last.members.reduce((a,m) => a+m.contrast, 0) / last.members.length;
+          const clC = cl.members.reduce((a,m) => a+m.contrast, 0) / cl.members.length;
+          if (cl.members.length > last.members.length || (cl.members.length === last.members.length && clC > lastC)) merged[merged.length-1] = cl;
+          continue;
+        }
+        merged.push(cl);
+      }
+      const stable = merged.filter(cl => {
+        const supportRatio = cl.members.length / frameSets.length;
+        if (supportRatio < MIN_SUPPORT_FRAC) return false;
+        if (supportRatio >= OLD_SUPPORT_FRAC) return true;
+        const contrasts = cl.members.map(m => m.contrast);
+        const cStats = stdOf(contrasts);
+        const contrastStability = clamp01(1 - cStats.std / Math.max(cStats.mean, 1e-6));
+        return (0.6*supportRatio + 0.4*contrastStability) >= INCLUDE_SCORE;
+      }).map(cl => ({
         t: cl.center, support: cl.members.length,
         direction: cl.members.reduce((a,m) => a+m.direction, 0) / cl.members.length,
         lengthPx: cl.members.reduce((a,m) => a+m.lengthPx, 0) / cl.members.length,

@@ -2967,22 +2967,50 @@
           <line x1={0} y1={TOP} x2={W} y2={TOP} stroke="#3a5a6a" strokeWidth="0.5" />
           <line x1={0} y1={BOTTOM} x2={W} y2={BOTTOM} stroke="#3a5a6a" strokeWidth="0.5" />
           {v1 && v1.valid && (
-            <line x1={0} y1={yFromT_v1(v1.creaseYFrac)} x2={W} y2={yFromT_v1(v1.creaseYFrac)} stroke="#f0a83c" strokeWidth="0.9" strokeDasharray="3,2" />
+            <>
+              <line x1={0} y1={yFromT_v1(v1.creaseYFrac)} x2={W} y2={yFromT_v1(v1.creaseYFrac)} stroke="#f0a83c" strokeWidth="0.9" strokeDasharray="3,2" />
+              <text x={W - 12} y={yFromT_v1(v1.creaseYFrac) - 1} fontSize="3" fill="#f0a83c">V1</text>
+            </>
           )}
-          {v2 && v2.valid && (v2.paths || []).map((p, pi) => (
-            <g key={pi} opacity={pi === v2.displayPathIndex ? 1 : 0.45}>
-              <polyline
-                points={p.points.map(c => `${xFromSample(c.sampleIndex)},${yFromT_v2(c.t)}`).join(' ')}
-                fill="none" stroke={pi === v2.displayPathIndex ? '#3ce6c8' : '#6b8fa3'} strokeWidth="0.7"
-              />
-              {p.points.map((c, ci) => (
-                <circle key={ci} cx={xFromSample(c.sampleIndex)} cy={yFromT_v2(c.t)} r={pi === v2.displayPathIndex ? 1.3 : 0.9}
-                  fill={pi === v2.displayPathIndex ? '#3ce6c8' : '#6b8fa3'} />
-              ))}
-            </g>
-          ))}
+          {v2 && v2.valid && (v2.paths || []).map((p, pi) => {
+            const isDisplay = pi === v2.displayPathIndex;
+            const midPt = p.points[Math.floor(p.points.length / 2)];
+            return (
+              <g key={pi} opacity={isDisplay ? 1 : 0.45}>
+                <polyline
+                  points={p.points.map(c => `${xFromSample(c.sampleIndex)},${yFromT_v2(c.t)}`).join(' ')}
+                  fill="none" stroke={isDisplay ? '#3ce6c8' : '#6b8fa3'} strokeWidth="0.7"
+                />
+                {p.points.map((c, ci) => (
+                  <circle key={ci} cx={xFromSample(c.sampleIndex)} cy={yFromT_v2(c.t)} r={isDisplay ? 1.3 : 0.9}
+                    fill={isDisplay ? '#3ce6c8' : '#6b8fa3'} />
+                ))}
+                {/* Task requirement — every returned path gets an
+                    on-graph P# label, not just the display candidate. */}
+                {midPt && (
+                  <text x={xFromSample(midPt.sampleIndex) + 1.5} y={yFromT_v2(midPt.t) - 1.5} fontSize="3.2"
+                    fill={isDisplay ? '#3ce6c8' : '#8fa8b5'} fontWeight={isDisplay ? 'bold' : 'normal'}>
+                    {`P${pi}${isDisplay ? '*' : ''}`}
+                  </text>
+                )}
+              </g>
+            );
+          })}
         </svg>
       );
+    }
+
+    // DEBUG-UI-ONLY re-display of the SAME heuristic rank
+    // detectEyelidCreaseV2 already computes internally to pick
+    // displayPathIndex (see DEBUG_HEURISTIC_RANK inside that
+    // function). Recomputed here, at the display layer, using the
+    // identical formula, purely so every path's score can be shown —
+    // this does NOT change which path is selected as the display
+    // candidate (that decision is made once, inside detectEyelidCreaseV2,
+    // completely untouched) and does NOT touch that function's source
+    // at all.
+    function debugV2DisplayRank(p) {
+      return p.continuityFrac * (p.meanLocalStrength != null ? p.meanLocalStrength : p.meanRawStrength);
     }
 
     function CreaseV2EyePanel({ label, entry }) {
@@ -2997,52 +3025,120 @@
             <span>{v1 && v1.valid ? `${v1.peakVal.toFixed(1)}/${v1.prominence.toFixed(1)}/${v1.creaseYFrac.toFixed(2)}` : 'invalid'}</span>
             <span className="text-textMuted">V2 state/paths</span>
             <span>{v2 && v2.valid ? `${v2.debugHeuristicState} (${v2.paths.length})` : 'invalid'}</span>
-            {v2 && v2.valid && v2.displayPathIndex >= 0 && (() => {
-              const p = v2.paths[v2.displayPathIndex];
-              return (
-                <>
-                  <span className="text-textMuted">V2 display meanT/cont.</span>
-                  <span>{p.meanT.toFixed(2)} / {(p.continuityFrac * 100).toFixed(0)}%</span>
-                  <span className="text-textMuted">V2 raw/local strength</span>
-                  <span>{p.meanRawStrength.toFixed(1)} / {p.meanLocalStrength != null ? p.meanLocalStrength.toFixed(2) : 'n/a'}</span>
-                </>
-              );
-            })()}
+            <span className="text-textMuted">V2 display path</span>
+            <span className="text-cyan-300">{v2 && v2.valid && v2.displayPathIndex >= 0 ? `P${v2.displayPathIndex}` : 'none'}</span>
             <span className="text-textMuted">V2 runtime</span>
             <span>{v2 && v2.valid ? `${v2.v2RuntimeMs.toFixed(1)}ms` : '-'}</span>
           </div>
+          {/* ALL paths, not just the display candidate — every path
+              that detectEyelidCreaseV2 returned gets its own row here,
+              unfiltered, unranked-beyond-display-order. */}
+          {v2 && v2.valid && v2.paths.map((p, pi) => {
+            const isDisplay = pi === v2.displayPathIndex;
+            return (
+              <div key={pi} className={`mt-1 pt-1 border-t border-white/5 grid grid-cols-2 gap-x-2 ${isDisplay ? 'text-cyan-300' : ''}`}>
+                <span className="col-span-2 font-semibold">{`P${pi}${isDisplay ? ' — DISPLAY' : ''}`}</span>
+                <span className="text-textMuted">meanT/tVar</span>
+                <span>{p.meanT.toFixed(3)} / {p.tVariation.toFixed(3)}</span>
+                <span className="text-textMuted">continuity/points</span>
+                <span>{(p.continuityFrac * 100).toFixed(0)}% / {p.points.length}</span>
+                <span className="text-textMuted">xSpan</span>
+                <span>{p.xSpan[0].toFixed(1)}-{p.xSpan[1].toFixed(1)}</span>
+                <span className="text-textMuted">raw/local strength</span>
+                <span>{p.meanRawStrength.toFixed(2)} / {p.meanLocalStrength != null ? p.meanLocalStrength.toFixed(2) : 'null'}</span>
+                <span className="text-textMuted">thickness/rank</span>
+                <span>{p.meanThickness.toFixed(2)} / {debugV2DisplayRank(p).toFixed(3)}</span>
+              </div>
+            );
+          })}
         </div>
       );
+    }
+
+    // Pure, testable transform from the live debugCreaseV2 state shape
+    // into the exact engineering-report payload shape requested for
+    // pasting into an external LLM/analysis tool. Reads only already-
+    // computed values off `data` — never recomputes or alters any V1/V2
+    // measurement. Missing/invalid values are explicit null, never a
+    // substituted 0.
+    function buildCreaseV2CopyPayload(data) {
+      const eyeV1 = (v1) => (v1 && v1.valid) ? {
+        peakVal: v1.peakVal, prominence: v1.prominence, creaseYFrac: v1.creaseYFrac, readQuality: v1.readQuality,
+      } : { peakVal: null, prominence: null, creaseYFrac: null, readQuality: null };
+      const eyeV2 = (v2) => (v2 && v2.valid) ? {
+        displayPathIndex: v2.displayPathIndex >= 0 ? v2.displayPathIndex : null,
+        runtimeMs: v2.v2RuntimeMs != null ? v2.v2RuntimeMs : null,
+        roi: { w: v2.roiW != null ? v2.roiW : null, h: v2.roiH != null ? v2.roiH : null },
+        paths: (v2.paths || []).map((p, i) => ({
+          index: i,
+          meanT: p.meanT, tVariation: p.tVariation, continuityFrac: p.continuityFrac,
+          xSpan: p.xSpan, pointCount: p.points.length,
+          meanRawStrength: p.meanRawStrength,
+          meanLocalStrength: p.meanLocalStrength != null ? p.meanLocalStrength : null,
+          meanThickness: p.meanThickness != null ? p.meanThickness : null,
+          points: p.points.map(c => ({
+            sampleIndex: c.sampleIndex, x: c.x, y: c.y, t: c.t,
+            rawStrength: c.rawStrength, prominence: c.prominence,
+            localStrength: c.localStrength != null ? c.localStrength : null,
+            thickness: c.thickness != null ? c.thickness : null,
+          })),
+        })),
+      } : { displayPathIndex: null, runtimeMs: null, roi: { w: null, h: null }, paths: null };
+      const capture = data.capture || {};
+      return {
+        timestamp: new Date().toISOString(),
+        capture: {
+          earL: capture.ear ? capture.ear.left : null,
+          earR: capture.ear ? capture.ear.right : null,
+          roll: capture.roll != null ? capture.roll : null,
+          yaw: capture.yaw != null ? capture.yaw : null,
+          pitch: capture.pitch != null ? capture.pitch : null,
+          brightness: capture.brightness != null ? capture.brightness : null,
+          sharpness: capture.sharpness != null ? capture.sharpness : null,
+        },
+        eyes: {
+          left: { v1: eyeV1(data.left && data.left.v1), v2: eyeV2(data.left && data.left.v2) },
+          right: { v1: eyeV1(data.right && data.right.v1), v2: eyeV2(data.right && data.right.v2) },
+        },
+      };
     }
 
     function CreaseV2DebugPanel({ data }) {
       const [copied, setCopied] = useState(false);
       const copy = () => {
         try {
-          const payload = JSON.stringify(data, null, 2);
+          const payload = JSON.stringify(buildCreaseV2CopyPayload(data), null, 2);
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(payload).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
           }
         } catch (e) { /* clipboard unreliable on some iOS versions — the panel above remains the source of truth */ }
       };
       return (
-        <div className="absolute left-2 right-2 top-16 z-30 max-h-[58%] overflow-y-auto rounded-md bg-black/85 px-2 py-1.5 font-mono text-[8px] leading-tight text-lime-300">
-          <div className="text-cyan-300 font-semibold mb-1">EYELID CREASE V2 — DEBUG SHADOW (not used in classification)</div>
-          <CreaseV2EyePanel label="LEFT" entry={data.left} />
-          <CreaseV2EyePanel label="RIGHT" entry={data.right} />
-          {data.capture && (
-            <div className="grid grid-cols-2 gap-x-2 mb-1.5">
-              <span className="text-textMuted">EAR L/R</span>
-              <span>{data.capture.ear.left.toFixed(3)}/{data.capture.ear.right.toFixed(3)}</span>
-              <span className="text-textMuted">roll/yaw/pitch</span>
-              <span>{data.capture.roll.toFixed(1)}/{data.capture.yaw.toFixed(2)}/{data.capture.pitch.toFixed(2)}</span>
-              <span className="text-textMuted">bright/sharp</span>
-              <span>{data.capture.brightness.toFixed(1)}/{data.capture.sharpness.toFixed(1)}</span>
-            </div>
-          )}
-          <button onClick={copy} className="w-full py-1 rounded text-[8px] font-semibold uppercase tracking-wide bg-white/10 text-textSecondary border border-white/20">
-            {copied ? 'Copied' : 'Copy Crease V2 Diagnostics'}
-          </button>
+        <div className="absolute left-2 right-2 top-16 z-30 max-h-[58%] flex flex-col rounded-md bg-black/85 font-mono text-[8px] leading-tight text-lime-300">
+          {/* Copy control moved ABOVE the long LEFT/RIGHT body (real-
+              iPhone finding: it used to sit at the very bottom of a
+              scrollable panel and was easy to miss/never reach). */}
+          <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1 border-b border-white/10">
+            <span className="text-cyan-300 font-semibold">EYELID CREASE V2 — DEBUG SHADOW</span>
+            <button onClick={copy} className="shrink-0 px-2 py-1 rounded text-[8px] font-semibold uppercase tracking-wide bg-white/15 text-textSecondary border border-white/20 active:bg-white/25">
+              {copied ? 'Copied' : 'Copy V2 JSON'}
+            </button>
+          </div>
+          <div className="px-2 py-1.5 overflow-y-auto flex-1 min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <p className="text-textMuted mb-1">not used in classification</p>
+            <CreaseV2EyePanel label="LEFT" entry={data.left} />
+            <CreaseV2EyePanel label="RIGHT" entry={data.right} />
+            {data.capture && (
+              <div className="grid grid-cols-2 gap-x-2 mb-1.5">
+                <span className="text-textMuted">EAR L/R</span>
+                <span>{data.capture.ear.left.toFixed(3)}/{data.capture.ear.right.toFixed(3)}</span>
+                <span className="text-textMuted">roll/yaw/pitch</span>
+                <span>{data.capture.roll.toFixed(1)}/{data.capture.yaw.toFixed(2)}/{data.capture.pitch.toFixed(2)}</span>
+                <span className="text-textMuted">bright/sharp</span>
+                <span>{data.capture.brightness.toFixed(1)}/{data.capture.sharpness.toFixed(1)}</span>
+              </div>
+            )}
+          </div>
         </div>
       );
     }

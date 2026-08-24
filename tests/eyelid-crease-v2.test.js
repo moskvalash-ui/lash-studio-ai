@@ -446,6 +446,175 @@ test('N. calling detectEyelidCreaseV2 has no observable effect on a subsequent c
   assert.strictEqual(after.isHooded, before.isHooded);
 });
 
+// ================================================================
+// REAL-IPHONE OBSERVABILITY FIX — tests A-K.
+// Real iPhone testing found the debug panel only surfaced the single
+// "display" path (hiding whether other candidates existed or where
+// they were), and the Copy button was unreachable (buried at the
+// bottom of a scrollable panel, below both eyes' full stat blocks).
+// These tests prove the fix without touching detectEyelidCreaseV2's
+// own algorithm/ranking at all — the fix is confined to the debug-UI
+// display layer and a payload-formatting function.
+// ================================================================
+
+// ---- A/B/C — source guards on the JSX (no DOM renderer available in
+// Node for this project's architecture, matching the existing
+// source-guard technique already used by tests B/B2/G in this file). ----
+test('A. CreaseV2EyePanel iterates v2.paths.map(...) — every path gets its own row, not just the display candidate', () => {
+  const panelStart = src.indexOf('function CreaseV2EyePanel(');
+  const panelEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
+  const panelSrc = src.slice(panelStart, panelEnd);
+  assert.ok(/v2\.paths\.map\(\(p, ?pi\)/.test(panelSrc), 'expected CreaseV2EyePanel to map over ALL v2.paths, not read only the display index');
+});
+test('B. each path row is labeled with its own P# identity', () => {
+  const panelStart = src.indexOf('function CreaseV2EyePanel(');
+  const panelEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
+  const panelSrc = src.slice(panelStart, panelEnd);
+  assert.ok(/`P\$\{pi\}/.test(panelSrc), 'expected each path row to render a P${pi} label');
+});
+test('C. displayPathIndex is explicitly exposed as its own labeled field', () => {
+  const panelStart = src.indexOf('function CreaseV2EyePanel(');
+  const panelEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
+  const panelSrc = src.slice(panelStart, panelEnd);
+  assert.ok(/V2 display path/.test(panelSrc) && /v2\.displayPathIndex/.test(panelSrc),
+    'expected an explicit "V2 display path" field referencing v2.displayPathIndex');
+});
+
+// ---- D/E/F — the copy-payload builder, extracted and evaluated for
+// real behavioral proof (not just a source guard). ----
+const payloadFnStart = src.indexOf('function buildCreaseV2CopyPayload(');
+const payloadFnEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
+const { buildCreaseV2CopyPayload } = new Function(
+  src.slice(payloadFnStart, payloadFnEnd) + '\nreturn { buildCreaseV2CopyPayload };'
+)();
+
+function fakeEyeEntry({ v1Valid = true, paths } = {}) {
+  return {
+    v1: v1Valid ? { valid: true, peakVal: 12.3, prominence: 8.1, creaseYFrac: 0.42, readQuality: 0.6 } : { valid: false },
+    v2: {
+      valid: true, roiW: 140, roiH: 90, sampledColumns: 12, v2RuntimeMs: 17.5, displayPathIndex: 0,
+      debugHeuristicState: 'MULTIPLE_CANDIDATES',
+      paths: paths || [
+        { points: [{ sampleIndex: 0, x: 10, y: 20, t: 0.04, rawStrength: 34, prominence: 20, localStrength: 2.66, thickness: 3 },
+                   { sampleIndex: 1, x: 20, y: 22, t: 0.05, rawStrength: 30, prominence: 18, localStrength: 2.4, thickness: 3 }],
+          xSpan: [10, 20], continuityFrac: 0.5, meanT: 0.045, tVariation: 0.005, meanRawStrength: 32, meanLocalStrength: 2.53, meanThickness: 3 },
+        { points: [{ sampleIndex: 6, x: 70, y: 40, t: 0.55, rawStrength: 26.2, prominence: 14, localStrength: 2.24, thickness: 2 }],
+          xSpan: [70, 70], continuityFrac: 0.083, meanT: 0.55, tVariation: 0, meanRawStrength: 26.2, meanLocalStrength: 2.24, meanThickness: 2 },
+      ],
+    },
+  };
+}
+
+test('D. the copy payload contains ALL paths for each eye, not only the display path', () => {
+  const data = {
+    left: fakeEyeEntry(), right: fakeEyeEntry(),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  };
+  const payload = buildCreaseV2CopyPayload(data);
+  assert.strictEqual(payload.eyes.left.v2.paths.length, data.left.v2.paths.length, 'left eye: payload must include every returned path');
+  assert.strictEqual(payload.eyes.right.v2.paths.length, data.right.v2.paths.length, 'right eye: payload must include every returned path');
+  assert.strictEqual(payload.eyes.left.v2.paths[1].meanT, data.left.v2.paths[1].meanT, 'second path (not the display one) must carry its real data through');
+});
+
+test('E. missing/invalid optional metrics become explicit null, never an invented 0', () => {
+  const pathWithNullLocal = {
+    points: [{ sampleIndex: 0, x: 1, y: 2, t: 0.1, rawStrength: 5, prominence: 3, localStrength: null, thickness: 1 }],
+    xSpan: [1, 1], continuityFrac: 0.08, meanT: 0.1, tVariation: 0, meanRawStrength: 5, meanLocalStrength: null, meanThickness: 1,
+  };
+  const data = {
+    left: fakeEyeEntry({ v1Valid: false, paths: [pathWithNullLocal] }),
+    right: { v1: { valid: false }, v2: { valid: false } },
+    capture: null,
+  };
+  const payload = buildCreaseV2CopyPayload(data);
+  assert.strictEqual(payload.eyes.left.v1.peakVal, null, 'invalid V1 fields must be null, not 0 or undefined');
+  assert.strictEqual(payload.eyes.left.v1.prominence, null);
+  assert.strictEqual(payload.eyes.left.v2.paths[0].meanLocalStrength, null, 'a genuinely-null meanLocalStrength must stay null, never become 0');
+  assert.strictEqual(payload.eyes.left.v2.paths[0].points[0].localStrength, null);
+  assert.strictEqual(payload.eyes.right.v2.paths, null, 'an invalid v2 must report paths:null, not an empty array pretending data existed');
+  assert.strictEqual(payload.capture.earL, null, 'missing capture must report null fields, not throw or invent 0');
+  assert.strictEqual(payload.capture.roll, null);
+});
+
+test('F. the copy payload is JSON-serializable and round-trips losslessly', () => {
+  const data = {
+    left: fakeEyeEntry(), right: fakeEyeEntry(),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  };
+  const payload = buildCreaseV2CopyPayload(data);
+  const json = JSON.stringify(payload, null, 2);
+  assert.ok(json.length > 0);
+  const parsed = JSON.parse(json);
+  assert.strictEqual(parsed.eyes.left.v2.paths.length, 2);
+  assert.strictEqual(parsed.eyes.left.v2.paths[0].points.length, 2);
+  console.log(`        (measured payload size for a MULTIPLE_CANDIDATES(2)-shaped fixture: ${json.length} bytes)`);
+});
+
+// ---- G — DOM-order proof: the Copy button's JSX must appear BEFORE
+// the LEFT/RIGHT eye panels in CreaseV2DebugPanel's source (JSX
+// siblings render in source order). ----
+test('G. the Copy button is positioned before the long LEFT/RIGHT diagnostic body in source order', () => {
+  const panelStart = src.indexOf('function CreaseV2DebugPanel(');
+  const panelSrc = src.slice(panelStart, panelStart + 3000);
+  const copyBtnIdx = panelSrc.indexOf('Copy V2 JSON');
+  const leftPanelIdx = panelSrc.indexOf('<CreaseV2EyePanel label="LEFT"');
+  assert.ok(copyBtnIdx !== -1 && leftPanelIdx !== -1, 'expected to find both the Copy button and the LEFT eye panel in CreaseV2DebugPanel');
+  assert.ok(copyBtnIdx < leftPanelIdx, 'Copy button must render before (above) the LEFT/RIGHT diagnostic body');
+});
+
+// ---- H — debug panel remains debug-only (re-confirms tests B/B2 still hold after this turn's edits). ----
+test('H. CreaseV2DebugPanel is still only mounted behind debugAvailable in LiveScanScreen', () => {
+  const mountIdx = src.indexOf('<CreaseV2DebugPanel data={debugCreaseV2} />');
+  assert.ok(mountIdx !== -1, 'expected CreaseV2DebugPanel mount point not found');
+  const before = src.slice(Math.max(0, mountIdx - 200), mountIdx);
+  assert.ok(/debugAvailable/.test(before), 'CreaseV2DebugPanel mount is not visibly guarded by debugAvailable');
+});
+
+// ---- I/J — V2 algorithm (ranking + candidate generation, including
+// DEBUG_V2_UNCALIBRATED) is byte-for-byte unchanged by this turn's
+// debug-UI-only work. Recorded immediately before this turn's edits began. ----
+const V2_BLOCK_EXPECTED_SHA256 = 'b6f7a3b59481b35207ef949fe65a2a50ca5b30cae4f4b47efd7f987bcb7f6a1d';
+test('I/J. detectEyelidCreaseV2 + DEBUG_V2_UNCALIBRATED + its helpers are byte-for-byte unchanged', () => {
+  const blockStart = src.indexOf('    // EYELID CREASE DETECTOR V2 — DEBUG-ONLY EXPERIMENTAL SHADOW DETECTOR.');
+  const blockEnd = src.indexOf('\n    const REASON_MESSAGES = {', blockStart);
+  assert.ok(blockStart !== -1 && blockEnd !== -1, 'could not locate the V2 detector block');
+  const block = src.slice(blockStart, blockEnd);
+  const actualSha = crypto.createHash('sha256').update(block).digest('hex');
+  assert.strictEqual(actualSha, V2_BLOCK_EXPECTED_SHA256,
+    'the V2 detector block (algorithm, ranking, DEBUG_V2_UNCALIBRATED) has changed — this turn was scoped to debug UI only');
+});
+
+// ---- K — production classification remains byte-identical whether
+// the debug panel/payload builder is exercised or not (extends test N
+// to also exercise buildCreaseV2CopyPayload). ----
+test('K. production classifyFeatures output is unaffected by exercising the debug panel payload builder', () => {
+  const cfStart = src.indexOf('    const dist = (a,b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);');
+  const cfEnd = src.indexOf('\n    function extractEyeROI(');
+  const { classifyFeatures: cf2 } = new Function(reactStubsForV2 + src.slice(cfStart, cfEnd) + '\nreturn { classifyFeatures };')();
+  function eyeMetrics() {
+    return {
+      width: 30, height: 12, ear: 0.28, widthRatio: 0.42, tiltCorrected: 0,
+      hoodingRatio: 0.1, hoodingRatioByWidth: 0.1, shapeRatio: 2.5,
+      covCenterByWidth: 0.44, covInnerByWidth: 0.44, covOuterByWidth: 0.44, covByHeight: 0.44 / 0.36,
+      apertureA: 6, apertureB: 6, apertureAsymmetry: 1, innerTaperDeg: 70, outerTaperDeg: 70,
+      creaseValid: 1, creasePeak: 15, creaseProminence: 9, creaseYFrac: 0.4, creaseReadQuality: 0.7,
+    };
+  }
+  const aggregated = { left: eyeMetrics(), right: eyeMetrics(), interEyeDistance: 65, faceBoxWidth: 220, verticalAsymRaw: 0, headPose: { roll: 0 } };
+  const before = cf2(aggregated, { singleFrame: true, stability: null, imageQuality: 0.75 });
+
+  buildCreaseV2CopyPayload({
+    left: fakeEyeEntry(), right: fakeEyeEntry(),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  });
+
+  const after = cf2(aggregated, { singleFrame: true, stability: null, imageQuality: 0.75 });
+  assert.strictEqual(after.eyelidType, before.eyelidType);
+  assert.strictEqual(after.eyelidCategory, before.eyelidCategory);
+  assert.strictEqual(after.hoodedConfidence, before.hoodedConfidence);
+  assert.strictEqual(after.isHooded, before.isHooded);
+});
+
 if (realDocument) global.document = realDocument; else delete global.document;
 
 console.log(`\n${pass} passed, ${fail} failed`);

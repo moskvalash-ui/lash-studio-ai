@@ -419,10 +419,97 @@
     // instantly, overlay faded gradually over the same 900ms).
     const FACE_LOST_GRACE_MS = 900;
 
+    // ============================================================
+    // PHYSICAL EYE NORMALIZATION — face-api.js -> application boundary.
+    // ------------------------------------------------------------
+    // Proven this session (real face-api.js@0.22.2 detections against
+    // 3 independent real photos, using each photo's own nose-centroid
+    // as an independent inner/outer reference — see
+    // tests/eye-normalization.test.js for the executable proof):
+    //
+    //   face-api's getLeftEye()/getLeftEyeBrow() (indices 36-41,
+    //   17-21) sit on the IMAGE-LEFT side of the (raw, canonical,
+    //   un-mirrored) frame — which, for a normal face-to-face camera
+    //   frame, is the client's PHYSICAL RIGHT eye/brow. Symmetrically,
+    //   getRightEye()/getRightEyeBrow() (42-47, 22-26) = physical LEFT.
+    //   face-api's naming is image-side-based, not anatomy-based.
+    //
+    //   Point order also differs per source: getRightEye()'s raw
+    //   6-point order is ALREADY [inner,upperInner,upperOuter,outer,
+    //   lowerOuter,lowerInner] (the standard EAR/dlib layout, corner-
+    //   for-corner). getLeftEye()'s raw order is the SAME anatomical
+    //   layout starting from the opposite corner — not a plain
+    //   reverse (that would swap which lower point pairs with which
+    //   upper point) — the exact, proven permutation is [3,2,1,0,5,4].
+    //   getLeftEyeBrow() is outer-to-inner (opposite of
+    //   getRightEyeBrow()'s already-inner-to-outer order); brows have
+    //   no upper/lower pairing to preserve, so a plain reverse is
+    //   correct there.
+    //
+    // This is the ONLY place raw getLeftEye()/getRightEye()/
+    // getLeftEyeBrow()/getRightEyeBrow() should be called for any
+    // semantic/measurement purpose. The sole documented exception is
+    // buildFaceMesh's purely-visual face-mesh rendering (LiveScanScreen
+    // overlay + ResultMeshOverlay), which has ~15 hardcoded joins
+    // (meshEdgeList/meshTriangleList) that assume this exact raw,
+    // image-side ordering for its own internal cross-brow/cross-eye
+    // stitching — it draws an aesthetic face outline, asserts no L/R
+    // claim, and is deliberately left reading raw face-api output
+    // unchanged; rewriting its topology for canonical order would be
+    // an unrelated, high-risk visual refactor with zero semantic
+    // benefit, so it is out of scope here.
+    //
+    // Depends on NOTHING but `landmarks` — no CSS mirror state, no
+    // facingMode, no screen/display coordinates. `landmarks` is itself
+    // always built upstream from the raw, un-mirrored processing
+    // canvas (ctx.drawImage(video,...) ignores CSS transforms on its
+    // source element — proven in the prior camera-fix audit), so
+    // preview mirroring can never reach this function.
+    // ============================================================
+    function normalizeEyePoints(raw, source) {
+      if (source === 'getRightEye') return raw.slice();
+      if (source === 'getLeftEye') return [raw[3], raw[2], raw[1], raw[0], raw[5], raw[4]];
+      throw new Error('normalizeEyePoints: unknown source ' + source);
+    }
+    function normalizeBrowPoints(raw, source) {
+      if (source === 'getRightEyeBrow') return raw.slice();
+      if (source === 'getLeftEyeBrow') return raw.slice().reverse();
+      throw new Error('normalizeBrowPoints: unknown source ' + source);
+    }
+    // physicalSide: 'left' | 'right' (the CLIENT'S own anatomical
+    // side — matches how every user-facing string in this app already
+    // uses "left eye"/"right eye", e.g. natLashMoveLeftCloser).
+    // Returns { eye, brow }, both canonically ordered
+    // [INNER_CORNER, UPPER_INNER, UPPER_OUTER, OUTER_CORNER,
+    //  LOWER_OUTER, LOWER_INNER] / [INNER_END, ..., OUTER_END].
+    function getPhysicalEyeLandmarks(landmarks, physicalSide) {
+      if (physicalSide === 'left') {
+        return {
+          eye: normalizeEyePoints(landmarks.getRightEye(), 'getRightEye'),
+          brow: normalizeBrowPoints(landmarks.getRightEyeBrow(), 'getRightEyeBrow'),
+        };
+      }
+      if (physicalSide === 'right') {
+        return {
+          eye: normalizeEyePoints(landmarks.getLeftEye(), 'getLeftEye'),
+          brow: normalizeBrowPoints(landmarks.getLeftEyeBrow(), 'getLeftEyeBrow'),
+        };
+      }
+      throw new Error('getPhysicalEyeLandmarks: unknown physicalSide ' + physicalSide);
+    }
+
     function computeHeadPose(landmarks) {
       const nose = landmarks.getNose();
-      const leftEye = landmarks.getLeftEye();
-      const rightEye = landmarks.getRightEye();
+      // PHYSICAL EYE NORMALIZATION — leftEye/rightEye here are now the
+      // client's actual physical eyes (see getPhysicalEyeLandmarks
+      // above), each already canonically ordered so eye[0]/eye[3] are
+      // genuinely inner/outer. roll/interEyeDistance/yawProxy/
+      // pitchProxy below are all built from symmetric (order/label-
+      // invariant) combinations of the two centers, so their VALUES
+      // are unchanged by this fix — only leftEyeCenter/rightEyeCenter
+      // in the returned object are now correctly attributed.
+      const leftEye = getPhysicalEyeLandmarks(landmarks, 'left').eye;
+      const rightEye = getPhysicalEyeLandmarks(landmarks, 'right').eye;
       const leftEyeCenter = { x: (leftEye[0].x + leftEye[3].x) / 2, y: (leftEye[0].y + leftEye[3].y) / 2 };
       const rightEyeCenter = { x: (rightEye[0].x + rightEye[3].x) / 2, y: (rightEye[0].y + rightEye[3].y) / 2 };
       const interEyeDistance = dist(leftEyeCenter, rightEyeCenter);
@@ -458,8 +545,15 @@
     }
 
     function computeEyeSideMetrics(landmarks, side, headPose) {
-      const eye = side === 'left' ? landmarks.getLeftEye() : landmarks.getRightEye();
-      const brow = side === 'left' ? landmarks.getLeftEyeBrow() : landmarks.getRightEyeBrow();
+      // PHYSICAL EYE NORMALIZATION — `side` means the client's actual
+      // physical side; `eye`/`brow` are canonically ordered so
+      // eye[0]/eye[3] are genuinely the inner/outer corners for
+      // EITHER side (see getPhysicalEyeLandmarks above). Previously
+      // this read face-api's getLeftEye()/getRightEye() directly,
+      // which (a) returns the physically OPPOSITE eye from what
+      // `side` names, and (b) has eye[0]/eye[3] reversed for one of
+      // the two sources — both proven and fixed at that one boundary.
+      const { eye, brow } = getPhysicalEyeLandmarks(landmarks, side);
       const inner = eye[0], outer = eye[3];
       const width = dist(inner, outer);
       // Aperture measured independently near EACH corner (not just
@@ -2685,6 +2779,18 @@
           const boxClipped = det.detection.box.x < canvas.width*0.02 || det.detection.box.y < canvas.height*0.02 ||
             (det.detection.box.x + det.detection.box.width) > canvas.width*0.98 ||
             (det.detection.box.y + det.detection.box.height) > canvas.height*0.98;
+          // PHYSICAL EYE NORMALIZATION — canonical, physically-correct
+          // points for anything that carries a LEFT/RIGHT semantic
+          // (brightness sampling below, crease detection, the "L"/"R"
+          // overlay target). NOT used for the raw leftEye/rightEye/
+          // leftBrow/rightBrow stored just below, which intentionally
+          // stay raw face-api output — buildFaceMesh's topology
+          // (meshEdgeList/meshTriangleList) has ~15 hardcoded joins
+          // that assume that exact raw, image-side ordering; see the
+          // getPhysicalEyeLandmarks doc comment for why the purely-
+          // visual mesh is deliberately left alone.
+          const physicalLeft = getPhysicalEyeLandmarks(det.landmarks, 'left');
+          const physicalRight = getPhysicalEyeLandmarks(det.landmarks, 'right');
           lastDetRef.current = {
             hasFace: true, ts: now, videoW: video.videoWidth, videoH: video.videoHeight, aligned: false,
             box: { x: det.detection.box.x/scale, y: det.detection.box.y/scale, width: det.detection.box.width/scale, height: det.detection.box.height/scale },
@@ -2692,6 +2798,10 @@
             rightEye: det.landmarks.getRightEye().map(p => ({ x: p.x/scale, y: p.y/scale })),
             leftBrow: det.landmarks.getLeftEyeBrow().map(p => ({ x: p.x/scale, y: p.y/scale })),
             rightBrow: det.landmarks.getRightEyeBrow().map(p => ({ x: p.x/scale, y: p.y/scale })),
+            // Physically-correct, canonical — feeds ONLY the "L"/"R"
+            // eye-target labels (see the overlay draw loop below).
+            physicalLeftEye: physicalLeft.eye.map(p => ({ x: p.x/scale, y: p.y/scale })),
+            physicalRightEye: physicalRight.eye.map(p => ({ x: p.x/scale, y: p.y/scale })),
             jaw: det.landmarks.getJawOutline().map(p => ({ x: p.x/scale, y: p.y/scale })),
             nose: det.landmarks.getNose().map(p => ({ x: p.x/scale, y: p.y/scale })),
             mouth: det.landmarks.getMouth().slice(0, 12).map(p => ({ x: p.x/scale, y: p.y/scale })),
@@ -2702,7 +2812,7 @@
           const headPose = computeHeadPose(det.landmarks);
           const leftMetrics = computeEyeSideMetrics(det.landmarks, 'left', headPose);
           const rightMetrics = computeEyeSideMetrics(det.landmarks, 'right', headPose);
-          const leftEye = det.landmarks.getLeftEye(), rightEye = det.landmarks.getRightEye();
+          const leftEye = physicalLeft.eye, rightEye = physicalRight.eye;
           const brightness = sampleBrightness(ctx, leftEye.concat(rightEye));
           const sharpness = estimateSharpness(ctx, det.detection.box);
 
@@ -2737,7 +2847,7 @@
           // Crease pixel analysis only runs on frames already accepted
           // by the quality gate above, same as the other per-frame CV
           // work in this tick — cheap enough at this ~5fps tick rate.
-          const leftBrowPts = det.landmarks.getLeftEyeBrow(), rightBrowPts = det.landmarks.getRightEyeBrow();
+          const leftBrowPts = physicalLeft.brow, rightBrowPts = physicalRight.brow;
           const leftCrease = detectEyelidCrease(canvas, leftEye, leftBrowPts);
           const rightCrease = detectEyelidCrease(canvas, rightEye, rightBrowPts);
           leftMetrics.creaseValid = leftCrease.valid ? 1 : 0;
@@ -2935,6 +3045,13 @@
             const smoothAll = (cur, target, f) => cur && cur.length === target.length ? cur.map((p,i) => lerpPt(p, target[i], f)) : target;
             s.leftEye = smoothAll(s.leftEye, mapAll(d.leftEye), 0.28);
             s.rightEye = smoothAll(s.rightEye, mapAll(d.rightEye), 0.28);
+            // PHYSICAL EYE NORMALIZATION — separate from s.leftEye/
+            // s.rightEye above (which stay raw/image-side for
+            // buildFaceMesh's topology, untouched). These feed ONLY
+            // the "L"/"R" eye-target labels below, so those labels
+            // land on the client's actual physical left/right eye.
+            s.physicalLeftEye = smoothAll(s.physicalLeftEye, mapAll(d.physicalLeftEye), 0.28);
+            s.physicalRightEye = smoothAll(s.physicalRightEye, mapAll(d.physicalRightEye), 0.28);
             s.leftBrow = smoothAll(s.leftBrow, mapAll(d.leftBrow), 0.22);
             s.rightBrow = smoothAll(s.rightBrow, mapAll(d.rightBrow), 0.22);
             s.jaw = smoothAll(s.jaw, mapAll(d.jaw), 0.2);
@@ -2981,7 +3098,11 @@
               const ry = (Math.max(...ys)-Math.min(...ys))/2 * 2.1 + 6;
               return { center: {x:cx,y:cy}, rx, ry, inner: pts[0], outer: pts[3] };
             };
-            const le = eyeOf(s.leftEye), re = eyeOf(s.rightEye);
+            // PHYSICAL EYE NORMALIZATION — le/re (and therefore the
+            // "L"/"R" labels + inner/outer corner highlight below) use
+            // the canonical, physically-correct eye points, not the
+            // raw s.leftEye/s.rightEye that buildFaceMesh reads.
+            const le = eyeOf(s.physicalLeftEye), re = eyeOf(s.physicalRightEye);
 
             const illum = (eye) => {
               if (completing) return 0.55;
@@ -3220,8 +3341,15 @@
           }
           const headPose = computeHeadPose(det.landmarks);
           const sd = sideRef.current;
-          const eyePts = (sd === 'left' ? det.landmarks.getLeftEye() : det.landmarks.getRightEye());
-          const browPts = (sd === 'left' ? det.landmarks.getLeftEyeBrow() : det.landmarks.getRightEyeBrow());
+          // PHYSICAL EYE NORMALIZATION — sd is the client's physical
+          // side ('left'/'right', matching the "Move your left eye
+          // closer" UI text). eyePts/browPts are now canonically
+          // ordered INNER->OUTER for either side (see
+          // getPhysicalEyeLandmarks above), so extractEyeROI/
+          // detectLashLine/computeLashObservations downstream receive
+          // correctly normalized input without needing any changes
+          // themselves — lash-scan-core.js is untouched.
+          const { eye: eyePts, brow: browPts } = getPhysicalEyeLandmarks(det.landmarks, sd);
           const metrics = computeEyeSideMetrics(det.landmarks, sd, headPose);
 
           const roi = extractEyeROI(canvas, eyePts, browPts, 0.35);
@@ -3642,7 +3770,12 @@
           const headPose = computeHeadPose(det.landmarks);
           const leftMetrics = computeEyeSideMetrics(det.landmarks, 'left', headPose);
           const rightMetrics = computeEyeSideMetrics(det.landmarks, 'right', headPose);
-          const leftEye = det.landmarks.getLeftEye(), rightEye = det.landmarks.getRightEye();
+          // PHYSICAL EYE NORMALIZATION — see getPhysicalEyeLandmarks
+          // above; leftEye/rightEye/leftBrowPts/rightBrowPts here are
+          // the client's actual physical eyes, canonically ordered.
+          const physicalLeft = getPhysicalEyeLandmarks(det.landmarks, 'left');
+          const physicalRight = getPhysicalEyeLandmarks(det.landmarks, 'right');
+          const leftEye = physicalLeft.eye, rightEye = physicalRight.eye;
           const brightness = sampleBrightness(ctx, leftEye.concat(rightEye));
           const sharpness = estimateSharpness(ctx, det.detection.box);
           const quality = assessFrameQuality({
@@ -3652,7 +3785,7 @@
           console.log('[Photo] quality', quality);
           if (!quality.ok) { setState('error'); return; }
 
-          const leftBrowPts = det.landmarks.getLeftEyeBrow(), rightBrowPts = det.landmarks.getRightEyeBrow();
+          const leftBrowPts = physicalLeft.brow, rightBrowPts = physicalRight.brow;
           const leftCrease = detectEyelidCrease(canvas, leftEye, leftBrowPts);
           const rightCrease = detectEyelidCrease(canvas, rightEye, rightBrowPts);
           leftMetrics.creaseValid = leftCrease.valid ? 1 : 0;
@@ -3887,6 +4020,15 @@
     // used live in Scan, built from the SAME landmarks the analysis
     // actually used (result.landmarks). Purely presentational: no
     // lash rendering, no re-analysis, nothing fed back into scoring.
+    // PHYSICAL EYE NORMALIZATION — deliberately exempt. This draws the
+    // purely-visual buildFaceMesh face outline over the captured/
+    // reviewed photo; it asserts no L/R label or semantic claim.
+    // meshEdgeList/meshTriangleList have ~15 hardcoded joins that
+    // assume face-api's raw, image-side eye/brow ordering (see the
+    // getPhysicalEyeLandmarks doc comment) — feeding it normalized
+    // points would require rewriting that topology for zero semantic
+    // benefit, so raw getLeftEye()/getRightEye()/getLeftEyeBrow()/
+    // getRightEyeBrow() calls stay here intentionally, unchanged.
     function ResultMeshOverlay({ landmarks, imageWidth, imageHeight }) {
       const canvasRef = useRef(null);
       const containerRef = useRef(null);

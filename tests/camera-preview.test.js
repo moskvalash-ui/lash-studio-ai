@@ -124,7 +124,11 @@ test('face-lost gate: FACE_LOST_GRACE_MS constant in index.html matches this tes
 
 // ---- 3. Static source guards — measurement/LEFT-RIGHT safety ----
 test('source guard: eye-side (LEFT/RIGHT) selection has no dependency on mirror/facingMode state', () => {
-  const m = src.match(/const eyePts = \(sd === 'left' \? det\.landmarks\.getLeftEye\(\) : det\.landmarks\.getRightEye\(\)\);/);
+  // Updated for the physical-eye-normalization integration: NaturalLashScanScreen
+  // now sources eyePts/browPts from getPhysicalEyeLandmarks(det.landmarks, sd)
+  // instead of a raw getLeftEye()/getRightEye() ternary — see
+  // tests/eye-normalization.test.js for the normalization contract itself.
+  const m = src.match(/const \{ eye: eyePts, brow: browPts \} = getPhysicalEyeLandmarks\(det\.landmarks, sd\);/);
   assert.ok(m, 'expected eye-side selection line not found — has NaturalLashScanScreen changed shape?');
   assert.ok(!/mirror|facingMode/i.test(m[0]), 'eye-side selection line unexpectedly references mirror/facingMode state');
 });

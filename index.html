@@ -1046,6 +1046,120 @@
       };
     }
 
+    // ============================================================
+    // EYELID CREASE V2.2 — DEBUG-ONLY MULTI-PEAK PATH LINKING SHADOW.
+    // ------------------------------------------------------------
+    // A NEW, SEPARATE post-processing layer over detectEyelidCreaseV2Multi's
+    // OWN already-computed output (its `columns` array). This block does
+    // NOT touch pixels, ROI, gradients, or smoothing at all — it takes
+    // the peaks V2.1 already retained and links them across columns into
+    // candidate paths, generalizing the EXACT linking rule
+    // detectEyelidCreaseV2 (frozen) already uses for its own single
+    // per-column candidate (see that function's "Link neighboring
+    // sampled columns into paths" section, above): a link forms only
+    // when |Δt| <= PATH_LINK_MAX_T_GAP, the SAME constant already in
+    // DEBUG_V2_UNCALIBRATED — no new anatomical threshold is introduced
+    // here, and none is tuned against any specific capture.
+    //
+    // The single difference from V2's own linker is architectural, not
+    // numeric: V2 has exactly one candidate per column, so it only ever
+    // tracks ONE open chain. V2.1 can have up to DEBUG_V2_MULTI_MAX_PEAKS
+    // per column, so this generalizes the SAME rule to multiple
+    // simultaneously open tracks (a direct, minimal extension — not the
+    // DP/Viterbi lattice-optimization design sketched as a FUTURE option
+    // in the earlier audit, which would require inventing a new scoring
+    // function; this deliberately does not).
+    //
+    // Observation only: returns every linked path it finds, does not
+    // rank/select a "true" crease, does not classify lid-vs-crease, and
+    // is never wired into classifyFeatures.
+    // ============================================================
+
+    // Pure — no pixel/canvas access. Input: the `columns` array already
+    // produced by detectEyelidCreaseV2Multi (each `{ sampleIndex, x,
+    // peaks: [...] | null }`). Output: an array of raw point arrays
+    // (not yet summarized) — each point is `{ sampleIndex, x, ...peak }`.
+    //
+    // Deterministic multi-track greedy linking: at each column, every
+    // currently-open track greedily claims the closest still-unclaimed
+    // peak within PATH_LINK_MAX_T_GAP of its own last t (ties broken by
+    // lowest peak index, since tracks are processed in stable creation
+    // order and peaks are scanned low-to-high); any peak left unclaimed
+    // starts a brand-new track; a null/empty column closes every
+    // currently-open track (mirroring V2's own "a missing column always
+    // breaks the chain" behavior) rather than bridging across it.
+    function debugV2LinkMultiPeakPaths(columns, maxTGap) {
+      let tracks = [];
+      const completed = [];
+      for (let s = 0; s < columns.length; s++) {
+        const col = columns[s];
+        const peaks = (col && col.peaks) || [];
+        const claimed = new Set();
+        const stillActive = [];
+        for (const track of tracks) {
+          let bestK = -1, bestGap = Infinity;
+          for (let k = 0; k < peaks.length; k++) {
+            if (claimed.has(k)) continue;
+            const gap = Math.abs(peaks[k].t - track.lastT);
+            if (gap <= maxTGap && gap < bestGap) { bestGap = gap; bestK = k; }
+          }
+          if (bestK >= 0) {
+            claimed.add(bestK);
+            track.points.push({ sampleIndex: col.sampleIndex, x: col.x, ...peaks[bestK] });
+            track.lastT = peaks[bestK].t;
+            stillActive.push(track);
+          } else {
+            completed.push(track.points);
+          }
+        }
+        tracks = stillActive;
+        for (let k = 0; k < peaks.length; k++) {
+          if (claimed.has(k)) continue;
+          tracks.push({ points: [{ sampleIndex: col.sampleIndex, x: col.x, ...peaks[k] }], lastT: peaks[k].t });
+        }
+      }
+      for (const track of tracks) completed.push(track.points);
+      return completed;
+    }
+
+    // Pure — summarizes one linked path using the SAME fields/formulas
+    // detectEyelidCreaseV2's own pathSummaries already use (meanT,
+    // tVariation, continuityFrac, meanRawStrength, meanLocalStrength,
+    // meanThickness, xSpan), so a V2.2 path can be read side-by-side
+    // with a V2 path directly. containsV2Winner additionally marks
+    // whether this linked path ever passes through the frozen V2's own
+    // single-argmax candidate for that column — purely descriptive.
+    function debugV2SummarizeLinkedPath(points, sampledColumns) {
+      const ts = points.map(p => p.t);
+      const meanT = ts.reduce((a, b) => a + b, 0) / ts.length;
+      const tVariation = Math.sqrt(ts.reduce((a, b) => a + (b - meanT) ** 2, 0) / ts.length);
+      const meanRawStrength = points.reduce((a, p) => a + p.rawStrength, 0) / points.length;
+      const localVals = points.map(p => p.localStrength).filter(v => v != null);
+      const meanLocalStrength = localVals.length ? localVals.reduce((a, b) => a + b, 0) / localVals.length : null;
+      const meanThickness = points.reduce((a, p) => a + p.thickness, 0) / points.length;
+      return {
+        points,
+        xSpan: [points[0].x, points[points.length - 1].x],
+        continuityFrac: points.length / sampledColumns,
+        meanT, tVariation, meanRawStrength, meanLocalStrength, meanThickness,
+        containsV2Winner: points.some(p => p.currentV2Winner === true),
+      };
+    }
+
+    // Convenience wrapper combining the two pure functions above, in the
+    // same result shape as V2/V2.1 (`{ valid, sampledColumns, paths,
+    // v2LinkedRuntimeMs }`) for direct reuse in the debug UI / copy
+    // payload. Takes an already-computed V2.1 `columns` array — does not
+    // call detectEyelidCreaseV2Multi itself, so wiring it into
+    // LiveScanScreen costs no extra pixel work beyond what V2.1 already does.
+    function debugV2BuildLinkedPaths(columns, sampledColumns, maxTGap) {
+      const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      const rawPaths = debugV2LinkMultiPeakPaths(columns || [], maxTGap);
+      const paths = rawPaths.map(pts => debugV2SummarizeLinkedPath(pts, sampledColumns));
+      const v2LinkedRuntimeMs = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : 0) - t0;
+      return { valid: true, sampledColumns, paths, v2LinkedRuntimeMs };
+    }
+
     const REASON_MESSAGES = {
       low_face_confidence: 'hintLowConf',
       head_tilted: 'hintLookStraight',
@@ -3103,7 +3217,7 @@
     // numeric direction). V1 is a single dashed line (it has no x
     // position — it collapsed the whole width into one row); V2 is
     // per-column dots, connected within each linked path.
-    function CreaseV2Plot({ v1, v2, v2Multi }) {
+    function CreaseV2Plot({ v1, v2, v2Multi, v2Linked }) {
       const W = 100, H = 56, TOP = 4, BOTTOM = 52; // reserve 4px margins for the BROW/LID labels
       const yFromT_v1 = (frac01) => TOP + frac01 * (BOTTOM - TOP); // v1.creaseYFrac: 0=brow,1=lid — direct mapping
       const yFromT_v2 = (t) => TOP + (1 - t) * (BOTTOM - TOP); // v2 t: 0=lid,1=brow — inverted mapping, see module doc
@@ -3149,9 +3263,10 @@
               peak in every sampled column is plotted as its own dot in
               the SAME coordinate system as V1/V2 above (reuses
               xFromSample/yFromT_v2 unchanged); the current-V2-winner
-              peak is drawn distinctly. Deliberately NOT connected by
-              any polyline — linking secondary peaks into paths is an
-              explicitly separate, not-yet-approved next step. */}
+              peak is drawn distinctly. This dot layer is deliberately
+              NOT itself connected by any polyline — the V2.2 layer
+              below draws the linked-path polylines separately, so the
+              raw (unlinked) peak evidence stays independently visible. */}
           {v2Multi && v2Multi.valid && (v2Multi.columns || []).flatMap((c) => (
             c.peaks || []
           ).map((p) => (
@@ -3163,6 +3278,25 @@
               opacity={p.currentV2Winner ? 0.9 : 0.5}
             />
           )))}
+          {/* V2.2 MULTI-PEAK PATH LINKING SHADOW — observation only.
+              Every linked path debugV2LinkMultiPeakPaths found is drawn
+              as its own polyline, connecting the SAME V2.1 dots above
+              (reuses the identical xFromSample/yFromT_v2 mapping) — a
+              path that contains the frozen V2 winner is drawn solid, any
+              other linked path (a competing/secondary track) is dashed,
+              so a genuinely separate crease candidate stays visually
+              distinguishable from the already-known V2 winner's path. */}
+          {v2Linked && v2Linked.valid && (v2Linked.paths || []).map((p, pi) => (
+            <polyline
+              key={`lk-${pi}`}
+              points={p.points.map(c => `${xFromSample(c.sampleIndex)},${yFromT_v2(c.t)}`).join(' ')}
+              fill="none"
+              stroke={p.containsV2Winner ? '#ffd23c' : '#a97cf0'}
+              strokeWidth="0.55"
+              strokeDasharray={p.containsV2Winner ? undefined : '1.5,1'}
+              opacity="0.85"
+            />
+          ))}
         </svg>
       );
     }
@@ -3195,12 +3329,12 @@
 
     function CreaseV2EyePanel({ label, entry }) {
       if (!entry) return null;
-      const { v1, v2, v2Multi } = entry;
+      const { v1, v2, v2Multi, v2Linked } = entry;
       const boundaryPeak = debugV1BoundaryPeakFlag(v1);
       return (
         <div className="mb-1.5 pb-1.5 border-b border-white/10 last:border-0">
           <p className="text-cyan-200 uppercase">{label}</p>
-          <CreaseV2Plot v1={v1} v2={v2} v2Multi={v2Multi} />
+          <CreaseV2Plot v1={v1} v2={v2} v2Multi={v2Multi} v2Linked={v2Linked} />
           <div className="grid grid-cols-2 gap-x-2">
             <span className="text-textMuted">V1 peak/prom/yFrac</span>
             <span>{v1 && v1.valid ? `${v1.peakVal.toFixed(1)}/${v1.prominence.toFixed(1)}/${v1.creaseYFrac.toFixed(2)}` : 'invalid'}</span>
@@ -3218,6 +3352,8 @@
             <span>{v2 && v2.valid ? `${v2.v2RuntimeMs.toFixed(1)}ms` : '-'}</span>
             <span className="text-textMuted">V2.1 multi runtime</span>
             <span>{v2Multi && v2Multi.valid ? `${v2Multi.v2MultiRuntimeMs.toFixed(1)}ms` : '-'}</span>
+            <span className="text-textMuted">V2.2 linked paths/runtime</span>
+            <span>{v2Linked && v2Linked.valid ? `${v2Linked.paths.length} / ${v2Linked.v2LinkedRuntimeMs.toFixed(1)}ms` : '-'}</span>
           </div>
           {/* ALL paths, not just the display candidate — every path
               that detectEyelidCreaseV2 returned gets its own row here,
@@ -3260,6 +3396,27 @@
               ))}
             </div>
           )}
+          {/* V2.2 MULTI-PEAK PATH LINKING SHADOW — observation only.
+              Links the SAME V2.1 peaks above across columns (multi-track
+              greedy, gap-limited by the existing PATH_LINK_MAX_T_GAP —
+              no new threshold). Does NOT rank or select a "true" crease;
+              containsV2Winner only marks whether this path happens to
+              pass through the frozen V2's own single-argmax candidate. */}
+          {v2Linked && v2Linked.valid && v2Linked.paths.map((p, pi) => (
+            <div key={pi} className={`mt-1 pt-1 border-t border-white/5 grid grid-cols-2 gap-x-2 ${p.containsV2Winner ? 'text-yellow-300' : 'text-purple-200'}`}>
+              <span className="col-span-2 font-semibold">{`L${pi}${p.containsV2Winner ? ' (contains V2 winner)' : ''}`}</span>
+              <span className="text-textMuted">meanT/tVar</span>
+              <span>{p.meanT.toFixed(3)} / {p.tVariation.toFixed(3)}</span>
+              <span className="text-textMuted">continuity/points</span>
+              <span>{(p.continuityFrac * 100).toFixed(0)}% / {p.points.length}</span>
+              <span className="text-textMuted">xSpan</span>
+              <span>{p.xSpan[0].toFixed(1)}-{p.xSpan[1].toFixed(1)}</span>
+              <span className="text-textMuted">raw/local strength</span>
+              <span>{p.meanRawStrength.toFixed(2)} / {p.meanLocalStrength != null ? p.meanLocalStrength.toFixed(2) : 'null'}</span>
+              <span className="text-textMuted">thickness</span>
+              <span>{p.meanThickness.toFixed(2)}</span>
+            </div>
+          ))}
         </div>
       );
     }
@@ -3309,6 +3466,26 @@
           })) : null,
         })),
       } : { runtimeMs: null, columns: null };
+      // V2.2 MULTI-PEAK PATH LINKING SHADOW — separate field, additive
+      // only; does not alter v1/v2/v2MultiShadow above in any way.
+      const eyeV2Linked = (v2l) => (v2l && v2l.valid) ? {
+        runtimeMs: v2l.v2LinkedRuntimeMs != null ? v2l.v2LinkedRuntimeMs : null,
+        paths: (v2l.paths || []).map((p, i) => ({
+          index: i,
+          containsV2Winner: p.containsV2Winner,
+          meanT: p.meanT, tVariation: p.tVariation, continuityFrac: p.continuityFrac,
+          xSpan: p.xSpan, pointCount: p.points.length,
+          meanRawStrength: p.meanRawStrength,
+          meanLocalStrength: p.meanLocalStrength != null ? p.meanLocalStrength : null,
+          meanThickness: p.meanThickness != null ? p.meanThickness : null,
+          points: p.points.map(c => ({
+            sampleIndex: c.sampleIndex, x: c.x, y: c.y, t: c.t,
+            rawStrength: c.rawStrength, prominence: c.prominence,
+            localStrength: c.localStrength != null ? c.localStrength : null,
+            thickness: c.thickness != null ? c.thickness : null,
+          })),
+        })),
+      } : { runtimeMs: null, paths: null };
       const capture = data.capture || {};
       return {
         timestamp: new Date().toISOString(),
@@ -3325,10 +3502,12 @@
           left: {
             v1: eyeV1(data.left && data.left.v1), v2: eyeV2(data.left && data.left.v2),
             v2MultiShadow: eyeV2Multi(data.left && data.left.v2Multi),
+            v2LinkedShadow: eyeV2Linked(data.left && data.left.v2Linked),
           },
           right: {
             v1: eyeV1(data.right && data.right.v1), v2: eyeV2(data.right && data.right.v2),
             v2MultiShadow: eyeV2Multi(data.right && data.right.v2Multi),
+            v2LinkedShadow: eyeV2Linked(data.right && data.right.v2Linked),
           },
         },
       };
@@ -3602,9 +3781,19 @@
             // rightMetrics or classifyFeatures.
             const v2LeftMulti = detectEyelidCreaseV2Multi(canvas, leftEye, leftBrowPts);
             const v2RightMulti = detectEyelidCreaseV2Multi(canvas, rightEye, rightBrowPts);
+            // V2.2 MULTI-PEAK PATH LINKING SHADOW — debug-only, observation
+            // only. Pure post-processing over the V2.1 results just
+            // computed above; does not touch pixels/ROI again and does
+            // not affect V1/V2/V2.1 in any way.
+            const v2LeftLinked = debugV2BuildLinkedPaths(
+              v2LeftMulti.valid ? v2LeftMulti.columns : [], v2LeftMulti.sampledColumns, DEBUG_V2_UNCALIBRATED.PATH_LINK_MAX_T_GAP
+            );
+            const v2RightLinked = debugV2BuildLinkedPaths(
+              v2RightMulti.valid ? v2RightMulti.columns : [], v2RightMulti.sampledColumns, DEBUG_V2_UNCALIBRATED.PATH_LINK_MAX_T_GAP
+            );
             setDebugCreaseV2({
-              left: { v1: leftCrease, v2: v2Left, v2Multi: v2LeftMulti },
-              right: { v1: rightCrease, v2: v2Right, v2Multi: v2RightMulti },
+              left: { v1: leftCrease, v2: v2Left, v2Multi: v2LeftMulti, v2Linked: v2LeftLinked },
+              right: { v1: rightCrease, v2: v2Right, v2Multi: v2RightMulti, v2Linked: v2RightLinked },
               capture: {
                 ear: { left: leftMetrics.ear, right: rightMetrics.ear },
                 roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,

@@ -181,8 +181,11 @@ const reactStubsForV2 = `
   function useMemo(fn) { return fn(); }
   function useContext(ctx) { return ctx && ctx._v; }
 `;
-const { detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED, detectEyelidCreaseV2Multi, DEBUG_V2_MULTI_MAX_PEAKS, debugV2FindLocalMaxima } = new Function(
-  reactStubsForV2 + pipelineSource + '\nreturn { detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED, detectEyelidCreaseV2Multi, DEBUG_V2_MULTI_MAX_PEAKS, debugV2FindLocalMaxima };'
+const {
+  detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED, detectEyelidCreaseV2Multi, DEBUG_V2_MULTI_MAX_PEAKS, debugV2FindLocalMaxima,
+  debugV2LinkMultiPeakPaths, debugV2SummarizeLinkedPath, debugV2BuildLinkedPaths,
+} = new Function(
+  reactStubsForV2 + pipelineSource + '\nreturn { detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED, detectEyelidCreaseV2Multi, DEBUG_V2_MULTI_MAX_PEAKS, debugV2FindLocalMaxima, debugV2LinkMultiPeakPaths, debugV2SummarizeLinkedPath, debugV2BuildLinkedPaths };'
 )();
 
 test('setup: extracted real detectEyelidCreaseV2 from index.html successfully', () => {
@@ -494,7 +497,7 @@ const { buildCreaseV2CopyPayload, debugV1BoundaryPeakFlag } = new Function(
   boundaryFlagSrc + src.slice(payloadFnStart, payloadFnEnd) + '\nreturn { buildCreaseV2CopyPayload, debugV1BoundaryPeakFlag };'
 )();
 
-function fakeEyeEntry({ v1Valid = true, paths, v2Multi } = {}) {
+function fakeEyeEntry({ v1Valid = true, paths, v2Multi, v2Linked } = {}) {
   return {
     v1: v1Valid ? { valid: true, peakVal: 12.3, prominence: 8.1, creaseYFrac: 0.42, readQuality: 0.6 } : { valid: false },
     v2: {
@@ -509,6 +512,7 @@ function fakeEyeEntry({ v1Valid = true, paths, v2Multi } = {}) {
       ],
     },
     v2Multi,
+    v2Linked,
   };
 }
 
@@ -524,6 +528,31 @@ function fakeV2MultiEntry() {
         { rankWithinColumn: 2, currentV2Winner: false, y: 58, t: 0.86, rawStrength: 12.4, prominence: 6, localStrength: null, thickness: 9 },
       ] },
       { sampleIndex: 1, x: 20, peaks: null },
+    ],
+  };
+}
+
+// V2.2 LINKED PATHS fixture: two linked paths — one containing the V2
+// winner, one a secondary track — with a null-localStrength point.
+function fakeV2LinkedEntry() {
+  return {
+    valid: true, sampledColumns: 2, v2LinkedRuntimeMs: 0.8,
+    paths: [
+      {
+        points: [
+          { sampleIndex: 0, x: 10, y: 22, t: 0.03, rawStrength: 31.2, prominence: 20, localStrength: 3.1, thickness: 2, currentV2Winner: true },
+          { sampleIndex: 1, x: 20, y: 23, t: 0.04, rawStrength: 29.0, prominence: 18, localStrength: null, thickness: 2, currentV2Winner: true },
+        ],
+        xSpan: [10, 20], continuityFrac: 1, meanT: 0.035, tVariation: 0.005, meanRawStrength: 30.1, meanLocalStrength: 3.1, meanThickness: 2,
+        containsV2Winner: true,
+      },
+      {
+        points: [
+          { sampleIndex: 0, x: 10, y: 40, t: 0.44, rawStrength: 18.1, prominence: 10, localStrength: 1.9, thickness: 7, currentV2Winner: false },
+        ],
+        xSpan: [10, 10], continuityFrac: 0.5, meanT: 0.44, tVariation: 0, meanRawStrength: 18.1, meanLocalStrength: 1.9, meanThickness: 7,
+        containsV2Winner: false,
+      },
     ],
   };
 }
@@ -610,6 +639,20 @@ test('I/J. detectEyelidCreaseV2 + DEBUG_V2_UNCALIBRATED + its helpers are byte-f
   const actualSha = crypto.createHash('sha256').update(block).digest('hex');
   assert.strictEqual(actualSha, V2_BLOCK_EXPECTED_SHA256,
     'the V2 detector block (algorithm, ranking, DEBUG_V2_UNCALIBRATED) has changed — this turn was scoped to debug UI only');
+});
+
+// ---- V2.1 block (detectEyelidCreaseV2Multi + its helpers) is
+// byte-for-byte unchanged by this turn's V2.2 linking-only work.
+// Recorded immediately before V2.2 implementation began this turn. ----
+const V2_1_BLOCK_EXPECTED_SHA256 = '8a3ad95b70965900916fbc99e25ce593118fecd48538d65b684ebec91fc8d08f';
+test('V2.2-checkpoint. detectEyelidCreaseV2Multi (V2.1) is byte-for-byte unchanged by this turn\'s V2.2 linking addition', () => {
+  const blockStart = src.indexOf('    // ============================================================\n    // EYELID CREASE V2.1 — DEBUG-ONLY MULTI-PEAK SHADOW EXPERIMENT.');
+  const blockEnd = src.indexOf('\n    // ============================================================\n    // EYELID CREASE V2.2 — DEBUG-ONLY MULTI-PEAK PATH LINKING SHADOW.', blockStart);
+  assert.ok(blockStart !== -1 && blockEnd !== -1, 'could not locate the V2.1 detector block');
+  const block = src.slice(blockStart, blockEnd);
+  const actualSha = crypto.createHash('sha256').update(block).digest('hex');
+  assert.strictEqual(actualSha, V2_1_BLOCK_EXPECTED_SHA256,
+    'the V2.1 multi-peak block has changed — this turn was scoped to a new V2.2 linking layer only, V2.1 itself must stay frozen');
 });
 
 // ---- K — production classification remains byte-identical whether
@@ -884,12 +927,16 @@ test('V2.1-M. missing/invalid multi-shadow values serialize as explicit null, ne
   assert.strictEqual(payload2.eyes.left.v2MultiShadow.columns[0].peaks[2].localStrength, null, 'a genuinely-null localStrength must stay null');
 });
 
-test('V2.1-N. detectEyelidCreaseV2Multi does not link peaks across columns into paths', () => {
+test('V2.1-N. detectEyelidCreaseV2Multi ITSELF does not link peaks across columns into paths (linking lives only in the separate V2.2 layer)', () => {
   const multiFnStart = src.indexOf('function detectEyelidCreaseV2Multi(');
-  const multiFnEnd = src.indexOf('\n    const REASON_MESSAGES = {');
+  // Stop at the V2.2 block, not at REASON_MESSAGES — V2.2 (a separate
+  // function, added after V2.1) legitimately DOES reference
+  // PATH_LINK_MAX_T_GAP; this check is scoped to V2.1's own source only.
+  const multiFnEnd = src.indexOf('\n    // ============================================================\n    // EYELID CREASE V2.2 — DEBUG-ONLY MULTI-PEAK PATH LINKING SHADOW.', multiFnStart);
+  assert.ok(multiFnStart !== -1 && multiFnEnd !== -1, 'could not locate detectEyelidCreaseV2Multi block boundaries');
   const multiSrc = src.slice(multiFnStart, multiFnEnd);
-  assert.ok(!/PATH_LINK_MAX_T_GAP/.test(multiSrc), 'detectEyelidCreaseV2Multi must not reference the path-linking threshold — linking is a deliberately separate, not-yet-approved step');
-  assert.ok(!/\bpaths\s*\.push\(/.test(multiSrc), 'detectEyelidCreaseV2Multi must not build any cross-column "paths" array');
+  assert.ok(!/PATH_LINK_MAX_T_GAP/.test(multiSrc), 'detectEyelidCreaseV2Multi itself must not reference the path-linking threshold — linking lives only in the separate V2.2 layer');
+  assert.ok(!/\bpaths\s*\.push\(/.test(multiSrc), 'detectEyelidCreaseV2Multi itself must not build any cross-column "paths" array');
 });
 
 test('V2.1-O. V2.1 output never reaches leftMetrics/rightMetrics (production normal mode is unaffected)', () => {
@@ -912,6 +959,204 @@ test('V2.1-perf. current V2 vs V2.1 multi-shadow runtime, measured on identical 
   assert.ok(Number.isFinite(v2.v2RuntimeMs));
   assert.ok(Number.isFinite(v2Multi.v2MultiRuntimeMs));
   console.log(`        (measured in this mock harness — V2: ${v2.v2RuntimeMs.toFixed(3)}ms, V2.1 multi: ${v2Multi.v2MultiRuntimeMs.toFixed(3)}ms)`);
+});
+
+// ================================================================
+// V2.2 MULTI-PEAK PATH LINKING SHADOW — tests A-L. Pure post-
+// processing over V2.1's already-computed `columns` output: links
+// peaks across columns using ONLY the existing PATH_LINK_MAX_T_GAP
+// (no new threshold), generalizing detectEyelidCreaseV2's own single-
+// track greedy linker to multiple simultaneously open tracks. Never
+// touches pixels/ROI, never selects a "true" crease, never reaches
+// classifyFeatures.
+// ================================================================
+
+test('V2.2-A. the gap threshold is a genuine parameter, not a hardcoded value — behavior changes with it', () => {
+  // Two adjacent "peaks" 0.2 apart in t. With a wide gap they link into
+  // one path; with a narrow gap they must not.
+  const columns = [
+    { sampleIndex: 0, x: 0, peaks: [{ t: 0.10, rawStrength: 10, prominence: 5, localStrength: 1, thickness: 1 }] },
+    { sampleIndex: 1, x: 10, peaks: [{ t: 0.30, rawStrength: 10, prominence: 5, localStrength: 1, thickness: 1 }] },
+  ];
+  const wide = debugV2LinkMultiPeakPaths(columns, 0.25);
+  const narrow = debugV2LinkMultiPeakPaths(columns, 0.05);
+  assert.strictEqual(wide.length, 1, 'a 0.2 gap within a 0.25 threshold must link into a single path');
+  assert.strictEqual(wide[0].length, 2);
+  assert.strictEqual(narrow.length, 2, 'the SAME 0.2 gap must NOT link when the threshold is only 0.05');
+});
+
+test('V2.2-B. multi-track linking keeps two persistent, well-separated peak tracks distinct across many columns', () => {
+  const columns = [];
+  for (let s = 0; s < 6; s++) {
+    columns.push({
+      sampleIndex: s, x: s * 10,
+      peaks: [
+        { t: 0.10 + s * 0.01, rawStrength: 20, prominence: 10, localStrength: 2, thickness: 2 },
+        { t: 0.60 + s * 0.01, rawStrength: 15, prominence: 8, localStrength: 1.5, thickness: 3 },
+      ],
+    });
+  }
+  const paths = debugV2LinkMultiPeakPaths(columns, 0.15);
+  assert.strictEqual(paths.length, 2, 'expected exactly 2 distinct linked paths for 2 persistent, well-separated tracks');
+  const lens = paths.map(p => p.length).sort((a, b) => a - b);
+  assert.deepStrictEqual(lens, [6, 6], 'both tracks should span all 6 columns');
+  // Tracks must not cross: every point in one path stays on its own side.
+  for (const p of paths) {
+    const allLow = p.every(pt => pt.t < 0.4);
+    const allHigh = p.every(pt => pt.t >= 0.4);
+    assert.ok(allLow || allHigh, 'a linked path must not mix the two separated tracks');
+  }
+});
+
+test('V2.2-C. a null/missing column breaks every open track, mirroring detectEyelidCreaseV2\'s own linker', () => {
+  const columns = [
+    { sampleIndex: 0, x: 0, peaks: [{ t: 0.1, rawStrength: 10, prominence: 5, localStrength: 1, thickness: 1 }] },
+    { sampleIndex: 1, x: 10, peaks: null },
+    { sampleIndex: 2, x: 20, peaks: [{ t: 0.1, rawStrength: 10, prominence: 5, localStrength: 1, thickness: 1 }] },
+  ];
+  const paths = debugV2LinkMultiPeakPaths(columns, 0.15);
+  assert.strictEqual(paths.length, 2, 'a gap column must split into two separate paths, never bridge across it');
+  assert.strictEqual(paths[0].length, 1);
+  assert.strictEqual(paths[1].length, 1);
+});
+
+test('V2.2-D. debugV2BuildLinkedPaths is deterministic across repeated runs on identical input', () => {
+  const v2Multi = fakeV2MultiEntry();
+  const r1 = debugV2BuildLinkedPaths(v2Multi.columns, v2Multi.sampledColumns, DEBUG_V2_UNCALIBRATED.PATH_LINK_MAX_T_GAP);
+  const r2 = debugV2BuildLinkedPaths(v2Multi.columns, v2Multi.sampledColumns, DEBUG_V2_UNCALIBRATED.PATH_LINK_MAX_T_GAP);
+  // Compare everything except v2LinkedRuntimeMs, which is a genuine
+  // wall-clock measurement and legitimately differs run to run.
+  assert.deepStrictEqual(r1.paths, r2.paths);
+  assert.strictEqual(r1.valid, r2.valid);
+  assert.strictEqual(r1.sampledColumns, r2.sampledColumns);
+});
+
+test('V2.2-E. containsV2Winner correctly marks only the path that passes through the frozen V2 winner', () => {
+  const columns = [
+    { sampleIndex: 0, x: 0, peaks: [
+      { t: 0.05, rawStrength: 30, prominence: 20, localStrength: 3, thickness: 2, currentV2Winner: true },
+      { t: 0.50, rawStrength: 15, prominence: 8, localStrength: 1.5, thickness: 3, currentV2Winner: false },
+    ] },
+    { sampleIndex: 1, x: 10, peaks: [
+      { t: 0.06, rawStrength: 29, prominence: 19, localStrength: 2.9, thickness: 2, currentV2Winner: true },
+      { t: 0.51, rawStrength: 14, prominence: 7, localStrength: 1.4, thickness: 3, currentV2Winner: false },
+    ] },
+  ];
+  const built = debugV2BuildLinkedPaths(columns, 2, 0.15);
+  const winnerPaths = built.paths.filter(p => p.containsV2Winner);
+  const nonWinnerPaths = built.paths.filter(p => !p.containsV2Winner);
+  assert.strictEqual(winnerPaths.length, 1);
+  assert.strictEqual(nonWinnerPaths.length, 1);
+  assert.ok(winnerPaths[0].points.every(p => p.currentV2Winner === true));
+  assert.ok(nonWinnerPaths[0].points.every(p => p.currentV2Winner === false));
+});
+
+test('V2.2-F. the linking layer is pure — no pixel/canvas access anywhere in its source', () => {
+  const start = src.indexOf('function debugV2LinkMultiPeakPaths(');
+  const end = src.indexOf('\n    const REASON_MESSAGES = {');
+  const block = src.slice(start, end);
+  assert.ok(!/getImageData|\.ctx\b|gray\[|drawImage/.test(block),
+    'V2.2 must be pure post-processing over already-computed V2.1 output — it must never touch pixels/canvas/ROI');
+});
+
+test('V2.2-G. running V2.2 linking does not change what V2 or V2.1 themselves return', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(140, 90, (x) => interpY(lidPoly, x) - 3, (x) => interpY(lidPoly, x) - 14, 220, 140, 60, 0);
+  const v2Before = detectEyelidCreaseV2(canvas, eye, brow);
+  const v2MultiBefore = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  debugV2BuildLinkedPaths(v2MultiBefore.columns, v2MultiBefore.sampledColumns, DEBUG_V2_UNCALIBRATED.PATH_LINK_MAX_T_GAP);
+  const v2After = detectEyelidCreaseV2(canvas, eye, brow);
+  const v2MultiAfter = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  assert.deepStrictEqual(v2After.paths, v2Before.paths);
+  assert.deepStrictEqual(v2MultiAfter.columns, v2MultiBefore.columns);
+});
+
+test('V2.2-H. exercising V2.2 linking + buildCreaseV2CopyPayload does not affect classifyFeatures output', () => {
+  const cfStart = src.indexOf('    const dist = (a,b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);');
+  const cfEnd = src.indexOf('\n    function extractEyeROI(');
+  const { classifyFeatures: cf4 } = new Function(reactStubsForV2 + src.slice(cfStart, cfEnd) + '\nreturn { classifyFeatures };')();
+  function eyeMetrics() {
+    return {
+      width: 30, height: 12, ear: 0.28, widthRatio: 0.42, tiltCorrected: 0,
+      hoodingRatio: 0.1, hoodingRatioByWidth: 0.1, shapeRatio: 2.5,
+      covCenterByWidth: 0.44, covInnerByWidth: 0.44, covOuterByWidth: 0.44, covByHeight: 0.44 / 0.36,
+      apertureA: 6, apertureB: 6, apertureAsymmetry: 1, innerTaperDeg: 70, outerTaperDeg: 70,
+      creaseValid: 1, creasePeak: 15, creaseProminence: 9, creaseYFrac: 0.4, creaseReadQuality: 0.7,
+    };
+  }
+  const aggregated = { left: eyeMetrics(), right: eyeMetrics(), interEyeDistance: 65, faceBoxWidth: 220, verticalAsymRaw: 0, headPose: { roll: 0 } };
+  const before = cf4(aggregated, { singleFrame: true, stability: null, imageQuality: 0.75 });
+
+  const v2Linked = fakeV2LinkedEntry();
+  buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Multi: fakeV2MultiEntry(), v2Linked }), right: fakeEyeEntry({ v2Linked }),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  });
+
+  const after = cf4(aggregated, { singleFrame: true, stability: null, imageQuality: 0.75 });
+  assert.strictEqual(after.eyelidType, before.eyelidType);
+  assert.strictEqual(after.eyelidCategory, before.eyelidCategory);
+  assert.strictEqual(after.hoodedConfidence, before.hoodedConfidence);
+  assert.strictEqual(after.isHooded, before.isHooded);
+});
+
+test('V2.2-I. V2.2 linking is only computed inside the same if(debugAvailable) block as V2/V2.1 in LiveScanScreen', () => {
+  // indexOf('debugV2BuildLinkedPaths(') alone would match the function's
+  // OWN definition (much earlier in the file) first — anchor on the
+  // actual call-site text instead.
+  const callIdx = src.indexOf('const v2LeftLinked = debugV2BuildLinkedPaths(');
+  assert.ok(callIdx !== -1, 'expected a debugV2BuildLinkedPaths call site in LiveScanScreen');
+  const before = src.slice(Math.max(0, callIdx - 1000), callIdx);
+  assert.ok(/if\s*\(debugAvailable\)/.test(before),
+    'debugV2BuildLinkedPaths call is not visibly guarded by "if (debugAvailable)"');
+});
+
+test('V2.2-J. Copy JSON (v2LinkedShadow) includes every linked path with containsV2Winner and points', () => {
+  const v2Linked = fakeV2LinkedEntry();
+  const payload = buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Linked }), right: fakeEyeEntry(),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  });
+  const shadow = payload.eyes.left.v2LinkedShadow;
+  assert.strictEqual(shadow.runtimeMs, 0.8);
+  assert.strictEqual(shadow.paths.length, 2);
+  assert.strictEqual(shadow.paths[0].containsV2Winner, true);
+  assert.strictEqual(shadow.paths[1].containsV2Winner, false);
+  assert.strictEqual(shadow.paths[0].points.length, 2);
+  assert.strictEqual(shadow.paths[0].points[1].localStrength, null, 'a genuinely-null localStrength must stay null in v2LinkedShadow too');
+});
+
+test('V2.2-K. the full payload (including v2LinkedShadow) is JSON-serializable and round-trips', () => {
+  const v2Linked = fakeV2LinkedEntry();
+  const payload = buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Linked }), right: fakeEyeEntry({ v2Linked }),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  });
+  const json = JSON.stringify(payload, null, 2);
+  const parsed = JSON.parse(json);
+  assert.strictEqual(parsed.eyes.left.v2LinkedShadow.paths.length, 2);
+  console.log(`        (measured payload size with v2MultiShadow+v2LinkedShadow for both eyes: ${json.length} bytes)`);
+});
+
+test('V2.2-L. missing/invalid v2LinkedShadow serializes as explicit null, never an invented 0 or empty array', () => {
+  const payload = buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Linked: { valid: false } }), right: fakeEyeEntry(),
+    capture: null,
+  });
+  assert.strictEqual(payload.eyes.left.v2LinkedShadow.runtimeMs, null);
+  assert.strictEqual(payload.eyes.left.v2LinkedShadow.paths, null);
+  assert.strictEqual(payload.eyes.right.v2LinkedShadow.runtimeMs, null, 'right eye has no v2Linked at all — must be null, not throw');
+});
+
+test('V2.2-perf. linking runtime measured on identical synthetic input (should be negligible — pure JS over small arrays)', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(140, 90, (x) => interpY(lidPoly, x) - 3, (x) => interpY(lidPoly, x) - 14, 220, 140, 60, 0);
+  const v2Multi = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  const linked = debugV2BuildLinkedPaths(v2Multi.columns, v2Multi.sampledColumns, DEBUG_V2_UNCALIBRATED.PATH_LINK_MAX_T_GAP);
+  assert.ok(Number.isFinite(linked.v2LinkedRuntimeMs));
+  console.log(`        (measured in this mock harness — V2.2 linking: ${linked.v2LinkedRuntimeMs.toFixed(3)}ms, produced ${linked.paths.length} path(s))`);
 });
 
 if (realDocument) global.document = realDocument; else delete global.document;

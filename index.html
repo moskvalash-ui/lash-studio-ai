@@ -408,6 +408,16 @@
 
     const MIN_STABLE_FRAMES = 18;
     const BUFFER_WINDOW_MS = 15000;
+    // CAMERA FIX — face-lost grace window, shared by LiveScanScreen and
+    // NaturalLashScanScreen. EXISTING BEHAVIOR REUSED: this is the same
+    // 900ms "is this detection still fresh" window both screens' overlay
+    // draw loops already used (previously an inline literal in each);
+    // now also gates the DECISION state (phase/stageKey/hint text) so a
+    // single missed detectSingleFace() frame no longer flips the UI to
+    // "lost" while the overlay graphics are still visibly present —
+    // the two were previously out of sync (decision state flipped
+    // instantly, overlay faded gradually over the same 900ms).
+    const FACE_LOST_GRACE_MS = 900;
 
     function computeHeadPose(landmarks) {
       const nose = landmarks.getNose();
@@ -2588,6 +2598,12 @@
       const tickImplRef = useRef(null);
       const hadFaceRef = useRef(false);
       const hasHadValidFrameRef = useRef(false);
+      // CAMERA FIX — mirrors the current facingMode into a ref so the
+      // always-running overlay rAF loop (defined once, no deps) can
+      // read it without restarting; only the front ('user') camera
+      // preview is mirrored, matching standard selfie-camera UX.
+      const facingModeRef = useRef(facingMode);
+      useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
       const lastDetRef = useRef(null);
       const overlayRafRef = useRef(null);
       const smoothRef = useRef({ box: null, leftEye: null, rightEye: null, mouth: null, presence: 0 });
@@ -2630,11 +2646,25 @@
 
           if (!det) {
             console.log('[LSA] FACE DETECTED: false');
-            lastDetRef.current = { hasFace: false, ts: now };
-            if (hadFaceRef.current) { setPhase('lost'); setStageKey('stageLost'); }
-            else { setPhase('searching'); setStageKey('stageSearching'); }
-            hadFaceRef.current = false;
-            setHintKey(null);
+            // CAMERA FIX — face-lost hysteresis: a single missed
+            // detectSingleFace() frame (transient blink/motion-blur/
+            // frame-drop) no longer immediately flips phase/stageKey
+            // to "lost". lastDetRef.current is left untouched during
+            // the grace window, so it still holds the last successful
+            // detection's ts — the overlay's own existing freshness
+            // check (time - d.ts) < FACE_LOST_GRACE_MS already fades
+            // it out on the same schedule, so decision state and
+            // overlay now expire together instead of the decision
+            // state flipping instantly while the overlay lingered.
+            const withinGrace = hadFaceRef.current && lastDetRef.current
+              && (now - lastDetRef.current.ts) < FACE_LOST_GRACE_MS;
+            if (!withinGrace) {
+              lastDetRef.current = { hasFace: false, ts: now };
+              if (hadFaceRef.current) { setPhase('lost'); setStageKey('stageLost'); }
+              else { setPhase('searching'); setStageKey('stageSearching'); }
+              hadFaceRef.current = false;
+              setHintKey(null);
+            }
             setProgress(Math.min(1, bufferRef.current.length / MIN_STABLE_FRAMES));
             return;
           }
@@ -2872,15 +2902,31 @@
           const time = performance.now();
           const reduceMotion = reduceMotionRef.current;
           const d = lastDetRef.current;
-          const fresh = d && d.hasFace && (time - d.ts) < 900;
+          const fresh = d && d.hasFace && (time - d.ts) < FACE_LOST_GRACE_MS;
           const s = smoothRef.current;
           s.presence = lerpNum(s.presence, fresh ? 1 : 0, fresh ? 0.14 : 0.09);
 
           if (fresh) {
-            const map = (x,y) => mapVideoPointToDisplay(x, y, d.videoW, d.videoH, w, h);
-            const targetBox = { x: map(d.box.x, d.box.y).x, y: map(d.box.x, d.box.y).y, width: 0, height: 0 };
-            const brDisp = map(d.box.x + d.box.width, d.box.y + d.box.height);
-            targetBox.width = brDisp.x - targetBox.x; targetBox.height = brDisp.y - targetBox.y;
+            // CAMERA FIX — preview-only mirror. The <video> element is
+            // CSS-mirrored (scaleX(-1)) for the front camera only, so
+            // the overlay's on-screen X position is flipped here to
+            // match. This affects ONLY where shapes/text are drawn on
+            // screen — det/landmarks/lastDetRef/every measurement path
+            // still read the raw, un-mirrored canvas snapshot upstream,
+            // completely untouched by this. Text (drawEyeTarget's L/R
+            // labels) stays upright since ctx itself is never
+            // transformed, only the coordinates fed into it.
+            const mirrored = facingModeRef.current === 'user';
+            const map = (x,y) => {
+              const p = mapVideoPointToDisplay(x, y, d.videoW, d.videoH, w, h);
+              return mirrored ? { x: w - p.x, y: p.y } : p;
+            };
+            // min/abs rather than assuming top-left corner maps to the
+            // smaller X: when mirrored, map() flips which corner ends
+            // up on the left, so subtracting corners directly (as
+            // before) would yield a negative width.
+            const tl = map(d.box.x, d.box.y), br = map(d.box.x + d.box.width, d.box.y + d.box.height);
+            const targetBox = { x: Math.min(tl.x, br.x), y: Math.min(tl.y, br.y), width: Math.abs(br.x - tl.x), height: Math.abs(br.y - tl.y) };
             s.box = s.box ? {
               x: lerpNum(s.box.x, targetBox.x, 0.22), y: lerpNum(s.box.y, targetBox.y, 0.22),
               width: lerpNum(s.box.width, targetBox.width, 0.22), height: lerpNum(s.box.height, targetBox.height, 0.22),
@@ -3011,7 +3057,15 @@
             </button>
           </div>
           <div ref={containerRef} className="flex-1 relative bg-black overflow-hidden">
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+            {/* CAMERA FIX — preview-only mirror for the front camera,
+                matching standard selfie-camera UX (raw getUserMedia
+                video is never mirrored by the browser on its own).
+                Rear camera ('environment') stays unmirrored, like a
+                normal viewfinder. The overlay canvas below is NOT
+                CSS-mirrored — its own draw loop flips coordinates
+                instead, so its text labels stay upright; see the
+                overlay effect's `map`/`mirrored` comment. */}
+            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : undefined} playsInline muted />
             <div className="absolute inset-0 pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>
             <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
             {!modelsLoaded && <div className="absolute inset-0 flex items-center justify-center bg-black/80"><p className="text-sm text-textSecondary">{t('modelsLoading', lang)}</p></div>}
@@ -3150,8 +3204,18 @@
           const det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks();
           const now = performance.now();
           if (!det) {
-            setHintKey('natLashNoEyeHint');
-            lastFrameRef.current = null;
+            // CAMERA FIX — same face-lost grace window as LiveScanScreen
+            // (FACE_LOST_GRACE_MS): a single missed frame no longer
+            // immediately clears lastFrameRef / shows the "no eye" hint.
+            // Leaving lastFrameRef untouched during the grace window
+            // means the overlay's own existing freshness check (based
+            // on f.ts) keeps rendering the last known box/lash-line
+            // exactly as it already did — no separate timer needed.
+            const withinGrace = lastFrameRef.current && (now - lastFrameRef.current.ts) < FACE_LOST_GRACE_MS;
+            if (!withinGrace) {
+              setHintKey('natLashNoEyeHint');
+              lastFrameRef.current = null;
+            }
             return;
           }
           const headPose = computeHeadPose(det.landmarks);
@@ -3372,14 +3436,24 @@
 
           const time = performance.now();
           const f = lastFrameRef.current;
-          const fresh = f && (time - f.ts) < 900;
+          const fresh = f && (time - f.ts) < FACE_LOST_GRACE_MS;
           const s = smoothRef.current;
           s.presence = lerpNum(s.presence, fresh ? 1 : 0, fresh ? 0.16 : 0.1);
 
           if (fresh && f.box) {
-            const map = (x,y) => mapVideoPointToDisplay(x, y, f.videoW, f.videoH, w, h);
+            // CAMERA FIX — preview-only mirror, always on here since
+            // this screen's camera is hardcoded to facingMode:'user'
+            // (see acquireCameraStream above). Same non-measurement
+            // note as LiveScanScreen's identical block: only affects
+            // where the overlay is drawn on screen.
+            const map = (x,y) => {
+              const p = mapVideoPointToDisplay(x, y, f.videoW, f.videoH, w, h);
+              return { x: w - p.x, y: p.y };
+            };
+            // min/abs, not tl/br subtraction directly — see the
+            // matching comment in LiveScanScreen's overlay loop.
             const tl = map(f.box.x, f.box.y), br = map(f.box.x+f.box.width, f.box.y+f.box.height);
-            const targetBox = { x: tl.x, y: tl.y, width: br.x-tl.x, height: br.y-tl.y };
+            const targetBox = { x: Math.min(tl.x, br.x), y: Math.min(tl.y, br.y), width: Math.abs(br.x-tl.x), height: Math.abs(br.y-tl.y) };
             s.box = s.box ? { x: lerpNum(s.box.x,targetBox.x,0.3), y: lerpNum(s.box.y,targetBox.y,0.3), width: lerpNum(s.box.width,targetBox.width,0.3), height: lerpNum(s.box.height,targetBox.height,0.3) } : targetBox;
             const lineDisp = f.lashLine ? f.lashLine.map(p => map(p.x,p.y)) : null;
             s.lashLine = lineDisp;
@@ -3464,7 +3538,13 @@
             <div className="w-10"></div>
           </div>
           <div ref={containerRef} className="flex-1 relative bg-black overflow-hidden">
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+            {/* CAMERA FIX — preview-only mirror, always front camera
+                here (acquireCameraStream hardcodes facingMode:'user').
+                Same non-measurement note as LiveScanScreen: the ROI/
+                face-api/lash-detection pipeline reads the raw <video>
+                frame via canvas drawImage, which ignores this CSS
+                transform entirely — this changes only what's on screen. */}
+            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} playsInline muted />
             <div className="absolute inset-0 pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 38%, rgba(0,0,0,0.55) 100%)'}}></div>
             <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
             <div className="absolute top-16 left-0 right-0 z-10 flex flex-col items-center pointer-events-none">

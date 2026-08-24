@@ -1091,74 +1091,141 @@
       const hoodingSignalsAgree = signalAgreement > 0.6 && lrAgreement > 0.6;
       let hoodingLevel = eyelidCategory === 'pronounced' ? 'full' : eyelidCategory === 'moderate' ? 'partial' : 'none';
 
-      // ---- Eyelid TYPE — crease-aware classification ----
-      // Uses the NEW pixel-based crease read TOGETHER WITH the
-      // geometric coverageIndex/eyelidCategory above — never instead
-      // of it. eyelidCategory (and everything derived from it above:
-      // isHooded/hoodedConfidence/hoodingLevel that DESIGN_CATALOG
-      // scoring reads) is completely unchanged by this block; this
-      // adds a new, additional, crease-aware field on top.
-      //   openCrease — a fold line is visible with real skin showing
-      //                above it
-      //   hooded     — a fold line is visible but sits low (close to
-      //                the lash line) and/or the geometry above
-      //                independently already reads pronounced/moderate
-      //   monolid    — no fold line found despite a readable image —
-      //                a genuine "not found", not a bad read
-      //   uncertain  — image quality in the eyelid band (or the final
-      //                combined confidence) isn't enough to trust
-      //                either a "found" or "not found" call; NEVER
-      //                forced into one of the other three
-      const avgCreaseValid = (left.creaseValid + right.creaseValid) / 2;
-      const avgCreaseReadQuality = (left.creaseReadQuality + right.creaseReadQuality) / 2;
-      const avgCreaseProminence = (left.creaseProminence + right.creaseProminence) / 2;
+      // ---- Eyelid TYPE — crease-aware classification (CONSERVATIVE V1) ----
+      // Three explicitly separated signals, per-eye first:
+      //   Signal A (this block) — CREASE VISIBILITY, evaluated
+      //     independently for each eye from detectEyelidCrease's
+      //     unmodified peak/prominence/readQuality output, THEN
+      //     combined only when both eyes actually agree.
+      //   Signal B — eyelidCategory/coverageIndex above (geometry).
+      //     Read here, NEVER mutated here — geometry stays an
+      //     independent measurement regardless of what the crease
+      //     signal finds (this was the source of a real bug: the
+      //     previous version force-overwrote eyelidCategory to
+      //     reconcile it with the pixel read, which corrupted the
+      //     one signal meant to be independently verifiable).
+      //   Signal C (eyelidType below) — the combined assessment,
+      //     which only asserts a strong anatomical label (hooded /
+      //     monolid) when A and B are genuinely compatible; any
+      //     disagreement, ambiguity, or insufficient per-eye evidence
+      //     resolves to 'uncertain' directly from the decision tree,
+      //     not via a confidence-score gate (see the note below on
+      //     why the old <0.32 rescue gate was removed).
+      //   openCrease — both eyes show a clear fold, geometry doesn't
+      //                independently read moderate/pronounced
+      //   hooded     — both eyes show a clear fold AND geometry
+      //                independently reads moderate/pronounced
+      //                (position alone can no longer trigger this —
+      //                see the ambiguous-position branch below)
+      //   monolid    — both eyes are readable with no fold found, AND
+      //                geometry independently reads open (genuinely
+      //                compatible evidence — anything else is a
+      //                conflict, not a confirmation)
+      //   uncertain  — either eye unreadable, the two eyes disagree,
+      //                a clear-but-low-position crease meets open/mild
+      //                geometry (deep-set anatomy can look like this
+      //                without true hooding), or a "no fold" read
+      //                meets non-open geometry — NEVER silently
+      //                resolved into one of the other three
       const avgCreaseYFrac = (left.creaseYFrac + right.creaseYFrac) / 2;
-      const minCreasePeak = Math.min(left.creasePeak, right.creasePeak);
-      const minCreaseProminence = Math.min(left.creaseProminence, right.creaseProminence);
       const creaseLrAgreement = clamp01(1 - Math.abs(left.creaseProminence - right.creaseProminence) / 8);
 
-      // Absolute gray-level floors, NOT a peak/baseline ratio. A ratio
-      // blows up the instant sensor/JPEG noise nudges one row a little
-      // above an already-tiny median — which is exactly the case
-      // (perfectly flat, crease-free skin) that most needs an honest
-      // "no fold found" instead of a false positive. Both the peak
-      // itself and its topographic prominence must clear a real floor
-      // — and the gate uses the WEAKER eye (min, not average) so one
-      // eye's borderline noise can't drag a genuinely below-floor read
-      // over the line just by averaging with the other eye.
+      // Absolute gray-level floors, NOT a peak/baseline ratio — same
+      // rationale and same values as before (detectEyelidCrease and
+      // these floors are unchanged): a ratio blows up the instant
+      // sensor/JPEG noise nudges one row a little above an already-
+      // tiny median, which is exactly the case (perfectly flat,
+      // crease-free skin) that most needs an honest "no fold found"
+      // instead of a false positive.
       const CREASE_PEAK_FLOOR = 7;
       const CREASE_PROMINENCE_FLOOR = 5;
-      const creaseReadable = avgCreaseValid > 0.5 && avgCreaseReadQuality > 0.28;
-      const creaseFold = minCreasePeak > CREASE_PEAK_FLOOR && minCreaseProminence > CREASE_PROMINENCE_FLOOR;
+
+      // ---- Signal A, per eye, independently ----
+      // A reading that fails the fold floor is NOT automatically
+      // treated as confident evidence of absence — a peak/prominence
+      // that narrowly misses the floor (e.g. 6.9 vs the 7 floor) is
+      // just as consistent with measurement noise near the boundary
+      // as with a genuinely creaseless eyelid, and must not be
+      // strong enough on its own to support a monolid conclusion.
+      // CREASE_ABSENCE_MARGIN draws that line at HALF of the existing,
+      // unchanged floor — a plain, symmetric buffer around the SAME
+      // CREASE_PEAK_FLOOR/CREASE_PROMINENCE_FLOOR values already
+      // shipped and unmodified here, not a new pixel measurement and
+      // not a recalibrated confidence score. It only ever makes the
+      // classifier MORE conservative (narrows what counts as
+      // "confidently absent"); it can never turn a borderline miss
+      // into a positive detection.
+      const CREASE_ABSENCE_MARGIN = 0.5;
+      const eyeCreaseVerdict = (m) => {
+        const readable = m.creaseValid > 0.5 && m.creaseReadQuality > 0.28;
+        if (!readable) return 'uncertain';
+        const fold = m.creasePeak > CREASE_PEAK_FLOOR && m.creaseProminence > CREASE_PROMINENCE_FLOOR;
+        if (fold) return 'detected';
+        const confidentlyAbsent = m.creasePeak < CREASE_PEAK_FLOOR * CREASE_ABSENCE_MARGIN
+          && m.creaseProminence < CREASE_PROMINENCE_FLOOR * CREASE_ABSENCE_MARGIN;
+        return confidentlyAbsent ? 'confidentlyAbsent' : 'borderline';
+      };
+      const leftCreaseVerdict = eyeCreaseVerdict(left);
+      const rightCreaseVerdict = eyeCreaseVerdict(right);
+      // Combined Signal A: only trusted when BOTH eyes independently
+      // land on the same verdict. One eye unreadable, one eye
+      // borderline, or the two eyes disagreeing outright (e.g. left
+      // clearly shows a fold, right doesn't), is real per-eye
+      // information that must not be silently resolved into a single
+      // bilateral anatomical claim — it resolves to 'uncertain'
+      // rather than picking a side.
+      const combinedCreaseSignal = (leftCreaseVerdict === rightCreaseVerdict) ? leftCreaseVerdict : 'uncertain';
 
       let eyelidType;
-      if (!creaseReadable) {
+      let eyelidSignalsConflict = false;
+      if (combinedCreaseSignal === 'uncertain' || combinedCreaseSignal === 'borderline') {
         eyelidType = 'uncertain';
-      } else if (!creaseFold) {
-        eyelidType = 'monolid';
-      } else if (avgCreaseYFrac > 0.62 || eyelidCategory === 'pronounced' || eyelidCategory === 'moderate') {
-        eyelidType = 'hooded';
-      } else {
-        eyelidType = 'openCrease';
+        // A shared 'borderline' verdict is itself a form of insufficient
+        // evidence (not a disagreement between the eyes), so it's not
+        // flagged as a signals conflict — only genuine L/R disagreement is.
+        eyelidSignalsConflict = leftCreaseVerdict !== rightCreaseVerdict;
+      } else if (combinedCreaseSignal === 'detected') {
+        if (eyelidCategory === 'moderate' || eyelidCategory === 'pronounced') {
+          eyelidType = 'hooded';
+        } else if (avgCreaseYFrac > 0.62) {
+          // Clear fold on both eyes, low position, but geometry does
+          // NOT independently read moderate/pronounced — ambiguous.
+          // A low crease position alone is equally consistent with
+          // deep-set anatomy that has no true hooding; do not guess,
+          // and do not force geometry to agree either way.
+          eyelidType = 'uncertain';
+          eyelidSignalsConflict = true;
+        } else {
+          eyelidType = 'openCrease';
+        }
+      } else { // combinedCreaseSignal === 'confidentlyAbsent' on both eyes
+        if (eyelidCategory === 'open') {
+          eyelidType = 'monolid'; // the one case where "no fold found" and geometry are genuinely compatible
+        } else {
+          eyelidType = 'uncertain'; // "no fold found" but geometry reads mild/moderate/pronounced/uncertain — a real conflict, not a confirmation
+          eyelidSignalsConflict = true;
+        }
       }
 
-      // For the "no fold found" case, agreement reflects how far the
-      // metric that actually failed its floor sat below it, not a flat
-      // 0%/100% — a narrow miss reads as low-but-nonzero confidence.
+      // ---- Confidence, computed AFTER classification, describing
+      // strength — never used to rescue or override the decision tree
+      // above. (The previous `if (eyelidTypeConfidence < 0.32)
+      // eyelidType = 'uncertain'` line is removed: computeConfidence's
+      // 5-factor geometric mean has a proven mathematical floor of
+      // 0.35, so that gate could never fire for any input — it was
+      // dead code providing no real safety, only the appearance of
+      // one. Real safety now comes entirely from the decision tree
+      // itself, which is unconditional and cannot be out-voted by a
+      // high confidence number. See tests/eyelid-classification.test.js
+      // for a regression test proving this explicitly.)
+      const minCreasePeak = Math.min(left.creasePeak, right.creasePeak);
+      const minCreaseProminence = Math.min(left.creaseProminence, right.creaseProminence);
+      const avgCreaseReadQuality = (left.creaseReadQuality + right.creaseReadQuality) / 2;
       const creasePeakRatio = minCreasePeak / CREASE_PEAK_FLOOR;
       const creaseProminenceRatio = minCreaseProminence / CREASE_PROMINENCE_FLOOR;
       const failingCreaseRatios = [creasePeakRatio, creaseProminenceRatio].filter(r => r <= 1);
       const closestFailRatio = failingCreaseRatios.length ? Math.max(...failingCreaseRatios) : 0;
-      // A near-zero peak/prominence alone must NOT be read as strong
-      // evidence of "no crease" — it's equally consistent with a weak/
-      // low-quality capture that never usefully sampled the band at
-      // all (motion blur, bad ROI, harsh highlight). readQuality is
-      // the only signal that tells the two apart, so it caps how far
-      // "far below floor" can push confidence: near the 0.28 gate the
-      // ceiling stays low regardless of how deep the miss is; only a
-      // genuinely well-textured, well-lit band lets a flat reading
-      // become confidently monolid.
-      const eyelidTypeMeasurementAgreement = creaseFold
+      const eyelidTypeMeasurementAgreement = combinedCreaseSignal === 'detected'
         ? clamp01(1 - Math.abs(avgCreaseYFrac - (eyelidType === 'hooded' ? 0.75 : 0.4)) / 0.4)
         : clamp01(1 - closestFailRatio) * clamp01((avgCreaseReadQuality - 0.28) / 0.35);
       const eyelidTypeConf = computeConfidence({
@@ -1167,29 +1234,29 @@
         imageQuality: clamp01(imageQuality * 0.4 + avgCreaseReadQuality * 0.6),
         lrAgreement: creaseLrAgreement, poseQuality,
       });
-      let eyelidTypeConfidence = eyelidTypeConf.score;
-      if (eyelidTypeConfidence < 0.32) eyelidType = 'uncertain';
+      const eyelidTypeConfidence = eyelidTypeConf.score;
 
-      // The crease-aware type is the authoritative semantic eyelid read.
-      // Keep the geometric exposure score for explainability, but never
-      // let it make a hooded eye look open to recommendations.
-      // eyelidSignalsConflict is a pure read-only flag — it records
-      // whether this correction actually had to fire, purely for the
-      // UI to know when the two eyelid readouts disagree; it changes
-      // no threshold and no classification decision on its own.
-      let eyelidSignalsConflict = false;
+      // isHooded/hoodedConfidence/hoodingLevel — the DESIGN_CATALOG-
+      // facing combined fields. eyelidCategory itself (Signal B) is
+      // never touched above; these derived fields still incorporate
+      // the crease read, same as before, but hoodedConfidence is
+      // explicitly capped for 'uncertain' so recommendation scoring's
+      // existing `c.isHooded ? c.hoodedConfidence*W : ...` pattern
+      // can't read an unresolved disagreement as a confident signal
+      // in either direction. 0.25 matches the existing low-confidence
+      // convention already used elsewhere in this function (the
+      // eyelidCategory==='uncertain' fallback above) — not a new
+      // invented threshold.
       if (eyelidType === 'hooded') {
         isHooded = true;
         hoodedConfidence = Math.max(hoodedConfidence, eyelidTypeConfidence);
-        if (eyelidCategory === 'open' || eyelidCategory === 'mild') { eyelidCategory = 'moderate'; eyelidSignalsConflict = true; }
         hoodingLevel = eyelidCategory === 'pronounced' ? 'full' : 'partial';
-      } else if (eyelidType === 'monolid' && eyelidCategory === 'open') {
-        eyelidCategory = 'uncertain';
-        eyelidCategoryConfidence = Math.min(eyelidCategoryConfidence, 0.31);
+      } else if (eyelidType === 'monolid') {
         isHooded = false;
-        hoodedConfidence = 0.25;
+        hoodedConfidence = Math.min(hoodedConfidence, 0.25);
         hoodingLevel = 'none';
-        eyelidSignalsConflict = true;
+      } else if (eyelidType === 'uncertain') {
+        hoodedConfidence = Math.min(hoodedConfidence, 0.25);
       }
 
       // ---- EYE SET ----
@@ -1267,7 +1334,14 @@
         shapeScores, shapeDecision: eyeShapeCategory, shapeMargin, rawTopScore, shapeConfidenceFactors: shapeConf.factors,
         hoodingDecision: eyelidCategory, hoodingConfidenceFactors: hoodConf.factors,
         eyelidTypeDecision: eyelidType, eyelidTypeConfidenceFactors: eyelidTypeConf.factors,
-        crease: { left: { valid: left.creaseValid > 0.5, peak: left.creasePeak, prominence: left.creaseProminence, yFrac: left.creaseYFrac, readQuality: left.creaseReadQuality }, right: { valid: right.creaseValid > 0.5, peak: right.creasePeak, prominence: right.creaseProminence, yFrac: right.creaseYFrac, readQuality: right.creaseReadQuality }, avgProminence: avgCreaseProminence, avgYFrac: avgCreaseYFrac, readable: creaseReadable, foldDetected: creaseFold },
+        // Per-eye evidence preserved for inspection (CONSERVATIVE V1 —
+        // eyelidType above is decided per-eye-first; these are the
+        // exact per-eye verdicts that decision was built from).
+        crease: {
+          left: { valid: left.creaseValid > 0.5, peak: left.creasePeak, prominence: left.creaseProminence, yFrac: left.creaseYFrac, readQuality: left.creaseReadQuality, verdict: leftCreaseVerdict },
+          right: { valid: right.creaseValid > 0.5, peak: right.creasePeak, prominence: right.creaseProminence, yFrac: right.creaseYFrac, readQuality: right.creaseReadQuality, verdict: rightCreaseVerdict },
+          combinedVerdict: combinedCreaseSignal, avgYFrac: avgCreaseYFrac,
+        },
         tiltConfidenceFactors: tiltConf.factors, spacingConfidenceFactors: spacingConf.factors,
         symmetryConfidenceFactors: symmetryReliability.factors,
         imageQuality, poseQuality, singleFrame,
@@ -4130,8 +4204,16 @@
               <EyeProfileRow icon="lid" label={t('eyelidTypeLabel', lang)} sublabel={t('eyelidTypeSubLabel', lang)} value={labels.eyelidTypeLabel} confidence={(p.eyelidType === 'uncertain' || p.eyelidSignalsConflict) ? undefined : p.eyelidTypeConfidence} />
               {p.eyelidSignalsConflict && (
                 <div className="pl-11 -mt-1 pb-3">
-                  <p className="text-[11px] text-textMuted leading-snug">{t('eyelidConflictPrefix', lang)} <span className="text-textSecondary">{labels.eyelidTypeRawLabel}</span></p>
-                  <p className="text-[10px] text-textMuted leading-snug mt-0.5">{t('eyelidConflictExplain', lang)}</p>
+                  {/* CONSERVATIVE V1 — the "Most likely: X" raw-guess line
+                      was removed here on purpose: under the per-eye-first
+                      decision tree, eyelidType is already 'uncertain'
+                      whenever eyelidSignalsConflict is true, so there is
+                      no longer a well-defined single anatomical "best
+                      guess" to show (the two eyes, or the two signals,
+                      may point in different directions). Showing one
+                      anyway is exactly the "most likely monolid/hooded"
+                      pattern that undermines an honest uncertain result. */}
+                  <p className="text-[10px] text-textMuted leading-snug">{t('eyelidConflictExplain', lang)}</p>
                 </div>
               )}
               <EyeProfileRow icon="size" label={t('spacingLabel', lang)} sublabel={t('spacingSubLabel', lang)} value={labels.spacing} confidence={p.spacingConfidence} />
@@ -4823,15 +4905,11 @@
                   : t('eyelidTypeUncertain', lang)}
                 {(p.eyelidType !== 'uncertain' && !p.eyelidSignalsConflict) && <> — <span className="text-cyan">{(p.eyelidTypeConfidence*100).toFixed(0)}%</span></>}
               </p>
-              {p.eyelidSignalsConflict && (
-                <p className="text-xs text-textSecondary mb-1">
-                  {t('eyelidConflictPrefix', lang)}{' '}
-                  {p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
-                    : p.eyelidType === 'hooded' ? t('eyelidTypeHooded', lang)
-                    : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
-                    : t('eyelidTypeUncertain', lang)}
-                </p>
-              )}
+              {/* CONSERVATIVE V1 — the "Most likely: X" raw-guess line was
+                  removed here (see the matching comment in EyeProfileRow's
+                  render above): eyelidType is already 'uncertain' whenever
+                  eyelidSignalsConflict is true, so there is no separate
+                  anatomical "best guess" left to show. */}
               <p className="text-xs text-textSecondary">{p.eyelidSignalsConflict ? t('eyelidConflictExplain', lang) : (lang==='en'
                 ? 'Based on real pixel analysis of the eyelid skin (looking for an actual fold line), combined with the geometric brow-to-lid coverage above — not distance alone.'
                 : 'Определено по пиксельному анализу кожи века (поиск реальной линии складки) в сочетании с геометрическим сигналом выше — не только по расстоянию.')}</p>

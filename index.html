@@ -690,6 +690,213 @@
       return { valid: true, prominence, peakVal, creaseYFrac, readQuality };
     }
 
+    // ============================================================
+    // EYELID CREASE DETECTOR V2 — DEBUG-ONLY EXPERIMENTAL SHADOW DETECTOR.
+    // ------------------------------------------------------------
+    // NOT wired into production classification anywhere. detectEyelidCrease
+    // (V1, above) remains the ONLY crease-evidence source classifyFeatures
+    // reads — this function's entire purpose is to run ALONGSIDE V1 in
+    // ?debug=1 sessions so its candidate geometry can be visually compared
+    // against V1's single row-averaged peak, and eventually a human's own
+    // judgment on a real device. Rationale: V1 collapses the whole
+    // eye-width band into one 1D row-gradient signal before picking a
+    // peak, which structurally favors flat, non-curved edges (like a
+    // brow's lower boundary) over a genuinely curved crease.
+    //
+    // Every numeric constant below that encodes an assumption about
+    // sampling density or what counts as "linked" is named and grouped
+    // in DEBUG_V2_UNCALIBRATED — none of it has been validated against
+    // real capture data, and none of it may be promoted to a production
+    // threshold without that validation.
+    //
+    // t-COORDINATE SEMANTICS — read carefully, this is the OPPOSITE
+    // direction from V1's creaseYFrac:
+    //   t = (candidateY - upperLidY(x)) / (browY(x) - upperLidY(x))
+    //   t = 0  ->  exactly AT the upper-lid contour (lash-line side)
+    //   t = 1  ->  exactly AT the brow contour
+    //   t is NOT clamped by this implementation (the search window is
+    //   defined as exactly [upperLidY(x), browY(x)], so t naturally
+    //   lands in [0,1] here) — but callers must not assume a future
+    //   version can't report outside that range, and must never treat
+    //   V1's creaseYFrac (0=near brow, 1=near lash line) as the same
+    //   number without converting.
+    // ============================================================
+    const DEBUG_V2_UNCALIBRATED = {
+      SAMPLE_COLUMNS: 12,        // how many x-positions to sample across the eyelid — not perf/anatomy validated
+      COLUMN_HALF_WIDTH: 2,      // px on each side of a sampled x for its local vertical-gradient strip
+      PATH_LINK_MAX_T_GAP: 0.15, // max |Δt| between neighboring sampled columns to link into the same path
+    };
+
+    // Piecewise-linear lookup along a polyline (list of {x,y} in
+    // ROI-local pixel space). Checks each segment's OWN x-range
+    // independently rather than assuming the polyline is globally
+    // sorted by x — canonical physical-LEFT and physical-RIGHT eyes
+    // traverse inner->outer in OPPOSITE x-directions within their own
+    // ROI crop (see tests/eyelid-crease-v2.test.js), so this must not
+    // assume ascending x.
+    function debugV2PolylineY(poly, x) {
+      for (let i = 0; i < poly.length - 1; i++) {
+        const a = poly[i], b = poly[i + 1];
+        const xLo = Math.min(a.x, b.x), xHi = Math.max(a.x, b.x);
+        if (x >= xLo && x <= xHi) {
+          if (Math.abs(b.x - a.x) < 1e-6) return (a.y + b.y) / 2;
+          const frac = (x - a.x) / (b.x - a.x);
+          return a.y + frac * (b.y - a.y);
+        }
+      }
+      return null; // x outside every segment's own range — not reliably interpolable
+    }
+
+    // Robust local statistics (median + MAD) for a small array of
+    // gradient samples — used for the locally-normalized strength
+    // (never a global histogram/CLAHE transform).
+    function debugV2MedianMad(values) {
+      if (!values.length) return { median: 0, mad: 0 };
+      const sorted = values.slice().sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const absDevs = sorted.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+      const mad = absDevs[Math.floor(absDevs.length / 2)];
+      return { median, mad };
+    }
+
+    function detectEyelidCreaseV2(sourceCanvas, eyePoints, browPoints) {
+      const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      const roi = extractEyeROI(sourceCanvas, eyePoints, browPoints, 0.45);
+      if (!roi || roi.w < 24 || roi.h < 16) return { valid: false, v2RuntimeMs: 0 };
+      let data;
+      try { data = roi.ctx.getImageData(0, 0, roi.w, roi.h).data; } catch (e) { return { valid: false, v2RuntimeMs: 0 }; }
+      const gray = new Float32Array(roi.w * roi.h);
+      for (let i = 0; i < roi.w * roi.h; i++) {
+        const o = i * 4;
+        gray[i] = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+      }
+
+      // Canonical upper-lid polyline: inner corner -> upperInner -> upperOuter -> outer corner.
+      const lidPoly = [roi.eyeLocal[0], roi.eyeLocal[1], roi.eyeLocal[2], roi.eyeLocal[3]];
+      const browPoly = roi.browLocal; // canonical, already inner -> outer
+
+      const eyeXInner = lidPoly[0].x, eyeXOuter = lidPoly[3].x;
+      const { SAMPLE_COLUMNS, COLUMN_HALF_WIDTH, PATH_LINK_MAX_T_GAP } = DEBUG_V2_UNCALIBRATED;
+
+      const candidates = []; // one slot per sample index, null where no reliable candidate
+      for (let s = 0; s < SAMPLE_COLUMNS; s++) {
+        const frac = SAMPLE_COLUMNS > 1 ? s / (SAMPLE_COLUMNS - 1) : 0.5; // 0 = inner, 1 = outer, regardless of x-direction
+        const x = eyeXInner + frac * (eyeXOuter - eyeXInner);
+        const lidY = debugV2PolylineY(lidPoly, x);
+        const browY = debugV2PolylineY(browPoly, x);
+        if (lidY === null || browY === null) { candidates.push(null); continue; }
+        const denom = browY - lidY;
+        if (Math.abs(denom) < 2) { candidates.push(null); continue; } // near-zero lid-to-brow separation guard, not a calibrated threshold
+        const yTop = Math.min(lidY, browY), yBottom = Math.max(lidY, browY);
+        const rowTop = Math.max(0, Math.round(yTop)), rowBottom = Math.min(roi.h - 1, Math.round(yBottom));
+        const rows = rowBottom - rowTop;
+        if (rows < 3) { candidates.push(null); continue; }
+        const xLo = Math.max(0, Math.round(x - COLUMN_HALF_WIDTH)), xHi = Math.min(roi.w, Math.round(x + COLUMN_HALF_WIDTH) + 1);
+        if (xHi - xLo < 1) { candidates.push(null); continue; }
+
+        const grad = new Float32Array(rows);
+        for (let ry = 1; ry < rows; ry++) {
+          const y = rowTop + ry;
+          let gsum = 0, n = 0;
+          for (let cx = xLo; cx < xHi; cx++) {
+            const idx = y * roi.w + cx;
+            gsum += Math.abs(gray[idx] - gray[idx - roi.w]);
+            n++;
+          }
+          grad[ry] = n ? gsum / n : 0;
+        }
+        const smoothed = new Float32Array(rows);
+        for (let ry = 0; ry < rows; ry++) {
+          const a = grad[Math.max(0, ry - 1)], b = grad[ry], c = grad[Math.min(rows - 1, ry + 1)];
+          smoothed[ry] = (a + b + c) / 3;
+        }
+        let peakIdx = 0, peakVal = smoothed[0];
+        for (let ry = 1; ry < rows; ry++) { if (smoothed[ry] > peakVal) { peakVal = smoothed[ry]; peakIdx = ry; } }
+        let minLeft = Infinity; for (let ry = 0; ry <= peakIdx; ry++) minLeft = Math.min(minLeft, smoothed[ry]);
+        let minRight = Infinity; for (let ry = peakIdx; ry < rows; ry++) minRight = Math.min(minRight, smoothed[ry]);
+        const prominence = peakVal - Math.max(minLeft, minRight);
+        const candY = rowTop + peakIdx;
+        // t computed from the ORIGINAL (non-reordered) lidY/browY so the
+        // documented t=0-at-lid / t=1-at-brow direction is correct
+        // regardless of which one is numerically larger in pixel space.
+        const t = (candY - lidY) / (browY - lidY);
+        const { median, mad } = debugV2MedianMad(Array.from(smoothed));
+        const madScaled = mad * 1.4826; // DERIVED — standard MAD->std-equivalent scale factor
+        const localStrength = madScaled > 1e-6 ? (peakVal - median) / madScaled : null; // null (not Infinity/NaN) when the local band is too flat to normalize against
+
+        // Thickness proxy: consecutive rows around the peak that stay
+        // above half of (peak - local min) — "if measurable", not a
+        // calibrated anatomical width.
+        const localMin = Math.min(minLeft, minRight);
+        const halfLevel = localMin + (peakVal - localMin) / 2;
+        let thickness = 1;
+        for (let ry = peakIdx - 1; ry >= 0 && smoothed[ry] >= halfLevel; ry--) thickness++;
+        for (let ry = peakIdx + 1; ry < rows && smoothed[ry] >= halfLevel; ry++) thickness++;
+
+        candidates.push({ sampleIndex: s, x, y: candY, t, rawStrength: peakVal, prominence, localStrength, thickness });
+      }
+
+      // ---- Link neighboring sampled columns into paths ----
+      const paths = [];
+      let current = null;
+      for (let s = 0; s < SAMPLE_COLUMNS; s++) {
+        const c = candidates[s];
+        if (!c) { current = null; continue; }
+        if (current && Math.abs(c.t - current[current.length - 1].t) <= PATH_LINK_MAX_T_GAP) {
+          current.push(c);
+        } else {
+          current = [c];
+          paths.push(current);
+        }
+      }
+      const pathSummaries = paths.map(pts => {
+        const ts = pts.map(p => p.t);
+        const meanT = ts.reduce((a, b) => a + b, 0) / ts.length;
+        const tVariation = Math.sqrt(ts.reduce((a, b) => a + (b - meanT) ** 2, 0) / ts.length);
+        const meanRawStrength = pts.reduce((a, p) => a + p.rawStrength, 0) / pts.length;
+        const localVals = pts.map(p => p.localStrength).filter(v => v != null);
+        const meanLocalStrength = localVals.length ? localVals.reduce((a, b) => a + b, 0) / localVals.length : null;
+        const meanThickness = pts.reduce((a, p) => a + p.thickness, 0) / pts.length;
+        return {
+          points: pts,
+          xSpan: [pts[0].x, pts[pts.length - 1].x],
+          continuityFrac: pts.length / SAMPLE_COLUMNS,
+          meanT, tVariation, meanRawStrength, meanLocalStrength, meanThickness,
+        };
+      });
+
+      // ---- DEBUG-ONLY heuristic rank, purely to pick a display
+      // candidate for the overlay. Never a production confidence score
+      // — every path above is returned regardless of this ranking. ----
+      const DEBUG_HEURISTIC_RANK = (p) => p.continuityFrac * (p.meanLocalStrength != null ? p.meanLocalStrength : p.meanRawStrength);
+      let displayIdx = -1, bestRank = -Infinity;
+      pathSummaries.forEach((p, i) => { const r = DEBUG_HEURISTIC_RANK(p); if (r > bestRank) { bestRank = r; displayIdx = i; } });
+
+      // ---- DEBUG-ONLY descriptive state. Deliberately NOT split into
+      // WEAK_CANDIDATE / IMPLAUSIBLE_LOCATION / STABLE_STRONG_PLAUSIBLE
+      // here — doing so would require exactly the unvalidated
+      // thresholds this phase is avoiding. Only the cases decidable
+      // without any threshold (zero paths vs. more than one) are
+      // reported; a single path is reported as 'DEBUG_HEURISTIC' with
+      // its full raw measurements attached, not a stronger claim. ----
+      let debugHeuristicState = 'NO_CANDIDATE';
+      if (pathSummaries.length > 1) debugHeuristicState = 'MULTIPLE_CANDIDATES';
+      else if (pathSummaries.length === 1) debugHeuristicState = 'DEBUG_HEURISTIC';
+
+      const v2RuntimeMs = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : 0) - t0;
+      return {
+        valid: true,
+        roiW: roi.w, roiH: roi.h,
+        lidPoly, browPoly,
+        sampledColumns: SAMPLE_COLUMNS,
+        candidates,
+        paths: pathSummaries,
+        displayPathIndex: displayIdx,
+        debugHeuristicState,
+        v2RuntimeMs,
+      };
+    }
+
     const REASON_MESSAGES = {
       low_face_confidence: 'hintLowConf',
       head_tilted: 'hintLookStraight',
@@ -2732,6 +2939,114 @@
     // tracking overlay every visual frame from the latest known
     // detection, so graphics track the live face smoothly even
     // though heavy detection itself runs slower.
+    // ============================================================
+    // EYELID CREASE V2 — DEBUG SHADOW MODE UI. Purely additive,
+    // ?debug=1-only, never influences classification. Compares V1
+    // (production, unchanged) against detectEyelidCreaseV2's candidate
+    // geometry — see the detector's own doc comment above for the
+    // full rationale and the t-coordinate direction (0=lid, 1=brow,
+    // OPPOSITE of V1's creaseYFrac). Remove together with V2 once
+    // real-device validation is complete.
+    // ============================================================
+    // Compact normalized plot: x = sample position across the eyelid
+    // (0=inner, 1=outer), y = anatomical height (brow at top, lid at
+    // bottom, for visual readability only — independent of t's own
+    // numeric direction). V1 is a single dashed line (it has no x
+    // position — it collapsed the whole width into one row); V2 is
+    // per-column dots, connected within each linked path.
+    function CreaseV2Plot({ v1, v2 }) {
+      const W = 100, H = 56, TOP = 4, BOTTOM = 52; // reserve 4px margins for the BROW/LID labels
+      const yFromT_v1 = (frac01) => TOP + frac01 * (BOTTOM - TOP); // v1.creaseYFrac: 0=brow,1=lid — direct mapping
+      const yFromT_v2 = (t) => TOP + (1 - t) * (BOTTOM - TOP); // v2 t: 0=lid,1=brow — inverted mapping, see module doc
+      const cols = (v2 && v2.sampledColumns) || 1;
+      const xFromSample = (i) => cols > 1 ? (i / (cols - 1)) * W : W / 2;
+      return (
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-14" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 4 }}>
+          <text x={2} y={3} fontSize="3" fill="#8fb3c9">BROW (t=1)</text>
+          <text x={2} y={H - 0.5} fontSize="3" fill="#8fb3c9">LID (t=0)</text>
+          <line x1={0} y1={TOP} x2={W} y2={TOP} stroke="#3a5a6a" strokeWidth="0.5" />
+          <line x1={0} y1={BOTTOM} x2={W} y2={BOTTOM} stroke="#3a5a6a" strokeWidth="0.5" />
+          {v1 && v1.valid && (
+            <line x1={0} y1={yFromT_v1(v1.creaseYFrac)} x2={W} y2={yFromT_v1(v1.creaseYFrac)} stroke="#f0a83c" strokeWidth="0.9" strokeDasharray="3,2" />
+          )}
+          {v2 && v2.valid && (v2.paths || []).map((p, pi) => (
+            <g key={pi} opacity={pi === v2.displayPathIndex ? 1 : 0.45}>
+              <polyline
+                points={p.points.map(c => `${xFromSample(c.sampleIndex)},${yFromT_v2(c.t)}`).join(' ')}
+                fill="none" stroke={pi === v2.displayPathIndex ? '#3ce6c8' : '#6b8fa3'} strokeWidth="0.7"
+              />
+              {p.points.map((c, ci) => (
+                <circle key={ci} cx={xFromSample(c.sampleIndex)} cy={yFromT_v2(c.t)} r={pi === v2.displayPathIndex ? 1.3 : 0.9}
+                  fill={pi === v2.displayPathIndex ? '#3ce6c8' : '#6b8fa3'} />
+              ))}
+            </g>
+          ))}
+        </svg>
+      );
+    }
+
+    function CreaseV2EyePanel({ label, entry }) {
+      if (!entry) return null;
+      const { v1, v2 } = entry;
+      return (
+        <div className="mb-1.5 pb-1.5 border-b border-white/10 last:border-0">
+          <p className="text-cyan-200 uppercase">{label}</p>
+          <CreaseV2Plot v1={v1} v2={v2} />
+          <div className="grid grid-cols-2 gap-x-2">
+            <span className="text-textMuted">V1 peak/prom/yFrac</span>
+            <span>{v1 && v1.valid ? `${v1.peakVal.toFixed(1)}/${v1.prominence.toFixed(1)}/${v1.creaseYFrac.toFixed(2)}` : 'invalid'}</span>
+            <span className="text-textMuted">V2 state/paths</span>
+            <span>{v2 && v2.valid ? `${v2.debugHeuristicState} (${v2.paths.length})` : 'invalid'}</span>
+            {v2 && v2.valid && v2.displayPathIndex >= 0 && (() => {
+              const p = v2.paths[v2.displayPathIndex];
+              return (
+                <>
+                  <span className="text-textMuted">V2 display meanT/cont.</span>
+                  <span>{p.meanT.toFixed(2)} / {(p.continuityFrac * 100).toFixed(0)}%</span>
+                  <span className="text-textMuted">V2 raw/local strength</span>
+                  <span>{p.meanRawStrength.toFixed(1)} / {p.meanLocalStrength != null ? p.meanLocalStrength.toFixed(2) : 'n/a'}</span>
+                </>
+              );
+            })()}
+            <span className="text-textMuted">V2 runtime</span>
+            <span>{v2 && v2.valid ? `${v2.v2RuntimeMs.toFixed(1)}ms` : '-'}</span>
+          </div>
+        </div>
+      );
+    }
+
+    function CreaseV2DebugPanel({ data }) {
+      const [copied, setCopied] = useState(false);
+      const copy = () => {
+        try {
+          const payload = JSON.stringify(data, null, 2);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(payload).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+          }
+        } catch (e) { /* clipboard unreliable on some iOS versions — the panel above remains the source of truth */ }
+      };
+      return (
+        <div className="absolute left-2 right-2 top-16 z-30 max-h-[58%] overflow-y-auto rounded-md bg-black/85 px-2 py-1.5 font-mono text-[8px] leading-tight text-lime-300">
+          <div className="text-cyan-300 font-semibold mb-1">EYELID CREASE V2 — DEBUG SHADOW (not used in classification)</div>
+          <CreaseV2EyePanel label="LEFT" entry={data.left} />
+          <CreaseV2EyePanel label="RIGHT" entry={data.right} />
+          {data.capture && (
+            <div className="grid grid-cols-2 gap-x-2 mb-1.5">
+              <span className="text-textMuted">EAR L/R</span>
+              <span>{data.capture.ear.left.toFixed(3)}/{data.capture.ear.right.toFixed(3)}</span>
+              <span className="text-textMuted">roll/yaw/pitch</span>
+              <span>{data.capture.roll.toFixed(1)}/{data.capture.yaw.toFixed(2)}/{data.capture.pitch.toFixed(2)}</span>
+              <span className="text-textMuted">bright/sharp</span>
+              <span>{data.capture.brightness.toFixed(1)}/{data.capture.sharpness.toFixed(1)}</span>
+            </div>
+          )}
+          <button onClick={copy} className="w-full py-1 rounded text-[8px] font-semibold uppercase tracking-wide bg-white/10 text-textSecondary border border-white/20">
+            {copied ? 'Copied' : 'Copy Crease V2 Diagnostics'}
+          </button>
+        </div>
+      );
+    }
+
     function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {
       const lang = useLang();
       const videoRef = useRef(null);
@@ -2748,6 +3063,14 @@
       const [railSeg, setRailSeg] = useState(-1);
       const [everLocked, setEverLocked] = useState(false);
       const [stabilityLocked, setStabilityLocked] = useState(false);
+      // EYELID CREASE V2 — DEBUG SHADOW MODE ONLY. debugAvailable gates
+      // whether detectEyelidCreaseV2 runs AT ALL (see the tick handler
+      // below) — in normal mode it never executes, so it costs nothing.
+      // debugCreaseV2 holds only the latest per-eye V2 result plus the
+      // matching V1 snapshot, purely for the debug panel/overlay; it is
+      // never read by classifyFeatures or any production code path.
+      const debugAvailable = isDebugModeEnabled();
+      const [debugCreaseV2, setDebugCreaseV2] = useState(null);
 
       const modelsLoadedRef = useRef(modelsLoaded);
       useEffect(() => { modelsLoadedRef.current = modelsLoaded; }, [modelsLoaded]);
@@ -2934,6 +3257,28 @@
           rightMetrics.creasePeak = rightCrease.valid ? rightCrease.peakVal : 0;
           rightMetrics.creaseYFrac = rightCrease.valid ? rightCrease.creaseYFrac : 0.5;
           rightMetrics.creaseReadQuality = rightCrease.valid ? rightCrease.readQuality : 0;
+
+          // EYELID CREASE V2 — DEBUG SHADOW MODE ONLY. Runs V2 purely
+          // for visual/text comparison against V1 in the debug panel
+          // below; its result is stored ONLY in debugCreaseV2 (React
+          // state), never written into leftMetrics/rightMetrics —
+          // classifyFeatures never reads this. In normal mode
+          // (debugAvailable === false) this whole block, including the
+          // V2 detection calls themselves, never executes, so normal
+          // mode pays zero cost for it.
+          if (debugAvailable) {
+            const v2Left = detectEyelidCreaseV2(canvas, leftEye, leftBrowPts);
+            const v2Right = detectEyelidCreaseV2(canvas, rightEye, rightBrowPts);
+            setDebugCreaseV2({
+              left: { v1: leftCrease, v2: v2Left },
+              right: { v1: rightCrease, v2: v2Right },
+              capture: {
+                ear: { left: leftMetrics.ear, right: rightMetrics.ear },
+                roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,
+                brightness, sharpness,
+              },
+            });
+          }
 
           const qualityScore = det.detection.score * (1 - Math.min(1, Math.abs(headPose.roll)/30)) * (1 - Math.min(1, Math.abs(headPose.yawProxy)/0.4));
           const verticalAsymRaw = (headPose.leftEyeCenter.y - headPose.rightEyeCenter.y) / Math.max(headPose.interEyeDistance, 1);
@@ -3264,6 +3609,12 @@
             <div className="absolute inset-0 pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>
             <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
             {!modelsLoaded && <div className="absolute inset-0 flex items-center justify-center bg-black/80"><p className="text-sm text-textSecondary">{t('modelsLoading', lang)}</p></div>}
+            {/* EYELID CREASE V2 — DEBUG SHADOW MODE. Purely additive,
+                ?debug=1-only. Compares V1 (production, unchanged) against
+                the experimental V2 candidate geometry; nothing here
+                influences classification. Remove together with V2 once
+                real-device validation is complete. */}
+            {debugAvailable && debugCreaseV2 && <CreaseV2DebugPanel data={debugCreaseV2} />}
           </div>
           <div className="p-6 flex flex-col items-center gap-3 bg-bg">
             <div className="w-full flex justify-end -mt-1">
@@ -3872,6 +4223,25 @@
           rightMetrics.creasePeak = rightCrease.valid ? rightCrease.peakVal : 0;
           rightMetrics.creaseYFrac = rightCrease.valid ? rightCrease.creaseYFrac : 0.5;
           rightMetrics.creaseReadQuality = rightCrease.valid ? rightCrease.readQuality : 0;
+
+          // EYELID CREASE V2 — DEBUG SHADOW MODE ONLY, console-only
+          // here. PhotoAnalysisScreen's analyze() calls onComplete()
+          // immediately on success and unmounts — there is no stable
+          // "review this photo" state to attach a persistent debug
+          // panel to the way LiveScanScreen's ongoing tick loop has,
+          // so adding the full CreaseV2DebugPanel UI here would mean
+          // introducing a new intermediate screen state purely for
+          // debug purposes — a real flow change, not a purely additive
+          // one. Logging the V2 shadow result to console (inspectable
+          // via Safari Web Inspector / remote debugging) captures the
+          // same engineering data without altering this screen's
+          // behavior at all. Never written into leftMetrics/rightMetrics.
+          if (isDebugModeEnabled()) {
+            console.log('[Photo] EYELID CREASE V2 (debug shadow, not used in classification)', {
+              left: { v1: leftCrease, v2: detectEyelidCreaseV2(canvas, leftEye, leftBrowPts) },
+              right: { v1: rightCrease, v2: detectEyelidCreaseV2(canvas, rightEye, rightBrowPts) },
+            });
+          }
 
           const verticalAsymRaw = (headPose.leftEyeCenter.y - headPose.rightEyeCenter.y) / Math.max(headPose.interEyeDistance, 1);
           const frame = { t: 0, leftMetrics, rightMetrics, headPose, faceBoxWidth: det.detection.box.width, verticalAsymRaw };

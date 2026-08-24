@@ -897,6 +897,155 @@
       };
     }
 
+    // ============================================================
+    // EYELID CREASE V2.1 — DEBUG-ONLY MULTI-PEAK SHADOW EXPERIMENT.
+    // ------------------------------------------------------------
+    // A NEW sibling of detectEyelidCreaseV2 above — that function is
+    // NOT modified by this block, byte-for-byte (see the sha256
+    // checkpoint test in tests/eyelid-crease-v2.test.js). The audit
+    // that preceded this experiment proved detectEyelidCreaseV2 keeps
+    // exactly ONE argmax peak per sampled column, discarding any
+    // weaker secondary local maximum before it can ever be linked or
+    // ranked. This experiment answers one question only: does a
+    // weaker secondary peak exist underneath the dominant one? It
+    // does NOT decide which peak is anatomically correct, does NOT
+    // link secondary peaks into paths, and is NOT wired into
+    // classifyFeatures or any production metric.
+    //
+    // DEBUG_V2_MULTI_MAX_PEAKS is an experimental observation cap,
+    // not a validated production constant — kept separate from
+    // DEBUG_V2_UNCALIBRATED so that object's own hash stays untouched.
+    // ============================================================
+    const DEBUG_V2_MULTI_MAX_PEAKS = 3;
+
+    // Local maxima of a per-column smoothed gradient profile, using
+    // -Infinity for a missing neighbor at either band edge — so a
+    // profile that is still rising all the way to row 0 or row
+    // rows-1 correctly reports that edge row as a local maximum
+    // (this must be at least as permissive as detectEyelidCreaseV2's
+    // own unrestricted argmax, which can itself land on a boundary
+    // row — see the V1/V2 boundary-peak audit finding).
+    function debugV2FindLocalMaxima(smoothed) {
+      const rows = smoothed.length;
+      const idxs = [];
+      for (let ry = 0; ry < rows; ry++) {
+        const left = ry > 0 ? smoothed[ry - 1] : -Infinity;
+        const right = ry < rows - 1 ? smoothed[ry + 1] : -Infinity;
+        if (smoothed[ry] > left && smoothed[ry] > right) idxs.push(ry);
+      }
+      return idxs;
+    }
+
+    function detectEyelidCreaseV2Multi(sourceCanvas, eyePoints, browPoints) {
+      const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      const roi = extractEyeROI(sourceCanvas, eyePoints, browPoints, 0.45);
+      if (!roi || roi.w < 24 || roi.h < 16) return { valid: false, v2MultiRuntimeMs: 0 };
+      let data;
+      try { data = roi.ctx.getImageData(0, 0, roi.w, roi.h).data; } catch (e) { return { valid: false, v2MultiRuntimeMs: 0 }; }
+      const gray = new Float32Array(roi.w * roi.h);
+      for (let i = 0; i < roi.w * roi.h; i++) {
+        const o = i * 4;
+        gray[i] = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+      }
+
+      const lidPoly = [roi.eyeLocal[0], roi.eyeLocal[1], roi.eyeLocal[2], roi.eyeLocal[3]];
+      const browPoly = roi.browLocal;
+      const eyeXInner = lidPoly[0].x, eyeXOuter = lidPoly[3].x;
+      const { SAMPLE_COLUMNS, COLUMN_HALF_WIDTH } = DEBUG_V2_UNCALIBRATED;
+
+      const columns = [];
+      for (let s = 0; s < SAMPLE_COLUMNS; s++) {
+        const frac = SAMPLE_COLUMNS > 1 ? s / (SAMPLE_COLUMNS - 1) : 0.5;
+        const x = eyeXInner + frac * (eyeXOuter - eyeXInner);
+        const lidY = debugV2PolylineY(lidPoly, x);
+        const browY = debugV2PolylineY(browPoly, x);
+        if (lidY === null || browY === null) { columns.push({ sampleIndex: s, x, peaks: null }); continue; }
+        const denom = browY - lidY;
+        if (Math.abs(denom) < 2) { columns.push({ sampleIndex: s, x, peaks: null }); continue; }
+        const yTop = Math.min(lidY, browY), yBottom = Math.max(lidY, browY);
+        const rowTop = Math.max(0, Math.round(yTop)), rowBottom = Math.min(roi.h - 1, Math.round(yBottom));
+        const rows = rowBottom - rowTop;
+        if (rows < 3) { columns.push({ sampleIndex: s, x, peaks: null }); continue; }
+        const xLo = Math.max(0, Math.round(x - COLUMN_HALF_WIDTH)), xHi = Math.min(roi.w, Math.round(x + COLUMN_HALF_WIDTH) + 1);
+        if (xHi - xLo < 1) { columns.push({ sampleIndex: s, x, peaks: null }); continue; }
+
+        // Identical gradient + smoothing computation to detectEyelidCreaseV2.
+        const grad = new Float32Array(rows);
+        for (let ry = 1; ry < rows; ry++) {
+          const y = rowTop + ry;
+          let gsum = 0, n = 0;
+          for (let cx = xLo; cx < xHi; cx++) {
+            const idx = y * roi.w + cx;
+            gsum += Math.abs(gray[idx] - gray[idx - roi.w]);
+            n++;
+          }
+          grad[ry] = n ? gsum / n : 0;
+        }
+        const smoothed = new Float32Array(rows);
+        for (let ry = 0; ry < rows; ry++) {
+          const a = grad[Math.max(0, ry - 1)], b = grad[ry], c = grad[Math.min(rows - 1, ry + 1)];
+          smoothed[ry] = (a + b + c) / 3;
+        }
+
+        // Same single-argmax algorithm as the frozen detectEyelidCreaseV2,
+        // computed here verbatim so this experimental multi-peak list is
+        // provably anchored to the exact same winner V2 itself reports —
+        // this is the control point item 7 of the experiment spec tests.
+        let v2PeakIdx = 0, v2PeakVal = smoothed[0];
+        for (let ry = 1; ry < rows; ry++) { if (smoothed[ry] > v2PeakVal) { v2PeakVal = smoothed[ry]; v2PeakIdx = ry; } }
+
+        const localMaxIdxs = debugV2FindLocalMaxima(Array.from(smoothed));
+        const candidateIdxs = localMaxIdxs.includes(v2PeakIdx) ? localMaxIdxs : localMaxIdxs.concat([v2PeakIdx]);
+
+        const { median, mad } = debugV2MedianMad(Array.from(smoothed));
+        const madScaled = mad * 1.4826;
+
+        const built = candidateIdxs.map(ry => {
+          const peakVal = smoothed[ry];
+          let minLeft = Infinity; for (let r2 = 0; r2 <= ry; r2++) minLeft = Math.min(minLeft, smoothed[r2]);
+          let minRight = Infinity; for (let r2 = ry; r2 < rows; r2++) minRight = Math.min(minRight, smoothed[r2]);
+          const prominence = peakVal - Math.max(minLeft, minRight);
+          const candY = rowTop + ry;
+          const t = (candY - lidY) / (browY - lidY);
+          const localStrength = madScaled > 1e-6 ? (peakVal - median) / madScaled : null;
+          const localMin = Math.min(minLeft, minRight);
+          const halfLevel = localMin + (peakVal - localMin) / 2;
+          let thickness = 1;
+          for (let r2 = ry - 1; r2 >= 0 && smoothed[r2] >= halfLevel; r2--) thickness++;
+          for (let r2 = ry + 1; r2 < rows && smoothed[r2] >= halfLevel; r2++) thickness++;
+          return { ry, y: candY, t, rawStrength: peakVal, prominence, localStrength, thickness, currentV2Winner: ry === v2PeakIdx };
+        });
+
+        // Sort strongest-first; on an exact rawStrength tie the point
+        // already tagged currentV2Winner always wins the tiebreak (V2's
+        // own argmax loop also resolves ties to a single winner), then
+        // lowest row index — deterministic regardless of input order.
+        built.sort((a, b) => {
+          if (b.rawStrength !== a.rawStrength) return b.rawStrength - a.rawStrength;
+          if (a.currentV2Winner !== b.currentV2Winner) return a.currentV2Winner ? -1 : 1;
+          return a.ry - b.ry;
+        });
+
+        const top = built.slice(0, DEBUG_V2_MULTI_MAX_PEAKS).map((p, i) => ({
+          rankWithinColumn: i,
+          currentV2Winner: p.currentV2Winner,
+          y: p.y, t: p.t, rawStrength: p.rawStrength, prominence: p.prominence,
+          localStrength: p.localStrength, thickness: p.thickness,
+        }));
+
+        columns.push({ sampleIndex: s, x, peaks: top });
+      }
+
+      const v2MultiRuntimeMs = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : 0) - t0;
+      return {
+        valid: true,
+        roiW: roi.w, roiH: roi.h,
+        sampledColumns: SAMPLE_COLUMNS,
+        columns,
+        v2MultiRuntimeMs,
+      };
+    }
+
     const REASON_MESSAGES = {
       low_face_confidence: 'hintLowConf',
       head_tilted: 'hintLookStraight',
@@ -2954,11 +3103,11 @@
     // numeric direction). V1 is a single dashed line (it has no x
     // position — it collapsed the whole width into one row); V2 is
     // per-column dots, connected within each linked path.
-    function CreaseV2Plot({ v1, v2 }) {
+    function CreaseV2Plot({ v1, v2, v2Multi }) {
       const W = 100, H = 56, TOP = 4, BOTTOM = 52; // reserve 4px margins for the BROW/LID labels
       const yFromT_v1 = (frac01) => TOP + frac01 * (BOTTOM - TOP); // v1.creaseYFrac: 0=brow,1=lid — direct mapping
       const yFromT_v2 = (t) => TOP + (1 - t) * (BOTTOM - TOP); // v2 t: 0=lid,1=brow — inverted mapping, see module doc
-      const cols = (v2 && v2.sampledColumns) || 1;
+      const cols = (v2 && v2.sampledColumns) || (v2Multi && v2Multi.sampledColumns) || 1;
       const xFromSample = (i) => cols > 1 ? (i / (cols - 1)) * W : W / 2;
       return (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-14" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 4 }}>
@@ -2996,6 +3145,24 @@
               </g>
             );
           })}
+          {/* V2.1 MULTI-PEAK SHADOW — observation only. Every retained
+              peak in every sampled column is plotted as its own dot in
+              the SAME coordinate system as V1/V2 above (reuses
+              xFromSample/yFromT_v2 unchanged); the current-V2-winner
+              peak is drawn distinctly. Deliberately NOT connected by
+              any polyline — linking secondary peaks into paths is an
+              explicitly separate, not-yet-approved next step. */}
+          {v2Multi && v2Multi.valid && (v2Multi.columns || []).flatMap((c) => (
+            c.peaks || []
+          ).map((p) => (
+            <circle
+              key={`m-${c.sampleIndex}-${p.rankWithinColumn}`}
+              cx={xFromSample(c.sampleIndex)} cy={yFromT_v2(p.t)}
+              r={p.currentV2Winner ? 0.9 : 0.55}
+              fill={p.currentV2Winner ? '#e85fd1' : '#ffffff'}
+              opacity={p.currentV2Winner ? 0.9 : 0.5}
+            />
+          )))}
         </svg>
       );
     }
@@ -3013,22 +3180,44 @@
       return p.continuityFrac * (p.meanLocalStrength != null ? p.meanLocalStrength : p.meanRawStrength);
     }
 
+    // DEBUG-UI-ONLY derived flag — NOT a V1 code change. detectEyelidCrease
+    // (V1) already returns creaseYFrac = peakIdx/(rows-1) with no clamping,
+    // so creaseYFrac is EXACTLY 0 or EXACTLY 1 (no floating rounding) if
+    // and only if the row-gradient argmax landed on the very first or very
+    // last row of its search band — see the boundary-peak audit finding
+    // (that case forces prominence to 0 by construction, which is an edge
+    // artifact, not evidence of "no crease"). Computed purely from V1's
+    // own already-returned output; V1 itself is not read from or altered.
+    function debugV1BoundaryPeakFlag(v1) {
+      if (!v1 || !v1.valid) return null;
+      return v1.creaseYFrac === 0 || v1.creaseYFrac === 1;
+    }
+
     function CreaseV2EyePanel({ label, entry }) {
       if (!entry) return null;
-      const { v1, v2 } = entry;
+      const { v1, v2, v2Multi } = entry;
+      const boundaryPeak = debugV1BoundaryPeakFlag(v1);
       return (
         <div className="mb-1.5 pb-1.5 border-b border-white/10 last:border-0">
           <p className="text-cyan-200 uppercase">{label}</p>
-          <CreaseV2Plot v1={v1} v2={v2} />
+          <CreaseV2Plot v1={v1} v2={v2} v2Multi={v2Multi} />
           <div className="grid grid-cols-2 gap-x-2">
             <span className="text-textMuted">V1 peak/prom/yFrac</span>
             <span>{v1 && v1.valid ? `${v1.peakVal.toFixed(1)}/${v1.prominence.toFixed(1)}/${v1.creaseYFrac.toFixed(2)}` : 'invalid'}</span>
+            {boundaryPeak && (
+              <>
+                <span className="text-amber-300">V1 boundaryPeak</span>
+                <span className="text-amber-300">true (peak at band edge — prominence=0 is an artifact, not "no crease")</span>
+              </>
+            )}
             <span className="text-textMuted">V2 state/paths</span>
             <span>{v2 && v2.valid ? `${v2.debugHeuristicState} (${v2.paths.length})` : 'invalid'}</span>
             <span className="text-textMuted">V2 display path</span>
             <span className="text-cyan-300">{v2 && v2.valid && v2.displayPathIndex >= 0 ? `P${v2.displayPathIndex}` : 'none'}</span>
             <span className="text-textMuted">V2 runtime</span>
             <span>{v2 && v2.valid ? `${v2.v2RuntimeMs.toFixed(1)}ms` : '-'}</span>
+            <span className="text-textMuted">V2.1 multi runtime</span>
+            <span>{v2Multi && v2Multi.valid ? `${v2Multi.v2MultiRuntimeMs.toFixed(1)}ms` : '-'}</span>
           </div>
           {/* ALL paths, not just the display candidate — every path
               that detectEyelidCreaseV2 returned gets its own row here,
@@ -3051,6 +3240,26 @@
               </div>
             );
           })}
+          {/* V2.1 MULTI-PEAK SHADOW — observation only, per-column list of
+              every retained local peak. Does NOT select, link, or score a
+              "true" crease; the [CURRENT] tag only marks whichever peak
+              the frozen detectEyelidCreaseV2 itself already picked. */}
+          {v2Multi && v2Multi.valid && (
+            <div className="mt-1 pt-1 border-t border-white/10">
+              <span className="col-span-2 font-semibold text-purple-300">{`V2.1 MULTI-PEAK SHADOW (obs. only, top ${DEBUG_V2_MULTI_MAX_PEAKS})`}</span>
+              {v2Multi.columns.map((c) => (
+                <div key={c.sampleIndex} className="mt-0.5">
+                  <span className="text-textMuted">{`C${c.sampleIndex}`}</span>
+                  {c.peaks ? c.peaks.map((p) => (
+                    <div key={p.rankWithinColumn} className={`pl-2 ${p.currentV2Winner ? 'text-cyan-300' : 'text-textSecondary'}`}>
+                      {`#${p.rankWithinColumn} t=${p.t.toFixed(2)} raw=${p.rawStrength.toFixed(1)} local=${p.localStrength != null ? p.localStrength.toFixed(1) : 'null'} thick=${p.thickness}`}
+                      {p.currentV2Winner ? '  [CURRENT]' : ''}
+                    </div>
+                  )) : <div className="pl-2 text-textMuted">no candidate</div>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -3064,7 +3273,8 @@
     function buildCreaseV2CopyPayload(data) {
       const eyeV1 = (v1) => (v1 && v1.valid) ? {
         peakVal: v1.peakVal, prominence: v1.prominence, creaseYFrac: v1.creaseYFrac, readQuality: v1.readQuality,
-      } : { peakVal: null, prominence: null, creaseYFrac: null, readQuality: null };
+        boundaryPeak: debugV1BoundaryPeakFlag(v1),
+      } : { peakVal: null, prominence: null, creaseYFrac: null, readQuality: null, boundaryPeak: null };
       const eyeV2 = (v2) => (v2 && v2.valid) ? {
         displayPathIndex: v2.displayPathIndex >= 0 ? v2.displayPathIndex : null,
         runtimeMs: v2.v2RuntimeMs != null ? v2.v2RuntimeMs : null,
@@ -3084,6 +3294,21 @@
           })),
         })),
       } : { displayPathIndex: null, runtimeMs: null, roi: { w: null, h: null }, paths: null };
+      // V2.1 MULTI-PEAK SHADOW — separate field, additive only; does not
+      // alter the v1/v2 shapes above in any way.
+      const eyeV2Multi = (v2m) => (v2m && v2m.valid) ? {
+        runtimeMs: v2m.v2MultiRuntimeMs != null ? v2m.v2MultiRuntimeMs : null,
+        columns: (v2m.columns || []).map(c => ({
+          sampleIndex: c.sampleIndex, x: c.x,
+          peaks: c.peaks ? c.peaks.map(p => ({
+            rankWithinColumn: p.rankWithinColumn,
+            currentV2Winner: p.currentV2Winner,
+            y: p.y, t: p.t, rawStrength: p.rawStrength, prominence: p.prominence,
+            localStrength: p.localStrength != null ? p.localStrength : null,
+            thickness: p.thickness != null ? p.thickness : null,
+          })) : null,
+        })),
+      } : { runtimeMs: null, columns: null };
       const capture = data.capture || {};
       return {
         timestamp: new Date().toISOString(),
@@ -3097,8 +3322,14 @@
           sharpness: capture.sharpness != null ? capture.sharpness : null,
         },
         eyes: {
-          left: { v1: eyeV1(data.left && data.left.v1), v2: eyeV2(data.left && data.left.v2) },
-          right: { v1: eyeV1(data.right && data.right.v1), v2: eyeV2(data.right && data.right.v2) },
+          left: {
+            v1: eyeV1(data.left && data.left.v1), v2: eyeV2(data.left && data.left.v2),
+            v2MultiShadow: eyeV2Multi(data.left && data.left.v2Multi),
+          },
+          right: {
+            v1: eyeV1(data.right && data.right.v1), v2: eyeV2(data.right && data.right.v2),
+            v2MultiShadow: eyeV2Multi(data.right && data.right.v2Multi),
+          },
         },
       };
     }
@@ -3365,9 +3596,15 @@
           if (debugAvailable) {
             const v2Left = detectEyelidCreaseV2(canvas, leftEye, leftBrowPts);
             const v2Right = detectEyelidCreaseV2(canvas, rightEye, rightBrowPts);
+            // V2.1 MULTI-PEAK SHADOW EXPERIMENT — debug-only, observation-
+            // only. Runs alongside frozen V2 above, stored only in this
+            // same debugCreaseV2 state, never fed into leftMetrics/
+            // rightMetrics or classifyFeatures.
+            const v2LeftMulti = detectEyelidCreaseV2Multi(canvas, leftEye, leftBrowPts);
+            const v2RightMulti = detectEyelidCreaseV2Multi(canvas, rightEye, rightBrowPts);
             setDebugCreaseV2({
-              left: { v1: leftCrease, v2: v2Left },
-              right: { v1: rightCrease, v2: v2Right },
+              left: { v1: leftCrease, v2: v2Left, v2Multi: v2LeftMulti },
+              right: { v1: rightCrease, v2: v2Right, v2Multi: v2RightMulti },
               capture: {
                 ear: { left: leftMetrics.ear, right: rightMetrics.ear },
                 roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,

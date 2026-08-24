@@ -181,8 +181,8 @@ const reactStubsForV2 = `
   function useMemo(fn) { return fn(); }
   function useContext(ctx) { return ctx && ctx._v; }
 `;
-const { detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED } = new Function(
-  reactStubsForV2 + pipelineSource + '\nreturn { detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED };'
+const { detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED, detectEyelidCreaseV2Multi, DEBUG_V2_MULTI_MAX_PEAKS, debugV2FindLocalMaxima } = new Function(
+  reactStubsForV2 + pipelineSource + '\nreturn { detectEyelidCreaseV2, extractEyeROI, DEBUG_V2_UNCALIBRATED, detectEyelidCreaseV2Multi, DEBUG_V2_MULTI_MAX_PEAKS, debugV2FindLocalMaxima };'
 )();
 
 test('setup: extracted real detectEyelidCreaseV2 from index.html successfully', () => {
@@ -482,13 +482,19 @@ test('C. displayPathIndex is explicitly exposed as its own labeled field', () =>
 
 // ---- D/E/F — the copy-payload builder, extracted and evaluated for
 // real behavioral proof (not just a source guard). ----
+// buildCreaseV2CopyPayload's eyeV1() helper now calls debugV1BoundaryPeakFlag
+// (defined earlier in the file, before CreaseV2EyePanel) — extracted here as
+// plain source text too (it's a small pure function, no JSX, safe to eval).
+const boundaryFlagStart = src.indexOf('function debugV1BoundaryPeakFlag(');
+const boundaryFlagEnd = src.indexOf('\n    function CreaseV2EyePanel(');
+const boundaryFlagSrc = src.slice(boundaryFlagStart, boundaryFlagEnd);
 const payloadFnStart = src.indexOf('function buildCreaseV2CopyPayload(');
 const payloadFnEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
-const { buildCreaseV2CopyPayload } = new Function(
-  src.slice(payloadFnStart, payloadFnEnd) + '\nreturn { buildCreaseV2CopyPayload };'
+const { buildCreaseV2CopyPayload, debugV1BoundaryPeakFlag } = new Function(
+  boundaryFlagSrc + src.slice(payloadFnStart, payloadFnEnd) + '\nreturn { buildCreaseV2CopyPayload, debugV1BoundaryPeakFlag };'
 )();
 
-function fakeEyeEntry({ v1Valid = true, paths } = {}) {
+function fakeEyeEntry({ v1Valid = true, paths, v2Multi } = {}) {
   return {
     v1: v1Valid ? { valid: true, peakVal: 12.3, prominence: 8.1, creaseYFrac: 0.42, readQuality: 0.6 } : { valid: false },
     v2: {
@@ -502,6 +508,23 @@ function fakeEyeEntry({ v1Valid = true, paths } = {}) {
           xSpan: [70, 70], continuityFrac: 0.083, meanT: 0.55, tVariation: 0, meanRawStrength: 26.2, meanLocalStrength: 2.24, meanThickness: 2 },
       ],
     },
+    v2Multi,
+  };
+}
+
+// V2.1 MULTI-PEAK SHADOW fixture: one column with 3 retained peaks
+// (current-winner + 2 secondary), one degenerate (null-peaks) column.
+function fakeV2MultiEntry() {
+  return {
+    valid: true, roiW: 140, roiH: 90, sampledColumns: 2, v2MultiRuntimeMs: 4.2,
+    columns: [
+      { sampleIndex: 0, x: 10, peaks: [
+        { rankWithinColumn: 0, currentV2Winner: true, y: 22, t: 0.03, rawStrength: 31.2, prominence: 20, localStrength: 3.1, thickness: 2 },
+        { rankWithinColumn: 1, currentV2Winner: false, y: 40, t: 0.44, rawStrength: 18.1, prominence: 10, localStrength: 1.9, thickness: 7 },
+        { rankWithinColumn: 2, currentV2Winner: false, y: 58, t: 0.86, rawStrength: 12.4, prominence: 6, localStrength: null, thickness: 9 },
+      ] },
+      { sampleIndex: 1, x: 20, peaks: null },
+    ],
   };
 }
 
@@ -576,7 +599,12 @@ test('H. CreaseV2DebugPanel is still only mounted behind debugAvailable in LiveS
 const V2_BLOCK_EXPECTED_SHA256 = 'b6f7a3b59481b35207ef949fe65a2a50ca5b30cae4f4b47efd7f987bcb7f6a1d';
 test('I/J. detectEyelidCreaseV2 + DEBUG_V2_UNCALIBRATED + its helpers are byte-for-byte unchanged', () => {
   const blockStart = src.indexOf('    // EYELID CREASE DETECTOR V2 — DEBUG-ONLY EXPERIMENTAL SHADOW DETECTOR.');
-  const blockEnd = src.indexOf('\n    const REASON_MESSAGES = {', blockStart);
+  // Stops right where the NEW, separate V2.1 multi-peak experiment block
+  // begins — that block is a sibling addition after detectEyelidCreaseV2's
+  // closing brace, not a change to detectEyelidCreaseV2 itself, so it must
+  // be excluded from this hash boundary or this check would (correctly,
+  // but for the wrong reason) flag a "change" every time V2.1 is touched.
+  const blockEnd = src.indexOf('\n    // ============================================================\n    // EYELID CREASE V2.1 — DEBUG-ONLY MULTI-PEAK SHADOW EXPERIMENT.', blockStart);
   assert.ok(blockStart !== -1 && blockEnd !== -1, 'could not locate the V2 detector block');
   const block = src.slice(blockStart, blockEnd);
   const actualSha = crypto.createHash('sha256').update(block).digest('hex');
@@ -613,6 +641,277 @@ test('K. production classifyFeatures output is unaffected by exercising the debu
   assert.strictEqual(after.eyelidCategory, before.eyelidCategory);
   assert.strictEqual(after.hoodedConfidence, before.hoodedConfidence);
   assert.strictEqual(after.isHooded, before.isHooded);
+});
+
+// ================================================================
+// V2.1 MULTI-PEAK SHADOW EXPERIMENT — tests C-O (A/B are covered by
+// the existing I/J and A tests above, which already re-verify
+// detectEyelidCreaseV2/DEBUG_V2_UNCALIBRATED and V1 are byte-for-byte
+// unchanged; re-asserted explicitly at the end of this block too).
+// Confirms: detectEyelidCreaseV2Multi retains multiple local maxima
+// per column (never linked into paths), its rank-0 peak is always the
+// SAME winner the frozen detectEyelidCreaseV2 itself picked for that
+// column (the critical control check), and none of it reaches
+// classifyFeatures or normal (non-debug) mode.
+// ================================================================
+
+// Paint TWO horizontal edges into one canvas — rows above edge1 are
+// `top`, rows between edge1/edge2 are `mid`, rows below edge2 are
+// `bottom` — so the per-column vertical-gradient profile has two
+// genuine ridges (one at each edge), unlike paintEdgeCanvas's single
+// step. Needed to prove multi-peak retention against a real profile,
+// not just a fabricated fixture.
+function paintTwoEdgeCanvas(w, h, edge1YAt, edge2YAt, top, mid, bottom, noiseAmp) {
+  const c = makeMockCanvas(w, h);
+  const buf = c._buf();
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // Sort so the caller doesn't need to know which edge is closer to
+      // the brow vs. the lid — the smaller y is always the upper edge.
+      const a = edge1YAt(x), b = edge2YAt(x);
+      const eUpper = Math.min(a, b), eLower = Math.max(a, b);
+      let g = y < eUpper ? top : (y < eLower ? mid : bottom);
+      if (noiseAmp) g += (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453 % 1) * noiseAmp;
+      g = Math.max(0, Math.min(255, g));
+      const idx = (y * w + x) * 4;
+      buf[idx] = g; buf[idx + 1] = g; buf[idx + 2] = g; buf[idx + 3] = 255;
+    }
+  }
+  return c;
+}
+
+test('V2.1-C. detectEyelidCreaseV2Multi retains more than one local peak when the profile genuinely has multiple ridges', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  // Two ridges per column: one near the lid (strong), one near the
+  // middle of the band (weaker but still a genuine local maximum).
+  const canvas = paintTwoEdgeCanvas(
+    140, 90,
+    (x) => interpY(lidPoly, x) - 3,
+    (x) => interpY(lidPoly, x) - 14,
+    220, 140, 60, 0
+  );
+  const r = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  assert.strictEqual(r.valid, true);
+  const withMultiplePeaks = r.columns.filter(c => c.peaks && c.peaks.length > 1);
+  assert.ok(withMultiplePeaks.length > 0, 'expected at least one column to retain more than one local peak for a genuinely two-ridge profile');
+});
+
+test('V2.1-D. peaks within a column are ordered by rawStrength, descending', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(
+    140, 90,
+    (x) => interpY(lidPoly, x) - 3,
+    (x) => interpY(lidPoly, x) - 14,
+    220, 140, 60, 0
+  );
+  const r = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  let checked = 0;
+  for (const c of r.columns) {
+    if (!c.peaks || c.peaks.length < 2) continue;
+    checked++;
+    for (let i = 0; i < c.peaks.length - 1; i++) {
+      assert.ok(c.peaks[i].rawStrength >= c.peaks[i + 1].rawStrength,
+        `column ${c.sampleIndex}: peak #${i} (${c.peaks[i].rawStrength}) must be >= peak #${i + 1} (${c.peaks[i + 1].rawStrength})`);
+    }
+  }
+  assert.ok(checked > 0, 'sanity: expected at least one multi-peak column to check ordering on');
+});
+
+test('V2.1-E. DEBUG_V2_MULTI_MAX_PEAKS is 3, and no column ever retains more than that', () => {
+  assert.strictEqual(DEBUG_V2_MULTI_MAX_PEAKS, 3);
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  // A noisy multi-ridge profile likely to produce many local maxima —
+  // stress-tests the retention cap, not just the common case.
+  const canvas = paintTwoEdgeCanvas(
+    140, 90,
+    (x) => interpY(lidPoly, x) - 3,
+    (x) => interpY(lidPoly, x) - 20,
+    220, 140, 60, 30
+  );
+  const r = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  for (const c of r.columns) {
+    if (c.peaks) assert.ok(c.peaks.length <= 3, `column ${c.sampleIndex} retained ${c.peaks.length} peaks, expected <= 3`);
+  }
+});
+
+test('V2.1-F. rankWithinColumn assignment is deterministic across repeated runs on identical input', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(
+    140, 90,
+    (x) => interpY(lidPoly, x) - 3,
+    (x) => interpY(lidPoly, x) - 14,
+    220, 140, 60, 0
+  );
+  const r1 = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  const r2 = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  assert.deepStrictEqual(r1.columns, r2.columns, 'expected identical columns/peaks/rankWithinColumn on repeated runs of the same input');
+});
+
+// ---- G — THE CONTROL CHECK. Without this, V2.1 would not be a
+// controlled extension of the frozen V2: for every valid column,
+// peaks[0] must be the exact same candidate (t, rawStrength) that
+// detectEyelidCreaseV2's own single-argmax algorithm picked, and it
+// must be tagged currentV2Winner:true. ----
+test('V2.1-G. peaks[0] matches the frozen detectEyelidCreaseV2 argmax candidate for every valid column', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(
+    140, 90,
+    (x) => interpY(lidPoly, x) - 3,
+    (x) => interpY(lidPoly, x) - 14,
+    220, 140, 60, 0
+  );
+  const v2 = detectEyelidCreaseV2(canvas, eye, brow);
+  const v2Multi = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  assert.strictEqual(v2.valid, true);
+  assert.strictEqual(v2Multi.valid, true);
+  assert.strictEqual(v2.candidates.length, v2Multi.columns.length, 'sanity: same number of sampled columns');
+  let comparedCount = 0;
+  for (let s = 0; s < v2.candidates.length; s++) {
+    const v2c = v2.candidates[s];
+    const mc = v2Multi.columns[s];
+    if (!v2c) { assert.strictEqual(mc.peaks, null, `column ${s}: V2 has no candidate, V2.1 must also report peaks:null`); continue; }
+    assert.ok(mc.peaks && mc.peaks.length > 0, `column ${s}: V2 has a candidate but V2.1 reported no peaks`);
+    comparedCount++;
+    assert.strictEqual(mc.peaks[0].currentV2Winner, true, `column ${s}: peaks[0] must be tagged currentV2Winner`);
+    assert.strictEqual(mc.peaks[0].t, v2c.t, `column ${s}: peaks[0].t must equal V2's own candidate.t`);
+    assert.strictEqual(mc.peaks[0].rawStrength, v2c.rawStrength, `column ${s}: peaks[0].rawStrength must equal V2's own candidate.rawStrength`);
+    assert.strictEqual(mc.peaks[0].prominence, v2c.prominence, `column ${s}: peaks[0].prominence must equal V2's own candidate.prominence`);
+    for (let i = 1; i < mc.peaks.length; i++) {
+      assert.strictEqual(mc.peaks[i].currentV2Winner, false, `column ${s}: only rank 0 may be tagged currentV2Winner`);
+    }
+  }
+  assert.ok(comparedCount > 0, 'sanity: expected at least one valid column to compare');
+});
+
+test('V2.1-H. running detectEyelidCreaseV2Multi does not change what detectEyelidCreaseV2 itself returns', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(
+    140, 90,
+    (x) => interpY(lidPoly, x) - 3,
+    (x) => interpY(lidPoly, x) - 14,
+    220, 140, 60, 0
+  );
+  const before = detectEyelidCreaseV2(canvas, eye, brow);
+  detectEyelidCreaseV2Multi(canvas, eye, brow);
+  const after = detectEyelidCreaseV2(canvas, eye, brow);
+  assert.deepStrictEqual(after.paths, before.paths, 'V2.1 must not alter V2 paths');
+  assert.strictEqual(after.displayPathIndex, before.displayPathIndex, 'V2.1 must not alter V2 displayPathIndex');
+});
+
+test('V2.1-I. exercising detectEyelidCreaseV2Multi + buildCreaseV2CopyPayload does not affect classifyFeatures output', () => {
+  const cfStart = src.indexOf('    const dist = (a,b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);');
+  const cfEnd = src.indexOf('\n    function extractEyeROI(');
+  const { classifyFeatures: cf3 } = new Function(reactStubsForV2 + src.slice(cfStart, cfEnd) + '\nreturn { classifyFeatures };')();
+  function eyeMetrics() {
+    return {
+      width: 30, height: 12, ear: 0.28, widthRatio: 0.42, tiltCorrected: 0,
+      hoodingRatio: 0.1, hoodingRatioByWidth: 0.1, shapeRatio: 2.5,
+      covCenterByWidth: 0.44, covInnerByWidth: 0.44, covOuterByWidth: 0.44, covByHeight: 0.44 / 0.36,
+      apertureA: 6, apertureB: 6, apertureAsymmetry: 1, innerTaperDeg: 70, outerTaperDeg: 70,
+      creaseValid: 1, creasePeak: 15, creaseProminence: 9, creaseYFrac: 0.4, creaseReadQuality: 0.7,
+    };
+  }
+  const aggregated = { left: eyeMetrics(), right: eyeMetrics(), interEyeDistance: 65, faceBoxWidth: 220, verticalAsymRaw: 0, headPose: { roll: 0 } };
+  const before = cf3(aggregated, { singleFrame: true, stability: null, imageQuality: 0.75 });
+
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(140, 90, (x) => interpY(lidPoly, x) - 3, (x) => interpY(lidPoly, x) - 14, 220, 140, 60, 0);
+  const v2Multi = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Multi }), right: fakeEyeEntry({ v2Multi: fakeV2MultiEntry() }),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  });
+
+  const after = cf3(aggregated, { singleFrame: true, stability: null, imageQuality: 0.75 });
+  assert.strictEqual(after.eyelidType, before.eyelidType);
+  assert.strictEqual(after.eyelidCategory, before.eyelidCategory);
+  assert.strictEqual(after.hoodedConfidence, before.hoodedConfidence);
+  assert.strictEqual(after.isHooded, before.isHooded);
+});
+
+test('V2.1-J. detectEyelidCreaseV2Multi is only called inside the same if(debugAvailable) block as V2 in LiveScanScreen', () => {
+  const callIdx = src.indexOf('detectEyelidCreaseV2Multi(canvas, leftEye, leftBrowPts)');
+  assert.ok(callIdx !== -1, 'expected detectEyelidCreaseV2Multi call site not found');
+  const before = src.slice(Math.max(0, callIdx - 600), callIdx);
+  assert.ok(/if\s*\(debugAvailable\)/.test(before),
+    'detectEyelidCreaseV2Multi call is not visibly guarded by "if (debugAvailable)"');
+});
+
+test('V2.1-K. Copy JSON (v2MultiShadow) includes every column and every peak', () => {
+  const v2Multi = fakeV2MultiEntry();
+  const payload = buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Multi }), right: fakeEyeEntry(),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  });
+  const shadow = payload.eyes.left.v2MultiShadow;
+  assert.strictEqual(shadow.runtimeMs, 4.2);
+  assert.strictEqual(shadow.columns.length, 2);
+  assert.strictEqual(shadow.columns[0].peaks.length, 3);
+  assert.strictEqual(shadow.columns[0].peaks[1].t, 0.44);
+  assert.strictEqual(shadow.columns[0].peaks[1].currentV2Winner, false);
+  assert.strictEqual(shadow.columns[1].peaks, null, 'a degenerate (null) column must stay null, not become an empty array');
+});
+
+test('V2.1-L. the full payload (including v2MultiShadow) is JSON-serializable and round-trips', () => {
+  const v2Multi = fakeV2MultiEntry();
+  const payload = buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Multi }), right: fakeEyeEntry({ v2Multi }),
+    capture: { ear: { left: 0.28, right: 0.27 }, roll: 1.2, yaw: 0.05, pitch: -0.02, brightness: 140, sharpness: 55 },
+  });
+  const json = JSON.stringify(payload, null, 2);
+  const parsed = JSON.parse(json);
+  assert.strictEqual(parsed.eyes.left.v2MultiShadow.columns[0].peaks.length, 3);
+  console.log(`        (measured payload size with v2MultiShadow for both eyes: ${json.length} bytes)`);
+});
+
+test('V2.1-M. missing/invalid multi-shadow values serialize as explicit null, never an invented 0', () => {
+  const payload = buildCreaseV2CopyPayload({
+    left: fakeEyeEntry({ v2Multi: { valid: false } }), right: fakeEyeEntry(),
+    capture: null,
+  });
+  assert.strictEqual(payload.eyes.left.v2MultiShadow.runtimeMs, null);
+  assert.strictEqual(payload.eyes.left.v2MultiShadow.columns, null);
+  assert.strictEqual(payload.eyes.right.v2MultiShadow.runtimeMs, null, 'right eye has no v2Multi at all — must be null, not throw');
+  const v2Multi = fakeV2MultiEntry();
+  const payload2 = buildCreaseV2CopyPayload({ left: fakeEyeEntry({ v2Multi }), right: fakeEyeEntry(), capture: null });
+  assert.strictEqual(payload2.eyes.left.v2MultiShadow.columns[0].peaks[2].localStrength, null, 'a genuinely-null localStrength must stay null');
+});
+
+test('V2.1-N. detectEyelidCreaseV2Multi does not link peaks across columns into paths', () => {
+  const multiFnStart = src.indexOf('function detectEyelidCreaseV2Multi(');
+  const multiFnEnd = src.indexOf('\n    const REASON_MESSAGES = {');
+  const multiSrc = src.slice(multiFnStart, multiFnEnd);
+  assert.ok(!/PATH_LINK_MAX_T_GAP/.test(multiSrc), 'detectEyelidCreaseV2Multi must not reference the path-linking threshold — linking is a deliberately separate, not-yet-approved step');
+  assert.ok(!/\bpaths\s*\.push\(/.test(multiSrc), 'detectEyelidCreaseV2Multi must not build any cross-column "paths" array');
+});
+
+test('V2.1-O. V2.1 output never reaches leftMetrics/rightMetrics (production normal mode is unaffected)', () => {
+  const assignRegex = /(left|right)Metrics\.\w+\s*=\s*([^;]+);/g;
+  const matches = [...src.matchAll(assignRegex)];
+  for (const m of matches) {
+    assert.ok(!/v2LeftMulti|v2RightMulti|detectEyelidCreaseV2Multi|v2Multi/.test(m[2]),
+      `found a *Metrics field assigned from V2.1 multi-shadow data: "${m[0]}"`);
+  }
+});
+
+// ---- Performance — measured in this Node mock harness (relative
+// order-of-magnitude only, not representative of real device speed). ----
+test('V2.1-perf. current V2 vs V2.1 multi-shadow runtime, measured on identical synthetic input', () => {
+  const { eye, brow } = syntheticLeftEyeGeometry();
+  const lidPoly = eye.slice(0, 4);
+  const canvas = paintTwoEdgeCanvas(140, 90, (x) => interpY(lidPoly, x) - 3, (x) => interpY(lidPoly, x) - 14, 220, 140, 60, 0);
+  const v2 = detectEyelidCreaseV2(canvas, eye, brow);
+  const v2Multi = detectEyelidCreaseV2Multi(canvas, eye, brow);
+  assert.ok(Number.isFinite(v2.v2RuntimeMs));
+  assert.ok(Number.isFinite(v2Multi.v2MultiRuntimeMs));
+  console.log(`        (measured in this mock harness — V2: ${v2.v2RuntimeMs.toFixed(3)}ms, V2.1 multi: ${v2Multi.v2MultiRuntimeMs.toFixed(3)}ms)`);
 });
 
 if (realDocument) global.document = realDocument; else delete global.document;

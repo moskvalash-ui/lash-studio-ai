@@ -1776,7 +1776,175 @@
       return { color: true, hex: rgbToHex(rgb[0],rgb[1],rgb[2]), name: classifyIrisColor(rgb[0],rgb[1],rgb[2]), confidence };
     }
 
-    const EYE_METRIC_KEYS = ['widthRatio','width','height','tiltCorrected','hoodingRatio','hoodingRatioByWidth','shapeRatio','ear','covCenterByWidth','covInnerByWidth','covOuterByWidth','covByHeight','apertureA','apertureB','apertureAsymmetry','innerTaperDeg','outerTaperDeg','creaseValid','creaseProminence','creasePeak','creaseYFrac','creaseReadQuality'];
+    // ============================================================
+    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT (measurement only).
+    // ------------------------------------------------------------
+    // NOT a second detector. sampleIrisColor/classifyIrisColor/
+    // combineIris (all three above, frozen, unmodified by this
+    // block) remain the ONLY functions production ever calls — this
+    // block re-runs the EXACT SAME formulas (same ROI radius, same
+    // rejection thresholds, same two-stage median/trim, same
+    // classifyIrisColor call) purely to expose the per-pixel/per-
+    // stage detail those functions don't return, for visual/numeric
+    // inspection in ?debug=1. Parity with the real functions is
+    // asserted by a dedicated regression test (same technique used
+    // for V2.1's currentV2Winner cross-check against V2) — this
+    // block's own selectedCategory/confidence/rgb must always exactly
+    // equal what sampleIrisColor/classifyIrisColor genuinely produce
+    // for the same input. Never wired into leftIris/rightIris/iris/
+    // classifyFeatures/rec/onComplete in any way.
+    function debugIrisRgbToHsl(r, g, b) { return rgbToHsl(r, g, b); }
+
+    // Debug-only mirror of classifyIrisColor's OWN branch order,
+    // evaluated identically, purely to record WHICH rule matched and
+    // what every other rule's pass/fail was — classifyIrisColor
+    // itself is not a scored classifier (no per-category numeric
+    // score exists in production), so this traces its real decision
+    // path instead of inventing scores that don't exist.
+    function debugIrisClassifyWithTrace(r, g, b) {
+      const { h, s, l } = rgbToHsl(r, g, b);
+      const rules = [
+        { rule: 'l<0.16 -> dark', category: 'dark', passed: l < 0.16 },
+        { rule: 'l<0.32 && s<0.35 -> brown', category: 'brown', passed: l < 0.32 && s < 0.35 },
+        { rule: 'h in [20,45] && s>0.25 && l in [0.25,0.55) -> hazel', category: 'hazel', passed: h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55 },
+        { rule: 'h in [40,70] && s>0.15 && l>=0.35 -> amber', category: 'amber', passed: h >= 40 && h <= 70 && s > 0.15 && l >= 0.35 },
+        { rule: 'h in [70,170] && s>0.15 -> green', category: 'green', passed: h >= 70 && h <= 170 && s > 0.15 },
+        { rule: 'h in [180,250] && s>0.12 -> blue', category: 'blue', passed: h >= 180 && h <= 250 && s > 0.12 },
+        { rule: 's<0.15 && l in [0.35,0.7) -> gray', category: 'gray', passed: s < 0.15 && l >= 0.35 && l < 0.7 },
+        { rule: 'l<0.35 -> brown', category: 'brown', passed: l < 0.35 },
+      ];
+      let matchedRule = null;
+      for (const r2 of rules) { if (r2.passed) { matchedRule = r2.rule; break; } }
+      const name = matchedRule ? rules.find(r2 => r2.rule === matchedRule).category : 'mixed';
+      return { h, s, l, evaluatedRules: rules, matchedRule, name };
+    }
+
+    // Structural helpers — plain descriptive statistics, not
+    // thresholds.
+    function debugIrisMedian(values) {
+      if (!values.length) return null;
+      const s = [...values].sort((a, b) => a - b);
+      return s[Math.floor(s.length / 2)];
+    }
+    function debugIrisMean(values) {
+      return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+    }
+
+    // Per-eye audit. `ctx`/`eyePoints` are the SAME real arguments the
+    // production call site passes to sampleIrisColor for this eye —
+    // this function never receives or infers anything sampleIrisColor
+    // itself doesn't already have access to.
+    function buildIrisColorAudit(ctx, eyePoints) {
+      const xs = eyePoints.map(p => p.x), ys = eyePoints.map(p => p.y);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      const eyeW = Math.max(...xs) - Math.min(...xs);
+      const eyeH = Math.max(...ys) - Math.min(...ys);
+      const radius = Math.max(3, Math.min(eyeW, eyeH * 2.4) * 0.22);
+      const x0 = Math.max(0, Math.round(cx - radius)), y0 = Math.max(0, Math.round(cy - radius));
+      const w = Math.max(1, Math.round(radius * 2)), h = Math.max(1, Math.round(radius * 2));
+      const roi = { x0, y0, w, h, cx, cy, radius, eyeW, eyeH };
+      let data;
+      try { data = ctx.getImageData(x0, y0, w, h).data; } catch (e) {
+        return { valid: false, roi, candidatePixelCount: 0, acceptedPixelCount: 0, rejectedPixelCount: 0, acceptedFraction: null, rejectionSummary: {}, rawColorStats: null, classifierInput: null, selectedCategory: null, confidence: 0 };
+      }
+      // Stage 1 — same circular-boundary scan + same two rejection
+      // rules sampleIrisColor itself uses, tagged with a reason.
+      const candidates = [];
+      const stage1Accepted = [];
+      const rejected = [];
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const dx = x - w / 2, dy = y - h / 2;
+          if (dx * dx + dy * dy > radius * radius) continue; // outside the circular sampling boundary — never scanned by production either
+          candidates.push({ x: x0 + x, y: y0 + y });
+          const idx = (y * w + x) * 4;
+          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          const lightness = (max + min) / 2;
+          const sat = max === min ? 0 : (lightness > 127 ? (max - min) / (510 - max - min) : (max - min) / (max + min));
+          if (lightness > 200 && sat < 0.25) { rejected.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat, reason: 'bright_specular' }); continue; }
+          if (lightness < 25) { rejected.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat, reason: 'dark_pupil_or_lash' }); continue; }
+          stage1Accepted.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat });
+        }
+      }
+      if (stage1Accepted.length < 6) {
+        return {
+          valid: true, roi, candidatePixelCount: candidates.length, acceptedPixelCount: 0,
+          rejectedPixelCount: rejected.length + stage1Accepted.length, acceptedFraction: 0,
+          rejectionSummary: debugIrisRejectionSummary(rejected, stage1Accepted.length, 'insufficient_stage1_samples'),
+          rawColorStats: null, classifierInput: null, selectedCategory: null, confidence: 0,
+        };
+      }
+      // Stage 2 — same distance-from-median trim (keep closest 80%,
+      // minimum 6) sampleIrisColor itself uses; the excluded 20% get
+      // their own reason so they're visually distinguishable too.
+      const med1 = { r: debugIrisMedian(stage1Accepted.map(s => s.r)), g: debugIrisMedian(stage1Accepted.map(s => s.g)), b: debugIrisMedian(stage1Accepted.map(s => s.b)) };
+      const withDist = stage1Accepted.map(s => ({ ...s, d: (s.r - med1.r) ** 2 + (s.g - med1.g) ** 2 + (s.b - med1.b) ** 2 }));
+      withDist.sort((a, b) => a.d - b.d);
+      const keepCount = Math.max(6, Math.floor(withDist.length * 0.8));
+      const trimmed = withDist.slice(0, keepCount);
+      const trimmedOut = withDist.slice(keepCount);
+      for (const t of trimmedOut) rejected.push({ x: t.x, y: t.y, r: t.r, g: t.g, b: t.b, lightness: t.lightness, sat: t.sat, reason: 'trimmed_outlier' });
+
+      const rMed = debugIrisMedian(trimmed.map(s => s.r)), gMed = debugIrisMedian(trimmed.map(s => s.g)), bMed = debugIrisMedian(trimmed.map(s => s.b));
+      const variance = trimmed.reduce((acc, s) => acc + ((s.r - rMed) ** 2 + (s.g - gMed) ** 2 + (s.b - bMed) ** 2), 0) / trimmed.length;
+      const confidence = Math.max(0, Math.min(1, 1 - variance / 2200)) * Math.min(1, trimmed.length / 20);
+
+      const hslList = trimmed.map(s => rgbToHsl(s.r, s.g, s.b));
+      const rawColorStats = {
+        meanRgb: { r: debugIrisMean(trimmed.map(s => s.r)), g: debugIrisMean(trimmed.map(s => s.g)), b: debugIrisMean(trimmed.map(s => s.b)) },
+        medianRgb: { r: rMed, g: gMed, b: bMed },
+        meanHsl: { h: debugIrisMean(hslList.map(v => v.h)), s: debugIrisMean(hslList.map(v => v.s)), l: debugIrisMean(hslList.map(v => v.l)) },
+        medianHsl: { h: debugIrisMedian(hslList.map(v => v.h)), s: debugIrisMedian(hslList.map(v => v.s)), l: debugIrisMedian(hslList.map(v => v.l)) },
+        hueRange: [Math.min(...hslList.map(v => v.h)), Math.max(...hslList.map(v => v.h))],
+        satRange: [Math.min(...hslList.map(v => v.s)), Math.max(...hslList.map(v => v.s))],
+        lightnessRange: [Math.min(...hslList.map(v => v.l)), Math.max(...hslList.map(v => v.l))],
+        variance,
+      };
+      const trace = debugIrisClassifyWithTrace(rMed, gMed, bMed);
+      const realName = classifyIrisColor(rMed, gMed, bMed); // the REAL production function — trace.name must always equal this (asserted by test)
+      return {
+        valid: true, roi,
+        candidatePixelCount: candidates.length,
+        acceptedPixelCount: trimmed.length,
+        rejectedPixelCount: rejected.length,
+        acceptedFraction: candidates.length > 0 ? trimmed.length / candidates.length : null,
+        rejectionSummary: debugIrisRejectionSummary(rejected),
+        rawColorStats,
+        classifierInput: { r: rMed, g: gMed, b: bMed, h: trace.h, s: trace.s, l: trace.l },
+        classifierTrace: trace.evaluatedRules,
+        selectedCategory: realName,
+        confidence,
+        // Untruncated pixel-level detail for Copy JSON / overlay —
+        // small (ROI is a few hundred to ~1500px), never a full image.
+        acceptedPixels: trimmed.map(s => ({ x: s.x, y: s.y, r: s.r, g: s.g, b: s.b })),
+        rejectedPixels: rejected,
+      };
+    }
+    function debugIrisRejectionSummary(rejected, extraCount, extraReason) {
+      const summary = {};
+      for (const r of rejected) summary[r.reason] = (summary[r.reason] || 0) + 1;
+      if (extraCount) summary[extraReason] = (summary[extraReason] || 0) + extraCount;
+      return summary;
+    }
+    // Cross-eye view — plain, real inputs/outputs of the SAME
+    // combineIris formula (frozen, unmodified), not a re-derivation.
+    function buildIrisColorAuditCombined(leftAudit, rightAudit, leftIrisReal, rightIrisReal, combinedReal) {
+      return {
+        aggregationInputs: {
+          leftRgb: leftIrisReal && leftIrisReal.rgb, rightRgb: rightIrisReal && rightIrisReal.rgb,
+          leftConfidence: leftIrisReal && leftIrisReal.confidence, rightConfidence: rightIrisReal && rightIrisReal.confidence,
+        },
+        rgbDistance: (leftIrisReal && leftIrisReal.rgb && rightIrisReal && rightIrisReal.rgb)
+          ? Math.sqrt((leftIrisReal.rgb[0] - rightIrisReal.rgb[0]) ** 2 + (leftIrisReal.rgb[1] - rightIrisReal.rgb[1]) ** 2 + (leftIrisReal.rgb[2] - rightIrisReal.rgb[2]) ** 2)
+          : null,
+        selectedCategory: combinedReal ? combinedReal.name : null,
+        confidence: combinedReal ? combinedReal.confidence : null,
+      };
+    }
+
+    const EYE_METRIC_KEYS =['widthRatio','width','height','tiltCorrected','hoodingRatio','hoodingRatioByWidth','shapeRatio','ear','covCenterByWidth','covInnerByWidth','covOuterByWidth','covByHeight','apertureA','apertureB','apertureAsymmetry','innerTaperDeg','outerTaperDeg','creaseValid','creaseProminence','creasePeak','creaseYFrac','creaseReadQuality'];
     function aggregateBuffer(buffer) {
       const pick = (side, key) => median(buffer.map(e => e[side][key]));
       const pickSide = (sideKey) => Object.fromEntries(EYE_METRIC_KEYS.map(k => [k, pick(sideKey, k)]));
@@ -4333,7 +4501,7 @@
     // computed values off `data` — never recomputes or alters any V1/V2
     // measurement. Missing/invalid values are explicit null, never a
     // substituted 0.
-    function buildCreaseV2CopyPayload(data, compare, frameTrace) {
+    function buildCreaseV2CopyPayload(data, compare, frameTrace, irisAudit) {
       const eyeV1 = (v1) => (v1 && v1.valid) ? {
         peakVal: v1.peakVal, prominence: v1.prominence, creaseYFrac: v1.creaseYFrac, readQuality: v1.readQuality,
         boundaryPeak: debugV1BoundaryPeakFlag(v1),
@@ -4484,6 +4652,18 @@
           right: (data.hoodingTopologyV2B && data.hoodingTopologyV2B.right) || null,
           crossEye: (data.hoodingTopologyV2B && data.hoodingTopologyV2B.crossEye) || null,
         },
+        // IRIS COLOR — DEBUG-ONLY raw pixel audit. Separate field,
+        // additive only; passed through VERBATIM from
+        // buildIrisColorAudit/buildIrisColorAuditCombined (measure-
+        // only, debug-only pure functions that re-run sampleIrisColor/
+        // classifyIrisColor/combineIris's OWN unmodified formulas —
+        // see their own header comment) — never truncated, never re-
+        // derived here. Does not alter any field above in any way.
+        irisColorAudit: {
+          left: (irisAudit && irisAudit.left) || null,
+          right: (irisAudit && irisAudit.right) || null,
+          combined: (irisAudit && irisAudit.combined) || null,
+        },
       };
     }
 
@@ -4495,7 +4675,7 @@
     // hoodingDebug (buildHoodingV2Debug's already-computed output) —
     // this component computes nothing, classifies nothing, and never
     // labels a path hood/overhang/non-hood on its own.
-    function CreaseV2DebugPanel({ data, compare, frameTrace, frameTraceRef }) {
+    function CreaseV2DebugPanel({ data, compare, frameTrace, frameTraceRef, irisAudit }) {
       const [copied, setCopied] = useState(false);
       const copy = () => {
         try {
@@ -4506,7 +4686,7 @@
           // Copy action itself must never depend on whether React has
           // already committed/painted the latest render by click time.
           const latestFrameTrace = frameTraceRef ? frameTraceRef.current : frameTrace;
-          const payload = JSON.stringify(buildCreaseV2CopyPayload(data, compare, latestFrameTrace), null, 2);
+          const payload = JSON.stringify(buildCreaseV2CopyPayload(data, compare, latestFrameTrace, irisAudit), null, 2);
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(payload).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
           }
@@ -4637,6 +4817,26 @@
                         <span>{data.hoodingTopologyV2B.crossEye.winnerCrossEye.meanTDiff.toFixed(3)} / {data.hoodingTopologyV2B.crossEye.winnerCrossEye.distFromLashRatioDiff != null ? data.hoodingTopologyV2B.crossEye.winnerCrossEye.distFromLashRatioDiff.toFixed(3) : '-'}</span>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* IRIS COLOR — RAW PIXEL AUDIT. Measure-only, downstream
+                re-run of the SAME sampleIrisColor/classifyIrisColor/
+                combineIris formulas (frozen, unmodified) — parity with
+                the real production output is asserted by a dedicated
+                regression test, see IrisColorAuditBlock's own comment. */}
+            {irisAudit && (
+              <div className="mb-1.5 pb-1.5 border-b border-white/10">
+                <span className="font-semibold text-pink-200">IRIS COLOR — RAW PIXEL AUDIT</span>
+                <IrisColorAuditBlock label="LEFT" audit={irisAudit.left} />
+                <IrisColorAuditBlock label="RIGHT" audit={irisAudit.right} />
+                {irisAudit.combined && (
+                  <div className="mt-1 pt-1 border-t border-white/10 grid grid-cols-2 gap-x-2">
+                    <span className="text-textMuted">combined category/confidence</span>
+                    <span className="text-pink-300">{irisAudit.combined.selectedCategory || '-'} / {irisAudit.combined.confidence != null ? (irisAudit.combined.confidence * 100).toFixed(0) + '%' : '-'}</span>
+                    <span className="text-textMuted">L/R RGB distance</span>
+                    <span>{irisAudit.combined.rgbDistance != null ? irisAudit.combined.rgbDistance.toFixed(1) : '-'}</span>
                   </div>
                 )}
               </div>
@@ -4804,6 +5004,78 @@
       );
     }
 
+    // IRIS COLOR — RAW PIXEL AUDIT visualization. Renders every
+    // candidate pixel buildIrisColorAudit already scanned, each drawn
+    // in ITS OWN real sampled color (accepted) or a reason-coded color
+    // (rejected) — a literal reconstruction of the exact pixel grid
+    // sampleIrisColor (frozen, unmodified) reads, not a fabricated
+    // preview. This directly answers "is production actually sampling
+    // the iris" — if the accepted-pixel colors look like skin/lash
+    // rather than iris, that's visible here. No pixel is ever labeled
+    // "iris"/"correct"/"wrong" — only its real color and its real
+    // accept/reject reason. Placed after CreaseV2DebugPanel (which
+    // already calls it, via JS function-declaration hoisting — same
+    // reasoning as HoodingV2RawGeometryBlock/HoodingTopologyV2BBlock
+    // above) so it does not sit inside any existing source span other
+    // tests extract by position.
+    const IRIS_REJECT_COLORS = {
+      bright_specular: '#ffe066',
+      dark_pupil_or_lash: '#4a4a4a',
+      trimmed_outlier: '#ff6ec7',
+      insufficient_stage1_samples: '#888888',
+    };
+    function IrisColorAuditBlock({ label, audit }) {
+      if (!audit || !audit.valid) {
+        return (
+          <div className="mb-1.5 pb-1.5 border-b border-white/10">
+            <span className="text-pink-100 uppercase font-semibold">{label} — no audit data</span>
+          </div>
+        );
+      }
+      const { roi } = audit;
+      const w = roi.w, h = roi.h;
+      return (
+        <div className="mb-1.5 pb-1.5 border-b border-white/10">
+          <span className="text-pink-100 uppercase font-semibold">{label} — {audit.selectedCategory || 'unclassified'}{audit.confidence != null ? ` (${(audit.confidence * 100).toFixed(0)}%)` : ''}</span>
+          <div className="relative mt-1" style={{ width: Math.min(200, w * 4), aspectRatio: `${w} / ${h}`, background: '#111' }}>
+            <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 w-full h-full">
+              <circle cx={w / 2} cy={h / 2} r={roi.radius} fill="none" stroke="#ffffff" strokeWidth="0.4" opacity="0.55" />
+              {(audit.acceptedPixels || []).map((p, i) => (
+                <rect key={`a${i}`} x={p.x - roi.x0} y={p.y - roi.y0} width="1" height="1" fill={`rgb(${p.r},${p.g},${p.b})`} />
+              ))}
+              {(audit.rejectedPixels || []).map((p, i) => (
+                <rect key={`r${i}`} x={p.x - roi.x0} y={p.y - roi.y0} width="1" height="1" fill={IRIS_REJECT_COLORS[p.reason] || '#ff0000'} opacity="0.85" />
+              ))}
+            </svg>
+          </div>
+          <div className="grid grid-cols-2 gap-x-2 mt-1">
+            <span className="text-textMuted">candidate/accepted/rejected</span>
+            <span>{audit.candidatePixelCount} / {audit.acceptedPixelCount} / {audit.rejectedPixelCount}</span>
+            <span className="text-textMuted">accepted fraction</span>
+            <span>{audit.acceptedFraction != null ? (audit.acceptedFraction * 100).toFixed(0) + '%' : '-'}</span>
+            <span className="text-textMuted">rejection reasons</span>
+            <span>{Object.entries(audit.rejectionSummary || {}).map(([k, v]) => `${k}:${v}`).join(' ') || 'none'}</span>
+            {audit.classifierInput && (
+              <>
+                <span className="text-textMuted">classifier RGB</span>
+                <span>{audit.classifierInput.r}/{audit.classifierInput.g}/{audit.classifierInput.b}</span>
+                <span className="text-textMuted">classifier HSL</span>
+                <span>h={audit.classifierInput.h.toFixed(1)} s={audit.classifierInput.s.toFixed(3)} l={audit.classifierInput.l.toFixed(3)}</span>
+              </>
+            )}
+          </div>
+          {audit.classifierTrace && (
+            <div className="mt-1 pt-1 border-t border-white/5">
+              <span className="text-textMuted">classifyIrisColor decision trace (real, unmodified)</span>
+              {audit.classifierTrace.map((r, i) => (
+                <div key={i} className={`pl-2 ${r.passed ? 'text-pink-300 font-semibold' : 'text-textMuted'}`}>{r.passed ? '✓ ' : '· '}{r.rule}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {
       const lang = useLang();
       const videoRef = useRef(null);
@@ -4838,6 +5110,10 @@
       // site, from the REAL aggregated/classified/rec values — never
       // read by production code, never fed back into them.
       const [debugFrameTrace, setDebugFrameTrace] = useState({ frames: [], counts: summarizeFrameTrace([]), aggregate: null, finalClassified: null, finalRecType: null });
+      // IRIS COLOR — DEBUG-ONLY raw pixel audit state. Never read by
+      // sampleIrisColor/combineIris/onComplete/rec — see
+      // buildIrisColorAudit's own header comment.
+      const [debugIrisAudit, setDebugIrisAudit] = useState(null);
 
       const modelsLoadedRef = useRef(modelsLoaded);
       useEffect(() => { modelsLoadedRef.current = modelsLoaded; }, [modelsLoaded]);
@@ -4865,6 +5141,14 @@
       // finalization had already computed them).
       const debugFrameTraceSnapshotRef = useRef({ frames: [], counts: summarizeFrameTrace([]), aggregate: null, finalClassified: null, finalRecType: null });
       const bestFrameRef = useRef(null);
+      // IRIS COLOR — DEBUG-ONLY raw pixel audit ref, kept in lockstep
+      // with bestFrameRef.current (computed on the SAME ctx/leftEye/
+      // rightEye, at the SAME moment, whenever bestFrameRef.current is
+      // updated below) so it always reflects the actual best-frame
+      // sample production used, never a different frame. Never merged
+      // into bestFrameRef.current itself — production's object shape
+      // is untouched.
+      const debugIrisAuditRef = useRef(null);
       const totalFramesRef = useRef(0);
       const doneRef = useRef(false);
       const busyRef = useRef(false);
@@ -5180,6 +5464,19 @@
               leftIris: sampleIrisColor(ctx, leftEye),
               rightIris: sampleIrisColor(ctx, rightEye),
             };
+            // IRIS COLOR — DEBUG-ONLY raw pixel audit. Computed on the
+            // EXACT same ctx/leftEye/rightEye just used for
+            // bestFrameRef.current's real leftIris/rightIris above, so
+            // it reflects the actual frame production used — never a
+            // different frame. debugAvailable === false: this whole
+            // block, including the audit calls themselves, never
+            // executes, so normal mode pays zero cost for it.
+            if (debugAvailable) {
+              debugIrisAuditRef.current = {
+                left: buildIrisColorAudit(ctx, leftEye),
+                right: buildIrisColorAudit(ctx, rightEye),
+              };
+            }
           }
 
           const count = bufferRef.current.length;
@@ -5258,6 +5555,18 @@
           }
           const best = bestFrameRef.current;
           const iris = combineIris(best.leftIris, best.rightIris);
+          // IRIS COLOR — DEBUG-ONLY final snapshot. Pure capture of the
+          // audit computed alongside the SAME best-frame sample that
+          // produced best.leftIris/best.rightIris above, plus the REAL
+          // combineIris output just computed — read-only, does not
+          // alter best/iris/rec in any way.
+          if (debugAvailable && debugIrisAuditRef.current) {
+            setDebugIrisAudit({
+              left: debugIrisAuditRef.current.left,
+              right: debugIrisAuditRef.current.right,
+              combined: buildIrisColorAuditCombined(debugIrisAuditRef.current.left, debugIrisAuditRef.current.right, best.leftIris, best.rightIris, iris),
+            });
+          }
           const designs = rankDesigns(finalProfile, langRef.current);
           console.log('[LSA] DESIGNS RANKED', designs.map(d => d.name + ' ' + d.score + '%').join(', '));
 
@@ -5537,7 +5846,7 @@
                 the experimental V2 candidate geometry; nothing here
                 influences classification. Remove together with V2 once
                 real-device validation is complete. */}
-            {debugAvailable && debugCreaseV2 && <CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} frameTrace={debugFrameTrace} frameTraceRef={debugFrameTraceSnapshotRef} />}
+            {debugAvailable && debugCreaseV2 && <CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} frameTrace={debugFrameTrace} frameTraceRef={debugFrameTraceSnapshotRef} irisAudit={debugIrisAudit} />}
           </div>
           <div className="p-6 flex flex-col items-center gap-3 bg-bg">
             <div className="w-full flex justify-end -mt-1">
@@ -6175,6 +6484,17 @@
 
           const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);
           const iris = combineIris(leftIris, rightIris);
+          // IRIS COLOR — DEBUG SHADOW MODE ONLY. Same read-only-extra-
+          // call pattern already used for EYELID CREASE V2 a few lines
+          // above in this screen (see that block's own comment) — logs
+          // to console for engineering inspection, never written into
+          // leftIris/rightIris/iris/rec.
+          if (isDebugModeEnabled()) {
+            console.log('[Photo] IRIS COLOR AUDIT (debug shadow, not used in production)', {
+              left: buildIrisColorAudit(ctx, leftEye), right: buildIrisColorAudit(ctx, rightEye),
+              combined: buildIrisColorAuditCombined(null, null, leftIris, rightIris, iris),
+            });
+          }
           const designs = rankDesigns(classified, lang);
           console.log('[Photo] DESIGNS RANKED', designs.map(d => d.name + ' ' + d.score + '%').join(', '));
 

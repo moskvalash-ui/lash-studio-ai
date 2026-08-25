@@ -447,7 +447,7 @@ test('L. Stage 2B construction/call sites sit strictly inside the existing debug
 test('M. Copy JSON payload includes both hoodingV2Raw and hoodingTopologyV2B, untruncated', () => {
   const boundaryFlagStart = src.indexOf('    function debugV1BoundaryPeakFlag(v1) {');
   const boundaryFlagEnd = src.indexOf('\n    }\n', boundaryFlagStart) + '\n    }\n'.length;
-  const payloadStart = src.indexOf('    function buildCreaseV2CopyPayload(data, compare, frameTrace) {');
+  const payloadStart = src.indexOf('    function buildCreaseV2CopyPayload(data, compare, frameTrace, irisAudit) {');
   const payloadEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
   if (boundaryFlagStart === -1 || payloadStart === -1 || payloadEnd === -1) throw new Error('Could not locate buildCreaseV2CopyPayload or its dependency — has it moved?');
   const { buildCreaseV2CopyPayload } = new Function(

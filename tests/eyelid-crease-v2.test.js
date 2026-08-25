@@ -621,7 +621,7 @@ test('G. the Copy button is positioned before the long LEFT/RIGHT diagnostic bod
 
 // ---- H — debug panel remains debug-only (re-confirms tests B/B2 still hold after this turn's edits). ----
 test('H. CreaseV2DebugPanel is still only mounted behind debugAvailable in LiveScanScreen', () => {
-  const mountIdx = src.indexOf('<CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} frameTrace={debugFrameTrace} frameTraceRef={debugFrameTraceSnapshotRef} />');
+  const mountIdx = src.indexOf('<CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} frameTrace={debugFrameTrace} frameTraceRef={debugFrameTraceSnapshotRef} irisAudit={debugIrisAudit} />');
   assert.ok(mountIdx !== -1, 'expected CreaseV2DebugPanel mount point not found');
   const before = src.slice(Math.max(0, mountIdx - 200), mountIdx);
   assert.ok(/debugAvailable/.test(before), 'CreaseV2DebugPanel mount is not visibly guarded by debugAvailable');

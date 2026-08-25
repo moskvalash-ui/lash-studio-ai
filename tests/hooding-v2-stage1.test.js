@@ -203,7 +203,7 @@ test('E. Copy JSON payload passes hoodingV2Raw through verbatim, untruncated', (
   // tiny, unmodified helper it calls (debugV1BoundaryPeakFlag,
   // extracted separately from its own real location) rather than
   // dragging in the whole surrounding JSX dependency chain.
-  const payloadStart = src.indexOf('    function buildCreaseV2CopyPayload(data, compare, frameTrace) {');
+  const payloadStart = src.indexOf('    function buildCreaseV2CopyPayload(data, compare, frameTrace, irisAudit) {');
   const payloadEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
   const boundaryFlagStart = src.indexOf('    function debugV1BoundaryPeakFlag(v1) {');
   const boundaryFlagEnd = src.indexOf('\n    }\n', boundaryFlagStart) + '\n    }\n'.length;

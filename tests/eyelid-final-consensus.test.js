@@ -90,7 +90,7 @@ test('Part-A. CreaseV2DebugPanel\'s copy() reads frameTraceRef.current (the ref)
   const panelSrc = src.slice(panelStart, panelEnd);
   assert.ok(/const latestFrameTrace = frameTraceRef \? frameTraceRef\.current : frameTrace;/.test(panelSrc),
     'copy() must prefer the ref over the possibly-stale state prop');
-  assert.ok(/buildCreaseV2CopyPayload\(data, compare, latestFrameTrace\)/.test(panelSrc),
+  assert.ok(/buildCreaseV2CopyPayload\(data, compare, latestFrameTrace, irisAudit\)/.test(panelSrc),
     'copy() must build the payload from latestFrameTrace (the ref-sourced value), not the raw frameTrace prop');
 });
 

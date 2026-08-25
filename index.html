@@ -242,6 +242,29 @@
       eyelidConflictExplain: {ru:'Пиксельный и геометрический анализ расходятся — результат нужно подтвердить визуально.', en:'Pixel-based and geometric analysis disagree — please confirm visually.'},
       eyeHighlightTitle: {ru:'О ваших глазах', en:'Eye highlight'},
 
+      // ---- creaseState / hoodingState — PRODUCT SEMANTICS SPLIT ----
+      // Two independent rows (crease visibility vs. hooding), replacing
+      // the old single ambiguous eyelidType presentation on the
+      // results screen. creaseState is automatic (crease detection was
+      // proven reliable by the hooding audit); hoodingState is
+      // 'uncertain' until an artist confirms it in ReviewScreen — see
+      // that screen's own hoodingOption* strings for the review-time
+      // wording, which intentionally differs from the results-screen
+      // "needs confirmation" wording below for the same underlying
+      // uncertain state (a form-option label vs. a display label).
+      creaseStateLabel: {ru:'Складка века', en:'Eyelid crease'},
+      creaseStateSubLabel: {ru:'Видимость складки века', en:'Crease visibility'},
+      creaseStateVisible: {ru:'Видимая складка', en:'Visible crease'},
+      creaseStateAbsent: {ru:'Складка не выявлена', en:'No visible crease'},
+      creaseStateUncertain: {ru:'Требует подтверждения', en:'Needs confirmation'},
+      hoodingStateLabel: {ru:'Нависание века', en:'Eyelid hooding'},
+      hoodingStateSubLabel: {ru:'По результатам подтверждения мастера', en:'Based on artist confirmation'},
+      hoodingStateUncertain: {ru:'Требует подтверждения', en:'Needs confirmation'},
+      hoodingOptionHooded: {ru:'Нависшее', en:'Hooded'},
+      hoodingOptionNonHooded: {ru:'Без выраженного нависания', en:'No obvious hooding'},
+      hoodingOptionUnsure: {ru:'Не уверена', en:'Unsure'},
+      reviewHoodingLabel: {ru:'Нависание века', en:'Eyelid hooding'},
+
       shape_round: {ru:'Округлая', en:'Round'},
       shape_almond: {ru:'Миндалевидная', en:'Almond'},
       shape_elongatedAlmond: {ru:'Удлинённо-миндалевидная', en:'Elongated Almond'},
@@ -1646,6 +1669,26 @@
       // rather than picking a side.
       const combinedCreaseSignal = (leftCreaseVerdict === rightCreaseVerdict) ? leftCreaseVerdict : 'uncertain';
 
+      // ---- creaseState / hoodingState — PRODUCT SEMANTICS SPLIT ----
+      // Two independent, user-facing axes derived alongside (never in
+      // place of) the existing eyelidType enum, per the hooding audit:
+      // crease visibility (Signal A, proven reliable) and hooding
+      // (Signal B) describe different anatomical properties and must
+      // not be collapsed into one value. creaseState is safe to derive
+      // automatically from the same, unmodified combinedCreaseSignal
+      // above. hoodingState is NOT derived from eyelidCategory — the
+      // audit proved coverageIndex/eyelidCategory cannot reliably
+      // detect isolated upper-lid skin overhang, so the automatic
+      // pipeline never asserts a confident hoodingState; only a
+      // human's visual confirmation (ReviewScreen) can set it to
+      // 'hooded'/'nonHooded'. This intentionally mirrors this app's
+      // existing uncertain/low-confidence convention rather than
+      // inventing a new one.
+      const creaseState = combinedCreaseSignal === 'detected' ? 'visible'
+        : combinedCreaseSignal === 'confidentlyAbsent' ? 'absent'
+        : 'uncertain';
+      const hoodingState = 'uncertain';
+
       let eyelidType;
       let eyelidSignalsConflict = false;
       if (combinedCreaseSignal === 'uncertain' || combinedCreaseSignal === 'borderline') {
@@ -1826,6 +1869,7 @@
         isHooded, hoodedConfidence, hoodingSignalsAgree, hoodingRatio: avgHoodingA, hoodingLevel,
         eyelidCategory, eyelidCategoryConfidence,
         eyelidType, eyelidTypeConfidence, eyelidSignalsConflict,
+        creaseState, hoodingState,
         isCloseSet, isWideSet, spacingRatio, spacingConfidence, eyeSetCategory,
         relativeEyeSize, eyeSizeCategory, eyeSizeConfidence,
         compositeAsymmetry, asymmetryBreakdown, symmetryCategory: symmetryCategoryFinal, symmetryConfidence,
@@ -5549,11 +5593,23 @@
         : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
         : t('eyelidTypeUncertain', lang);
       const eyelidTypeLabel = p.eyelidSignalsConflict ? t('eyelidTypeUncertain', lang) : eyelidTypeRawLabel;
+      // ---- creaseState / hoodingState — see the PRODUCT SEMANTICS
+      // SPLIT comment on classifyFeatures' own creaseState/hoodingState
+      // computation. p.creaseState/p.hoodingState default to the
+      // automatic classifyFeatures read; ReviewScreen confirmation
+      // overwrites them on the confirmed profile the same way it
+      // already overwrites eyelidType today.
+      const creaseStateLabel = p.creaseState === 'visible' ? t('creaseStateVisible', lang)
+        : p.creaseState === 'absent' ? t('creaseStateAbsent', lang)
+        : t('creaseStateUncertain', lang);
+      const hoodingStateLabel = p.hoodingState === 'hooded' ? t('hoodingOptionHooded', lang)
+        : p.hoodingState === 'nonHooded' ? t('hoodingOptionNonHooded', lang)
+        : t('hoodingStateUncertain', lang);
       const spacing = t('eyeSet_' + p.eyeSetCategory, lang);
       const eyeSize = t('eyeSize_' + p.eyeSizeCategory, lang);
       const symmetry = t('symmetry_' + p.symmetryCategory, lang);
       const irisName = iris?.name ? (lang==='en' ? IRIS_NAMES[iris.name].en : IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);
-      return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, spacing, eyeSize, symmetry, irisName };
+      return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, creaseStateLabel, hoodingStateLabel, spacing, eyeSize, symmetry, irisName };
     }
 
     // ---- Eye Highlight ----
@@ -5600,7 +5656,14 @@
       };
       let line = (templates[key] || templates.uncertain_neutral)[0];
 
-      if (c.eyelidCategory === 'pronounced' || c.eyelidCategory === 'moderate') {
+      // PRODUCT SEMANTICS SPLIT — gated on the authoritative,
+      // manually-confirmed hoodingState (never the automatic
+      // eyelidCategory geometry read, which the hooding audit proved
+      // cannot reliably detect isolated upper-lid skin overhang). When
+      // hoodingState is still 'uncertain' (not yet confirmed, or the
+      // artist picked "unsure"), neither addendum is shown — no
+      // confident automatic hooding assumption is made here either.
+      if (c.hoodingState === 'hooded') {
         const hoodedAddendums = [
           en ? ' The eyelid shows less of the crease at rest — the artist can pick a curl that keeps the lash line visible when your eyes are open.'
              : ' Складка века у вас чуть менее заметна в спокойном состоянии — мастер может подобрать изгиб, который сохранит видимость линии ресниц с открытым глазом.',
@@ -5608,7 +5671,7 @@
              : ' Чуть более сильный изгиб в центральной зоне поможет сохранить видимость линии ресниц в течение дня.',
         ];
         line += hoodedAddendums[shape === 'round' || shape === 'narrow' ? 1 : 0];
-      } else if (c.eyelidCategory === 'open') {
+      } else if (c.hoodingState === 'nonHooded') {
         const openAddendums = [
           en ? ' The eyelid stays clearly visible, giving the artist a lot of freedom with curl and length.'
              : ' Веко хорошо просматривается — это даёт мастеру большую свободу в выборе изгиба и длины.',
@@ -5734,8 +5797,15 @@
 
             <Section title={t('eyeProfileTitle', lang)} defaultOpen>
               <EyeProfileRow icon="shape" label={t('shapeLabel', lang)} sublabel={t('shapeSubLabel', lang)} value={labels.shape} confidence={p.eyeShapeCategory === 'uncertain' ? undefined : p.eyeShapeConfidence} />
-              <EyeProfileRow icon="lid" label={t('lidLabel', lang)} sublabel={t('lidSubLabel', lang)} value={labels.hooding} confidence={p.eyelidCategory === 'uncertain' ? undefined : p.eyelidCategoryConfidence} />
-              <EyeProfileRow icon="lid" label={t('eyelidTypeLabel', lang)} sublabel={t('eyelidTypeSubLabel', lang)} value={labels.eyelidTypeLabel} confidence={(p.eyelidType === 'uncertain' || p.eyelidSignalsConflict) ? undefined : p.eyelidTypeConfidence} />
+              {/* PRODUCT SEMANTICS SPLIT — crease visibility (Signal A,
+                  automatic, proven reliable) and hooding (only ever
+                  confidently known once an artist visually confirms it
+                  in ReviewScreen — see the hooding audit) are two
+                  independent rows now, replacing the old single
+                  ambiguous eyelidType-derived presentation that used
+                  to imply "visible crease == not hooded". */}
+              <EyeProfileRow icon="lid" label={t('creaseStateLabel', lang)} sublabel={t('creaseStateSubLabel', lang)} value={labels.creaseStateLabel} confidence={p.creaseState === 'uncertain' ? undefined : p.eyelidTypeConfidence} />
+              <EyeProfileRow icon="lid" label={t('hoodingStateLabel', lang)} sublabel={t('hoodingStateSubLabel', lang)} value={labels.hoodingStateLabel} confidence={p.hoodingState === 'uncertain' ? undefined : p.hoodedConfidence} />
               {p.eyelidSignalsConflict && (
                 <div className="pl-11 -mt-1 pb-3">
                   {/* CONSERVATIVE V1 — the "Most likely: X" raw-guess line
@@ -6410,43 +6480,43 @@
               </div>
             </div>
 
+            {/* PRODUCT SEMANTICS SPLIT — crease visibility (automatic,
+                proven reliable) and hooding (only ever confidently
+                known once an artist visually confirms it in
+                ReviewScreen) are two independent sections here too,
+                replacing the old single ambiguous eyelidType-derived
+                presentation. See the matching comment in HeroScreen's
+                EyeProfileRow render and the hooding audit. */}
             <div className="glass rounded-lg p-5">
               <div className="flex items-center gap-2 mb-4">
                 <ParamIcon name="lid" className="w-4 h-4 text-accent" />
-                <h3 className="label-tech">{t('lidLabel', lang)}</h3>
+                <h3 className="label-tech">{t('creaseStateLabel', lang)}</h3>
               </div>
               <p className="text-sm text-textPrimary mb-1">
-                {p.eyelidCategory === 'pronounced' ? t('eyelidPronounced', lang)
-                  : p.eyelidCategory === 'moderate' ? t('eyelidModerate', lang)
-                  : p.eyelidCategory === 'mild' ? t('eyelidMild', lang)
-                  : p.eyelidCategory === 'open' ? t('eyelidOpen', lang)
-                  : t('eyelidUncertain', lang)}
-                {p.eyelidCategory !== 'uncertain' && <> — <span className="text-cyan">{(p.eyelidCategoryConfidence*100).toFixed(0)}%</span></>}
+                {p.creaseState === 'visible' ? t('creaseStateVisible', lang)
+                  : p.creaseState === 'absent' ? t('creaseStateAbsent', lang)
+                  : t('creaseStateUncertain', lang)}
+                {p.creaseState !== 'uncertain' && <> — <span className="text-cyan">{(p.eyelidTypeConfidence*100).toFixed(0)}%</span></>}
               </p>
-              <p className="text-xs text-textSecondary">{p.hoodingSignalsAgree ? (lang==='en'?'Independent geometric signals (center, inner and outer brow-to-lid coverage, cross-checked against eye opening) agree.':'Независимые геометрические сигналы (центр, внутренний и внешний угол, сверка с раскрытием глаза) согласуются.') : (lang==='en'?'Signals disagree — estimate is approximate, confidence reduced.':'Сигналы расходятся — оценка приблизительная, доверие снижено.')}</p>
+              <p className="text-xs text-textSecondary">{lang==='en'
+                ? 'Based on real pixel analysis of the eyelid skin, looking for an actual fold line — read independently for each eye.'
+                : 'Определено по пиксельному анализу кожи века — поиск реальной линии складки, независимо для каждого глаза.'}</p>
             </div>
 
             <div className="glass rounded-lg p-5">
               <div className="flex items-center gap-2 mb-4">
                 <ParamIcon name="lid" className="w-4 h-4 text-accent" />
-                <h3 className="label-tech">{t('eyelidTypeLabel', lang)}</h3>
+                <h3 className="label-tech">{t('hoodingStateLabel', lang)}</h3>
               </div>
               <p className="text-sm text-textPrimary mb-1">
-                {p.eyelidSignalsConflict ? t('eyelidTypeUncertain', lang)
-                  : p.eyelidType === 'openCrease' ? t('eyelidTypeOpenCrease', lang)
-                  : p.eyelidType === 'hooded' ? t('eyelidTypeHooded', lang)
-                  : p.eyelidType === 'monolid' ? t('eyelidTypeMonolid', lang)
-                  : t('eyelidTypeUncertain', lang)}
-                {(p.eyelidType !== 'uncertain' && !p.eyelidSignalsConflict) && <> — <span className="text-cyan">{(p.eyelidTypeConfidence*100).toFixed(0)}%</span></>}
+                {p.hoodingState === 'hooded' ? t('hoodingOptionHooded', lang)
+                  : p.hoodingState === 'nonHooded' ? t('hoodingOptionNonHooded', lang)
+                  : t('hoodingStateUncertain', lang)}
+                {p.hoodingState !== 'uncertain' && <> — <span className="text-cyan">{(p.hoodedConfidence*100).toFixed(0)}%</span></>}
               </p>
-              {/* CONSERVATIVE V1 — the "Most likely: X" raw-guess line was
-                  removed here (see the matching comment in EyeProfileRow's
-                  render above): eyelidType is already 'uncertain' whenever
-                  eyelidSignalsConflict is true, so there is no separate
-                  anatomical "best guess" left to show. */}
-              <p className="text-xs text-textSecondary">{p.eyelidSignalsConflict ? t('eyelidConflictExplain', lang) : (lang==='en'
-                ? 'Based on real pixel analysis of the eyelid skin (looking for an actual fold line), combined with the geometric brow-to-lid coverage above — not distance alone.'
-                : 'Определено по пиксельному анализу кожи века (поиск реальной линии складки) в сочетании с геометрическим сигналом выше — не только по расстоянию.')}</p>
+              <p className="text-xs text-textSecondary">{p.hoodingState === 'uncertain'
+                ? (lang==='en' ? 'Hooding cannot be reliably read from geometry alone — confirmed visually by the artist during review.' : 'Нависание невозможно надёжно определить только по геометрии — подтверждается мастером визуально на экране проверки.')
+                : (lang==='en' ? 'Confirmed visually by the artist during review — the authoritative source for hooding, independent of crease visibility above.' : 'Подтверждено мастером визуально на экране проверки — основной источник данных о нависании, независимо от видимости складки выше.')}</p>
             </div>
 
             <div className="glass rounded-lg p-5">
@@ -6856,6 +6926,14 @@
       const [values, setValues] = useState({
         eyeShapeCategory: initial.eyeShapeCategory,
         eyelidType: initial.eyelidType,
+        // hoodingState: the AUTHORITATIVE hooding signal from here on —
+        // see the PRODUCT SEMANTICS SPLIT comment on classifyFeatures.
+        // initial.hoodingState is always 'uncertain' straight out of
+        // the automatic pipeline (hooding cannot be reliably
+        // auto-detected — see the hooding audit), so seeding from it
+        // here (same pattern as every other field) already satisfies
+        // "do not preselect nonHooded from the old geometry."
+        hoodingState: initial.hoodingState,
         eyeSetCategory: initial.eyeSetCategory,
         tiltTendency: initial.tiltTendency,
         eyeSizeCategory: initial.eyeSizeCategory,
@@ -6864,6 +6942,7 @@
       const optionLabels = {
         eyeShapeCategory: { uncertain: t('shape_uncertain', lang), round: t('shape_round', lang), almond: t('shape_almond', lang), elongatedAlmond: t('shape_elongatedAlmond', lang), narrow: t('shape_narrow', lang) },
         eyelidType: { uncertain: t('eyelidTypeUncertain', lang), hooded: t('eyelidTypeHooded', lang), monolid: t('eyelidTypeMonolid', lang), openCrease: t('eyelidTypeOpenCrease', lang) },
+        hoodingState: { uncertain: t('hoodingOptionUnsure', lang), hooded: t('hoodingOptionHooded', lang), nonHooded: t('hoodingOptionNonHooded', lang) },
         eyeSetCategory: { close: t('eyeSet_close', lang), balanced: t('eyeSet_balanced', lang), wide: t('eyeSet_wide', lang) },
         tiltTendency: { upturned: t('tiltUpturned', lang), neutral: t('tiltNeutral', lang), downturned: t('tiltDownturned', lang), uncertain: t('tiltUncertain', lang) },
         eyeSizeCategory: { small: t('eyeSize_small', lang), medium: t('eyeSize_medium', lang), large: t('eyeSize_large', lang) },
@@ -6872,6 +6951,11 @@
       const fields = [
         ['eyeShapeCategory', t('shapeLabel', lang), ['uncertain', 'round', 'almond', 'elongatedAlmond', 'narrow']],
         ['eyelidType', t('eyelidTypeLabel', lang), ['uncertain', 'hooded', 'monolid', 'openCrease']],
+        // Crease visibility (eyelidType, above) and hooding (below) are
+        // independent axes — a client can have a clearly visible crease
+        // AND hooding at the same time. This field is NOT derived from
+        // eyelidType and does not overwrite it.
+        ['hoodingState', t('reviewHoodingLabel', lang), ['uncertain', 'hooded', 'nonHooded']],
         ['eyeSetCategory', t('spacingLabel', lang), ['close', 'balanced', 'wide']],
         ['tiltTendency', t('tiltLabel', lang), ['upturned', 'neutral', 'downturned', 'uncertain']],
         ['eyeSizeCategory', t('eyeSizeLabel', lang), ['small', 'medium', 'large']],
@@ -6879,16 +6963,28 @@
       ];
       const confirm = () => {
         const legacyShape = { round: 'round', almond: 'almond', elongatedAlmond: 'elongated', narrow: 'mixed', uncertain: 'mixed' };
+        // eyelidCategory kept wired to eyelidType exactly as before —
+        // legacy/debug-panel-only bucket, no longer read by
+        // HeroScreen/recommendations (see PRODUCT SEMANTICS SPLIT).
         const eyelidCategory = values.eyelidType === 'hooded' ? 'moderate' : values.eyelidType === 'monolid' ? 'uncertain' : values.eyelidType === 'openCrease' ? 'open' : 'uncertain';
+        // isHooded/hoodedConfidence/hoodingLevel now derive from the
+        // manually-confirmed hoodingState — NOT from eyelidType/
+        // eyelidCategory — so they become the authoritative hooding
+        // signal every recommendation read (DESIGN_CATALOG scores/
+        // cautions, generateEyeHighlight, HeroScreen) sees from here on,
+        // per the hooding audit. 0.8/0.25 reuse this same function's
+        // pre-existing confident-manual-override / not-confident-enough
+        // convention — no new threshold invented.
+        const isHooded = values.hoodingState === 'hooded';
+        const hoodedConfidence = values.hoodingState === 'uncertain' ? 0.25 : 0.8;
+        const hoodingLevel = values.hoodingState === 'hooded' ? 'partial' : 'none';
         const confirmedProfile = {
           ...initial,
           ...values,
           dominantShape: legacyShape[values.eyeShapeCategory],
           isCloseSet: values.eyeSetCategory === 'close',
           isWideSet: values.eyeSetCategory === 'wide',
-          isHooded: values.eyelidType === 'hooded',
-          hoodingLevel: values.eyelidType === 'hooded' ? 'partial' : 'none',
-          hoodedConfidence: values.eyelidType === 'hooded' ? Math.max(initial.eyelidTypeConfidence || 0, 0.8) : 0.25,
+          isHooded, hoodedConfidence, hoodingLevel,
           eyelidCategory,
           eyelidCategoryConfidence: values.eyelidType === 'uncertain' ? 0.25 : 0.8,
           eyeShapeConfidence: values.eyeShapeCategory === initial.eyeShapeCategory ? initial.eyeShapeConfidence : 0.8,

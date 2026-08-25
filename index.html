@@ -219,6 +219,12 @@
       liveSource: {ru:'LIVE SCAN', en:'LIVE SCAN'},
       photoSource: {ru:'PHOTO ANALYSIS', en:'PHOTO ANALYSIS'},
       analysisConfidence: {ru:'Уверенность анализа', en:'Analysis confidence'},
+      // IRIS COLOR — DEBUG-ONLY Copy button on ResultsScreen. Only ever
+      // rendered when isDebugModeEnabled() — see CopyIrisDebugButton.
+      copyIrisDebugJson: {ru:'СКОПИРОВАТЬ IRIS DEBUG JSON', en:'COPY IRIS DEBUG JSON'},
+      copyIrisDebugJsonCopied: {ru:'СКОПИРОВАНО', en:'COPIED'},
+      copyIrisDebugJsonUnavailable: {ru:'IRIS DEBUG ДАННЫЕ НЕДОСТУПНЫ — аудит не был создан для этого результата (debug-режим мог быть выключен во время сканирования)', en:'IRIS DEBUG DATA UNAVAILABLE — no audit was produced for this result (debug mode may have been off during the scan)'},
+      copyIrisDebugJsonError: {ru:'Не удалось скопировать — буфер обмена недоступен', en:'Copy failed — clipboard unavailable'},
       singleFrameNote: {ru:'Оценка по одному фото — для максимальной точности используйте живое сканирование', en:'Estimated from a single photo — use Live Scan for maximum accuracy'},
       eyeProfileTitle: {ru:'AI Eye Profile', en:'AI Eye Profile'},
       shapeLabel: {ru:'Форма глаза', en:'Eye shape'},
@@ -5559,13 +5565,21 @@
           // audit computed alongside the SAME best-frame sample that
           // produced best.leftIris/best.rightIris above, plus the REAL
           // combineIris output just computed — read-only, does not
-          // alter best/iris/rec in any way.
+          // alter best/iris/rec's OWN production fields in any way.
+          // Computed ONCE and reused for both the LiveScanScreen debug
+          // panel state AND rec.irisColorAudit below (never recomputed,
+          // never a second sample) — this is what lets ResultsScreen's
+          // Copy button expose the exact same audit the scan produced,
+          // since debugIrisAudit (React state) itself does not survive
+          // this screen unmounting on navigation to ReviewScreen.
+          let irisColorAuditForRec = null;
           if (debugAvailable && debugIrisAuditRef.current) {
-            setDebugIrisAudit({
+            irisColorAuditForRec = {
               left: debugIrisAuditRef.current.left,
               right: debugIrisAuditRef.current.right,
               combined: buildIrisColorAuditCombined(debugIrisAuditRef.current.left, debugIrisAuditRef.current.right, best.leftIris, best.rightIris, iris),
-            });
+            };
+            setDebugIrisAudit(irisColorAuditForRec);
           }
           const designs = rankDesigns(finalProfile, langRef.current);
           console.log('[LSA] DESIGNS RANKED', designs.map(d => d.name + ' ' + d.score + '%').join(', '));
@@ -5576,6 +5590,12 @@
             imageWidth: best.width, imageHeight: best.height,
             confidence: finalProfile.overallConfidence,
           };
+          // Debug-only, additive field — absent entirely in normal mode
+          // (irisColorAuditForRec stays null when !debugAvailable, so no
+          // extra data is retained/serialized for normal users). Carries
+          // the real scan's iris audit through ReviewScreen (which
+          // spreads ...result unchanged) to ResultsScreen.
+          if (irisColorAuditForRec) rec.irisColorAudit = irisColorAuditForRec;
           rec.diagnostics = {
             framesAnalyzed: totalFramesRef.current, stableFrames: count,
             measurementVariance: stability.variance, analysisConfidence: finalProfile.overallConfidence,
@@ -6486,23 +6506,33 @@
           const iris = combineIris(leftIris, rightIris);
           // IRIS COLOR — DEBUG SHADOW MODE ONLY. Same read-only-extra-
           // call pattern already used for EYELID CREASE V2 a few lines
-          // above in this screen (see that block's own comment) — logs
-          // to console for engineering inspection, never written into
-          // leftIris/rightIris/iris/rec.
+          // above in this screen (see that block's own comment) — never
+          // written into leftIris/rightIris/iris. Computed ONCE and
+          // reused for both the console log AND rec.irisColorAudit
+          // below (never a second sample) — this is what lets
+          // ResultsScreen's Copy button expose the exact same audit
+          // the photo analysis produced, since PhotoAnalysisScreen has
+          // no persistent debug panel of its own (see the matching
+          // comment at this screen's EYELID CREASE V2 block).
+          let irisColorAuditForRec = null;
           if (isDebugModeEnabled()) {
-            console.log('[Photo] IRIS COLOR AUDIT (debug shadow, not used in production)', {
+            irisColorAuditForRec = {
               left: buildIrisColorAudit(ctx, leftEye), right: buildIrisColorAudit(ctx, rightEye),
               combined: buildIrisColorAuditCombined(null, null, leftIris, rightIris, iris),
-            });
+            };
+            console.log('[Photo] IRIS COLOR AUDIT (debug shadow, not used in production)', irisColorAuditForRec);
           }
           const designs = rankDesigns(classified, lang);
           console.log('[Photo] DESIGNS RANKED', designs.map(d => d.name + ' ' + d.score + '%').join(', '));
 
-          onComplete({
+          const photoRec = {
             source: 'photo', eyeProfile: classified, iris, designs,
             originalImage: canvas.toDataURL('image/jpeg', 0.92), landmarks: det.landmarks,
             imageWidth: canvas.width, imageHeight: canvas.height, confidence: classified.overallConfidence,
-          });
+          };
+          // Debug-only, additive field — absent entirely in normal mode.
+          if (irisColorAuditForRec) photoRec.irisColorAudit = irisColorAuditForRec;
+          onComplete(photoRec);
         } catch (e) {
           console.error('[Photo] PIPELINE ERROR', e);
           setState('error');
@@ -6789,6 +6819,56 @@
       );
     }
 
+    // IRIS COLOR — DEBUG-ONLY Copy button, ResultsScreen (HeroScreen).
+    // Exposes the EXACT irisColorAudit produced during the real scan —
+    // result.irisColorAudit was attached to rec by LiveScanScreen/
+    // PhotoAnalysisScreen (debug-only, see their own comments) and
+    // survives ReviewScreen's confirm() unchanged (that function
+    // spreads ...result before overriding only eyeProfile/designs/
+    // originalAIProfile/artistConfirmed). This component computes
+    // nothing and re-samples nothing — it only reads result.irisColorAudit/
+    // result.iris (both already real, already computed) and formats
+    // them for clipboard. Rendered only when isDebugModeEnabled().
+    function CopyIrisDebugButton({ result, lang }) {
+      const [state, setState] = useState('idle'); // idle | copied | unavailable | error
+      const copy = () => {
+        const audit = result.irisColorAudit;
+        if (!audit) {
+          setState('unavailable');
+          setTimeout(() => setState('idle'), 3000);
+          return;
+        }
+        const payload = {
+          irisColorAudit: audit,
+          productionResult: {
+            irisColor: result.iris ? result.iris.name : null,
+            irisConfidence: result.iris ? result.iris.confidence : null,
+          },
+        };
+        try {
+          const text = JSON.stringify(payload, null, 2);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text)
+              .then(() => { setState('copied'); setTimeout(() => setState('idle'), 1500); })
+              .catch(() => { setState('error'); setTimeout(() => setState('idle'), 3000); });
+          } else {
+            setState('error'); setTimeout(() => setState('idle'), 3000);
+          }
+        } catch (e) {
+          setState('error'); setTimeout(() => setState('idle'), 3000);
+        }
+      };
+      return (
+        <div className="px-4 pt-3">
+          <button onClick={copy} className="w-full py-2.5 rounded-md text-[11px] font-semibold uppercase tracking-wide border border-pink-400/40 bg-pink-500/10 text-pink-200 press-scale">
+            {state === 'copied' ? t('copyIrisDebugJsonCopied', lang) : t('copyIrisDebugJson', lang)}
+          </button>
+          {state === 'unavailable' && <p className="text-[10px] text-amber-300 mt-1 leading-snug">{t('copyIrisDebugJsonUnavailable', lang)}</p>}
+          {state === 'error' && <p className="text-[10px] text-red-300 mt-1 leading-snug">{t('copyIrisDebugJsonError', lang)}</p>}
+        </div>
+      );
+    }
+
     function HeroScreen({ result, naturalLashProfile, onViewMap, onDetails, onAllDesigns, onScanLashes, onViewLashProfile, onBack }) {
       const lang = useLang();
       const p = result.eyeProfile;
@@ -6806,6 +6886,7 @@
             </div>
             <div className="w-10"></div>
           </div>
+          {isDebugModeEnabled() && <CopyIrisDebugButton result={result} lang={lang} />}
           <div className="px-4 pb-6">
             <div className="relative rounded-lg overflow-hidden aspect-[4/5] mb-6 border border-border mt-4">
               <img src={result.originalImage} className="w-full h-full object-cover" alt="client" />

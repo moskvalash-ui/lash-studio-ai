@@ -304,7 +304,7 @@ test('L1. LiveScanScreen: iris audit construction sits strictly inside the exist
 });
 test('L2. LiveScanScreen: the finalization setDebugIrisAudit call is also gated by debugAvailable', () => {
   const anchor = src.indexOf('const iris = combineIris(best.leftIris, best.rightIris);');
-  const setCallIdx = src.indexOf('setDebugIrisAudit({', anchor);
+  const setCallIdx = src.indexOf('setDebugIrisAudit(irisColorAuditForRec)', anchor);
   const gateIdx = src.lastIndexOf('if (debugAvailable && debugIrisAuditRef.current)', setCallIdx);
   assert.ok(anchor !== -1 && setCallIdx !== -1 && gateIdx !== -1 && gateIdx < setCallIdx, 'setDebugIrisAudit must be gated by debugAvailable at finalization');
 });
@@ -381,6 +381,202 @@ test('N5. sampleIrisColor/classifyIrisColor/combineIris source text is unmodifie
   for (const line of [radiusLine, brightRejectLine, darkRejectLine, brownGate, grayGate]) {
     assert.ok(src.includes(line), `expected the real, unmodified production line to still be present verbatim: ${line}`);
   }
+});
+
+// ================================================================
+// RESULTS-SCREEN DEBUG DATA ACCESS — regression tests (this turn).
+// ------------------------------------------------------------
+// LiveScanScreen/PhotoAnalysisScreen previously computed irisColorAudit
+// (debug-only) but only ever stored it in local component state,
+// discarded the moment the screen unmounted on navigation to
+// ReviewScreen. This turn attaches the SAME already-computed audit
+// object onto rec.irisColorAudit (debug-only, additive) so it
+// survives ReviewScreen's confirm() (which spreads ...result before
+// overriding only eyeProfile/designs/originalAIProfile/
+// artistConfirmed) all the way to ResultsScreen (HeroScreen), where a
+// new debug-only CopyIrisDebugButton reads it — no second sample, no
+// second classification, nothing recomputed.
+// ================================================================
+
+// Extract CopyIrisDebugButton's real payload-construction logic
+// (the exact source text between `const audit = result.irisColorAudit;`
+// and the closing of the `payload` object literal) as a standalone,
+// testable function — setState/setTimeout stubbed as no-ops (their
+// calls don't affect the early `return;` control flow the real code
+// already has for the "no audit" case).
+const copyPayloadLogicStart = src.indexOf('        const audit = result.irisColorAudit;');
+const copyPayloadLogicEnd = src.indexOf('\n        };\n', src.indexOf('const payload = {', copyPayloadLogicStart)) + '\n        };\n'.length;
+if (copyPayloadLogicStart === -1 || copyPayloadLogicEnd === -1) throw new Error('Could not locate CopyIrisDebugButton\'s payload-construction logic — has it moved?');
+const copyPayloadLogicSrc = src.slice(copyPayloadLogicStart, copyPayloadLogicEnd);
+const buildIrisDebugCopyPayload = new Function('result', 'setState', 'setTimeout',
+  copyPayloadLogicSrc + '\nreturn payload;'
+);
+function extractCopyPayload(result) {
+  return buildIrisDebugCopyPayload(result, () => {}, () => {});
+}
+
+test('setup2: extracted the real CopyIrisDebugButton payload-construction logic from index.html successfully', () => {
+  assert.strictEqual(typeof buildIrisDebugCopyPayload, 'function');
+});
+
+// ================================================================
+// A. ResultsScreen can access the exact irisColorAudit produced by
+// the scan (via rec.irisColorAudit, unchanged through ReviewScreen).
+// ================================================================
+test('A1. LiveScanScreen attaches irisColorAudit to rec only when debugAvailable, using the SAME object already built for the debug panel (no recomputation)', () => {
+  const finalizeSrc = src.slice(src.indexOf('const iris = combineIris(best.leftIris, best.rightIris);'), src.indexOf('setTimeout(() => onCompleteRef.current(rec), 1000);'));
+  assert.ok(/let irisColorAuditForRec = null;/.test(finalizeSrc));
+  assert.ok(/if \(debugAvailable && debugIrisAuditRef\.current\) \{/.test(finalizeSrc));
+  assert.ok(/setDebugIrisAudit\(irisColorAuditForRec\)/.test(finalizeSrc), 'the debug panel state and rec.irisColorAudit must be set from the SAME variable, not two separately-built objects');
+  assert.ok(/if \(irisColorAuditForRec\) rec\.irisColorAudit = irisColorAuditForRec;/.test(finalizeSrc));
+});
+test('A2. PhotoAnalysisScreen attaches irisColorAudit to its rec only when isDebugModeEnabled(), using the SAME object already logged to console', () => {
+  const finalizeSrc = src.slice(src.indexOf('const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);'), src.indexOf('onComplete(photoRec);') + 'onComplete(photoRec);'.length);
+  assert.ok(/let irisColorAuditForRec = null;/.test(finalizeSrc));
+  assert.ok(/if \(isDebugModeEnabled\(\)\) \{/.test(finalizeSrc));
+  assert.ok(/console\.log\('\[Photo\] IRIS COLOR AUDIT \(debug shadow, not used in production\)', irisColorAuditForRec\);/.test(finalizeSrc));
+  assert.ok(/if \(irisColorAuditForRec\) photoRec\.irisColorAudit = irisColorAuditForRec;/.test(finalizeSrc));
+});
+test('A3. ReviewScreen\'s confirm() spreads ...result BEFORE overriding fields, so irisColorAudit passes through untouched', () => {
+  const start = src.indexOf('        onConfirm({');
+  const end = src.indexOf('\n      };', start);
+  const block = src.slice(start, end);
+  assert.ok(/onConfirm\(\{\s*\.\.\.result,/.test(block), 'onConfirm must spread ...result first — this is what carries rec.irisColorAudit through unmodified');
+  assert.ok(!/irisColorAudit/.test(block), 'ReviewScreen must not explicitly reference/override irisColorAudit at all — it passes through purely via the spread');
+});
+
+// ================================================================
+// B. the copied payload contains left/right/combined
+// ================================================================
+test('B. the copied payload contains irisColorAudit.left/.right/.combined', () => {
+  const fakeAudit = { left: { selectedCategory: 'brown', confidence: 0.34 }, right: { selectedCategory: 'brown', confidence: 0.3 }, combined: { selectedCategory: 'brown', confidence: 0.32 } };
+  const result = { irisColorAudit: fakeAudit, iris: { name: 'brown', confidence: 0.34 } };
+  const payload = extractCopyPayload(result);
+  assert.ok(payload.irisColorAudit.left && payload.irisColorAudit.right && payload.irisColorAudit.combined);
+});
+
+// ================================================================
+// C. classifierInput/classifierTrace survive unchanged
+// ================================================================
+test('C. classifierInput and classifierTrace survive into the copied payload byte-for-byte', () => {
+  const ctx = solidCtx(68, 74, 80, 4);
+  const audit = buildIrisColorAudit(ctx, EYE_POINTS);
+  const result = { irisColorAudit: { left: audit, right: audit, combined: { selectedCategory: audit.selectedCategory, confidence: audit.confidence } }, iris: { name: audit.selectedCategory, confidence: audit.confidence } };
+  const payload = extractCopyPayload(result);
+  assert.deepStrictEqual(payload.irisColorAudit.left.classifierInput, audit.classifierInput);
+  assert.deepStrictEqual(payload.irisColorAudit.left.classifierTrace, audit.classifierTrace);
+});
+
+// ================================================================
+// D. acceptedPixels/rejectedPixels survive unchanged, untruncated
+// ================================================================
+test('D. acceptedPixels/rejectedPixels survive into the copied payload untruncated', () => {
+  const ctx = solidCtx(68, 74, 80, 4);
+  const audit = buildIrisColorAudit(ctx, EYE_POINTS);
+  const result = { irisColorAudit: { left: audit, right: audit, combined: {} }, iris: { name: audit.selectedCategory, confidence: audit.confidence } };
+  const payload = extractCopyPayload(result);
+  assert.strictEqual(payload.irisColorAudit.left.acceptedPixels.length, audit.acceptedPixels.length);
+  assert.strictEqual(payload.irisColorAudit.left.rejectedPixels.length, audit.rejectedPixels.length);
+  assert.deepStrictEqual(payload.irisColorAudit.left.acceptedPixels, audit.acceptedPixels);
+});
+
+// ================================================================
+// E. production iris result can coexist with the debug audit
+// ================================================================
+test('E. result.iris (production) and result.irisColorAudit (debug) coexist independently on the same object', () => {
+  const ctx = solidCtx(68, 74, 80, 4);
+  const audit = buildIrisColorAudit(ctx, EYE_POINTS);
+  const real = sampleIrisColor(ctx, EYE_POINTS);
+  const result = { iris: { color: true, hex: real.hex, name: real.name, confidence: real.confidence }, irisColorAudit: { left: audit, right: audit, combined: {} } };
+  const payload = extractCopyPayload(result);
+  assert.strictEqual(payload.productionResult.irisColor, result.iris.name);
+  assert.strictEqual(payload.productionResult.irisConfidence, result.iris.confidence);
+  assert.ok(payload.irisColorAudit.left, 'the debug audit must still be present alongside the production result fields');
+});
+test('E2. missing irisColorAudit produces an explicit null return, never a silently-copied {}', () => {
+  const result = { iris: { name: 'brown', confidence: 0.34 } }; // no irisColorAudit at all
+  const payload = extractCopyPayload(result);
+  assert.strictEqual(payload, undefined, 'the real copy() function returns early (undefined) when audit is missing — the UI branch shows IRIS DEBUG DATA UNAVAILABLE instead of copying anything, see the component source directly');
+});
+
+// ================================================================
+// F. button is debug-only
+// ================================================================
+test('F. CopyIrisDebugButton is only rendered in HeroScreen behind isDebugModeEnabled()', () => {
+  const start = src.indexOf('function HeroScreen(');
+  const end = src.indexOf('\n    function AllDesignsScreen(');
+  const heroSrc = src.slice(start, end);
+  assert.ok(/\{isDebugModeEnabled\(\) && <CopyIrisDebugButton result=\{result\} lang=\{lang\} \/>\}/.test(heroSrc), 'CopyIrisDebugButton must be gated by isDebugModeEnabled() in HeroScreen\'s JSX');
+});
+
+// ================================================================
+// G. normal mode does not retain the new Results debug UI / field
+// ================================================================
+test('G1. rec.irisColorAudit is only ever assigned inside a debugAvailable-gated block (LiveScanScreen) — absent entirely in normal mode', () => {
+  const finalizeSrc = src.slice(src.indexOf('const iris = combineIris(best.leftIris, best.rightIris);'), src.indexOf('setTimeout(() => onCompleteRef.current(rec), 1000);'));
+  const varDeclIdx = finalizeSrc.indexOf('let irisColorAuditForRec = null;');
+  const gateIdx = finalizeSrc.indexOf('if (debugAvailable && debugIrisAuditRef.current) {');
+  const assignIdx = finalizeSrc.indexOf('irisColorAuditForRec = {', gateIdx);
+  const recAssignIdx = finalizeSrc.indexOf('if (irisColorAuditForRec) rec.irisColorAudit = irisColorAuditForRec;');
+  assert.ok(varDeclIdx !== -1 && varDeclIdx < gateIdx, 'irisColorAuditForRec must default to null before the debug gate');
+  assert.ok(assignIdx > gateIdx, 'the audit object is only ever built inside the debugAvailable gate');
+  assert.ok(recAssignIdx > assignIdx, 'rec.irisColorAudit is only assigned when the (possibly-still-null) variable is truthy — absent in normal mode');
+});
+test('G2. HeroScreen never renders CopyIrisDebugButton or any iris-debug text unconditionally', () => {
+  const start = src.indexOf('function HeroScreen(');
+  const end = src.indexOf('\n    function AllDesignsScreen(');
+  const heroSrc = src.slice(start, end);
+  const unconditional = heroSrc.replace(/\{isDebugModeEnabled\(\) && <CopyIrisDebugButton[^}]*\}\}?/, '');
+  assert.ok(!/<CopyIrisDebugButton/.test(unconditional), 'no unconditional CopyIrisDebugButton render should remain once the one guarded instance is stripped out');
+});
+
+// ================================================================
+// H. no second call to sampleIrisColor/classifyIrisColor introduced
+// by ResultsScreen
+// ================================================================
+test('H. HeroScreen/CopyIrisDebugButton never call sampleIrisColor or classifyIrisColor', () => {
+  const buttonStart = src.indexOf('function CopyIrisDebugButton(');
+  const heroEnd = src.indexOf('\n    function AllDesignsScreen(');
+  const span = src.slice(buttonStart, heroEnd);
+  assert.ok(!/sampleIrisColor\(/.test(span), 'ResultsScreen must never re-sample the iris');
+  assert.ok(!/classifyIrisColor\(/.test(span), 'ResultsScreen must never re-classify the iris');
+});
+
+// ================================================================
+// I. sampleIrisColor/classifyIrisColor/combineIris unchanged (re-
+// confirmed this turn specifically, independent of test N5 above)
+// ================================================================
+test('I. sampleIrisColor/classifyIrisColor/combineIris span is byte-identical to the pre-turn committed HEAD', () => {
+  const { execSync } = require('child_process');
+  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
+  function extractSpan(s, startMarker, endMarker) {
+    const st = s.indexOf(startMarker);
+    const en = s.indexOf(endMarker, st);
+    if (st === -1 || en === -1) return null;
+    return s.slice(st, en);
+  }
+  const cur = extractSpan(src, '    function sampleIrisColor(ctx, eyePoints) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
+  const prev = extractSpan(head, '    function sampleIrisColor(ctx, eyePoints) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
+  assert.ok(cur !== null && prev !== null, 'expected to locate the span in both current and HEAD source');
+  assert.strictEqual(cur, prev, 'sampleIrisColor..combineIris must be byte-identical to the pre-this-turn committed HEAD');
+});
+
+// ================================================================
+// J. existing hooding debug payloads remain unaffected
+// ================================================================
+test('J. Hooding V2 Stage 1/2B core span is byte-identical to the pre-turn committed HEAD', () => {
+  const { execSync } = require('child_process');
+  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
+  function extractSpan(s, startMarker, endMarker) {
+    const st = s.indexOf(startMarker);
+    const en = s.indexOf(endMarker, st);
+    if (st === -1 || en === -1) return null;
+    return s.slice(st, en);
+  }
+  const cur = extractSpan(src, '    const HOODING_V2_STAGE = 1;', '\n    const REASON_MESSAGES = {');
+  const prev = extractSpan(head, '    const HOODING_V2_STAGE = 1;', '\n    const REASON_MESSAGES = {');
+  assert.ok(cur !== null && prev !== null);
+  assert.strictEqual(cur, prev, 'Hooding V2 Stage 1/2B must be byte-identical to the pre-this-turn committed HEAD');
 });
 
 // ================================================================

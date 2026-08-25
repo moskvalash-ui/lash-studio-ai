@@ -680,19 +680,45 @@ test('I2. combineIris itself is byte-identical to the pre-turn committed HEAD (a
   assert.ok(cur !== null && prev !== null, 'expected to locate the combineIris span in both current and HEAD source');
   assert.strictEqual(cur, prev, 'combineIris must be byte-identical to the pre-this-turn committed HEAD');
 });
-test('I3. classifyIrisColor/IRIS_NAMES WAS intentionally changed relative to HEAD this turn (Case C fix — the span must now DIFFER, proving the fix is actually applied, not just documented)', () => {
-  const { execSync } = require('child_process');
-  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
-  function extractSpan(s, startMarker, endMarker) {
-    const st = s.indexOf(startMarker);
-    const en = s.indexOf(endMarker, st);
-    if (st === -1 || en === -1) return null;
-    return s.slice(st, en);
+// I3 used to assert that classifyIrisColor/IRIS_NAMES textually
+// DIFFERED from `git show HEAD:index.html` — a check for "this turn's
+// fix was actually applied, not just documented". Now that the fix is
+// itself the committed HEAD, current source trivially equals HEAD and
+// that comparison is tautologically false forever after — it was
+// testing turn-over-turn history, not a property of the code. N5b/N5c
+// above already give a HEAD-independent static guarantee that the old
+// buggy gates are gone and the new ones are present verbatim; this
+// replaces I3 with the matching BEHAVIORAL guarantee (calling the
+// real, extracted classifyIrisColor — not a re-implementation) that
+// the low-light-ambiguous fix's actual observable contract holds, and
+// keeps holding regardless of git history:
+//   - a low-light, hue-reliable, non-brown-hue sample must never
+//     collapse to 'brown' (the exact real-world bug this fixed);
+//   - IRIS_NAMES.uncertain exists with both locales, since
+//     classifyLowLightAmbiguous can return it.
+test('I3. the low-light-ambiguous fix\'s contract holds NOW (durable, HEAD-independent): a dim reliable-hue blue/green sample never collapses to "brown", and "uncertain" is a real, localized category', () => {
+  // Local, self-contained HSL->RGB (same standard formula used by the
+  // other real-fixture hue-sweep tests in this file) — not a
+  // production function, purely to construct realistic test inputs.
+  function hslToRgbForTest(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s, hp = h / 60, x = c * (1 - Math.abs(hp % 2 - 1));
+    let r1, g1, b1;
+    if (hp < 1) [r1, g1, b1] = [c, x, 0]; else if (hp < 2) [r1, g1, b1] = [x, c, 0]; else if (hp < 3) [r1, g1, b1] = [0, c, x];
+    else if (hp < 4) [r1, g1, b1] = [0, x, c]; else if (hp < 5) [r1, g1, b1] = [x, 0, c]; else [r1, g1, b1] = [c, 0, x];
+    const m = l - c / 2;
+    return [Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255)];
   }
-  const cur = extractSpan(src, '    const IRIS_NAMES = {', '\n    function combineIris(l, r) {');
-  const prev = extractSpan(head, '    const IRIS_NAMES = {', '\n    function combineIris(l, r) {');
-  assert.ok(cur !== null && prev !== null, 'expected to locate the IRIS_NAMES..classifyIrisColor span in both current and HEAD source');
-  assert.notStrictEqual(cur, prev, 'classifyIrisColor/IRIS_NAMES must differ from pre-this-turn HEAD — this turn\'s fix is real, not just described');
+  const dimReliableBlue = classifyIrisColor(...hslToRgbForTest(210, 0.3, 0.28));
+  const dimReliableGreen = classifyIrisColor(...hslToRgbForTest(120, 0.3, 0.28));
+  assert.notStrictEqual(dimReliableBlue, 'brown', 'a dim but hue-reliable BLUE sample must never be forced to brown');
+  assert.notStrictEqual(dimReliableGreen, 'brown', 'a dim but hue-reliable GREEN sample must never be forced to brown');
+  assert.strictEqual(dimReliableBlue, 'blue');
+  assert.strictEqual(dimReliableGreen, 'green');
+
+  assert.ok(IRIS_NAMES.uncertain, 'IRIS_NAMES must define an "uncertain" category — classifyLowLightAmbiguous can return it');
+  assert.strictEqual(typeof IRIS_NAMES.uncertain.ru, 'string');
+  assert.strictEqual(typeof IRIS_NAMES.uncertain.en, 'string');
+  assert.ok(IRIS_NAMES.uncertain.ru.length > 0 && IRIS_NAMES.uncertain.en.length > 0, 'uncertain must be localized in both RU and EN, not a placeholder');
 });
 
 // ================================================================

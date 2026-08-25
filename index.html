@@ -16,6 +16,12 @@
        plain <script> tags above, its exports land on window and are
        consumed as bare globals by the code below, same as before. -->
   <script src="lash-scan-core.js"></script>
+  <!-- Consent foundation (Phase 1): pure consent-state logic, extracted
+       to its own plain script for the same reason as lash-scan-core.js
+       above — zero-duplication Node testability via require(). Exports
+       land on window.ConsentManager. Phase 1 only: no analytics SDK,
+       script, or network request exists anywhere in this codebase yet. -->
+  <script src="consent-manager.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -407,6 +413,31 @@
       reviewConfirm: {ru:'Подтвердить и построить схемы', en:'Confirm and build designs'},
       reviewRescan: {ru:'Повторить анализ', en:'Rescan'},
       reviewUncertain: {ru:'Нужна ручная проверка', en:'Manual check recommended'},
+
+      // ------------------------------------------------------------
+      // CONSENT — Phase 1: consent foundation. Copy for the first-visit
+      // banner and the reopenable "review/change" panel. No analytics
+      // SDK exists yet in this phase; this text only explains the
+      // OPTIONAL analytics choice itself, never scan data.
+      // ------------------------------------------------------------
+      consentBannerTitle: {ru:'Аналитика использования', en:'Usage analytics'},
+      consentBannerBody: {ru:'Мы хотим собирать анонимную статистику использования LASH STUDIO AI (например, что сканирование запущено или завершилось), чтобы улучшать приложение. Мы никогда не отправляем фото, кадры камеры, изображения глаз или радужки, ключевые точки лица и другие результаты сканирования — они остаются только на вашем устройстве. Отказ никак не ограничивает сканирование и результаты.', en:'We’d like to collect anonymous usage statistics for LASH STUDIO AI (e.g. that a scan was started or completed) to improve the app. We never send photos, camera frames, eye or iris images, facial landmarks, or any other scan results — those stay on your device only. Declining does not limit scanning or your results in any way.'},
+      consentAccept: {ru:'Принять аналитику', en:'Accept analytics'},
+      consentReject: {ru:'Отказаться', en:'Reject'},
+      consentCustomize: {ru:'Настроить', en:'Customize'},
+      consentSave: {ru:'Сохранить выбор', en:'Save choice'},
+      consentClose: {ru:'Закрыть', en:'Close'},
+      consentSettingsTitle: {ru:'Настройки данных и аналитики', en:'Data & analytics settings'},
+      consentAnalyticsLabel: {ru:'Продуктовая аналитика (необязательно)', en:'Product analytics (optional)'},
+      consentAnalyticsDesc: {ru:'Анонимные события использования приложения (например, запуск сканирования, просмотр результатов). Никогда не включает фото, кадры камеры, изображения глаз/радужки, ключевые точки лица или иные измерения со сканирования.', en:'Anonymous product-usage events (e.g. scan started, results viewed). Never includes photos, camera frames, eye/iris images, facial landmarks, or any other scan measurements.'},
+      consentEssentialLabel: {ru:'Необходимое техническое хранение', en:'Necessary technical storage'},
+      consentEssentialDesc: {ru:'Язык интерфейса и режим разработчика хранятся локально на устройстве для работы приложения. Это не аналитика и не требует согласия — отключить нельзя, так как без этого приложение не сможет запомнить ваш выбор языка.', en:'Interface language and developer debug mode are stored locally on your device so the app functions. This is not analytics and does not require consent — it cannot be turned off, since without it the app could not remember your language choice.'},
+      consentStatusOn: {ru:'Сейчас: включено', en:'Currently: on'},
+      consentStatusOff: {ru:'Сейчас: отключено', en:'Currently: off'},
+      consentStatusUndecided: {ru:'Выбор ещё не сделан', en:'No choice made yet'},
+      consentChangeLaterNote: {ru:'Вы можете изменить или отозвать согласие в любой момент — нажмите на значок конфиденциальности вверху экрана.', en:'You can change or withdraw your consent at any time — tap the privacy icon at the top of the screen.'},
+      consentOpenSettingsAria: {ru:'Настройки конфиденциальности и аналитики', en:'Privacy and analytics settings'},
+      consentUpdatedAt: {ru:'Обновлено', en:'Updated'},
     };
     function t(key, lang) { const e = STRINGS[key]; if (!e) return key; return e[lang] || e.ru; }
 
@@ -4053,6 +4084,173 @@
             <button key={l} onClick={() => setLang(l)} className={`px-2.5 py-1 rounded-full transition-all ${lang===l ? 'bg-white/15 text-white' : 'text-textSecondary'}`}>{l.toUpperCase()}</button>
           ))}
         </div>
+      );
+    }
+
+    // ============================================================
+    // CONSENT UI — Phase 1: consent foundation. Purely presentational
+    // + local state; all persistence goes through window.ConsentManager
+    // (consent-manager.js). No analytics SDK/script/network request
+    // exists anywhere in this codebase yet — these components only
+    // read/write the user's consent CHOICE, never scan data.
+    // ============================================================
+    function ShieldIcon({ className }) {
+      return (
+        <svg className={className} fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v5c0 4.5-3 8.25-7 10-4-1.75-7-5.5-7-10V6l7-3z" />
+        </svg>
+      );
+    }
+
+    function ConsentToggleRow({ label, desc, checked, disabled, onChange }) {
+      return (
+        <div className="flex items-start justify-between gap-3 py-3 border-b border-border last:border-b-0">
+          <div className="flex-1 pr-2">
+            <p className="text-[13px] font-semibold text-textPrimary mb-0.5">{label}</p>
+            <p className="text-[12px] text-textSecondary leading-relaxed">{desc}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            disabled={disabled}
+            onClick={() => !disabled && onChange(!checked)}
+            className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${disabled ? 'bg-white/10 opacity-60 cursor-not-allowed' : (checked ? 'bg-accent' : 'bg-white/15')}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : ''}`} />
+          </button>
+        </div>
+      );
+    }
+
+    // Shared consent UI. mode="banner": compact, non-blocking, shown
+    // pinned to the TOP of the screen (never over the primary Live
+    // Scan / Photo CTAs, which live lower in the layout) until a
+    // first decision is made — Reject/Accept/Customize all dismiss it
+    // and NOTHING it renders disables or covers any existing screen
+    // control. mode="settings": the same content reopened later from
+    // the privacy icon, as a centered dismissible panel, to change or
+    // withdraw the choice at any time. The ONLY optional choice ever
+    // surfaced here is analytics; essential storage is shown as
+    // informational/always-on, never as a toggle (it does not require
+    // consent — see STRINGS.consentEssentialDesc).
+    function ConsentPanel({ lang, mode, currentConsent, onAccept, onReject, onSaveCustom, onClose }) {
+      const [customizing, setCustomizing] = useState(false);
+      const [pendingAnalytics, setPendingAnalytics] = useState(!!(currentConsent && currentConsent.analytics));
+
+      const statusText = !currentConsent
+        ? t('consentStatusUndecided', lang)
+        : (currentConsent.analytics ? t('consentStatusOn', lang) : t('consentStatusOff', lang));
+
+      const body = (
+        <>
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-8 h-8 rounded-md bg-white/[0.03] border border-border flex items-center justify-center flex-shrink-0">
+              <ShieldIcon className="w-4 h-4 text-accent" />
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-textPrimary">{mode === 'banner' ? t('consentBannerTitle', lang) : t('consentSettingsTitle', lang)}</h3>
+              {mode === 'settings' && (
+                <p className="text-[11px] text-textMuted mt-0.5">
+                  {statusText}
+                  {currentConsent ? ` · ${t('consentUpdatedAt', lang)} ${new Date(currentConsent.updatedAt).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US')}` : ''}
+                </p>
+              )}
+            </div>
+          </div>
+          <p className="text-[13px] text-textSecondary leading-relaxed mb-4">{t('consentBannerBody', lang)}</p>
+
+          {customizing && (
+            <div className="glass rounded-md px-3 mb-4">
+              <ConsentToggleRow
+                label={t('consentAnalyticsLabel', lang)}
+                desc={t('consentAnalyticsDesc', lang)}
+                checked={pendingAnalytics}
+                onChange={setPendingAnalytics}
+              />
+              <ConsentToggleRow
+                label={t('consentEssentialLabel', lang)}
+                desc={t('consentEssentialDesc', lang)}
+                checked={true}
+                disabled={true}
+                onChange={() => {}}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {customizing ? (
+              <button onClick={() => onSaveCustom(pendingAnalytics)} className="w-full py-3 rounded-md bg-accent text-white text-sm font-semibold press-scale">
+                {t('consentSave', lang)}
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={onAccept} className="flex-1 py-3 rounded-md bg-accent text-white text-sm font-semibold press-scale">
+                  {t('consentAccept', lang)}
+                </button>
+                <button onClick={onReject} className="flex-1 py-3 rounded-md bg-white/10 text-textPrimary text-sm font-medium press-scale">
+                  {t('consentReject', lang)}
+                </button>
+              </div>
+            )}
+            {!customizing && (
+              <button onClick={() => setCustomizing(true)} className="w-full py-2 rounded-md text-textSecondary text-[13px] font-medium underline underline-offset-2">
+                {t('consentCustomize', lang)}
+              </button>
+            )}
+            {mode === 'settings' && (
+              <button onClick={onClose} className="w-full py-2 rounded-md text-textMuted text-[13px] font-medium">
+                {t('consentClose', lang)}
+              </button>
+            )}
+            {mode === 'banner' && (
+              <p className="text-[11px] text-textMuted text-center leading-relaxed mt-1">{t('consentChangeLaterNote', lang)}</p>
+            )}
+          </div>
+        </>
+      );
+
+      if (mode === 'banner') {
+        // Pinned under the top header row, NOT at the bottom — the
+        // primary Live Scan / Photo Analysis buttons live in the
+        // lower half of every screen that can show this banner, so a
+        // top-anchored, height-bounded sheet can never cover them.
+        // Positioning is set via inline `style` rather than the
+        // `absolute`/`inset-*` Tailwind utilities: this node is a
+        // direct child of .app-container, and the existing rule
+        // `.app-container > * { position: relative; z-index: 1; }`
+        // (see the <style> block) has EQUAL CSS specificity to a
+        // single Tailwind utility class — whichever stylesheet is
+        // parsed later wins the cascade, which is not something a new
+        // banner should depend on. Inline styles always win regardless
+        // of load order, so positioning here is deterministic.
+        return (
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 56, zIndex: 35, pointerEvents: 'none' }} className="p-3 fade-in">
+            <div className="glass-strong rounded-lg p-4 max-h-[60vh] overflow-y-auto hide-scrollbar pointer-events-auto">
+              {body}
+            </div>
+          </div>
+        );
+      }
+
+      // settings mode: centered modal with backdrop; backdrop click
+      // closes it (equivalent to onClose — never a destructive action,
+      // never changes the stored consent by itself). Same inline-style
+      // positioning rationale as the banner above.
+      return (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 60 }} className="flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+          <div className="glass-strong rounded-lg p-4 w-full max-h-[85vh] overflow-y-auto hide-scrollbar" onClick={(e) => e.stopPropagation()}>
+            {body}
+          </div>
+        </div>
+      );
+    }
+
+    function ConsentIconButton({ onClick, lang }) {
+      return (
+        <button onClick={onClick} aria-label={t('consentOpenSettingsAria', lang)} className="w-8 h-8 rounded-full glass flex items-center justify-center text-textSecondary press-scale">
+          <ShieldIcon className="w-4 h-4" />
+        </button>
       );
     }
 
@@ -8327,6 +8525,33 @@
         setLangState(l);
         try { localStorage.setItem('lashStudioLang', l); } catch (e) {}
       };
+
+      // ------------------------------------------------------------
+      // CONSENT — Phase 1: consent foundation only. `consent` is the
+      // stored decision record (or null = no decision made yet).
+      // ConsentManager (consent-manager.js) is the ONLY thing that
+      // reads/writes it; App() never touches localStorage directly for
+      // this. Reject/Accept/Customize here ONLY ever change this local
+      // choice — nothing in this file loads a script, calls a network
+      // endpoint, or gates any scan/result functionality on it.
+      // ------------------------------------------------------------
+      const consentStorageRef = useRef(null);
+      if (!consentStorageRef.current) {
+        consentStorageRef.current = (typeof ConsentManager !== 'undefined') ? ConsentManager.defaultStorage() : null;
+      }
+      const [consent, setConsent] = useState(() => {
+        try { return (typeof ConsentManager !== 'undefined') ? ConsentManager.getConsent(consentStorageRef.current) : null; } catch (e) { return null; }
+      });
+      const [consentSettingsOpen, setConsentSettingsOpen] = useState(false);
+      const applyConsent = (analytics) => {
+        try {
+          if (typeof ConsentManager !== 'undefined') {
+            setConsent(ConsentManager.setConsent(consentStorageRef.current, analytics));
+          }
+        } catch (e) { /* best-effort; UI still reflects the choice even if persistence fails */ }
+        setConsentSettingsOpen(false);
+      };
+
       const [screen, setScreen] = useState('home');
       const [result, setResult] = useState(null);
       const [naturalLashProfile, setNaturalLashProfile] = useState(null);
@@ -8369,7 +8594,8 @@
         <LangContext.Provider value={lang}>
           <div className="app-container">
             {screen !== 'scan' && screen !== 'lashscan' && (
-              <div className="absolute top-3 right-3 z-30">
+              <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+                <ConsentIconButton lang={lang} onClick={() => setConsentSettingsOpen(true)} />
                 <LangToggle lang={lang} setLang={setLang} />
               </div>
             )}
@@ -8383,6 +8609,33 @@
             {screen === 'details' && result && <DetailsScreen result={result} onBack={() => setScreen('hero')} />}
             {screen === 'lashscan' && <NaturalLashScanScreen onComplete={handleLashScanComplete} onBack={() => setScreen('hero')} modelsLoaded={modelsLoaded} />}
             {screen === 'lashprofile' && naturalLashProfile && <NaturalLashProfileScreen profile={naturalLashProfile} onDone={() => setScreen('hero')} onBack={() => setScreen('hero')} />}
+
+            {/* First-visit consent banner: only while undecided, never
+               during live-camera screens, and never together with the
+               settings panel. Reject/Accept/Customize here never touch
+               scan/result state above — screen, result, and every
+               handler are completely untouched by consent. */}
+            {!consent && !consentSettingsOpen && screen !== 'scan' && screen !== 'lashscan' && (
+              <ConsentPanel
+                lang={lang}
+                mode="banner"
+                currentConsent={consent}
+                onAccept={() => applyConsent(true)}
+                onReject={() => applyConsent(false)}
+                onSaveCustom={(analytics) => applyConsent(analytics)}
+              />
+            )}
+            {consentSettingsOpen && (
+              <ConsentPanel
+                lang={lang}
+                mode="settings"
+                currentConsent={consent}
+                onAccept={() => applyConsent(true)}
+                onReject={() => applyConsent(false)}
+                onSaveCustom={(analytics) => applyConsent(analytics)}
+                onClose={() => setConsentSettingsOpen(false)}
+              />
+            )}
           </div>
         </LangContext.Provider>
       );

@@ -302,7 +302,12 @@ test('source-guard: computeExperimentalEyelidType never assigns to its eyelidCat
 test('source-guard: the experimental debug computation is only reached inside if(debugAvailable)', () => {
   const callIdx = src.indexOf('const leftEvidence = resolveEyelidCreaseEvidence(leftCrease, v2LeftLinked);');
   assert.ok(callIdx !== -1, 'expected the experimental resolver call site in LiveScanScreen');
-  const before = src.slice(Math.max(0, callIdx - 4200), callIdx);
+  // Window widened (was 4200) to comfortably cover the HOODING V2 —
+  // STAGE 1 instrumentation added to this same debugAvailable block —
+  // still well short of the PREVIOUS `if (debugAvailable) {` guard
+  // further up (a different, unrelated debug block), so this remains
+  // a real proof, not a loosened one.
+  const before = src.slice(Math.max(0, callIdx - 7000), callIdx);
   assert.ok(/if\s*\(debugAvailable\)/.test(before), 'resolveEyelidCreaseEvidence call is not visibly guarded by "if (debugAvailable)"');
 });
 

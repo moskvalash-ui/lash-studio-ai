@@ -1183,6 +1183,164 @@
       return { valid: true, sampledColumns, paths, v2LinkedRuntimeMs };
     }
 
+    // ============================================================
+    // HOODING V2 — STAGE 1: RAW GEOMETRY INSTRUMENTATION (measure only).
+    // ------------------------------------------------------------
+    // Pure downstream consumer of detectEyelidCreaseV2Multi's (V2.1,
+    // frozen) `columns` and debugV2BuildLinkedPaths's (V2.2, frozen)
+    // `paths` — touches no pixels/canvas/ROI, adds no new edge or peak
+    // detection. Its only job is to relate what V2.1/V2.2 already
+    // found to the lash-line reference (V2's own returned lidPoly,
+    // exposed here — identical geometry V2.1 already builds
+    // internally) so a human can visually identify which, if any,
+    // additional persistent path is the lower edge of overhanging
+    // skin. NO path is labeled hood/overhang/non-hood here — every
+    // path beyond V2's own already-selected per-column winner is
+    // named neutrally ("additional path"). This does not decide
+    // hooding; a future Stage 2 would build a validated classifier
+    // FROM this data, not from anything computed here.
+    // ============================================================
+    const HOODING_V2_STAGE = 1;
+
+    // Exact reconstruction of V1's OWN already-computed creaseYFrac
+    // into an ROI-local Y position, so V1's real result can be drawn
+    // on the same overlay as V2.1/V2.2 (which already work in
+    // ROI-local pixel space). This is NOT a re-detection — V1's real
+    // valid/prominence/peakVal/creaseYFrac/readQuality values are used
+    // completely unmodified; only the boundary geometry V1 itself
+    // derives its search band from (eyeUpperY = min of the two
+    // upper-lid points, browBottomY = max of the brow points — see
+    // detectEyelidCrease above) is recomputed here, from lidPoly/
+    // browPoly. V1 and V2 both derive their ROI from the IDENTICAL
+    // extractEyeROI(sourceCanvas, eyePoints, browPoints, 0.45) call
+    // (same source canvas, same physical eye/brow points, same 0.45
+    // padding — see both functions' own first line), so this
+    // reconstructed position is exact given matching inputs, not an
+    // approximation.
+    function debugV2DeriveV1CreaseY(v1Result, lidPoly, browPoly) {
+      if (!v1Result || !v1Result.valid || !lidPoly || !browPoly) return null;
+      const eyeUpperY = Math.min(lidPoly[1].y, lidPoly[2].y);
+      const browBottomY = Math.max(...browPoly.map(p => p.y));
+      const bandTop = browBottomY + (eyeUpperY - browBottomY) * 0.1;
+      const bandBottom = eyeUpperY;
+      const rows = bandBottom - bandTop;
+      if (!(rows > 0)) return null;
+      const peakIdxApprox = v1Result.creaseYFrac * (rows - 1);
+      return bandTop + peakIdxApprox;
+    }
+
+    // Per-eye descriptive structure — pure data relation, zero
+    // classification. `v1Result` = the real production
+    // detectEyelidCrease output for this eye (unmodified). `v2MultiResult`
+    // = detectEyelidCreaseV2Multi's own output (V2.1, frozen).
+    // `v2LinkedResult` = debugV2BuildLinkedPaths's own output (V2.2,
+    // frozen). `lidPoly`/`browPoly` = V2's own returned reference
+    // polylines for this eye (byte-identical geometry V2.1 already
+    // built internally — exposed here, not recomputed from pixels).
+    // `eyeWidthPx` = the real, already-computed computeEyeSideMetrics
+    // width for this eye.
+    function buildHoodingV2Debug(v1Result, v2MultiResult, v2LinkedResult, lidPoly, browPoly, eyeWidthPx) {
+      const sampledColumns = v2MultiResult && v2MultiResult.valid ? v2MultiResult.sampledColumns : 0;
+      const rawColumns = v2MultiResult && v2MultiResult.valid ? v2MultiResult.columns : [];
+      const rawPaths = v2LinkedResult && v2LinkedResult.valid ? v2LinkedResult.paths : [];
+
+      // Neutral, stable display IDs assigned left-to-right by each
+      // path's own start x — a display convenience only, not a
+      // ranking of which path matters more.
+      const allPaths = rawPaths.slice()
+        .sort((a, b) => a.xSpan[0] - b.xSpan[0])
+        .map((p, i) => Object.assign({ id: 'P' + i }, p));
+      // The one path (if any) containing V2's own per-column winner —
+      // already computed by V2.1/V2.2 (currentV2Winner/containsV2Winner),
+      // not a new selection made here. Every other path is "additional"
+      // — neutral, never auto-labeled overhang.
+      const winnerPath = allPaths.find(p => p.containsV2Winner) || null;
+      const additionalPathIds = allPaths.filter(p => p !== winnerPath).map(p => p.id);
+      // Per-path average distance to the lash reference — computed
+      // once here (not per-render) from the same lidPoly interpolation
+      // used everywhere else in this function. Purely descriptive.
+      allPaths.forEach(p => {
+        const ds = p.points.map(pt => {
+          const yLash = lidPoly ? debugV2PolylineY(lidPoly, pt.x) : null;
+          return (yLash != null) ? Math.abs(pt.y - yLash) : null;
+        }).filter(v => v != null);
+        p.avgDistFromLashPx = ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null;
+      });
+
+      const v1DerivedY = debugV2DeriveV1CreaseY(v1Result, lidPoly, browPoly);
+
+      const columns = rawColumns.map(col => {
+        const x = col.x;
+        const yLash = lidPoly ? debugV2PolylineY(lidPoly, x) : null;
+        const yBrow = browPoly ? debugV2PolylineY(browPoly, x) : null;
+        const peaks = col.peaks || [];
+        const winnerPeak = peaks.find(p => p.currentV2Winner) || null;
+        const pathIdsThroughColumn = allPaths
+          .filter(p => p.points.some(pt => pt.sampleIndex === col.sampleIndex))
+          .map(p => p.id);
+        const additionalPathDistances = allPaths
+          .filter(p => p.id !== (winnerPath && winnerPath.id) && p.points.some(pt => pt.sampleIndex === col.sampleIndex))
+          .map(p => {
+            const pt = p.points.find(pt2 => pt2.sampleIndex === col.sampleIndex);
+            return { pathId: p.id, y: pt.y, distFromLashPx: (yLash != null) ? Math.abs(pt.y - yLash) : null };
+          });
+        return {
+          sampleIndex: col.sampleIndex, x,
+          yLash, yBrow,
+          rawPeaks: peaks, // untruncated — every V2.1 peak this column found, unmodified
+          yCreaseWinner: winnerPeak ? winnerPeak.y : null,
+          distLashToCreaseWinnerPx: (yLash != null && winnerPeak) ? Math.abs(winnerPeak.y - yLash) : null,
+          pathIdsThroughColumn,
+          additionalPathDistances,
+        };
+      });
+
+      const lashYs = columns.map(c => c.yLash).filter(v => v != null);
+      const avgLashY = lashYs.length ? lashYs.reduce((a, b) => a + b, 0) / lashYs.length : null;
+      const creaseWinnerYs = columns.map(c => c.yCreaseWinner).filter(v => v != null);
+      const avgCreaseWinnerY = creaseWinnerYs.length ? creaseWinnerYs.reduce((a, b) => a + b, 0) / creaseWinnerYs.length : null;
+      const lashCreaseDistancePx = (avgLashY != null && avgCreaseWinnerY != null) ? Math.abs(avgCreaseWinnerY - avgLashY) : null;
+      // Ratio only — a raw measurement, not a classification. Built
+      // purely from the lash reference and V2's own already-selected
+      // per-column winner (an existing fold-detection signal,
+      // unrelated to any hooding/overhang judgment) — no assumption
+      // about which additional path, if any, is overhang skin is made
+      // or needed to compute this.
+      const lashCreaseRatio = (lashCreaseDistancePx != null && eyeWidthPx) ? lashCreaseDistancePx / eyeWidthPx : null;
+
+      return {
+        valid: !!(v2MultiResult && v2MultiResult.valid),
+        stage: HOODING_V2_STAGE,
+        sampledColumns,
+        eyeWidthPx: (typeof eyeWidthPx === 'number') ? eyeWidthPx : null,
+        lashReference: { avgY: avgLashY, source: "V2's own lidPoly (upper-lid contour) — the same geometry V1/V2/V2.1 all derive from" },
+        productionV1: v1Result ? {
+          valid: v1Result.valid, prominence: v1Result.prominence, peakVal: v1Result.peakVal,
+          creaseYFrac: v1Result.creaseYFrac, readQuality: v1Result.readQuality,
+          derivedRoiY: v1DerivedY,
+        } : null,
+        allPaths, // full raw V2.2 paths (points included, untruncated), IDs assigned
+        creaseWinnerPathId: winnerPath ? winnerPath.id : null,
+        additionalPathIds,
+        lashCreaseDistancePx, lashCreaseRatio,
+        columns,
+      };
+    }
+
+    // L/R descriptive comparison of the per-eye structures above —
+    // plain differences only, no classification, no combined verdict.
+    function buildHoodingV2CrossEye(leftDebug, rightDebug) {
+      if (!leftDebug || !rightDebug) return null;
+      const num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
+      const diff = (a, b) => (num(a) != null && num(b) != null) ? Math.abs(a - b) : null;
+      return {
+        eyeWidthDiffPx: diff(leftDebug.eyeWidthPx, rightDebug.eyeWidthPx),
+        additionalPathCountDiff: diff(leftDebug.additionalPathIds && leftDebug.additionalPathIds.length, rightDebug.additionalPathIds && rightDebug.additionalPathIds.length),
+        lashCreaseRatioDiff: diff(leftDebug.lashCreaseRatio, rightDebug.lashCreaseRatio),
+        lashCreaseDistancePxDiff: diff(leftDebug.lashCreaseDistancePx, rightDebug.lashCreaseDistancePx),
+      };
+    }
+
     const REASON_MESSAGES = {
       low_face_confidence: 'hintLowConf',
       head_tilted: 'hintLookStraight',
@@ -4014,9 +4172,28 @@
           finalRecType: frameTrace ? frameTrace.finalRecType : null,
           counts: frameTrace ? frameTrace.counts : null,
         },
+        // HOODING V2 — STAGE 1 raw geometry. Separate field, additive
+        // only; passed through VERBATIM from buildHoodingV2Debug/
+        // buildHoodingV2CrossEye (measure-only, debug-only pure
+        // functions — see their own header comments) — never
+        // truncated, never re-derived here. Does not alter any field
+        // above in any way.
+        hoodingV2Raw: {
+          left: (data.hoodingV2Raw && data.hoodingV2Raw.left) || null,
+          right: (data.hoodingV2Raw && data.hoodingV2Raw.right) || null,
+          crossEye: (data.hoodingV2Raw && data.hoodingV2Raw.crossEye) || null,
+        },
       };
     }
 
+    // HOODING V2 — STAGE 1: RAW GEOMETRY visualization. Draws directly
+    // on the real captured eye ROI image (not an abstract t-space
+    // plot like CreaseV2Plot above) so a human can look at their own
+    // eye and identify which, if any, additional path is the lower
+    // edge of overhanging skin. Every value shown is read straight off
+    // hoodingDebug (buildHoodingV2Debug's already-computed output) —
+    // this component computes nothing, classifies nothing, and never
+    // labels a path hood/overhang/non-hood on its own.
     function CreaseV2DebugPanel({ data, compare, frameTrace, frameTraceRef }) {
       const [copied, setCopied] = useState(false);
       const copy = () => {
@@ -4112,6 +4289,27 @@
             <p className="text-textMuted mb-1">not used in classification</p>
             <CreaseV2EyePanel label="LEFT" entry={data.left} />
             <CreaseV2EyePanel label="RIGHT" entry={data.right} />
+            {/* HOODING V2 — STAGE 1: RAW GEOMETRY. Measure-only
+                instrumentation, downstream of the SAME V2.1/V2.2 data
+                shown above — no path here is ever auto-labeled hood/
+                overhang; see HoodingV2RawGeometryBlock's own comment. */}
+            {data.hoodingV2Raw && (
+              <div className="mb-1.5 pb-1.5 border-b border-white/10">
+                <span className="font-semibold text-yellow-200">HOODING V2 — RAW GEOMETRY (stage 1, measure only)</span>
+                <HoodingV2RawGeometryBlock label="LEFT" hoodingDebug={data.hoodingV2Raw.left} roiImage={data.hoodingV2RoiImages && data.hoodingV2RoiImages.left} />
+                <HoodingV2RawGeometryBlock label="RIGHT" hoodingDebug={data.hoodingV2Raw.right} roiImage={data.hoodingV2RoiImages && data.hoodingV2RoiImages.right} />
+                {data.hoodingV2Raw.crossEye && (
+                  <div className="grid grid-cols-2 gap-x-2">
+                    <span className="text-textMuted">L/R eyeWidth diff</span>
+                    <span>{data.hoodingV2Raw.crossEye.eyeWidthDiffPx != null ? data.hoodingV2Raw.crossEye.eyeWidthDiffPx.toFixed(1) + 'px' : '-'}</span>
+                    <span className="text-textMuted">L/R additional-path-count diff</span>
+                    <span>{data.hoodingV2Raw.crossEye.additionalPathCountDiff != null ? data.hoodingV2Raw.crossEye.additionalPathCountDiff : '-'}</span>
+                    <span className="text-textMuted">L/R lash→crease ratio diff</span>
+                    <span>{data.hoodingV2Raw.crossEye.lashCreaseRatioDiff != null ? data.hoodingV2Raw.crossEye.lashCreaseRatioDiff.toFixed(3) : '-'}</span>
+                  </div>
+                )}
+              </div>
+            )}
             {data.capture && (
               <div className="grid grid-cols-2 gap-x-2 mb-1.5">
                 <span className="text-textMuted">EAR L/R</span>
@@ -4123,6 +4321,92 @@
               </div>
             )}
           </div>
+        </div>
+      );
+    }
+
+    // HOODING V2 — STAGE 1: RAW GEOMETRY visualization. Draws directly
+    // on the real captured eye ROI image (not an abstract t-space
+    // plot like CreaseV2Plot above) so a human can look at their own
+    // eye and identify which, if any, additional path is the lower
+    // edge of overhanging skin. Every value shown is read straight off
+    // hoodingDebug (buildHoodingV2Debug's already-computed output) —
+    // this component computes nothing, classifies nothing, and never
+    // labels a path hood/overhang/non-hood on its own. Deliberately
+    // placed AFTER CreaseV2DebugPanel (which already calls it, via JS
+    // function-declaration hoisting — CreaseV2DebugPanel is never
+    // itself invoked until React actually renders it, long after this
+    // whole script has finished loading) rather than before it, so it
+    // does not sit inside the existing buildCreaseV2CopyPayload/
+    // CreaseV2EyePanel/CreaseV2DebugPanel source span other tests
+    // already extract by position.
+    const HOODING_V2_PATH_COLORS = ['#ff6ec7', '#66d9ff', '#ffd23c', '#a97cf0', '#7dffb3', '#ff9d5c', '#c9c9c9'];
+    function HoodingV2RawGeometryBlock({ label, hoodingDebug, roiImage }) {
+      if (!hoodingDebug || !hoodingDebug.valid || !roiImage) {
+        return (
+          <div className="mb-1.5 pb-1.5 border-b border-white/10">
+            <span className="text-teal-300 uppercase font-semibold">{label} — no data this frame</span>
+          </div>
+        );
+      }
+      const w = roiImage.w, h = roiImage.h;
+      const allPaths = hoodingDebug.allPaths || [];
+      const winnerId = hoodingDebug.creaseWinnerPathId;
+      const additionalIdx = {};
+      let nextIdx = 0;
+      allPaths.forEach(p => { if (p.id !== winnerId) additionalIdx[p.id] = nextIdx++; });
+      const colorForPath = (id) => id === winnerId ? '#3ce6c8' : HOODING_V2_PATH_COLORS[(additionalIdx[id] || 0) % HOODING_V2_PATH_COLORS.length];
+      const lashPoints = hoodingDebug.columns.filter(c => c.yLash != null).map(c => `${c.x},${c.yLash}`).join(' ');
+      return (
+        <div className="mb-1.5 pb-1.5 border-b border-white/10">
+          <span className="text-teal-300 uppercase font-semibold">{label} — RAW GEOMETRY</span>
+          <div className="relative mt-1 mx-auto" style={{ width: '100%', maxWidth: 240 }}>
+            <img src={roiImage.dataURL} style={{ width: '100%', display: 'block', borderRadius: 3 }} alt={`${label} ROI`} />
+            <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 w-full h-full">
+              {lashPoints && <polyline points={lashPoints} fill="none" stroke="#ffffff" strokeWidth="1" strokeDasharray="2,1.5" opacity="0.9" />}
+              <text x={2} y={h - 2} fontSize="6" fill="#ffffff">LASH</text>
+              {hoodingDebug.productionV1 && hoodingDebug.productionV1.derivedRoiY != null && (
+                <>
+                  <line x1={0} y1={hoodingDebug.productionV1.derivedRoiY} x2={w} y2={hoodingDebug.productionV1.derivedRoiY} stroke="#f0a83c" strokeWidth="0.8" strokeDasharray="3,2" opacity="0.9" />
+                  <text x={2} y={Math.max(6, hoodingDebug.productionV1.derivedRoiY - 1)} fontSize="6" fill="#f0a83c">V1</text>
+                </>
+              )}
+              {allPaths.map((p) => {
+                const isWinner = p.id === winnerId;
+                const color = colorForPath(p.id);
+                const mid = p.points[Math.floor(p.points.length / 2)];
+                return (
+                  <g key={p.id}>
+                    <polyline points={p.points.map(pt => `${pt.x},${pt.y}`).join(' ')} fill="none" stroke={color} strokeWidth={isWinner ? 1.1 : 0.8} opacity={isWinner ? 1 : 0.9} />
+                    {mid && (
+                      <text x={mid.x + 1} y={Math.max(6, mid.y - 1)} fontSize="6" fill={color} fontWeight={isWinner ? 'bold' : 'normal'}>
+                        {isWinner ? `${p.id} (crease winner)` : p.id}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+          <div className="grid grid-cols-2 gap-x-2 mt-1">
+            <span className="text-textMuted">eyeWidthPx</span>
+            <span>{hoodingDebug.eyeWidthPx != null ? hoodingDebug.eyeWidthPx.toFixed(1) : '-'}</span>
+            <span className="text-textMuted">lash→crease px/ratio</span>
+            <span>{hoodingDebug.lashCreaseDistancePx != null ? hoodingDebug.lashCreaseDistancePx.toFixed(1) : '-'} / {hoodingDebug.lashCreaseRatio != null ? hoodingDebug.lashCreaseRatio.toFixed(3) : '-'}</span>
+            <span className="text-textMuted">additional paths</span>
+            <span>{(hoodingDebug.additionalPathIds || []).length ? hoodingDebug.additionalPathIds.join(', ') : 'none'}</span>
+          </div>
+          {allPaths.filter(p => p.id !== winnerId).map((p) => (
+            <div key={p.id} className="grid grid-cols-2 gap-x-2 mt-0.5 pl-2" style={{ color: colorForPath(p.id) }}>
+              <span className="col-span-2 font-semibold">{p.id}</span>
+              <span className="text-textMuted">continuity/points</span>
+              <span>{(p.continuityFrac * 100).toFixed(0)}% / {p.points.length}</span>
+              <span className="text-textMuted">avg dist from lash</span>
+              <span>{p.avgDistFromLashPx != null ? p.avgDistFromLashPx.toFixed(1) + 'px' : '-'}</span>
+              <span className="text-textMuted">raw/local strength</span>
+              <span>{p.meanRawStrength.toFixed(2)} / {p.meanLocalStrength != null ? p.meanLocalStrength.toFixed(2) : 'null'}</span>
+            </div>
+          ))}
         </div>
       );
     }
@@ -4391,9 +4675,33 @@
             const v2RightLinked = debugV2BuildLinkedPaths(
               v2RightMulti.valid ? v2RightMulti.columns : [], v2RightMulti.sampledColumns, DEBUG_V2_UNCALIBRATED.PATH_LINK_MAX_T_GAP
             );
+            // HOODING V2 — STAGE 1 instrumentation. Pure downstream
+            // consumer of v2LeftMulti/v2RightMulti (V2.1) and
+            // v2LeftLinked/v2RightLinked (V2.2) just computed above —
+            // no new pixel work, no new detection. Measure-only; never
+            // feeds hoodingState/isHooded/hoodedConfidence/hoodingLevel
+            // or any recommendation.
+            const hoodingV2Left = buildHoodingV2Debug(leftCrease, v2LeftMulti, v2LeftLinked, v2Left.lidPoly, v2Left.browPoly, leftMetrics.width);
+            const hoodingV2Right = buildHoodingV2Debug(rightCrease, v2RightMulti, v2RightLinked, v2Right.lidPoly, v2Right.browPoly, rightMetrics.width);
+            const hoodingV2CrossEye = buildHoodingV2CrossEye(hoodingV2Left, hoodingV2Right);
+            // Lightweight ROI snapshots purely for the "HOODING V2 — RAW
+            // GEOMETRY" visualization below (?debug=1 only, see
+            // HoodingV2RawGeometryBlock). Reuses the SAME shared,
+            // unprotected extractEyeROI utility V1/V2/V2.1 each already
+            // call independently above — this does not touch or modify
+            // any of those functions, and is never fed into leftMetrics/
+            // rightMetrics/classifyFeatures/the Copy JSON payload (images
+            // are display-only, kept out of hoodingV2Raw's JSON fields).
+            const hoodingV2LeftRoi = extractEyeROI(canvas, leftEye, leftBrowPts, 0.45);
+            const hoodingV2RightRoi = extractEyeROI(canvas, rightEye, rightBrowPts, 0.45);
             setDebugCreaseV2({
               left: { v1: leftCrease, v2: v2Left, v2Multi: v2LeftMulti, v2Linked: v2LeftLinked },
               right: { v1: rightCrease, v2: v2Right, v2Multi: v2RightMulti, v2Linked: v2RightLinked },
+              hoodingV2Raw: { left: hoodingV2Left, right: hoodingV2Right, crossEye: hoodingV2CrossEye },
+              hoodingV2RoiImages: {
+                left: hoodingV2LeftRoi ? { dataURL: hoodingV2LeftRoi.canvas.toDataURL('image/jpeg', 0.75), w: hoodingV2LeftRoi.w, h: hoodingV2LeftRoi.h } : null,
+                right: hoodingV2RightRoi ? { dataURL: hoodingV2RightRoi.canvas.toDataURL('image/jpeg', 0.75), w: hoodingV2RightRoi.w, h: hoodingV2RightRoi.h } : null,
+              },
               capture: {
                 ear: { left: leftMetrics.ear, right: rightMetrics.ear },
                 roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,

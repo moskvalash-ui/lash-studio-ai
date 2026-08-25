@@ -1341,6 +1341,295 @@
       };
     }
 
+    // ============================================================
+    // HOODING V2 — STAGE 2B: PATH TOPOLOGY (measurement only).
+    // ------------------------------------------------------------
+    // Pure downstream consumer of buildHoodingV2Debug's own output
+    // (Stage 1, unmodified) — which is itself already a pure consumer
+    // of V2/V2.1 (frozen)/V2.2 (frozen). Touches no pixels/canvas/ROI,
+    // adds no new edge or peak detection, introduces NO calibrated
+    // threshold anywhere. Every path Stage 1 found is retained, given
+    // a deterministic order, and described relative to its neighbors
+    // and to the (unmodified) V2 winner — nothing here selects,
+    // ranks-for-truth, filters, or classifies. A future Stage 3 would
+    // learn a calibrated signal FROM this data, from real labeled
+    // eyes; nothing here decides hooded/non-hooded, and nothing here
+    // is fed back into hoodingState/isHooded/hoodedConfidence/
+    // hoodingLevel/eyelidType/eyelidCategory/creaseState/
+    // finalProfile/rec.eyeProfile.
+    // ============================================================
+    const HOODING_V2_TOPOLOGY_STAGE = '2B-measurement-only';
+
+    // Structural helper — a plain arithmetic mean, not a threshold.
+    function debugV2BMean(values) {
+      return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+    }
+    // Structural helper — sample standard deviation, not a threshold.
+    function debugV2BStdDev(values, mean) {
+      if (!values.length) return null;
+      const v = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+      return Math.sqrt(v);
+    }
+    // Structural helper — safe ratio (zero-division guard only).
+    function debugV2BRatio(numer, denom) {
+      return (typeof numer === 'number' && typeof denom === 'number' && denom !== 0) ? numer / denom : null;
+    }
+    // Structural helper — safe absolute difference (null-safe only).
+    function debugV2BAbsDiff(a, b) {
+      return (typeof a === 'number' && typeof b === 'number') ? Math.abs(a - b) : null;
+    }
+    // Structural helper — geometric span normalization, not a
+    // threshold. xSpan is stored by V2/V2.2 (frozen, unmodified) as
+    // [firstPoint.x, lastPoint.x] — i.e. in SAMPLE order, not
+    // guaranteed left-to-right. Physical LEFT/RIGHT normalization can
+    // walk a path's columns in either x direction (a real RIGHT-eye
+    // trace can read xSpan: [59.27, 44.51], not just [44.51, 59.27]),
+    // so every Stage 2B computation that treats a span as an interval
+    // must normalize through this helper first — never index xSpan[0]/
+    // xSpan[1] directly as "start"/"end".
+    function debugV2BSpanMinMax(xSpan) {
+      return [Math.min(xSpan[0], xSpan[1]), Math.max(xSpan[0], xSpan[1])];
+    }
+
+    // Every linked path Stage 1 found (hoodingDebug.allPaths),
+    // deterministically ordered ascending by meanT (t=0 near the lash
+    // line, t=1 near the brow — V2's own documented convention, see
+    // detectEyelidCreaseV2's module comment) — so index 0 is nearest
+    // the lash and the last index is nearest the brow. No path is
+    // dropped, re-ranked by strength, or filtered by any threshold.
+    // Ties broken by the path's own stable P-id (P0 < P1 < ...) so
+    // ordering is fully deterministic regardless of input order.
+    function debugV2BOrderPaths(hoodingDebug) {
+      const paths = (hoodingDebug && hoodingDebug.allPaths) || [];
+      const idNum = (id) => parseInt(String(id).replace(/^P/, ''), 10);
+      return paths
+        .slice()
+        .sort((a, b) => (a.meanT - b.meanT) || (idNum(a.id) - idNum(b.id)))
+        .map((p, i) => ({
+          pathId: p.id,
+          orderedIndex: i,
+          meanT: p.meanT,
+          continuityFrac: p.continuityFrac,
+          pointCount: p.points.length,
+          xSpan: p.xSpan,
+          meanRawStrength: p.meanRawStrength,
+          meanLocalStrength: p.meanLocalStrength,
+          meanThickness: p.meanThickness,
+          containsV2Winner: p.containsV2Winner,
+          avgDistFromLashPx: p.avgDistFromLashPx,
+          avgDistFromLashRatio: debugV2BRatio(p.avgDistFromLashPx, hoodingDebug.eyeWidthPx),
+          tVariation: p.tVariation, // existing V2.2 field, exposed for cross-eye tVariationDiff below
+          points: p.points, // kept for column-topology pairing below; not re-derived
+        }));
+    }
+
+    // N ordered paths -> N-1 adjacent pairs. "lower"/"upper" follow
+    // the same meanT convention: lower = smaller meanT = nearer the
+    // lash. Descriptive measurements only — no verdict.
+    function debugV2BAdjacentPairs(orderedPaths) {
+      const pairs = [];
+      for (let i = 0; i < orderedPaths.length - 1; i++) {
+        const lower = orderedPaths[i], upper = orderedPaths[i + 1];
+        const lowerBySample = new Map(lower.points.map(pt => [pt.sampleIndex, pt.y]));
+        const seps = [];
+        for (const pt of upper.points) {
+          if (lowerBySample.has(pt.sampleIndex)) seps.push(Math.abs(pt.y - lowerBySample.get(pt.sampleIndex)));
+        }
+        const meanSep = debugV2BMean(seps);
+        // Normalized to [minX, maxX] first — xSpan's raw stored order
+        // (sample order, not left-to-right) must never be indexed
+        // directly here, see debugV2BSpanMinMax.
+        const [lowerMinX, lowerMaxX] = debugV2BSpanMinMax(lower.xSpan);
+        const [upperMinX, upperMaxX] = debugV2BSpanMinMax(upper.xSpan);
+        const overlapStart = Math.max(lowerMinX, upperMinX);
+        const overlapEnd = Math.min(lowerMaxX, upperMaxX);
+        const overlapWidth = Math.max(0, overlapEnd - overlapStart);
+        const unionStart = Math.min(lowerMinX, upperMinX);
+        const unionEnd = Math.max(lowerMaxX, upperMaxX);
+        const unionWidth = unionEnd - unionStart;
+        pairs.push({
+          lowerPathId: lower.pathId, upperPathId: upper.pathId,
+          deltaMeanT: upper.meanT - lower.meanT,
+          deltaDistFromLashPx: debugV2BAbsDiff(upper.avgDistFromLashPx, lower.avgDistFromLashPx),
+          deltaDistFromLashRatio: debugV2BAbsDiff(upper.avgDistFromLashRatio, lower.avgDistFromLashRatio),
+          distFromLashPxRatio: debugV2BRatio(upper.avgDistFromLashPx, lower.avgDistFromLashPx),
+          continuityLower: lower.continuityFrac, continuityUpper: upper.continuityFrac,
+          pointCountLower: lower.pointCount, pointCountUpper: upper.pointCount,
+          xOverlapFrac: unionWidth > 0 ? overlapWidth / unionWidth : null,
+          meanVerticalSeparationPx: meanSep,
+          verticalSeparationVariationPx: debugV2BStdDev(seps, meanSep),
+          strengthRatio: debugV2BRatio(upper.meanRawStrength, lower.meanRawStrength),
+          thicknessRatio: debugV2BRatio(upper.meanThickness, lower.meanThickness),
+        });
+      }
+      return pairs;
+    }
+
+    // Where the EXISTING, unmodified V2 winner sits within the
+    // ordering above. Does not change or re-select the winner.
+    function debugV2BWinnerTopology(orderedPaths) {
+      const idx = orderedPaths.findIndex(p => p.containsV2Winner);
+      if (idx === -1) return null;
+      const winner = orderedPaths[idx];
+      const lower = idx > 0 ? orderedPaths[idx - 1] : null;
+      const upper = idx < orderedPaths.length - 1 ? orderedPaths[idx + 1] : null;
+      return {
+        pathId: winner.pathId, orderedIndex: idx, pathCount: orderedPaths.length,
+        normalizedOrderPosition: orderedPaths.length > 1 ? idx / (orderedPaths.length - 1) : 0,
+        meanT: winner.meanT, distFromLashPx: winner.avgDistFromLashPx, distFromLashRatio: winner.avgDistFromLashRatio,
+        pathsBelowCount: idx, pathsAboveCount: orderedPaths.length - idx - 1,
+        nearestLowerPathId: lower ? lower.pathId : null, nearestUpperPathId: upper ? upper.pathId : null,
+        gapToLowerT: lower ? (winner.meanT - lower.meanT) : null,
+        gapToUpperT: upper ? (upper.meanT - winner.meanT) : null,
+      };
+    }
+
+    // Pure argmin/argmax over already-computed values — never a
+    // classification rule. Each extremum is exposed as the plain
+    // value it is (an id, an index, an array, a number), never
+    // reduced to a boolean.
+    function debugV2BExtrema(orderedPaths, adjacentPairs, winnerTopology) {
+      const argExtreme = (arr, keyFn, better) => {
+        let best = null;
+        for (const item of arr) {
+          const v = keyFn(item);
+          if (v == null) continue;
+          if (best === null || better(v, keyFn(best))) best = item;
+        }
+        return best;
+      };
+      const largest = argExtreme(adjacentPairs, p => p.deltaMeanT, (a, b) => a > b);
+      const smallest = argExtreme(adjacentPairs, p => p.deltaMeanT, (a, b) => a < b);
+      const maxContinuity = argExtreme(orderedPaths, p => p.continuityFrac, (a, b) => a > b);
+      // Span width via debugV2BSpanMinMax, never a raw xSpan[1]-xSpan[0]
+      // subtraction — that goes negative for a reversed-order span and
+      // would silently pick the wrong "widest" path.
+      const maxXSpan = argExtreme(orderedPaths, p => { const [mn, mx] = debugV2BSpanMinMax(p.xSpan); return mx - mn; }, (a, b) => a > b);
+      let nearestToWinner = null;
+      if (winnerTopology) {
+        const gapLower = winnerTopology.gapToLowerT, gapUpper = winnerTopology.gapToUpperT;
+        if (gapLower != null && (gapUpper == null || gapLower <= gapUpper)) nearestToWinner = winnerTopology.nearestLowerPathId;
+        else if (gapUpper != null) nearestToWinner = winnerTopology.nearestUpperPathId;
+      }
+      return {
+        totalLinkedPathCount: orderedPaths.length,
+        orderedMeanTValues: orderedPaths.map(p => p.meanT),
+        allAdjacentDeltaMeanT: adjacentPairs.map(p => p.deltaMeanT),
+        allAdjacentDistanceRatios: adjacentPairs.map(p => p.distFromLashPxRatio),
+        winnerOrderedIndex: winnerTopology ? winnerTopology.orderedIndex : null,
+        largestAdjacentGap: largest ? { lowerPathId: largest.lowerPathId, upperPathId: largest.upperPathId, deltaMeanT: largest.deltaMeanT } : null,
+        smallestAdjacentGap: smallest ? { lowerPathId: smallest.lowerPathId, upperPathId: smallest.upperPathId, deltaMeanT: smallest.deltaMeanT } : null,
+        maxContinuityPath: maxContinuity ? maxContinuity.pathId : null,
+        maxXSpanPath: maxXSpan ? maxXSpan.pathId : null,
+        nearestToWinner,
+      };
+    }
+
+    // Per-column view: which paths actually cross each sampled x, and
+    // how far apart they sit there — meanT alone (a whole-path
+    // average) can hide two paths that cross partway across the eye;
+    // this exposes that directly from the SAME points Stage 1 already
+    // has, no new sampling. rankByHeight: 0 = smallest y (topmost,
+    // nearest the brow) at that column, ascending downward.
+    function debugV2BColumns(hoodingDebug, orderedPaths) {
+      const cols = (hoodingDebug && hoodingDebug.columns) || [];
+      return cols.map(col => {
+        const raw = orderedPaths
+          .map(p => {
+            const pt = p.points.find(ptt => ptt.sampleIndex === col.sampleIndex);
+            if (!pt) return null;
+            return { pathId: p.pathId, y: pt.y, t: pt.t, distFromLashPx: (col.yLash != null) ? Math.abs(pt.y - col.yLash) : null };
+          })
+          .filter(v => v != null)
+          .sort((a, b) => a.y - b.y);
+        const intersections = raw.map((v, i) => Object.assign({ rankByHeight: i }, v));
+        const adjacentSeparationsPx = [];
+        for (let i = 0; i < intersections.length - 1; i++) adjacentSeparationsPx.push(Math.abs(intersections[i + 1].y - intersections[i].y));
+        return { sampleIndex: col.sampleIndex, x: col.x, yLash: col.yLash, yBrow: col.yBrow, intersections, adjacentSeparationsPx };
+      });
+    }
+
+    // Per-eye entry point — the only function LiveScanScreen calls
+    // for one eye's Stage 2B topology.
+    function buildHoodingTopologyV2B(hoodingDebug) {
+      const orderedPaths = debugV2BOrderPaths(hoodingDebug);
+      const adjacentPairs = debugV2BAdjacentPairs(orderedPaths);
+      const winnerTopology = debugV2BWinnerTopology(orderedPaths);
+      const extrema = debugV2BExtrema(orderedPaths, adjacentPairs, winnerTopology);
+      const columns = debugV2BColumns(hoodingDebug, orderedPaths);
+      // `points` was only needed internally (adjacent-pair/column
+      // pairing above); strip it from the returned orderedPaths so
+      // the public shape matches the requested field list exactly
+      // (points remain fully available, untruncated, in the sibling
+      // hoodingV2Raw.allPaths[].points Stage 1 already exposes).
+      const publicOrderedPaths = orderedPaths.map(({ points, ...rest }) => rest);
+      return { orderedPaths: publicOrderedPaths, adjacentPairs, winnerTopology, extrema, columns };
+    }
+
+    // Every LEFT path x every RIGHT path — no matching threshold, no
+    // "same structure" claim. nearestByMeanT is a pure per-left-path
+    // argmin over |meanT difference| — a numeric nearest-neighbor
+    // pairing only, NEVER an anatomical correspondence claim.
+    function buildHoodingTopologyV2BCrossEye(leftTopology, rightTopology) {
+      const leftPaths = (leftTopology && leftTopology.orderedPaths) || [];
+      const rightPaths = (rightTopology && rightTopology.orderedPaths) || [];
+      const pairwisePathDistances = [];
+      for (const lp of leftPaths) {
+        for (const rp of rightPaths) {
+          pairwisePathDistances.push({
+            leftPathId: lp.pathId, rightPathId: rp.pathId,
+            meanTDiff: debugV2BAbsDiff(lp.meanT, rp.meanT),
+            continuityDiff: debugV2BAbsDiff(lp.continuityFrac, rp.continuityFrac),
+            pointCountDiff: debugV2BAbsDiff(lp.pointCount, rp.pointCount),
+            distFromLashRatioDiff: debugV2BAbsDiff(lp.avgDistFromLashRatio, rp.avgDistFromLashRatio),
+            thicknessDiff: debugV2BAbsDiff(lp.meanThickness, rp.meanThickness),
+            // Reuses V2.2's OWN existing tVariation field (already
+            // computed by debugV2SummarizeLinkedPath from the path's
+            // real points) — a spread/variation statistic of t along
+            // the path, NOT an actual curvature measure (no second
+            // derivative, no arc-length, no direction-change angle is
+            // computed anywhere here). Named for exactly what it is,
+            // so no later calibration code mistakes it for curvature.
+            tVariationDiff: debugV2BAbsDiff(lp.tVariation, rp.tVariation),
+          });
+        }
+      }
+      // Pure argmin per LEFT path — deterministic, first-match-wins on
+      // an exact tie.
+      const nearestByMeanT = leftPaths.map(lp => {
+        let best = null;
+        for (const rp of rightPaths) {
+          const d = debugV2BAbsDiff(lp.meanT, rp.meanT);
+          if (d == null) continue;
+          if (best === null || d < best.meanTDiff) best = { leftPathId: lp.pathId, rightPathId: rp.pathId, meanTDiff: d };
+        }
+        return best;
+      }).filter(v => v != null);
+      let winnerCrossEye = null;
+      const lw = leftTopology && leftTopology.winnerTopology;
+      const rw = rightTopology && rightTopology.winnerTopology;
+      if (lw && rw) {
+        winnerCrossEye = {
+          leftPathId: lw.pathId, rightPathId: rw.pathId,
+          meanTDiff: debugV2BAbsDiff(lw.meanT, rw.meanT),
+          distFromLashPxDiff: debugV2BAbsDiff(lw.distFromLashPx, rw.distFromLashPx),
+          distFromLashRatioDiff: debugV2BAbsDiff(lw.distFromLashRatio, rw.distFromLashRatio),
+          continuityDiff: (() => {
+            const lp = leftPaths.find(p => p.pathId === lw.pathId);
+            const rp = rightPaths.find(p => p.pathId === rw.pathId);
+            return debugV2BAbsDiff(lp && lp.continuityFrac, rp && rp.continuityFrac);
+          })(),
+          thicknessDiff: (() => {
+            const lp = leftPaths.find(p => p.pathId === lw.pathId);
+            const rp = rightPaths.find(p => p.pathId === rw.pathId);
+            return debugV2BAbsDiff(lp && lp.meanThickness, rp && rp.meanThickness);
+          })(),
+          leftOrderedIndex: lw.orderedIndex, rightOrderedIndex: rw.orderedIndex,
+        };
+      }
+      return { pairwisePathDistances, nearestByMeanT, winnerCrossEye };
+    }
+
     const REASON_MESSAGES = {
       low_face_confidence: 'hintLowConf',
       head_tilted: 'hintLookStraight',
@@ -4183,6 +4472,18 @@
           right: (data.hoodingV2Raw && data.hoodingV2Raw.right) || null,
           crossEye: (data.hoodingV2Raw && data.hoodingV2Raw.crossEye) || null,
         },
+        // HOODING V2 — STAGE 2B path topology. Separate field,
+        // additive only; passed through VERBATIM from
+        // buildHoodingTopologyV2B/buildHoodingTopologyV2BCrossEye
+        // (measure-only, debug-only pure functions — see their own
+        // header comment) — never truncated, never re-derived here.
+        // Does not alter hoodingV2Raw or any field above in any way.
+        hoodingTopologyV2B: {
+          stage: (data.hoodingTopologyV2B && data.hoodingTopologyV2B.stage) || null,
+          left: (data.hoodingTopologyV2B && data.hoodingTopologyV2B.left) || null,
+          right: (data.hoodingTopologyV2B && data.hoodingTopologyV2B.right) || null,
+          crossEye: (data.hoodingTopologyV2B && data.hoodingTopologyV2B.crossEye) || null,
+        },
       };
     }
 
@@ -4310,6 +4611,36 @@
                 )}
               </div>
             )}
+            {/* HOODING V2 — STAGE 2B: PATH TOPOLOGY. Measure-only,
+                downstream of the SAME Stage 1 data above — every path
+                is retained and ordered, never filtered/classified; see
+                HoodingTopologyV2BBlock's own comment. */}
+            {data.hoodingTopologyV2B && (
+              <div className="mb-1.5 pb-1.5 border-b border-white/10">
+                <span className="font-semibold text-orange-200">HOODING V2 — TOPOLOGY (stage 2B, measure only)</span>
+                <HoodingTopologyV2BBlock label="LEFT" topology={data.hoodingTopologyV2B.left} />
+                <HoodingTopologyV2BBlock label="RIGHT" topology={data.hoodingTopologyV2B.right} />
+                {data.hoodingTopologyV2B.crossEye && (
+                  <div className="mt-1 pt-1 border-t border-white/10">
+                    <span className="text-textMuted">nearestByMeanT (pure argmin, NOT "same structure")</span>
+                    {data.hoodingTopologyV2B.crossEye.nearestByMeanT.map((n, i) => (
+                      <div key={i} className="grid grid-cols-2 gap-x-2 pl-2">
+                        <span>{n.leftPathId} ↔ {n.rightPathId}</span>
+                        <span>Δt={n.meanTDiff.toFixed(3)}</span>
+                      </div>
+                    ))}
+                    {data.hoodingTopologyV2B.crossEye.winnerCrossEye && (
+                      <div className="grid grid-cols-2 gap-x-2 mt-0.5 pt-0.5 border-t border-white/5">
+                        <span className="text-textMuted">winner L↔R</span>
+                        <span>{data.hoodingTopologyV2B.crossEye.winnerCrossEye.leftPathId} ↔ {data.hoodingTopologyV2B.crossEye.winnerCrossEye.rightPathId}</span>
+                        <span className="text-textMuted">Δt / ΔdistRatio</span>
+                        <span>{data.hoodingTopologyV2B.crossEye.winnerCrossEye.meanTDiff.toFixed(3)} / {data.hoodingTopologyV2B.crossEye.winnerCrossEye.distFromLashRatioDiff != null ? data.hoodingTopologyV2B.crossEye.winnerCrossEye.distFromLashRatioDiff.toFixed(3) : '-'}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {data.capture && (
               <div className="grid grid-cols-2 gap-x-2 mb-1.5">
                 <span className="text-textMuted">EAR L/R</span>
@@ -4407,6 +4738,68 @@
               <span>{p.meanRawStrength.toFixed(2)} / {p.meanLocalStrength != null ? p.meanLocalStrength.toFixed(2) : 'null'}</span>
             </div>
           ))}
+        </div>
+      );
+    }
+
+    // HOODING V2 — STAGE 2B: PATH TOPOLOGY display. Every linked path
+    // Stage 1 found is listed, in the same deterministic meanT order
+    // buildHoodingTopologyV2B already computed — nothing is filtered
+    // or re-ranked here. The existing V2 winner is marked distinctly
+    // (by border, not by relabeling); every other path keeps its
+    // plain P# id. No color/label here means or implies hood/
+    // overhang/true-crease — this is purely for a human to compare
+    // against their own real eye. Placed after CreaseV2DebugPanel
+    // (which already calls it, via JS function-declaration hoisting —
+    // same reasoning as HoodingV2RawGeometryBlock above) so it does
+    // not sit inside any existing source span other tests extract by
+    // position.
+    function HoodingTopologyV2BBlock({ label, topology }) {
+      if (!topology) {
+        return (
+          <div className="mb-1.5 pb-1.5 border-b border-white/10">
+            <span className="text-orange-100 uppercase font-semibold">{label} — no topology data</span>
+          </div>
+        );
+      }
+      const { orderedPaths, adjacentPairs, winnerTopology, extrema } = topology;
+      return (
+        <div className="mb-1.5 pb-1.5 border-b border-white/10">
+          <span className="text-orange-100 uppercase font-semibold">{label} — {orderedPaths.length} linked path{orderedPaths.length === 1 ? '' : 's'}</span>
+          {orderedPaths.length === 0 && <div className="pl-2 text-textMuted">none</div>}
+          {orderedPaths.map((p) => {
+            const isWinner = winnerTopology && p.pathId === winnerTopology.pathId;
+            return (
+              <div key={p.pathId} className={`mt-0.5 pl-2 grid grid-cols-2 gap-x-2 ${isWinner ? 'border-l-2 border-cyan-400' : ''}`}>
+                <span className={`col-span-2 font-semibold ${isWinner ? 'text-cyan-300' : 'text-orange-200'}`}>
+                  {p.pathId} (order {p.orderedIndex}){isWinner ? ' — existing V2 winner' : ''}
+                </span>
+                <span className="text-textMuted">meanT/continuity</span>
+                <span>{p.meanT.toFixed(3)} / {(p.continuityFrac * 100).toFixed(0)}%</span>
+                <span className="text-textMuted">dist from lash px/ratio</span>
+                <span>{p.avgDistFromLashPx != null ? p.avgDistFromLashPx.toFixed(1) : '-'} / {p.avgDistFromLashRatio != null ? p.avgDistFromLashRatio.toFixed(3) : '-'}</span>
+              </div>
+            );
+          })}
+          {adjacentPairs.length > 0 && (
+            <div className="mt-1 pt-1 border-t border-white/5">
+              <span className="text-textMuted">adjacent gaps (lower→upper)</span>
+              {adjacentPairs.map((pair, i) => (
+                <div key={i} className="grid grid-cols-2 gap-x-2 pl-2">
+                  <span>{pair.lowerPathId}→{pair.upperPathId}</span>
+                  <span>Δt={pair.deltaMeanT.toFixed(3)} Δdist={pair.deltaDistFromLashPx != null ? pair.deltaDistFromLashPx.toFixed(1) + 'px' : '-'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {extrema && extrema.totalLinkedPathCount > 0 && (
+            <div className="mt-1 pt-1 border-t border-white/5 grid grid-cols-2 gap-x-2">
+              <span className="text-textMuted">largest/smallest Δt gap</span>
+              <span>{extrema.largestAdjacentGap ? extrema.largestAdjacentGap.deltaMeanT.toFixed(3) : '-'} / {extrema.smallestAdjacentGap ? extrema.smallestAdjacentGap.deltaMeanT.toFixed(3) : '-'}</span>
+              <span className="text-textMuted">nearest to winner</span>
+              <span>{extrema.nearestToWinner || '-'}</span>
+            </div>
+          )}
         </div>
       );
     }
@@ -4684,6 +5077,16 @@
             const hoodingV2Left = buildHoodingV2Debug(leftCrease, v2LeftMulti, v2LeftLinked, v2Left.lidPoly, v2Left.browPoly, leftMetrics.width);
             const hoodingV2Right = buildHoodingV2Debug(rightCrease, v2RightMulti, v2RightLinked, v2Right.lidPoly, v2Right.browPoly, rightMetrics.width);
             const hoodingV2CrossEye = buildHoodingV2CrossEye(hoodingV2Left, hoodingV2Right);
+            // HOODING V2 — STAGE 2B: PATH TOPOLOGY. Pure downstream
+            // consumer of hoodingV2Left/hoodingV2Right (Stage 1) just
+            // computed above — no new pixel work, no new detection, no
+            // calibrated threshold. Measure-only; never feeds
+            // hoodingState/isHooded/hoodedConfidence/hoodingLevel/
+            // eyelidType/eyelidCategory/creaseState/finalProfile/
+            // rec.eyeProfile.
+            const hoodingTopologyV2BLeft = buildHoodingTopologyV2B(hoodingV2Left);
+            const hoodingTopologyV2BRight = buildHoodingTopologyV2B(hoodingV2Right);
+            const hoodingTopologyV2BCrossEye = buildHoodingTopologyV2BCrossEye(hoodingTopologyV2BLeft, hoodingTopologyV2BRight);
             // Lightweight ROI snapshots purely for the "HOODING V2 — RAW
             // GEOMETRY" visualization below (?debug=1 only, see
             // HoodingV2RawGeometryBlock). Reuses the SAME shared,
@@ -4698,6 +5101,10 @@
               left: { v1: leftCrease, v2: v2Left, v2Multi: v2LeftMulti, v2Linked: v2LeftLinked },
               right: { v1: rightCrease, v2: v2Right, v2Multi: v2RightMulti, v2Linked: v2RightLinked },
               hoodingV2Raw: { left: hoodingV2Left, right: hoodingV2Right, crossEye: hoodingV2CrossEye },
+              hoodingTopologyV2B: {
+                stage: HOODING_V2_TOPOLOGY_STAGE,
+                left: hoodingTopologyV2BLeft, right: hoodingTopologyV2BRight, crossEye: hoodingTopologyV2BCrossEye,
+              },
               hoodingV2RoiImages: {
                 left: hoodingV2LeftRoi ? { dataURL: hoodingV2LeftRoi.canvas.toDataURL('image/jpeg', 0.75), w: hoodingV2LeftRoi.w, h: hoodingV2LeftRoi.h } : null,
                 right: hoodingV2RightRoi ? { dataURL: hoodingV2RightRoi.canvas.toDataURL('image/jpeg', 0.75), w: hoodingV2RightRoi.w, h: hoodingV2RightRoi.h } : null,

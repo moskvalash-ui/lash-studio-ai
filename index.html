@@ -3327,6 +3327,222 @@
       return v1.creaseYFrac === 0 || v1.creaseYFrac === 1;
     }
 
+    // ============================================================
+    // EXPERIMENTAL EYELID-TYPE INTEGRATION — DEBUG-ONLY LOCAL PROTOTYPE.
+    // ------------------------------------------------------------
+    // classifyFeatures (production, untouched) contains an internal,
+    // non-exported `eyeCreaseVerdict` closure that decides per-eye
+    // crease evidence using THREE constants: CREASE_PEAK_FLOOR=7,
+    // CREASE_PROMINENCE_FLOOR=5, CREASE_ABSENCE_MARGIN=0.5, plus a
+    // readQuality>0.28 readability floor — see index.html's eyelid
+    // classification block (~line 1610-1637). Since that closure isn't
+    // reachable from outside classifyFeatures without modifying it,
+    // debugEyeCreaseVerdict below is a byte-for-byte duplicate of its
+    // LOGIC using the SAME three constants (re-declared here with the
+    // identical values, not new numbers) — a source-guard test
+    // confirms these values haven't drifted from production's own.
+    // No new anatomical threshold is introduced anywhere in this block.
+    const DEBUG_CREASE_PEAK_FLOOR = 7;
+    const DEBUG_CREASE_PROMINENCE_FLOOR = 5;
+    const DEBUG_CREASE_ABSENCE_MARGIN = 0.5;
+    const DEBUG_CREASE_READABLE_FLOOR = 0.28;
+    function debugEyeCreaseVerdict(m) {
+      const readable = m.creaseValid > 0.5 && m.creaseReadQuality > DEBUG_CREASE_READABLE_FLOOR;
+      if (!readable) return 'uncertain';
+      const fold = m.creasePeak > DEBUG_CREASE_PEAK_FLOOR && m.creaseProminence > DEBUG_CREASE_PROMINENCE_FLOOR;
+      if (fold) return 'detected';
+      const confidentlyAbsent = m.creasePeak < DEBUG_CREASE_PEAK_FLOOR * DEBUG_CREASE_ABSENCE_MARGIN
+        && m.creaseProminence < DEBUG_CREASE_PROMINENCE_FLOOR * DEBUG_CREASE_ABSENCE_MARGIN;
+      return confidentlyAbsent ? 'confidentlyAbsent' : 'borderline';
+    }
+
+    // resolveEyelidCreaseEvidence — DESCRIPTIVE evidence layer, per eye.
+    // Deliberately answers only "where/whether a crease-like structure
+    // was found", never "what is the eyelid type" (that combination
+    // happens one layer up, in computeExperimentalEyelidType, and even
+    // there only via the SAME decision tree classifyFeatures already
+    // uses). Two structural, non-arbitrary reliability checks on V1
+    // (both exact-equality / already-proven, not new tuned numbers):
+    //   - boundaryPeak (creaseYFrac === 0 or 1, see debugV1BoundaryPeakFlag)
+    //   - prominence === 0 (the same construction artifact)
+    // V2.2 evidence is ranked, not thresholded: paths are sorted by the
+    // SAME debugV2DisplayRank formula already used to pick V2's own
+    // display path (continuityFrac * strength) — an existing, already-
+    // reviewed ranking, not a new scoring function. No absolute cutoff
+    // is applied to meanT, continuity, strength, or thickness anywhere
+    // in this function — per-path numbers are reported in `reasons`
+    // descriptively, never converted into a boolean via an invented
+    // threshold.
+    function resolveEyelidCreaseEvidence(v1, v2Linked) {
+      const reasons = [];
+      const v1Valid = !!(v1 && v1.valid);
+      // v1's debug shape ({valid, peakVal, prominence, creaseYFrac,
+      // readQuality}) has no separate creaseValid field — v1.valid
+      // already IS that check (mirrors production's readable = creaseValid>0.5 && creaseReadQuality>floor).
+      const v1Readable = v1Valid && v1.readQuality > DEBUG_CREASE_READABLE_FLOOR;
+      const v1BoundaryArtifact = v1Valid && (v1.creaseYFrac === 0 || v1.creaseYFrac === 1);
+      const v1PromZero = v1Valid && v1.prominence === 0;
+      const v1Unreliable = !v1Valid || !v1Readable || v1BoundaryArtifact || v1PromZero;
+      if (!v1Valid) reasons.push('V1 crease read is invalid for this eye.');
+      else {
+        if (v1BoundaryArtifact) reasons.push(`V1 peak sits at the search-band boundary (creaseYFrac=${v1.creaseYFrac}) — prominence=0 is a construction artifact, not evidence of absence.`);
+        if (v1PromZero && !v1BoundaryArtifact) reasons.push('V1 prominence is exactly 0 outside the boundary case — treated as unreliable for the same structural reason.');
+        if (!v1Readable) reasons.push(`V1 read quality (${v1.readQuality != null ? v1.readQuality.toFixed(2) : 'n/a'}) is at/below the existing ${DEBUG_CREASE_READABLE_FLOOR} readability floor already used in production.`);
+      }
+      const v1Verdict = v1Unreliable ? 'unreliable' : debugEyeCreaseVerdict({
+        creaseValid: 1, creaseReadQuality: v1.readQuality, creasePeak: v1.peakVal, creaseProminence: v1.prominence,
+      });
+      if (!v1Unreliable) reasons.push(`V1 verdict (via the same production floors): ${v1Verdict}.`);
+
+      const validPaths = (v2Linked && v2Linked.valid) ? (v2Linked.paths || []) : [];
+      const rankedPaths = validPaths.slice().sort((a, b) => debugV2DisplayRank(b) - debugV2DisplayRank(a));
+      const selectedPath = rankedPaths.length ? rankedPaths[0] : null;
+      const alternativePaths = rankedPaths.slice(1);
+      if (selectedPath) {
+        reasons.push(`V2.2 found ${validPaths.length} linked path(s); top-ranked spans ${(selectedPath.continuityFrac * 100).toFixed(0)}% of sampled columns at meanT=${selectedPath.meanT.toFixed(3)} (tVar=${selectedPath.tVariation.toFixed(3)}, thickness=${selectedPath.meanThickness.toFixed(2)}).`);
+      } else {
+        reasons.push('V2.2 found no linked paths for this eye.');
+      }
+
+      let state;
+      if (v1Unreliable && !selectedPath) {
+        state = 'unreliable';
+        reasons.push('Both V1 and V2.2 evidence are unreliable/absent for this eye — no basis to assert a state.');
+      } else if (v1Unreliable && selectedPath) {
+        state = 'crease_detected';
+        reasons.push('V1 evidence is unreliable; deferring to V2.2\'s top-ranked persistent path as descriptive evidence a fold-like structure exists (its anatomical meaning is not decided here).');
+      } else if (!v1Unreliable && !selectedPath) {
+        state = v1Verdict === 'detected' ? 'crease_detected' : v1Verdict === 'confidentlyAbsent' ? 'crease_not_detected' : 'conflicting';
+        reasons.push('V1 evidence is reliable; V2.2 produced no candidate paths to cross-check against.');
+      } else if (v1Verdict === 'detected') {
+        state = 'crease_detected';
+        reasons.push('V1 detected a fold and V2.2 independently found at least one persistent path — evidence agrees on existence.');
+      } else if (v1Verdict === 'confidentlyAbsent') {
+        state = 'conflicting';
+        reasons.push('V1 reads confidently-absent, but V2.2 independently found a persistent linked path — conflicting evidence, not auto-resolved.');
+      } else {
+        state = 'conflicting';
+        reasons.push('V1 verdict is borderline; V2.2 found candidate path(s), but agreement cannot be established without inventing a new anatomical threshold — deliberately left unresolved.');
+      }
+
+      const evidenceQuality = clamp01(
+        (v1Unreliable ? 0 : (v1.readQuality != null ? v1.readQuality : 0)) * 0.5
+        + (selectedPath ? selectedPath.continuityFrac : 0) * 0.5
+      );
+
+      return { state, evidenceQuality, selectedPath, alternativePaths, reasons, v1Verdict, v1Unreliable };
+    }
+
+    // Maps a per-eye evidence state onto the SAME vocabulary
+    // classifyFeatures' own eyeCreaseVerdict already uses, so the
+    // EXACT SAME bilateral-agreement + decision-tree logic below can be
+    // reused verbatim rather than reinvented.
+    function debugEvidenceToVerdict(evidence) {
+      switch (evidence.state) {
+        case 'crease_detected': return 'detected';
+        case 'crease_not_detected': return 'confidentlyAbsent';
+        case 'conflicting': return 'borderline';
+        default: return 'uncertain'; // 'unreliable'
+      }
+    }
+
+    // computeExperimentalEyelidType — combines LEFT+RIGHT evidence using
+    // the IDENTICAL bilateral-agreement rule and decision-tree branches
+    // classifyFeatures' own eyelidType block already uses (same
+    // structure, same eyelidCategory geometry input, same 0.62
+    // ambiguous-position boundary and 'hooded'/'monolid'/'uncertain'/
+    // 'openCrease' outcomes) — the ONLY difference from production is
+    // that the per-eye verdict comes from resolveEyelidCreaseEvidence
+    // (which can defer to V2.2 when V1 is unreliable) instead of raw V1
+    // alone. eyelidCategory is read from the REAL classifyFeatures
+    // result passed in — never recomputed or mutated here, so Eye
+    // Geometry stays exactly as independent as in production.
+    function computeExperimentalEyelidType(leftEvidence, rightEvidence, eyelidCategory) {
+      const leftVerdict = debugEvidenceToVerdict(leftEvidence);
+      const rightVerdict = debugEvidenceToVerdict(rightEvidence);
+      const combined = (leftVerdict === rightVerdict) ? leftVerdict : 'uncertain';
+
+      // Position (V1's creaseYFrac convention: 0=brow,1=lid) used only
+      // for the SAME ambiguous-low-position branch production already
+      // has. When V1 is unreliable for an eye, its V2.2 selectedPath.t
+      // (0=lid,1=brow — the OPPOSITE convention, per the V2 module doc)
+      // is converted via 1-t so the two sources are never compared on
+      // mismatched axes.
+      const eyeYFrac = (v1, evidence) => {
+        if (!evidence.v1Unreliable && v1 && v1.valid) return v1.creaseYFrac;
+        if (evidence.selectedPath) return 1 - evidence.selectedPath.meanT;
+        return null;
+      };
+
+      let eyelidType;
+      let why;
+      if (combined === 'uncertain' || combined === 'borderline') {
+        eyelidType = 'uncertain';
+        why = (leftVerdict !== rightVerdict)
+          ? `left/right evidence disagree (left=${leftVerdict}, right=${rightVerdict})`
+          : 'evidence is borderline on both eyes';
+      } else if (combined === 'detected') {
+        if (eyelidCategory === 'moderate' || eyelidCategory === 'pronounced') {
+          eyelidType = 'hooded';
+          why = `crease evidence detected on both eyes AND geometry independently reads ${eyelidCategory}`;
+        } else {
+          const lyf = eyeYFrac(null, leftEvidence), ryf = eyeYFrac(null, rightEvidence);
+          const avgYFrac = (lyf != null && ryf != null) ? (lyf + ryf) / 2 : null;
+          if (avgYFrac != null && avgYFrac > 0.62) {
+            eyelidType = 'uncertain';
+            why = 'clear fold on both eyes at a low position, but geometry does not independently read moderate/pronounced — ambiguous, not forced either way';
+          } else {
+            eyelidType = 'openCrease';
+            why = 'crease evidence detected on both eyes; geometry reads open/mild';
+          }
+        }
+      } else { // 'confidentlyAbsent'
+        if (eyelidCategory === 'open') {
+          eyelidType = 'monolid';
+          why = 'crease confidently absent on both eyes AND geometry independently reads open';
+        } else {
+          eyelidType = 'uncertain';
+          why = `crease confidently absent on both eyes but geometry reads ${eyelidCategory}, not open — a real conflict, not a confirmation`;
+        }
+      }
+
+      return { eyelidType, why, leftVerdict, rightVerdict, combined };
+    }
+
+    // DEBUG-UI-ONLY display of one eye's resolveEyelidCreaseEvidence
+    // result, per the real-iPhone-capture UI requirement — every value
+    // below is read off `evidence` (already computed and returned by
+    // resolveEyelidCreaseEvidence) and `v1` (the same V1 debug object
+    // CreaseV2EyePanel already reads); nothing here recomputes anything.
+    function EvidenceEyeBlock({ label, v1, evidence }) {
+      if (!evidence) return null;
+      const boundaryArtifact = debugV1BoundaryPeakFlag(v1);
+      const sp = evidence.selectedPath;
+      return (
+        <div className="mt-1 pt-1 border-t border-white/5 grid grid-cols-2 gap-x-2">
+          <span className="col-span-2 font-semibold text-orange-200">{label}</span>
+          <span className="text-textMuted">V1 peak/prom/yFrac/rq</span>
+          <span>{v1 && v1.valid ? `${v1.peakVal.toFixed(1)}/${v1.prominence.toFixed(1)}/${v1.creaseYFrac.toFixed(2)}/${v1.readQuality.toFixed(2)}` : 'invalid'}</span>
+          <span className="text-textMuted">V1 reliable</span>
+          <span>{evidence.v1Unreliable ? 'no' : 'yes'}</span>
+          <span className="text-textMuted">V1 boundary artifact</span>
+          <span>{boundaryArtifact === null ? 'n/a' : (boundaryArtifact ? 'yes' : 'no')}</span>
+          <span className="text-textMuted">V1 verdict</span>
+          <span>{evidence.v1Verdict}</span>
+          <span className="text-textMuted">V2.2 selected path</span>
+          <span>{sp ? `found (${evidence.alternativePaths.length} alt.)` : 'none'}</span>
+          <span className="text-textMuted">V2.2 meanT</span>
+          <span>{sp ? sp.meanT.toFixed(3) : '-'}</span>
+          <span className="text-textMuted">V2.2 continuity</span>
+          <span>{sp ? `${(sp.continuityFrac * 100).toFixed(0)}%` : '-'}</span>
+          <span className="text-textMuted">resolved crease evidence</span>
+          <span className="text-orange-300">{evidence.state}</span>
+          <span className="text-textMuted col-span-2">reason</span>
+          <span className="col-span-2 text-textSecondary">{evidence.reasons.join(' ')}</span>
+        </div>
+      );
+    }
+
     function CreaseV2EyePanel({ label, entry }) {
       if (!entry) return null;
       const { v1, v2, v2Multi, v2Linked } = entry;
@@ -3427,7 +3643,7 @@
     // computed values off `data` — never recomputes or alters any V1/V2
     // measurement. Missing/invalid values are explicit null, never a
     // substituted 0.
-    function buildCreaseV2CopyPayload(data) {
+    function buildCreaseV2CopyPayload(data, compare) {
       const eyeV1 = (v1) => (v1 && v1.valid) ? {
         peakVal: v1.peakVal, prominence: v1.prominence, creaseYFrac: v1.creaseYFrac, readQuality: v1.readQuality,
         boundaryPeak: debugV1BoundaryPeakFlag(v1),
@@ -3486,6 +3702,30 @@
           })),
         })),
       } : { runtimeMs: null, paths: null };
+      // EXPERIMENTAL EYELID TYPE — separate field, additive only; does
+      // not alter v1/v2/v2MultiShadow/v2LinkedShadow above. Reads only
+      // already-computed evidence fields (resolveEyelidCreaseEvidence's
+      // return shape), same null-safety convention as everything else
+      // in this payload.
+      const eyeEvidence = (v1, evidence) => {
+        const boundaryArtifact = debugV1BoundaryPeakFlag(v1);
+        const sp = evidence ? evidence.selectedPath : null;
+        return {
+          v1: v1 && v1.valid ? { peakVal: v1.peakVal, prominence: v1.prominence, creaseYFrac: v1.creaseYFrac, readQuality: v1.readQuality } : null,
+          v1Reliable: evidence ? !evidence.v1Unreliable : null,
+          v1BoundaryArtifact: boundaryArtifact,
+          v1Verdict: evidence ? evidence.v1Verdict : null,
+          v2SelectedPath: sp ? {
+            meanT: sp.meanT, continuityFrac: sp.continuityFrac, tVariation: sp.tVariation,
+            meanRawStrength: sp.meanRawStrength, meanLocalStrength: sp.meanLocalStrength != null ? sp.meanLocalStrength : null,
+            meanThickness: sp.meanThickness, containsV2Winner: sp.containsV2Winner,
+          } : null,
+          alternativePathCount: evidence ? evidence.alternativePaths.length : null,
+          resolvedState: evidence ? evidence.state : null,
+          evidenceQuality: evidence ? evidence.evidenceQuality : null,
+          reasons: evidence ? evidence.reasons : null,
+        };
+      };
       const capture = data.capture || {};
       return {
         timestamp: new Date().toISOString(),
@@ -3510,14 +3750,23 @@
             v2LinkedShadow: eyeV2Linked(data.right && data.right.v2Linked),
           },
         },
+        experimentalEyelidType: {
+          currentType: compare ? compare.currentType : null,
+          experimentalType: compare ? compare.experimentalType : null,
+          geometryCategory: compare ? compare.currentCategory : null,
+          combinedEvidence: compare ? compare.combined : null,
+          why: compare ? compare.why : null,
+          left: eyeEvidence(data.left && data.left.v1, compare && compare.leftEvidence),
+          right: eyeEvidence(data.right && data.right.v1, compare && compare.rightEvidence),
+        },
       };
     }
 
-    function CreaseV2DebugPanel({ data }) {
+    function CreaseV2DebugPanel({ data, compare }) {
       const [copied, setCopied] = useState(false);
       const copy = () => {
         try {
-          const payload = JSON.stringify(buildCreaseV2CopyPayload(data), null, 2);
+          const payload = JSON.stringify(buildCreaseV2CopyPayload(data, compare), null, 2);
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(payload).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
           }
@@ -3535,6 +3784,35 @@
             </button>
           </div>
           <div className="px-2 py-1.5 overflow-y-auto flex-1 min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {/* EXPERIMENTAL EYELID TYPE — DEBUG-ONLY comparison, LOCAL
+                PROTOTYPE. Production's own eyelidType (via a real,
+                unmodified extra classifyFeatures call) shown next to the
+                experimental resolver's result, purely for observation —
+                the production result used for onComplete is NOT this
+                one (see the module comment at the call site). Every
+                field below is read off leftEvidence/rightEvidence,
+                which resolveEyelidCreaseEvidence already computes and
+                returns — this block only DISPLAYS them, it does not
+                change what's computed. */}
+            {compare && (
+              <div className="mb-1.5 pb-1.5 border-b border-white/10">
+                <span className="font-semibold text-orange-300">EXPERIMENTAL EYELID TYPE (local prototype, not production)</span>
+                <EvidenceEyeBlock label="LEFT" v1={data.left && data.left.v1} evidence={compare.leftEvidence} />
+                <EvidenceEyeBlock label="RIGHT" v1={data.right && data.right.v1} evidence={compare.rightEvidence} />
+                <div className="mt-1 pt-1 border-t border-white/10 grid grid-cols-2 gap-x-2">
+                  <span className="text-textMuted">CURRENT TYPE</span>
+                  <span className="text-cyan-300">{compare.currentType}</span>
+                  <span className="text-textMuted">EXPERIMENTAL TYPE</span>
+                  <span className={compare.experimentalType === compare.currentType ? 'text-lime-300' : 'text-orange-300'}>{compare.experimentalType}</span>
+                  <span className="text-textMuted">GEOMETRY CATEGORY</span>
+                  <span>{compare.currentCategory}</span>
+                  <span className="text-textMuted">COMBINED EVIDENCE</span>
+                  <span>{compare.combined}</span>
+                  <span className="text-textMuted col-span-2">WHY</span>
+                  <span className="col-span-2 text-textSecondary">{compare.why}</span>
+                </div>
+              </div>
+            )}
             <p className="text-textMuted mb-1">not used in classification</p>
             <CreaseV2EyePanel label="LEFT" entry={data.left} />
             <CreaseV2EyePanel label="RIGHT" entry={data.right} />
@@ -3577,6 +3855,9 @@
       // never read by classifyFeatures or any production code path.
       const debugAvailable = isDebugModeEnabled();
       const [debugCreaseV2, setDebugCreaseV2] = useState(null);
+      // EXPERIMENTAL EYELID TYPE — DEBUG-ONLY comparison state. Never
+      // read by the real classifyFeatures call / onComplete result.
+      const [debugEyelidCompare, setDebugEyelidCompare] = useState(null);
 
       const modelsLoadedRef = useRef(modelsLoaded);
       useEffect(() => { modelsLoadedRef.current = modelsLoaded; }, [modelsLoaded]);
@@ -3799,6 +4080,39 @@
                 roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,
                 brightness, sharpness,
               },
+            });
+
+            // EXPERIMENTAL EYELID TYPE — DEBUG-ONLY comparison, LOCAL
+            // PROTOTYPE. Computes a per-eye descriptive evidence layer
+            // (resolveEyelidCreaseEvidence) from leftCrease/rightCrease
+            // (V1) + v2LeftLinked/v2RightLinked (V2.2) just computed
+            // above, then an experimental eyelidType from it
+            // (computeExperimentalEyelidType). "CURRENT" is the REAL,
+            // completely unmodified classifyFeatures, called an EXTRA
+            // time here purely for live debug display — same read-only-
+            // extra-call pattern already used for V1/V2/V2.1/V2.2 above
+            // — fed a single-frame approximation of `aggregated` built
+            // from THIS tick's own leftMetrics/rightMetrics/headPose via
+            // the same aggregateBuffer([frame,frame,frame]) + singleFrame
+            // pattern PhotoAnalysisScreen already uses in production
+            // (see its analyze() function). This is an approximation of
+            // what a single-frame classification would say right now,
+            // NOT the final buffered multi-frame result onComplete uses
+            // — labeled as such in the UI. Neither result feeds
+            // rec/onComplete/leftMetrics/rightMetrics in any way.
+            const debugVerticalAsymRaw = (headPose.leftEyeCenter.y - headPose.rightEyeCenter.y) / Math.max(headPose.interEyeDistance, 1);
+            const debugFrame = { leftMetrics, rightMetrics, headPose, faceBoxWidth: det.detection.box.width, verticalAsymRaw: debugVerticalAsymRaw };
+            const debugAggregated = aggregateBuffer([debugFrame, debugFrame, debugFrame]);
+            const debugImageQuality = clamp01(det.detection.score * (1 - Math.min(1, Math.abs(headPose.roll) / 30)) * (1 - Math.min(1, Math.abs(headPose.yawProxy) / 0.4)));
+            const currentClassified = classifyFeatures(debugAggregated, { singleFrame: true, stability: null, imageQuality: debugImageQuality });
+
+            const leftEvidence = resolveEyelidCreaseEvidence(leftCrease, v2LeftLinked);
+            const rightEvidence = resolveEyelidCreaseEvidence(rightCrease, v2RightLinked);
+            const experimental = computeExperimentalEyelidType(leftEvidence, rightEvidence, currentClassified.eyelidCategory);
+            setDebugEyelidCompare({
+              currentType: currentClassified.eyelidType, currentCategory: currentClassified.eyelidCategory,
+              experimentalType: experimental.eyelidType, why: experimental.why, combined: experimental.combined,
+              leftEvidence, rightEvidence,
             });
           }
 
@@ -4136,7 +4450,7 @@
                 the experimental V2 candidate geometry; nothing here
                 influences classification. Remove together with V2 once
                 real-device validation is complete. */}
-            {debugAvailable && debugCreaseV2 && <CreaseV2DebugPanel data={debugCreaseV2} />}
+            {debugAvailable && debugCreaseV2 && <CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} />}
           </div>
           <div className="p-6 flex flex-col items-center gap-3 bg-bg">
             <div className="w-full flex justify-end -mt-1">

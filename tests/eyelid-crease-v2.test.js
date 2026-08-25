@@ -489,7 +489,12 @@ test('C. displayPathIndex is explicitly exposed as its own labeled field', () =>
 // (defined earlier in the file, before CreaseV2EyePanel) — extracted here as
 // plain source text too (it's a small pure function, no JSX, safe to eval).
 const boundaryFlagStart = src.indexOf('function debugV1BoundaryPeakFlag(');
-const boundaryFlagEnd = src.indexOf('\n    function CreaseV2EyePanel(');
+// Stops right where the EXPERIMENTAL EYELID-TYPE block begins, not at
+// CreaseV2EyePanel — that block (added in a later turn) sits between
+// debugV1BoundaryPeakFlag and CreaseV2EyePanel and contains JSX
+// (EvidenceEyeBlock), which a plain `new Function` extraction cannot
+// evaluate; only the small pure debugV1BoundaryPeakFlag helper is needed here.
+const boundaryFlagEnd = src.indexOf('\n    // ============================================================\n    // EXPERIMENTAL EYELID-TYPE INTEGRATION — DEBUG-ONLY LOCAL PROTOTYPE.', boundaryFlagStart);
 const boundaryFlagSrc = src.slice(boundaryFlagStart, boundaryFlagEnd);
 const payloadFnStart = src.indexOf('function buildCreaseV2CopyPayload(');
 const payloadFnEnd = src.indexOf('\n    function CreaseV2DebugPanel(');
@@ -607,7 +612,7 @@ test('F. the copy payload is JSON-serializable and round-trips losslessly', () =
 // siblings render in source order). ----
 test('G. the Copy button is positioned before the long LEFT/RIGHT diagnostic body in source order', () => {
   const panelStart = src.indexOf('function CreaseV2DebugPanel(');
-  const panelSrc = src.slice(panelStart, panelStart + 3000);
+  const panelSrc = src.slice(panelStart, panelStart + 4200);
   const copyBtnIdx = panelSrc.indexOf('Copy V2 JSON');
   const leftPanelIdx = panelSrc.indexOf('<CreaseV2EyePanel label="LEFT"');
   assert.ok(copyBtnIdx !== -1 && leftPanelIdx !== -1, 'expected to find both the Copy button and the LEFT eye panel in CreaseV2DebugPanel');
@@ -616,7 +621,7 @@ test('G. the Copy button is positioned before the long LEFT/RIGHT diagnostic bod
 
 // ---- H — debug panel remains debug-only (re-confirms tests B/B2 still hold after this turn's edits). ----
 test('H. CreaseV2DebugPanel is still only mounted behind debugAvailable in LiveScanScreen', () => {
-  const mountIdx = src.indexOf('<CreaseV2DebugPanel data={debugCreaseV2} />');
+  const mountIdx = src.indexOf('<CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} />');
   assert.ok(mountIdx !== -1, 'expected CreaseV2DebugPanel mount point not found');
   const before = src.slice(Math.max(0, mountIdx - 200), mountIdx);
   assert.ok(/debugAvailable/.test(before), 'CreaseV2DebugPanel mount is not visibly guarded by debugAvailable');

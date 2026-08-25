@@ -131,11 +131,19 @@ test('G. classifyFeatures never produces an eyelidType value the mapper doesn\'t
   assert.deepStrictEqual(uniqueAssigned.sort(), ['hooded', 'monolid', 'openCrease', 'uncertain'].sort(),
     'classifyFeatures\' eyelidType decision tree must only ever assign one of the 4 values the mapper/translations/ReviewScreen dropdown all recognize');
 });
-test('G2. result.eyeProfile is assigned directly from classifyFeatures\' own return value at both write sites, no intermediate transform/default object', () => {
-  const liveIdx = src.indexOf("source: 'live', eyeProfile: classified,");
+test('G2. result.eyeProfile is assigned from classifyFeatures\' own return value at both write sites (LiveScanScreen additionally passes it through the audited reliable-frame consensus, PhotoAnalysisScreen unchanged)', () => {
+  // LiveScanScreen: finalProfile = applyReliableFrameConsensus(classified, ...)
+  // — an intentional, tested override layer (see tests/eyelid-final-consensus.test.js),
+  // not an untracked default/fallback object. classified itself still comes
+  // straight from classifyFeatures.
+  const classifiedIdx = src.indexOf('const classified = classifyFeatures(aggregated, { singleFrame: false, stability, imageQuality });');
+  const finalProfileIdx = src.indexOf('const finalProfile = applyReliableFrameConsensus(classified, eyelidConsensus);');
+  const liveIdx = src.indexOf("source: 'live', eyeProfile: finalProfile,");
   const photoIdx = src.indexOf("source: 'photo', eyeProfile: classified,");
-  assert.ok(liveIdx !== -1, 'expected LiveScanScreen\'s rec.eyeProfile = classified assignment');
-  assert.ok(photoIdx !== -1, 'expected PhotoAnalysisScreen\'s rec.eyeProfile = classified assignment');
+  assert.ok(classifiedIdx !== -1, 'expected the real classifyFeatures(aggregated, ...) call in LiveScanScreen');
+  assert.ok(finalProfileIdx !== -1, 'expected finalProfile to be derived from applyReliableFrameConsensus(classified, ...)');
+  assert.ok(liveIdx !== -1, 'expected LiveScanScreen\'s rec.eyeProfile = finalProfile assignment');
+  assert.ok(photoIdx !== -1, 'expected PhotoAnalysisScreen\'s rec.eyeProfile = classified assignment (single-photo path, no temporal buffer, consensus does not apply)');
 });
 test('G3. ReviewScreen seeds its editable eyelidType field from the real AI result, and the confirmed profile keeps it unless the artist changes it', () => {
   const rsStart = src.indexOf('function ReviewScreen(');

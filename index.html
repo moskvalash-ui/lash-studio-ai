@@ -1837,6 +1837,126 @@
     }
 
     // ============================================================
+    // RELIABLE-FRAME EYELID-TYPE CONSENSUS — production integration.
+    // ------------------------------------------------------------
+    // Real-iPhone frame trace evidence (productionEyelidTrace) proved
+    // detectEyelidCrease V1 sometimes locks onto its search-band
+    // boundary instead of the true crease on a subset of accepted
+    // frames within one scan — those frames read prominence=0/
+    // creaseYFrac=1 (the same boundary artifact documented at
+    // detectEyelidCrease's own call sites) and correctly resolve to
+    // eyelidType='uncertain' when classified individually. The
+    // PREVIOUS finalization path fed classifyFeatures a single
+    // field-median aggregate across the WHOLE buffer (still exactly
+    // as before, unchanged, still computed the same way) — this layer
+    // adds a SEPARATE, ADDITIONAL cross-check: classify each accepted
+    // frame INDIVIDUALLY (same aggregateBuffer([frame]) +
+    // singleFrame:true pattern already used throughout this project's
+    // debug tooling), and require the frame-level reliable votes to
+    // actually support the final type before trusting it.
+    //
+    // "Reliable" is not a new concept or a new threshold — a frame's
+    // OWN per-frame eyelidType is already 'uncertain' whenever
+    // classifyFeatures' existing readable/fold/absence/bilateral-
+    // agreement/geometry-agreement gates were not satisfied FOR THAT
+    // FRAME (same exact gates, same exact constants, already proven
+    // and unmodified). A frame's vote counts only when its own
+    // eyelidType is NOT 'uncertain'.
+    //
+    // Consensus rule — STRICT MAJORITY over ALL accepted production
+    // frames (not just among the reliable ones). Deliberately
+    // introduces NO calibrated numeric threshold: "> half" is the
+    // parameter-free mathematical definition of majority, not a tuned
+    // confidence percentage — there is no 60%/70%/3-of-5 anywhere here.
+    //   - unreliable/uncertain frames cast NO anatomical type vote,
+    //     but they DO still count toward totalAcceptedFrames (the
+    //     denominator) — they cannot be silently excluded from the
+    //     count, only from casting a vote.
+    //   - a candidate type X wins only if
+    //     supportCount(X) > totalAcceptedFrames / 2
+    //   - if no type reaches strict majority (including the case of a
+    //     small number of reliable votes swamped by unreliable/
+    //     boundary frames, or genuinely conflicting reliable types
+    //     that individually fall short) -> uncertain.
+    //   - a single spurious "reliable-looking" frame can therefore
+    //     never dominate a scan on its own — it would need to be a
+    //     strict majority of ALL accepted frames, not just agree with
+    //     itself.
+    // An unreliable/boundary-artifact frame can still never vote
+    // monolid (or anything else) — it has no vote to cast in the first
+    // place, only a seat in the denominator.
+    // ============================================================
+
+    // Pure. One frame's real per-frame classifyFeatures result — the
+    // SAME technique already used by the debug frame trace
+    // (buildEyelidFrameTrace) and the debug "CURRENT TYPE" preview,
+    // reused here for production, not duplicated as a new heuristic.
+    function classifyFrameForConsensus(frameEntry) {
+      const singleAggregated = aggregateBuffer([frameEntry]);
+      return classifyFeatures(singleAggregated, { singleFrame: true, stability: null, imageQuality: frameEntry.qualityScore });
+    }
+
+    // Pure. buffer is the same array already accepted into
+    // bufferRef.current — no separate/parallel frame list.
+    function resolveReliableFrameConsensus(buffer) {
+      const frameResults = buffer.map(classifyFrameForConsensus);
+      const totalCount = buffer.length;
+      const reliable = frameResults.filter(r => r.eyelidType !== 'uncertain');
+      const supportCounts = {};
+      for (const r of reliable) supportCounts[r.eyelidType] = (supportCounts[r.eyelidType] || 0) + 1;
+      const candidateTypes = Object.keys(supportCounts);
+      // "> half of ALL accepted frames" — the plain mathematical
+      // definition of strict majority, evaluated against totalCount
+      // (which includes the unreliable frames), not against
+      // reliable.length.
+      const majorityType = candidateTypes.find(t => supportCounts[t] > totalCount / 2);
+      if (majorityType) {
+        const representative = reliable.find(r => r.eyelidType === majorityType);
+        return { type: majorityType, reliableCount: supportCounts[majorityType], totalCount, conflict: false, representative, supportCounts };
+      }
+      // No type reached strict majority. Distinguish "genuinely
+      // conflicting reliable types" (>1 distinct non-uncertain type
+      // present, matching classifyFeatures' own conflict semantics)
+      // from "insufficient support" (zero or one type present, just
+      // not enough of it) purely for the eyelidSignalsConflict flag.
+      const conflict = candidateTypes.length > 1;
+      return { type: 'uncertain', reliableCount: reliable.length, totalCount, conflict, representative: null, supportCounts };
+    }
+
+    // Pure. Applies the consensus verdict onto the real aggregate-based
+    // `classified` result, overriding ONLY the six fields proven
+    // semantically coupled to eyelidType inside classifyFeatures
+    // itself (eyelidType, eyelidTypeConfidence, eyelidSignalsConflict,
+    // isHooded, hoodedConfidence, hoodingLevel — see that function's
+    // own eyelidType-override block). When overriding TO a confident
+    // type, all six values are taken verbatim from one real
+    // representative frame's own already-internally-consistent
+    // classifyFeatures result (never hand re-derived). When overriding
+    // TO uncertain, isHooded/hoodedConfidence/hoodingLevel are
+    // recomputed from the UNCHANGED geometry-only Signal B
+    // (classified.eyelidCategory/eyelidCategoryConfidence) using the
+    // exact same baseline formula classifyFeatures itself already uses
+    // before its own eyelidType-override block (drift-tested). Eye
+    // Geometry (eyelidCategory/eyelidCategoryConfidence) and every
+    // other field on `classified` are returned completely untouched.
+    function applyReliableFrameConsensus(classified, consensus) {
+      if (consensus.type === classified.eyelidType) return classified;
+      if (consensus.type === 'uncertain') {
+        const isHooded = classified.eyelidCategory === 'pronounced' || classified.eyelidCategory === 'moderate';
+        const hoodedConfidenceBaseline = classified.eyelidCategory === 'uncertain' ? 0.25 : classified.eyelidCategoryConfidence;
+        const hoodedConfidence = Math.min(hoodedConfidenceBaseline, 0.25);
+        const hoodingLevel = classified.eyelidCategory === 'pronounced' ? 'full' : classified.eyelidCategory === 'moderate' ? 'partial' : 'none';
+        return { ...classified, eyelidType: 'uncertain', eyelidSignalsConflict: consensus.conflict, isHooded, hoodedConfidence, hoodingLevel };
+      }
+      const r = consensus.representative;
+      return {
+        ...classified,
+        eyelidType: r.eyelidType, eyelidTypeConfidence: r.eyelidTypeConfidence, eyelidSignalsConflict: r.eyelidSignalsConflict,
+        isHooded: r.isHooded, hoodedConfidence: r.hoodedConfidence, hoodingLevel: r.hoodingLevel,
+      };
+    }
+
+    // ============================================================
     // NATURAL LASH SCAN — analysis module.
     // ------------------------------------------------------------
     // This stack has no trained per-lash detection model (face-api's
@@ -3853,11 +3973,18 @@
       };
     }
 
-    function CreaseV2DebugPanel({ data, compare, frameTrace }) {
+    function CreaseV2DebugPanel({ data, compare, frameTrace, frameTraceRef }) {
       const [copied, setCopied] = useState(false);
       const copy = () => {
         try {
-          const payload = JSON.stringify(buildCreaseV2CopyPayload(data, compare, frameTrace), null, 2);
+          // Reads frameTraceRef.current (always the freshest value,
+          // updated synchronously at the exact point production
+          // computes it) rather than the frameTrace prop — the prop is
+          // still used for the live-rendered numbers below, but the
+          // Copy action itself must never depend on whether React has
+          // already committed/painted the latest render by click time.
+          const latestFrameTrace = frameTraceRef ? frameTraceRef.current : frameTrace;
+          const payload = JSON.stringify(buildCreaseV2CopyPayload(data, compare, latestFrameTrace), null, 2);
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(payload).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
           }
@@ -4007,6 +4134,15 @@
       // (state, declared above) is a published SNAPSHOT of this ref,
       // refreshed every accepted tick, purely so the debug UI re-renders.
       const frameTraceRef = useRef([]);
+      // Source-of-truth snapshot for the Copy button specifically —
+      // debugFrameTrace (state) is what the live UI numbers render
+      // from, but the Copy button reads THIS ref at click time instead
+      // of the state prop, so it can never copy a stale pre-
+      // finalization value regardless of React's render/commit timing
+      // (a real observed bug: Copy sometimes captured aggregate/
+      // finalClassified/finalRecType as still-null even after
+      // finalization had already computed them).
+      const debugFrameTraceSnapshotRef = useRef({ frames: [], counts: summarizeFrameTrace([]), aggregate: null, finalClassified: null, finalRecType: null });
       const bestFrameRef = useRef(null);
       const totalFramesRef = useRef(0);
       const doneRef = useRef(false);
@@ -4272,7 +4408,8 @@
           if (debugAvailable) {
             const trace = buildEyelidFrameTrace(frameTraceRef.current.length, frameEntry, brightness, sharpness);
             frameTraceRef.current = frameTraceRef.current.concat([trace]);
-            setDebugFrameTrace({ frames: frameTraceRef.current, counts: summarizeFrameTrace(frameTraceRef.current), aggregate: null, finalClassified: null, finalRecType: null });
+            debugFrameTraceSnapshotRef.current = { frames: frameTraceRef.current, counts: summarizeFrameTrace(frameTraceRef.current), aggregate: null, finalClassified: null, finalRecType: null };
+            setDebugFrameTrace(debugFrameTraceSnapshotRef.current);
           }
 
           if (!bestFrameRef.current || qualityScore > bestFrameRef.current.qualityScore) {
@@ -4331,33 +4468,49 @@
           const classified = classifyFeatures(aggregated, { singleFrame: false, stability, imageQuality });
           console.log('[LSA] ANALYSIS CONFIDENCE', classified.overallConfidence.toFixed(3));
 
+          // RELIABLE-FRAME EYELID-TYPE CONSENSUS — real production
+          // integration (see the module comment above
+          // resolveReliableFrameConsensus/applyReliableFrameConsensus,
+          // right after classifyFeatures). Cross-checks the aggregate-
+          // based `classified` above against each accepted frame's own
+          // per-frame reliability — only overrides eyelidType and its
+          // five coupled fields; every other field on `classified`
+          // (including all Eye Geometry) passes through unchanged.
+          const eyelidConsensus = resolveReliableFrameConsensus(bufferRef.current);
+          const finalProfile = applyReliableFrameConsensus(classified, eyelidConsensus);
+          console.log('[LSA] EYELID CONSENSUS', eyelidConsensus.type, `(${eyelidConsensus.reliableCount}/${eyelidConsensus.totalCount} reliable, conflict=${eyelidConsensus.conflict})`, 'aggregate said', classified.eyelidType);
+
           // REAL EYELID FRAME TRACE — DEBUG-ONLY final snapshot. Pure
           // capture of the values JUST computed above (aggregated,
-          // classified) plus the accumulated per-frame trace — read-only,
-          // does not alter aggregated/classified/rec in any way. This is
-          // literally the SAME `classified` object that becomes
-          // rec.eyeProfile a few lines below, and the SAME `aggregated`
-          // object passed into the real classifyFeatures call above.
+          // finalProfile) plus the accumulated per-frame trace — read-
+          // only, does not alter aggregated/finalProfile/rec in any
+          // way. finalProfile is literally the SAME object that becomes
+          // rec.eyeProfile a few lines below (post-consensus, i.e. the
+          // ACTUAL final production result, not the pre-consensus
+          // aggregate) — read via the ref first so the Copy button can
+          // never see a stale pre-finalization value regardless of
+          // React's render/commit timing.
           if (debugAvailable) {
-            setDebugFrameTrace(prev => ({
-              ...prev, frames: frameTraceRef.current, counts: summarizeFrameTrace(frameTraceRef.current),
-              aggregate: aggregated, finalClassified: classified, finalRecType: classified.eyelidType,
-            }));
+            debugFrameTraceSnapshotRef.current = {
+              frames: frameTraceRef.current, counts: summarizeFrameTrace(frameTraceRef.current),
+              aggregate: aggregated, finalClassified: finalProfile, finalRecType: finalProfile.eyelidType,
+            };
+            setDebugFrameTrace(debugFrameTraceSnapshotRef.current);
           }
           const best = bestFrameRef.current;
           const iris = combineIris(best.leftIris, best.rightIris);
-          const designs = rankDesigns(classified, langRef.current);
+          const designs = rankDesigns(finalProfile, langRef.current);
           console.log('[LSA] DESIGNS RANKED', designs.map(d => d.name + ' ' + d.score + '%').join(', '));
 
           const rec = {
-            source: 'live', eyeProfile: classified, iris, designs,
+            source: 'live', eyeProfile: finalProfile, iris, designs,
             originalImage: best.dataURL, landmarks: best.landmarks,
             imageWidth: best.width, imageHeight: best.height,
-            confidence: classified.overallConfidence,
+            confidence: finalProfile.overallConfidence,
           };
           rec.diagnostics = {
             framesAnalyzed: totalFramesRef.current, stableFrames: count,
-            measurementVariance: stability.variance, analysisConfidence: classified.overallConfidence,
+            measurementVariance: stability.variance, analysisConfidence: finalProfile.overallConfidence,
             headPose: aggregated.headPose, leftEyeMetrics: aggregated.left, rightEyeMetrics: aggregated.right,
             iris, topDesigns: designs.slice(0,3).map(d => ({ name: d.name, score: d.score })),
           };
@@ -4381,7 +4534,8 @@
         // bufferRef itself on every mount/camera-restart, so a new scan
         // never inherits a previous scan's trace.
         frameTraceRef.current = [];
-        setDebugFrameTrace({ frames: [], counts: summarizeFrameTrace([]), aggregate: null, finalClassified: null, finalRecType: null });
+        debugFrameTraceSnapshotRef.current = { frames: [], counts: summarizeFrameTrace([]), aggregate: null, finalClassified: null, finalRecType: null };
+        setDebugFrameTrace(debugFrameTraceSnapshotRef.current);
         bestFrameRef.current = null;
         totalFramesRef.current = 0;
         hadFaceRef.current = false;
@@ -4624,7 +4778,7 @@
                 the experimental V2 candidate geometry; nothing here
                 influences classification. Remove together with V2 once
                 real-device validation is complete. */}
-            {debugAvailable && debugCreaseV2 && <CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} frameTrace={debugFrameTrace} />}
+            {debugAvailable && debugCreaseV2 && <CreaseV2DebugPanel data={debugCreaseV2} compare={debugEyelidCompare} frameTrace={debugFrameTrace} frameTraceRef={debugFrameTraceSnapshotRef} />}
           </div>
           <div className="p-6 flex flex-col items-center gap-3 bg-bg">
             <div className="w-full flex justify-end -mt-1">

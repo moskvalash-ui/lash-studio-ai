@@ -194,28 +194,32 @@ test('G. the aggregate stored in the payload is literally the real aggregateBuff
 });
 
 // ================================================================
-// H. finalClassified equals the real production classifyFeatures output
+// H. finalClassified equals the real production final result — now
+// finalProfile (post reliable-frame-consensus), the ACTUAL value that
+// becomes rec.eyeProfile, not the pre-consensus aggregate `classified`.
 // ================================================================
-test('H. finalClassified would be literally the real classifyFeatures(aggregated, ...) result', () => {
+test('H. finalClassified is literally finalProfile (post-consensus), the same object that becomes rec.eyeProfile', () => {
   const frames = [frameEntry({ left: OPEN_CLEAN, right: OPEN_CLEAN }), frameEntry({ left: OPEN_CLEAN, right: OPEN_CLEAN })];
   const aggregated = aggregateBuffer(frames);
   const classified = classifyFeatures(aggregated, { singleFrame: false, stability: { stable: true }, imageQuality: 0.75 });
   assert.strictEqual(classified.eyelidType, 'openCrease');
   // Source-guard: confirm the real call site literally assigns
-  // aggregated/classified (not a copy) into the debug snapshot state.
-  const callIdx = src.indexOf('setDebugFrameTrace(prev => ({\n              ...prev, frames: frameTraceRef.current, counts: summarizeFrameTrace(frameTraceRef.current),\n              aggregate: aggregated, finalClassified: classified, finalRecType: classified.eyelidType,');
-  assert.ok(callIdx !== -1, 'expected the finalization snapshot to assign the real aggregated/classified variables verbatim');
+  // aggregated/finalProfile (not a copy) into the debug snapshot state.
+  const callIdx = src.indexOf('debugFrameTraceSnapshotRef.current = {\n              frames: frameTraceRef.current, counts: summarizeFrameTrace(frameTraceRef.current),\n              aggregate: aggregated, finalClassified: finalProfile, finalRecType: finalProfile.eyelidType,');
+  assert.ok(callIdx !== -1, 'expected the finalization snapshot to assign the real aggregated/finalProfile variables verbatim');
 });
 
 // ================================================================
 // I. finalRecType equals rec.eyeProfile.eyelidType
 // ================================================================
-test('I. finalRecType is set from classified.eyelidType, the exact same value that becomes rec.eyeProfile.eyelidType', () => {
-  const snapshotIdx = src.indexOf('finalRecType: classified.eyelidType,');
-  const recIdx = src.indexOf("source: 'live', eyeProfile: classified,");
-  assert.ok(snapshotIdx !== -1, 'finalRecType must be derived from classified.eyelidType');
-  assert.ok(recIdx !== -1, 'rec.eyeProfile must be assigned the same classified object');
-  assert.ok(snapshotIdx < recIdx, 'the snapshot capture must happen using the same classified object before rec is built, proving no intervening transform');
+test('I. finalRecType is set from finalProfile.eyelidType, the exact same value that becomes rec.eyeProfile.eyelidType', () => {
+  const finalProfileIdx = src.indexOf('const finalProfile = applyReliableFrameConsensus(classified, eyelidConsensus);');
+  const snapshotIdx = src.indexOf('finalRecType: finalProfile.eyelidType,');
+  const recIdx = src.indexOf("source: 'live', eyeProfile: finalProfile,");
+  assert.ok(finalProfileIdx !== -1, 'expected finalProfile to be derived from applyReliableFrameConsensus');
+  assert.ok(snapshotIdx !== -1, 'finalRecType must be derived from finalProfile.eyelidType');
+  assert.ok(recIdx !== -1, 'rec.eyeProfile must be assigned the same finalProfile object');
+  assert.ok(finalProfileIdx < snapshotIdx && snapshotIdx < recIdx, 'the snapshot capture must happen using the same finalProfile object, computed before it, and before rec is built');
 });
 
 // ================================================================

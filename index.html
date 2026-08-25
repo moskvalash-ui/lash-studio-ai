@@ -1757,17 +1757,41 @@
       hazel: {ru:'Ореховые (hazel)', en:'Hazel'}, amber: {ru:'Янтарные', en:'Amber'},
       green: {ru:'Зелёные', en:'Green'}, blue: {ru:'Голубые', en:'Blue'},
       gray: {ru:'Серые', en:'Gray'}, mixed: {ru:'Смешанный оттенок', en:'Mixed'},
+      uncertain: {ru:'Требует уточнения', en:'Needs clearer capture'},
     };
+    // Low lightness (<0.35) is colorimetrically ambiguous BY ITSELF: a
+    // genuinely dark/brown iris and an underexposed light (blue/green/gray)
+    // iris can both produce a dim reading. The two call sites below used to
+    // return 'brown' unconditionally for anything this dim, regardless of
+    // hue -- proven (real-capture regression fixture + full-hue-sweep test,
+    // see tests/iris-color-audit.test.js) to force EVERY hue, including
+    // pure blue/green, into 'brown' whenever l<0.32/0.35, which is why a
+    // visually light iris photographed under typical (non-ideal) lighting
+    // read brown at ~34% confidence in production.
+    //
+    // This routes by hue instead, using the SAME hue windows already
+    // established below for hazel/amber/green/blue, but reuses production's
+    // own existing s<0.15 "achromatic" bar (already used by the 'gray' rule
+    // two lines down) to decide whether hue is trustworthy enough to route
+    // on at all. Below that bar there is no additional evidence anywhere in
+    // this pipeline to resolve dark-brown vs. underexposed-light -- so this
+    // reports 'uncertain' rather than guessing either way.
+    function classifyLowLightAmbiguous(h, s) {
+      if (s < 0.15) return 'uncertain';
+      if (h >= 70 && h <= 170) return 'green';
+      if (h > 170 && h <= 250) return 'blue';
+      return 'brown'; // remaining warm (red/orange/brown) window, wrapping through 0deg: (250,360] U [0,70)
+    }
     function classifyIrisColor(r,g,b) {
       const { h, s, l } = rgbToHsl(r,g,b);
       if (l < 0.16) return 'dark';
-      if (l < 0.32 && s < 0.35) return 'brown';
+      if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);
       if (h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55) return 'hazel';
       if (h >= 40 && h <= 70 && s > 0.15 && l >= 0.35) return 'amber';
       if (h >= 70 && h <= 170 && s > 0.15) return 'green';
       if (h >= 180 && h <= 250 && s > 0.12) return 'blue';
       if (s < 0.15 && l >= 0.35 && l < 0.7) return 'gray';
-      if (l < 0.35) return 'brown';
+      if (l < 0.35) return classifyLowLightAmbiguous(h, s);
       return 'mixed';
     }
 
@@ -1809,15 +1833,24 @@
     // path instead of inventing scores that don't exist.
     function debugIrisClassifyWithTrace(r, g, b) {
       const { h, s, l } = rgbToHsl(r, g, b);
+      const lowLight1 = l < 0.32 && s < 0.35; // same trigger box as production's first low-light gate
+      const lowLight2 = !lowLight1 && !(h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55) && !(h >= 40 && h <= 70 && s > 0.15 && l >= 0.35)
+        && !(h >= 70 && h <= 170 && s > 0.15) && !(h >= 180 && h <= 250 && s > 0.12) && !(s < 0.15 && l >= 0.35 && l < 0.7) && l < 0.35; // same trigger box as production's fallback low-light gate
       const rules = [
         { rule: 'l<0.16 -> dark', category: 'dark', passed: l < 0.16 },
-        { rule: 'l<0.32 && s<0.35 -> brown', category: 'brown', passed: l < 0.32 && s < 0.35 },
+        { rule: 'l<0.32 && s<0.35 && s<0.15 -> uncertain (low light, hue unreliable)', category: 'uncertain', passed: lowLight1 && s < 0.15 },
+        { rule: 'l<0.32 && s<0.35 && s>=0.15 && h in [70,170] -> green (low light, reliable hue)', category: 'green', passed: lowLight1 && s >= 0.15 && h >= 70 && h <= 170 },
+        { rule: 'l<0.32 && s<0.35 && s>=0.15 && h in (170,250] -> blue (low light, reliable hue)', category: 'blue', passed: lowLight1 && s >= 0.15 && h > 170 && h <= 250 },
+        { rule: 'l<0.32 && s<0.35 && s>=0.15 && h in (250,360]U[0,70) -> brown (low light, reliable warm hue)', category: 'brown', passed: lowLight1 && s >= 0.15 && (h > 250 || h < 70) },
         { rule: 'h in [20,45] && s>0.25 && l in [0.25,0.55) -> hazel', category: 'hazel', passed: h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55 },
         { rule: 'h in [40,70] && s>0.15 && l>=0.35 -> amber', category: 'amber', passed: h >= 40 && h <= 70 && s > 0.15 && l >= 0.35 },
         { rule: 'h in [70,170] && s>0.15 -> green', category: 'green', passed: h >= 70 && h <= 170 && s > 0.15 },
         { rule: 'h in [180,250] && s>0.12 -> blue', category: 'blue', passed: h >= 180 && h <= 250 && s > 0.12 },
         { rule: 's<0.15 && l in [0.35,0.7) -> gray', category: 'gray', passed: s < 0.15 && l >= 0.35 && l < 0.7 },
-        { rule: 'l<0.35 -> brown', category: 'brown', passed: l < 0.35 },
+        { rule: 'l<0.35 && s<0.15 -> uncertain (low light fallback, hue unreliable)', category: 'uncertain', passed: lowLight2 && s < 0.15 },
+        { rule: 'l<0.35 && s>=0.15 && h in [70,170] -> green (low light fallback, reliable hue)', category: 'green', passed: lowLight2 && s >= 0.15 && h >= 70 && h <= 170 },
+        { rule: 'l<0.35 && s>=0.15 && h in (170,250] -> blue (low light fallback, reliable hue)', category: 'blue', passed: lowLight2 && s >= 0.15 && h > 170 && h <= 250 },
+        { rule: 'l<0.35 && s>=0.15 && h in (250,360]U[0,70) -> brown (low light fallback, reliable warm hue)', category: 'brown', passed: lowLight2 && s >= 0.15 && (h > 250 || h < 70) },
       ];
       let matchedRule = null;
       for (const r2 of rules) { if (r2.passed) { matchedRule = r2.rule; break; } }
@@ -1834,6 +1867,121 @@
     }
     function debugIrisMean(values) {
       return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+    }
+
+    // ------------------------------------------------------------
+    // NEW THIS TURN — forward-looking DEBUG-ONLY instrumentation for the
+    // NEXT real capture. None of these four helpers are called by
+    // sampleIrisColor/classifyIrisColor/combineIris and none of their
+    // output feeds back into production classification — they only add
+    // extra descriptive fields onto buildIrisColorAudit's (already
+    // debug-only, already gated) return object, to answer the specific
+    // "is this pixel population really the iris?" question a single real
+    // capture this turn could not fully resolve on its own.
+    // ------------------------------------------------------------
+
+    // Purely descriptive geometric summary of the pixels ALREADY tagged
+    // 'dark_pupil_or_lash' by the unmodified rejection rule above — does
+    // not change what gets rejected, just describes the shape of that
+    // rejected cluster relative to the ROI center. A compact, centered
+    // cluster reads like a genuine pupil; a cluster centroid offset far
+    // from the ROI center reads like lash/eyelid intrusion instead —
+    // useful to a human reviewer, never used to decide anything.
+    function debugIrisPupilCandidate(rejectedPixels, roi) {
+      const dark = rejectedPixels.filter(p => p.reason === 'dark_pupil_or_lash');
+      if (!dark.length) return { pixelCount: 0, centroid: null, centerOffset: null, spread: null };
+      const cxD = debugIrisMean(dark.map(p => p.x)), cyD = debugIrisMean(dark.map(p => p.y));
+      const spreadX = Math.sqrt(debugIrisMean(dark.map(p => (p.x - cxD) ** 2))) / roi.radius;
+      const spreadY = Math.sqrt(debugIrisMean(dark.map(p => (p.y - cyD) ** 2))) / roi.radius;
+      return {
+        pixelCount: dark.length,
+        centroid: { x: cxD, y: cyD },
+        // offset of the dark-cluster centroid from the ROI center, as a
+        // fraction of ROI radius (0 = perfectly centered, ~1 = at the edge)
+        centerOffset: { dx: (cxD - roi.cx) / roi.radius, dy: (cyD - roi.cy) / roi.radius },
+        spread: { x: spreadX, y: spreadY },
+      };
+    }
+
+    // Upper/lower halves of the ACCEPTED pixels actually used for
+    // classification — bakes in a repeatable version of the manual
+    // upper-vs-lower spatial check this turn's investigation used by hand,
+    // so every future capture gets it automatically without re-deriving it.
+    function debugIrisRegionStats(trimmed, roi) {
+      const upper = trimmed.filter(p => p.y - roi.cy < 0);
+      const lower = trimmed.filter(p => p.y - roi.cy >= 0);
+      const summarize = (arr) => {
+        if (!arr.length) return null;
+        const hsl = arr.map(p => rgbToHsl(p.r, p.g, p.b));
+        return {
+          pixelCount: arr.length,
+          meanRgb: { r: debugIrisMean(arr.map(p => p.r)), g: debugIrisMean(arr.map(p => p.g)), b: debugIrisMean(arr.map(p => p.b)) },
+          meanHsl: { h: debugIrisMean(hsl.map(v => v.h)), s: debugIrisMean(hsl.map(v => v.s)), l: debugIrisMean(hsl.map(v => v.l)) },
+        };
+      };
+      return { upper: summarize(upper), lower: summarize(lower) };
+    }
+
+    // Rough LOCAL reference color sampled from an annulus OUTSIDE the iris
+    // sampling disc (between 1.4x and 2.2x the iris ROI radius, same
+    // center) but still inside the eye-opening bounding box — i.e.
+    // eyelid/under-eye skin and/or sclera, whichever this specific
+    // geometry happens to catch. This is NOT the iris and is never used
+    // for classification; it exists purely so a human reviewer has
+    // something in-frame to compare the iris chromaticity against
+    // (e.g. "is the iris warmer than the skin right next to it, or is
+    // everything in this ROI equally warm"). Uses the same basic
+    // extreme-value exclusion as the real rejection rule (too dark / too
+    // bright+low-sat) so a stray eyelash or catchlight doesn't dominate it.
+    function debugIrisSurroundingRef(ctx, roi) {
+      try {
+        const rOuter = roi.radius * 2.2, rInner = roi.radius * 1.4;
+        const bx0 = Math.max(0, Math.round(roi.cx - rOuter)), by0 = Math.max(0, Math.round(roi.cy - rOuter));
+        const bw = Math.max(1, Math.round(rOuter * 2)), bh = Math.max(1, Math.round(rOuter * 2));
+        const bdata = ctx.getImageData(bx0, by0, bw, bh).data;
+        const samples = [];
+        for (let y = 0; y < bh; y++) {
+          for (let x = 0; x < bw; x++) {
+            const px = bx0 + x, py = by0 + y;
+            const dist = Math.sqrt((px - roi.cx) ** 2 + (py - roi.cy) ** 2);
+            if (dist < rInner || dist > rOuter) continue; // annulus only — excludes the iris disc itself
+            const idx = (y * bw + x) * 4;
+            const r = bdata[idx], g = bdata[idx + 1], b = bdata[idx + 2];
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            const lightness = (max + min) / 2;
+            const sat = max === min ? 0 : (lightness > 127 ? (max - min) / (510 - max - min) : (max - min) / (max + min));
+            if (lightness > 200 && sat < 0.25) continue; // specular
+            if (lightness < 25) continue; // shadow/lash
+            samples.push({ r, g, b });
+          }
+        }
+        if (samples.length < 6) return { pixelCount: samples.length, medianRgb: null, medianHsl: null };
+        const rMed = debugIrisMedian(samples.map(s => s.r)), gMed = debugIrisMedian(samples.map(s => s.g)), bMed = debugIrisMedian(samples.map(s => s.b));
+        return { pixelCount: samples.length, medianRgb: { r: rMed, g: gMed, b: bMed }, medianHsl: rgbToHsl(rMed, gMed, bMed) };
+      } catch (e) {
+        return { pixelCount: 0, medianRgb: null, medianHsl: null, error: 'out_of_bounds_or_unavailable' };
+      }
+    }
+
+    // Best-effort visual snapshot of the EXACT SAME pixel data already
+    // read for classification (no second sample, no re-read from the
+    // source frame) — lets a human actually SEE the sampled ROI next
+    // time, instead of only numeric stats. Browser-only: gracefully
+    // returns null wherever `document`/canvas isn't available (Node
+    // tests, or a WebGL/2D context that doesn't expose one), never
+    // throws into the caller.
+    function debugIrisRoiSnapshot(imageData, w, h) {
+      try {
+        if (typeof document === 'undefined' || !document.createElement) return null;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const snapCtx = canvas.getContext('2d');
+        if (!snapCtx || !snapCtx.putImageData) return null;
+        snapCtx.putImageData(new ImageData(new Uint8ClampedArray(imageData), w, h), 0, 0);
+        return { dataURL: canvas.toDataURL('image/png'), w, h };
+      } catch (e) {
+        return null;
+      }
     }
 
     // Per-eye audit. `ctx`/`eyePoints` are the SAME real arguments the
@@ -1859,6 +2007,7 @@
       const candidates = [];
       const stage1Accepted = [];
       const rejected = [];
+      const allScannedLightness = []; // EVERY in-circle pixel regardless of accept/reject — exposure indicator only, never fed to classification
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
           const dx = x - w / 2, dy = y - h / 2;
@@ -1869,6 +2018,7 @@
           const max = Math.max(r, g, b), min = Math.min(r, g, b);
           const lightness = (max + min) / 2;
           const sat = max === min ? 0 : (lightness > 127 ? (max - min) / (510 - max - min) : (max - min) / (max + min));
+          allScannedLightness.push(lightness);
           if (lightness > 200 && sat < 0.25) { rejected.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat, reason: 'bright_specular' }); continue; }
           if (lightness < 25) { rejected.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat, reason: 'dark_pupil_or_lash' }); continue; }
           stage1Accepted.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat });
@@ -1880,6 +2030,9 @@
           rejectedPixelCount: rejected.length + stage1Accepted.length, acceptedFraction: 0,
           rejectionSummary: debugIrisRejectionSummary(rejected, stage1Accepted.length, 'insufficient_stage1_samples'),
           rawColorStats: null, classifierInput: null, selectedCategory: null, confidence: 0,
+          exposure: { candidateMeanLightness: debugIrisMean(allScannedLightness), candidateMedianLightness: debugIrisMedian(allScannedLightness) },
+          pupilCandidate: debugIrisPupilCandidate(rejected, roi),
+          regionStats: null, surroundingRef: debugIrisSurroundingRef(ctx, roi), roiSnapshot: null,
         };
       }
       // Stage 2 — same distance-from-median trim (keep closest 80%,
@@ -1926,6 +2079,14 @@
         // small (ROI is a few hundred to ~1500px), never a full image.
         acceptedPixels: trimmed.map(s => ({ x: s.x, y: s.y, r: s.r, g: s.g, b: s.b })),
         rejectedPixels: rejected,
+        // NEW THIS TURN — see the four debugIris* helpers above for what
+        // each of these is and why; all purely descriptive, all debug-only,
+        // none read by classification.
+        exposure: { candidateMeanLightness: debugIrisMean(allScannedLightness), candidateMedianLightness: debugIrisMedian(allScannedLightness) },
+        pupilCandidate: debugIrisPupilCandidate(rejected, roi),
+        regionStats: debugIrisRegionStats(trimmed, roi),
+        surroundingRef: debugIrisSurroundingRef(ctx, roi),
+        roiSnapshot: debugIrisRoiSnapshot(data, w, h),
       };
     }
     function debugIrisRejectionSummary(rejected, extraCount, extraReason) {

@@ -4,23 +4,56 @@
 // Extracts the REAL, currently-shipped iris pipeline straight out of
 // index.html (same technique as every other test file in this
 // project — never a hand-duplicated copy): sampleIrisColor,
-// classifyIrisColor, combineIris, rgbToHsl, IRIS_NAMES (all frozen,
-// unmodified by this turn) plus the new debug-only instrumentation
-// (buildIrisColorAudit, buildIrisColorAuditCombined,
-// debugIrisClassifyWithTrace).
+// classifyIrisColor, combineIris, rgbToHsl, IRIS_NAMES, plus the
+// debug-only instrumentation (buildIrisColorAudit,
+// buildIrisColorAuditCombined, debugIrisClassifyWithTrace).
 //
-// Central finding this turn: classifyIrisColor's decision-tree ORDER
-// makes "brown" the fallback for ANY low-saturation iris (which is
-// exactly what a gray/blue/light eye looks like) whenever measured
-// lightness falls below ~0.32-0.35 — a real category-boundary
-// problem (Path B), not a sampling/enum/L-R/aggregation bug. Tests G/
-// O below demonstrate this NUMERICALLY using HSL values grounded in
-// well-documented iris colorimetry (low saturation is the defining
-// property of gray/blue/light eyes; NOT guessed from the reporter's
-// photo description) — they intentionally assert CURRENT (buggy)
-// behavior, never an invented "correct" label.
+// THIS TURN: a real iPhone failure capture with full iris debug JSON
+// became available (tests/fixtures/real-capture-2026-08-25.json —
+// the exact irisColorAudit the earlier synthetic-only audit below
+// could not obtain). Investigation (8 phases, see the deliverable)
+// against the REAL acceptedPixels arrays found:
 //
-// LOCAL ONLY. Not wired into any CI/deploy step this turn.
+//  - ROI/sampling (sampleIrisColor's own rejection rules) is UNCHANGED
+//    and NOT the primary cause: removing the one real, common,
+//    both-eyes spatial bias found (the upper portion of each ROI
+//    reads darker/more-saturated than the lower portion — consistent
+//    with eyelid-crease/lash shadow, see Phase 3/5) does not flip the
+//    result. sampleIrisColor is therefore left untouched.
+//  - Aggregation is NOT the cause either: median-RGB (production),
+//    mean-RGB, per-pixel scalar-mean HSL, and a proper circular-mean
+//    hue all agree on the same classification for both real eyes (see
+//    Phase 6 in the deliverable) — swapping aggregation strategy does
+//    not change the outcome, so aggregation was left untouched too.
+//  - The proven cause is classifyIrisColor's decision-tree ORDER: its
+//    first low-lightness gate (originally `l<0.32 && s<0.35 -> brown`)
+//    and its final fallback (originally `l<0.35 -> brown`) matched on
+//    lightness/saturation ALONE, with NO hue check — a full 0-360°
+//    hue sweep at the REAL captured lightness/saturation of both eyes
+//    (test 'REAL2' below) proves EVERY hue, including textbook blue
+//    and green, produced 'brown' under the old rule.
+//
+// THE FIX (Case C — classification only, applied this turn):
+// classifyIrisColor's two low-lightness gates now route by hue instead
+// of defaulting to brown unconditionally, via classifyLowLightAmbiguous
+// — reusing the SAME hue windows already used below for green/blue, and
+// reusing production's own pre-existing `s < 0.15` "achromatic" bar
+// (already how this same function defines 'gray' two lines below) to
+// decide whether hue is trustworthy enough to route on at all. Below
+// that bar (hue unreliable) it returns the new 'uncertain' category —
+// the SAME pattern this codebase already uses elsewhere for low-
+// confidence classification (see eyeShapeCategory / eyelidCategory
+// 'uncertain') — rather than guessing brown OR a light color.
+// sampleIrisColor and combineIris are UNCHANGED (frozen, verified by
+// test 'PROTECT-1' below); only classifyIrisColor + IRIS_NAMES + the
+// new classifyLowLightAmbiguous helper changed.
+//
+// Tests G1-G3 below (originally written against synthetic HSL values
+// because no real capture existed yet) now document the FIXED
+// behavior; the REAL-* tests use the actual real-capture fixture.
+//
+// LOCAL ONLY. Not wired into any CI/deploy step this turn. NOT
+// committed/pushed/deployed — pending explicit review.
 // ============================================================
 const assert = require('assert');
 const fs = require('fs');
@@ -54,13 +87,28 @@ const pipelineSource = src.slice(pipelineStart, pipelineEnd);
 const {
   sampleIrisColor, classifyIrisColor, combineIris, rgbToHsl, IRIS_NAMES,
   buildIrisColorAudit, buildIrisColorAuditCombined, debugIrisClassifyWithTrace,
-} = new Function(rgbToHexLine + '\n' + pipelineSource + '\nreturn { sampleIrisColor, classifyIrisColor, combineIris, rgbToHsl, IRIS_NAMES, buildIrisColorAudit, buildIrisColorAuditCombined, debugIrisClassifyWithTrace };')();
+  debugIrisPupilCandidate, debugIrisRegionStats, debugIrisSurroundingRef, debugIrisRoiSnapshot,
+} = new Function(rgbToHexLine + '\n' + pipelineSource + '\nreturn { sampleIrisColor, classifyIrisColor, combineIris, rgbToHsl, IRIS_NAMES, buildIrisColorAudit, buildIrisColorAuditCombined, debugIrisClassifyWithTrace, debugIrisPupilCandidate, debugIrisRegionStats, debugIrisSurroundingRef, debugIrisRoiSnapshot };')();
 
 test('setup: extracted real iris pipeline + debug instrumentation from index.html successfully', () => {
   assert.strictEqual(typeof sampleIrisColor, 'function');
   assert.strictEqual(typeof classifyIrisColor, 'function');
   assert.strictEqual(typeof combineIris, 'function');
   assert.strictEqual(typeof buildIrisColorAudit, 'function');
+});
+
+// ---- The REAL regression fixture: the exact irisColorAudit JSON from the
+// reported real iPhone failure (LEFT medianRgb 87/67/67, RIGHT medianRgb
+// 82/62/59, combined brown @ ~34%). Untouched/unreduced — full real
+// acceptedPixels/rejectedPixels arrays, not a synthetic RGB restatement. ----
+const REAL_FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'real-capture-2026-08-25.json'), 'utf8'));
+function median(arr) { const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; }
+
+test('setup3: real fixture file loaded and has the expected shape', () => {
+  assert.ok(REAL_FIXTURE.irisColorAudit && REAL_FIXTURE.irisColorAudit.left && REAL_FIXTURE.irisColorAudit.right);
+  assert.strictEqual(REAL_FIXTURE.irisColorAudit.left.acceptedPixels.length, 411, 'LEFT real acceptedPixels count must be preserved exactly');
+  assert.strictEqual(REAL_FIXTURE.irisColorAudit.right.acceptedPixels.length, 377, 'RIGHT real acceptedPixels count must be preserved exactly');
+  assert.strictEqual(REAL_FIXTURE.productionResult.irisColor, 'brown', 'sanity: this is the real documented false-brown capture');
 });
 
 // ---- Fake canvas 2D context over a synthetic solid-ish image, for
@@ -97,7 +145,7 @@ function solidCtx(r, g, b, noiseAmp) {
 // A/B. RU/EN label mapping
 // ================================================================
 test('A. RU labels exist for every possible classifyIrisColor output', () => {
-  const possible = ['dark', 'brown', 'hazel', 'amber', 'green', 'blue', 'gray', 'mixed'];
+  const possible = ['dark', 'brown', 'hazel', 'amber', 'green', 'blue', 'gray', 'mixed', 'uncertain'];
   for (const k of possible) {
     assert.ok(IRIS_NAMES[k], `IRIS_NAMES must have an entry for '${k}'`);
     assert.ok(typeof IRIS_NAMES[k].ru === 'string' && IRIS_NAMES[k].ru.length > 0, `IRIS_NAMES.${k}.ru must be a non-empty string`);
@@ -105,11 +153,16 @@ test('A. RU labels exist for every possible classifyIrisColor output', () => {
   assert.strictEqual(IRIS_NAMES.brown.ru, 'Карие', 'sanity: matches the exact observed real-photo output "Карие"');
 });
 test('B. EN labels exist for every possible classifyIrisColor output, and the key set matches exactly (no enum drift)', () => {
-  const possible = ['dark', 'brown', 'hazel', 'amber', 'green', 'blue', 'gray', 'mixed'];
+  const possible = ['dark', 'brown', 'hazel', 'amber', 'green', 'blue', 'gray', 'mixed', 'uncertain'];
   for (const k of possible) {
     assert.ok(typeof IRIS_NAMES[k].en === 'string' && IRIS_NAMES[k].en.length > 0, `IRIS_NAMES.${k}.en must be a non-empty string`);
   }
-  assert.deepStrictEqual(Object.keys(IRIS_NAMES).sort(), possible.sort(), 'IRIS_NAMES must have EXACTLY these 8 keys — no extra/missing entries that could cause an index/enum mismatch');
+  assert.deepStrictEqual(Object.keys(IRIS_NAMES).sort(), possible.sort(), 'IRIS_NAMES must have EXACTLY these 9 keys (8 original + this turn\'s new "uncertain") — no extra/missing entries that could cause an index/enum mismatch');
+});
+test('B2. every possible classifyIrisColor() return value has a matching IRIS_NAMES entry (sweep, not just the known 9)', () => {
+  const seen = new Set();
+  for (let r = 0; r <= 255; r += 5) for (let g = 0; g <= 255; g += 17) for (let b = 0; b <= 255; b += 23) seen.add(classifyIrisColor(r, g, b));
+  for (const name of seen) assert.ok(IRIS_NAMES[name], `classifyIrisColor returned '${name}' but IRIS_NAMES has no entry for it — would crash IRIS_NAMES[name].ru/.en at the real call sites`);
 });
 
 // ================================================================
@@ -184,42 +237,56 @@ test('F. pixels above the lightness-200/saturation-0.25 specular gate are reject
 });
 
 // ================================================================
-// G. light, low-saturation iris input — THE CENTRAL FINDING.
-// HSL values chosen from well-documented iris colorimetry (gray/blue/
-// light eyes are, by definition, low-saturation; phone-selfie irises
-// commonly read at moderate, not bright, lightness because the iris
-// sits partially shadowed under the upper lid) — NOT guessed from the
-// reporter's photo. This documents CURRENT (proven buggy) behavior;
-// it does NOT assert 'blue'/'gray' as the "correct" answer.
+// G. light, low-saturation iris input — THE CENTRAL FINDING, UPDATED
+// THIS TURN with the fix applied. G1/G3 originally asserted the
+// PROVEN-BUGGY old behavior (brown regardless of hue) because no real
+// capture existed yet to test a real fix against. Now that
+// classifyIrisColor has been corrected (see file header), these
+// assert the NEW, evidence-justified behavior instead. HSL values are
+// still chosen from well-documented iris colorimetry, not guessed
+// from any reporter's photo.
 // ================================================================
-test('G1. a low-saturation, moderately-lit iris (h~210, s~0.08, l~0.29 — textbook pale gray-blue) is misclassified brown by the REAL classifyIrisColor', () => {
+test('G1. a low-saturation, moderately-lit iris (h~210, s~0.08, l~0.29 — textbook pale gray-blue) now returns "uncertain", not a confidently-wrong "brown"', () => {
   const [r, g, b] = [68, 74, 80];
   const { h, s, l } = rgbToHsl(r, g, b);
   assert.ok(h >= 180 && h <= 250, 'sanity: hue is squarely in the blue window the classifier itself defines');
-  assert.ok(s < 0.15, 'sanity: saturation is well within what the classifier itself calls "gray" territory');
-  assert.ok(l < 0.32, 'sanity: lightness is below the classifier\'s own brown-gate ceiling');
-  assert.strictEqual(classifyIrisColor(r, g, b), 'brown', 'DOCUMENTED CURRENT BEHAVIOR: a blue-hued, low-saturation, moderately-lit color reads brown — this is the bug, not an assertion that it SHOULD read brown');
+  assert.ok(s < 0.15, 'sanity: saturation is below the reliable-hue bar this function now uses (same bar the gray rule already used)');
+  assert.ok(l < 0.32, 'sanity: lightness is below the low-light gate ceiling');
+  assert.strictEqual(classifyIrisColor(r, g, b), 'uncertain', 'FIXED BEHAVIOR: saturation this low gives no reliable hue signal, so the function now reports uncertainty instead of guessing brown');
 });
-test('G2. the SAME hue/saturation at higher lightness (l>=0.35) correctly reaches gray — proving the gray branch itself works, only its lightness floor is unreachable at typical capture lightness', () => {
+test('G1b. the SAME low lightness but with RELIABLE (>=0.15) saturation in the blue hue window now correctly returns "blue", not "brown"', () => {
+  const [r, g, b] = [60, 75, 95]; // h~214, s~0.23 (>=0.15 reliability bar), l~0.30 (<0.32)
+  const { h, s, l } = rgbToHsl(r, g, b);
+  assert.ok(h > 170 && h <= 250 && s >= 0.15 && l < 0.32, 'sanity: reliable blue hue at low lightness');
+  assert.strictEqual(classifyIrisColor(r, g, b), 'blue', 'FIXED BEHAVIOR: a real, measurable blue hue at low lightness is no longer forced into brown');
+});
+test('G1c. the SAME low lightness but with RELIABLE saturation in the green hue window now correctly returns "green"', () => {
+  const [r, g, b] = [60, 95, 70]; // h~137, s~0.23, l~0.30
+  const { h, s, l } = rgbToHsl(r, g, b);
+  assert.ok(h >= 70 && h <= 170 && s >= 0.15 && l < 0.32, 'sanity: reliable green hue at low lightness');
+  assert.strictEqual(classifyIrisColor(r, g, b), 'green', 'FIXED BEHAVIOR: a real, measurable green hue at low lightness is no longer forced into brown');
+});
+test('G2. the SAME hue/saturation at higher lightness (l>=0.35) correctly reaches gray — unaffected by this turn\'s fix (l>=0.35 zone was not touched)', () => {
   const [r, g, b] = [110, 120, 132]; // same ~h210 hue, same low saturation, l~0.47
   const { s, l } = rgbToHsl(r, g, b);
   assert.ok(s < 0.15 && l >= 0.35, 'sanity: this genuinely satisfies the gray branch\'s own stated conditions');
-  assert.strictEqual(classifyIrisColor(r, g, b), 'gray', 'confirms classifyIrisColor CAN reach gray — the bug is specifically that brown fires first at lower, more typical iris lightness');
+  assert.strictEqual(classifyIrisColor(r, g, b), 'gray', 'confirms the gray branch is unaffected by this turn\'s low-lightness fix');
 });
-test('G3. sweeping lightness at fixed low saturation/blue hue shows the exact boundary where brown stops and gray starts', () => {
-  // Same blue-ish hue (~h210) and low saturation throughout; only
-  // lightness varies. Documents the REAL decision boundary, not an
-  // invented one.
-  const sweep = [
-    { rgb: [50, 56, 62], expectAtLeastLightness: null },
-    { rgb: [68, 74, 80], expectAtLeastLightness: null },
-    { rgb: [90, 97, 104], expectAtLeastLightness: null },
-    { rgb: [110, 120, 132], expectAtLeastLightness: null },
-  ];
-  const results = sweep.map(c => ({ rgb: c.rgb, l: rgbToHsl(...c.rgb).l, category: classifyIrisColor(...c.rgb) }));
+test('G3. sweeping lightness at fixed low (unreliable) saturation/blue hue: uncertain throughout the low-light zone, THEN gray once lightness crosses 0.35 — no more false "brown" plateau', () => {
+  // Same blue-ish hue (~h210) and low (<0.15) saturation throughout; only
+  // lightness varies. Documents the NEW, fixed decision boundary.
+  const sweep = [[50, 56, 62], [68, 74, 80], [90, 97, 104], [110, 120, 132]];
+  const results = sweep.map(rgb => ({ rgb, l: rgbToHsl(...rgb).l, category: classifyIrisColor(...rgb) }));
   const firstGrayIdx = results.findIndex(r => r.category === 'gray');
-  assert.ok(firstGrayIdx > 0, 'the same hue/low-saturation color must read brown at lower lightness and only reach gray once lightness crosses a real, observable boundary — never gray at every lightness');
-  for (let i = 0; i < firstGrayIdx; i++) assert.strictEqual(results[i].category, 'brown', `expected brown below the observed gray boundary, got ${results[i].category} at l=${results[i].l}`);
+  assert.ok(firstGrayIdx > 0, 'must still read something other than gray below the gray branch\'s own l>=0.35 floor');
+  for (let i = 0; i < firstGrayIdx; i++) {
+    assert.strictEqual(results[i].category, 'uncertain', `expected uncertain (FIXED — no longer brown) below the gray boundary at unreliable saturation, got ${results[i].category} at l=${results[i].l}`);
+  }
+});
+test('G3b. sweeping lightness at fixed RELIABLE (>=0.15) saturation/blue hue reads "blue" continuously across the l=0.32/0.35 internal boundaries — no discontinuity into brown/gray at the seam', () => {
+  const sweep = [[58, 73, 93], [67, 84, 107], [76, 95, 121]]; // h~214, s~0.23 throughout; l ~0.30, ~0.34, ~0.39 -- straddles both internal gates
+  const results = sweep.map(rgb => ({ rgb, l: rgbToHsl(...rgb).l, category: classifyIrisColor(...rgb) }));
+  for (const r of results) assert.strictEqual(r.category, 'blue', `expected 'blue' continuously across the low-light/gray boundary, got ${r.category} at l=${r.l}`);
 });
 
 // ================================================================
@@ -232,6 +299,30 @@ test('H. a genuine dark-brown iris (h~25, s~0.26, l~0.19) still classifies brown
   const ctx = solidCtx(r, g, b, 4);
   const audit = buildIrisColorAudit(ctx, EYE_POINTS);
   assert.strictEqual(audit.selectedCategory, 'brown');
+});
+test('H2. CONTROL — a very dark, near-black genuine iris (l<0.16) still classifies dark, unaffected by this turn (l<0.16 branch untouched)', () => {
+  assert.strictEqual(classifyIrisColor(25, 18, 14), 'dark');
+});
+test('H3. CONTROL — a genuine medium-brown iris (h~24, s~0.27, l~0.31 — reliable warm hue, just under the 0.32 gate) still classifies brown', () => {
+  const [r, g, b] = [100, 75, 58];
+  const { h, s, l } = rgbToHsl(r, g, b);
+  assert.ok(s >= 0.15 && (h > 250 || h < 70) && l < 0.32, 'sanity: reliable warm hue, low lightness');
+  assert.strictEqual(classifyIrisColor(r, g, b), 'brown');
+});
+test('H4. CONTROL — hazel does not regress (this turn only touches the l<0.32/l<0.35 gates; hazel\'s own l>=0.25 branch is untouched)', () => {
+  assert.strictEqual(classifyIrisColor(150, 110, 60), 'hazel');
+});
+test('H5. CONTROL — green does not regress at its existing (well-lit) branch', () => {
+  assert.strictEqual(classifyIrisColor(90, 140, 100), 'green');
+});
+test('H6. CONTROL — blue does not regress at its existing (well-lit) branch', () => {
+  assert.strictEqual(classifyIrisColor(90, 120, 160), 'blue');
+});
+test('H7. CONTROL — gray does not regress at its existing (well-lit) branch', () => {
+  assert.strictEqual(classifyIrisColor(140, 140, 145), 'gray');
+});
+test('H8. CONTROL — amber does not regress at its existing (well-lit) branch', () => {
+  assert.strictEqual(classifyIrisColor(161, 153, 69), 'amber');
 });
 
 // ================================================================
@@ -372,14 +463,29 @@ test('N4. physical L/R normalization span is untouched by this turn', () => {
   const span = src.slice(start, end);
   assert.ok(!/[Ii]risColorAudit|debugIris/.test(span), 'physical L/R normalization must have zero coupling to the iris audit layer');
 });
-test('N5. sampleIrisColor/classifyIrisColor/combineIris source text is unmodified since the initial commit (same formulas the git-history audit found)', () => {
+test('N5. sampleIrisColor\'s ROI/rejection formulas are unmodified since the initial commit (ROI/sampling was investigated and proven NOT the cause this turn — see file header — so it was left untouched)', () => {
   const radiusLine = 'const radius = Math.max(3, Math.min(eyeW, eyeH * 2.4) * 0.22);';
   const brightRejectLine = 'if (lightness > 200 && sat < 0.25) continue;';
   const darkRejectLine = 'if (lightness < 25) continue;';
-  const brownGate = "if (l < 0.32 && s < 0.35) return 'brown';";
   const grayGate = "if (s < 0.15 && l >= 0.35 && l < 0.7) return 'gray';";
-  for (const line of [radiusLine, brightRejectLine, darkRejectLine, brownGate, grayGate]) {
+  for (const line of [radiusLine, brightRejectLine, darkRejectLine, grayGate]) {
     assert.ok(src.includes(line), `expected the real, unmodified production line to still be present verbatim: ${line}`);
+  }
+});
+test('N5b. classifyIrisColor WAS intentionally changed this turn (Case C fix) — the old, proven-buggy unconditional-brown gates are GONE...', () => {
+  const oldBrownGate = "if (l < 0.32 && s < 0.35) return 'brown';";
+  const oldFallbackGate = "if (l < 0.35) return 'brown';";
+  assert.ok(!src.includes(oldBrownGate), 'the old hue-blind low-lightness brown gate must no longer be present verbatim — it was replaced by classifyLowLightAmbiguous(h, s)');
+  assert.ok(!src.includes(oldFallbackGate), 'the old hue-blind low-lightness fallback must no longer be present verbatim — it was replaced by classifyLowLightAmbiguous(h, s)');
+});
+test('N5c. ...and replaced by the new hue-aware low-lightness routing, present verbatim exactly once each', () => {
+  const newGate1 = "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);";
+  const newGate2 = "if (l < 0.35) return classifyLowLightAmbiguous(h, s);";
+  const helperSig = 'function classifyLowLightAmbiguous(h, s) {';
+  for (const line of [newGate1, newGate2, helperSig]) {
+    const first = src.indexOf(line);
+    assert.ok(first !== -1, `expected the new production line to be present verbatim: ${line}`);
+    assert.strictEqual(src.indexOf(line, first + 1), -1, `expected exactly one occurrence of: ${line}`);
   }
 });
 
@@ -546,7 +652,7 @@ test('H. HeroScreen/CopyIrisDebugButton never call sampleIrisColor or classifyIr
 // I. sampleIrisColor/classifyIrisColor/combineIris unchanged (re-
 // confirmed this turn specifically, independent of test N5 above)
 // ================================================================
-test('I. sampleIrisColor/classifyIrisColor/combineIris span is byte-identical to the pre-turn committed HEAD', () => {
+test('I. sampleIrisColor itself is byte-identical to the pre-turn committed HEAD (ROI/sampling investigated and proven NOT the cause this turn, so left untouched)', () => {
   const { execSync } = require('child_process');
   const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
   function extractSpan(s, startMarker, endMarker) {
@@ -555,10 +661,38 @@ test('I. sampleIrisColor/classifyIrisColor/combineIris span is byte-identical to
     if (st === -1 || en === -1) return null;
     return s.slice(st, en);
   }
-  const cur = extractSpan(src, '    function sampleIrisColor(ctx, eyePoints) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
-  const prev = extractSpan(head, '    function sampleIrisColor(ctx, eyePoints) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
-  assert.ok(cur !== null && prev !== null, 'expected to locate the span in both current and HEAD source');
-  assert.strictEqual(cur, prev, 'sampleIrisColor..combineIris must be byte-identical to the pre-this-turn committed HEAD');
+  const cur = extractSpan(src, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
+  const prev = extractSpan(head, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
+  assert.ok(cur !== null && prev !== null, 'expected to locate the sampleIrisColor span in both current and HEAD source');
+  assert.strictEqual(cur, prev, 'sampleIrisColor must be byte-identical to the pre-this-turn committed HEAD');
+});
+test('I2. combineIris itself is byte-identical to the pre-turn committed HEAD (aggregation investigated and proven NOT the cause this turn, so left untouched)', () => {
+  const { execSync } = require('child_process');
+  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
+  function extractSpan(s, startMarker, endMarker) {
+    const st = s.indexOf(startMarker);
+    const en = s.indexOf(endMarker, st);
+    if (st === -1 || en === -1) return null;
+    return s.slice(st, en);
+  }
+  const cur = extractSpan(src, '    function combineIris(l, r) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
+  const prev = extractSpan(head, '    function combineIris(l, r) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
+  assert.ok(cur !== null && prev !== null, 'expected to locate the combineIris span in both current and HEAD source');
+  assert.strictEqual(cur, prev, 'combineIris must be byte-identical to the pre-this-turn committed HEAD');
+});
+test('I3. classifyIrisColor/IRIS_NAMES WAS intentionally changed relative to HEAD this turn (Case C fix — the span must now DIFFER, proving the fix is actually applied, not just documented)', () => {
+  const { execSync } = require('child_process');
+  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
+  function extractSpan(s, startMarker, endMarker) {
+    const st = s.indexOf(startMarker);
+    const en = s.indexOf(endMarker, st);
+    if (st === -1 || en === -1) return null;
+    return s.slice(st, en);
+  }
+  const cur = extractSpan(src, '    const IRIS_NAMES = {', '\n    function combineIris(l, r) {');
+  const prev = extractSpan(head, '    const IRIS_NAMES = {', '\n    function combineIris(l, r) {');
+  assert.ok(cur !== null && prev !== null, 'expected to locate the IRIS_NAMES..classifyIrisColor span in both current and HEAD source');
+  assert.notStrictEqual(cur, prev, 'classifyIrisColor/IRIS_NAMES must differ from pre-this-turn HEAD — this turn\'s fix is real, not just described');
 });
 
 // ================================================================
@@ -580,17 +714,245 @@ test('J. Hooding V2 Stage 1/2B core span is byte-identical to the pre-turn commi
 });
 
 // ================================================================
-// O. real regression fixture — NOT AVAILABLE this turn. No actual
-// pixel/RGB data from the reported real iPhone capture exists in this
-// repo or any debug trace. Per the task's own instruction ("if you do
-// not yet have enough information from the real capture... make the
-// debug JSON capture exactly what is needed and STOP"), this is
-// intentionally left undone here rather than fabricated. G1-G3 above
-// document the CURRENT boundary behavior using externally-grounded
-// (not photo-guessed) HSL values instead.
+// O/REAL. real regression fixture — NOW AVAILABLE (this turn).
+// tests/fixtures/real-capture-2026-08-25.json is the exact irisColorAudit
+// JSON from the reported real iPhone failure, untouched (full real
+// acceptedPixels/rejectedPixels arrays, not reduced to a synthetic RGB
+// restatement). REAL1-REAL9 below: (A/B) exercise the real LEFT/RIGHT
+// acceptedPixels fixtures directly, (C) reproduce the OLD (pre-this-
+// turn) pipeline's brown result from them, (D) show the CORRECTED
+// pipeline's result from the SAME real pixels, (M) determinism, (N)
+// no-fabricated-certainty, (O) debug-audit parity remains functional.
 // ================================================================
-test('O. explicit placeholder: no real-capture numeric fixture exists yet (documents why, does not fabricate one)', () => {
-  assert.ok(true, 'intentionally not asserting a specific real-photo RGB/HSL fixture — none is available; see deliverable Section 9/24 for the exact next iPhone capture procedure');
+const REAL_LEFT = REAL_FIXTURE.irisColorAudit.left;
+const REAL_RIGHT = REAL_FIXTURE.irisColorAudit.right;
+
+// A frozen, explicitly-labeled HISTORICAL SNAPSHOT of classifyIrisColor's
+// pre-this-turn logic (hand-copied from the pre-turn committed HEAD,
+// cross-checked against N5/I above which prove the live source no longer
+// contains these exact lines). Used ONLY to prove what the OLD pipeline
+// produced on the real fixture (test REAL3/REAL4) — never used to decide
+// anything about the NEW pipeline's correctness.
+function legacyClassifyIrisColor(r, g, b) {
+  const { h, s, l } = rgbToHsl(r, g, b);
+  if (l < 0.16) return 'dark';
+  if (l < 0.32 && s < 0.35) return 'brown';
+  if (h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55) return 'hazel';
+  if (h >= 40 && h <= 70 && s > 0.15 && l >= 0.35) return 'amber';
+  if (h >= 70 && h <= 170 && s > 0.15) return 'green';
+  if (h >= 180 && h <= 250 && s > 0.12) return 'blue';
+  if (s < 0.15 && l >= 0.35 && l < 0.7) return 'gray';
+  if (l < 0.35) return 'brown';
+  return 'mixed';
+}
+
+test('REAL-A. exact real LEFT acceptedPixels fixture: recomputing median RGB from the raw pixel array reproduces the recorded rawColorStats/classifierInput byte-for-byte', () => {
+  const px = REAL_LEFT.acceptedPixels;
+  assert.strictEqual(px.length, 411);
+  const rMed = median(px.map(p => p.r)), gMed = median(px.map(p => p.g)), bMed = median(px.map(p => p.b));
+  assert.strictEqual(rMed, REAL_LEFT.rawColorStats.medianRgb.r);
+  assert.strictEqual(gMed, REAL_LEFT.rawColorStats.medianRgb.g);
+  assert.strictEqual(bMed, REAL_LEFT.rawColorStats.medianRgb.b);
+  assert.strictEqual(rMed, REAL_LEFT.classifierInput.r);
+  assert.strictEqual(gMed, REAL_LEFT.classifierInput.g);
+  assert.strictEqual(bMed, REAL_LEFT.classifierInput.b);
+  const hsl = rgbToHsl(rMed, gMed, bMed);
+  assert.ok(Math.abs(hsl.l - REAL_LEFT.classifierInput.l) < 1e-9);
+  assert.ok(Math.abs(hsl.s - REAL_LEFT.classifierInput.s) < 1e-9);
+});
+test('REAL-B. exact real RIGHT acceptedPixels fixture: recomputing median RGB from the raw pixel array reproduces the recorded rawColorStats/classifierInput byte-for-byte', () => {
+  const px = REAL_RIGHT.acceptedPixels;
+  assert.strictEqual(px.length, 377);
+  const rMed = median(px.map(p => p.r)), gMed = median(px.map(p => p.g)), bMed = median(px.map(p => p.b));
+  assert.strictEqual(rMed, REAL_RIGHT.rawColorStats.medianRgb.r);
+  assert.strictEqual(gMed, REAL_RIGHT.rawColorStats.medianRgb.g);
+  assert.strictEqual(bMed, REAL_RIGHT.rawColorStats.medianRgb.b);
+  assert.strictEqual(rMed, REAL_RIGHT.classifierInput.r);
+  assert.strictEqual(gMed, REAL_RIGHT.classifierInput.g);
+  assert.strictEqual(bMed, REAL_RIGHT.classifierInput.b);
+});
+test('REAL-C. OLD pipeline reproduction: legacyClassifyIrisColor on the exact real median RGB for both eyes reproduces the documented false "brown" result', () => {
+  assert.strictEqual(legacyClassifyIrisColor(REAL_LEFT.classifierInput.r, REAL_LEFT.classifierInput.g, REAL_LEFT.classifierInput.b), 'brown');
+  assert.strictEqual(legacyClassifyIrisColor(REAL_RIGHT.classifierInput.r, REAL_RIGHT.classifierInput.g, REAL_RIGHT.classifierInput.b), 'brown');
+  assert.strictEqual(REAL_LEFT.selectedCategory, 'brown', 'sanity: matches what production actually recorded for this real capture');
+  assert.strictEqual(REAL_RIGHT.selectedCategory, 'brown');
+});
+test('REAL-C2. OLD pipeline generalization proof: a full 0-360deg hue sweep at the REAL captured lightness/saturation of BOTH eyes forces "brown" for every single hue under the legacy rule — this is why the bug is not subject-specific', () => {
+  function hslToRgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s, hp = h / 60, x = c * (1 - Math.abs(hp % 2 - 1));
+    let r1, g1, b1;
+    if (hp < 1) [r1, g1, b1] = [c, x, 0]; else if (hp < 2) [r1, g1, b1] = [x, c, 0]; else if (hp < 3) [r1, g1, b1] = [0, c, x];
+    else if (hp < 4) [r1, g1, b1] = [0, x, c]; else if (hp < 5) [r1, g1, b1] = [x, 0, c]; else [r1, g1, b1] = [c, 0, x];
+    const m = l - c / 2;
+    return [Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255)];
+  }
+  for (const eye of [REAL_LEFT, REAL_RIGHT]) {
+    for (let h = 0; h < 360; h += 15) {
+      const [r, g, b] = hslToRgb(h, eye.classifierInput.s, eye.classifierInput.l);
+      assert.strictEqual(legacyClassifyIrisColor(r, g, b), 'brown', `legacy rule must force 'brown' at h=${h} for this eye's real l/s — proving hue was never consulted`);
+    }
+  }
+});
+test('REAL-D. CORRECTED pipeline, SAME real pixels: LEFT (saturation below the reliable-hue bar) now returns "uncertain" instead of a confidently-wrong "brown"', () => {
+  const ci = REAL_LEFT.classifierInput;
+  assert.ok(ci.s < 0.15, 'sanity: this real eye\'s own captured saturation is genuinely below the reliability bar — not assumed');
+  assert.strictEqual(classifyIrisColor(ci.r, ci.g, ci.b), 'uncertain');
+});
+test('REAL-D2. CORRECTED pipeline, SAME real pixels: RIGHT (saturation above the reliable-hue bar, hue is warm) still returns "brown" — the fix does not invent a light color the real pixel evidence does not support', () => {
+  const ci = REAL_RIGHT.classifierInput;
+  assert.ok(ci.s >= 0.15 && (ci.h > 250 || ci.h < 70), 'sanity: this real eye\'s own captured hue/saturation genuinely support brown');
+  assert.strictEqual(classifyIrisColor(ci.r, ci.g, ci.b), 'brown');
+});
+test('REAL-D3. CORRECTED combined result: combineIris on the real LEFT/RIGHT rgb now reports "uncertain" (not a confidently-wrong "brown", and not a fabricated light color) — confidence heuristic itself is unchanged (0.3419847...), only the category changed', () => {
+  const l = { rgb: [REAL_LEFT.classifierInput.r, REAL_LEFT.classifierInput.g, REAL_LEFT.classifierInput.b], confidence: REAL_LEFT.confidence, hex: null, name: REAL_LEFT.selectedCategory };
+  const r = { rgb: [REAL_RIGHT.classifierInput.r, REAL_RIGHT.classifierInput.g, REAL_RIGHT.classifierInput.b], confidence: REAL_RIGHT.confidence, hex: null, name: REAL_RIGHT.selectedCategory };
+  const combined = combineIris(l, r);
+  assert.strictEqual(combined.name, 'uncertain');
+  assert.ok(Math.abs(combined.confidence - REAL_FIXTURE.irisColorAudit.combined.confidence) < 1e-9, 'confidence formula itself must be byte-identical to the recorded real confidence — this turn only changed the category decision, never the confidence heuristic');
+});
+test('REAL-E. spatial finding, real data: BOTH eyes independently show the same upper-ROI-darker-and-more-saturated / lower-ROI-lighter-and-less-saturated bias (consistent with eyelid-crease/lash shadow) — computed live from the real fixture, not hardcoded', () => {
+  for (const eye of [REAL_LEFT, REAL_RIGHT]) {
+    const cy = eye.roi.cy;
+    const upper = eye.acceptedPixels.filter(p => p.y - cy < 0);
+    const lower = eye.acceptedPixels.filter(p => p.y - cy >= 0);
+    const meanL = arr => arr.reduce((a, p) => a + rgbToHsl(p.r, p.g, p.b).l, 0) / arr.length;
+    const meanS = arr => arr.reduce((a, p) => a + rgbToHsl(p.r, p.g, p.b).s, 0) / arr.length;
+    assert.ok(meanL(upper) < meanL(lower), 'upper portion must read darker than lower portion');
+    assert.ok(meanS(upper) > meanS(lower), 'upper portion must read more saturated than lower portion');
+  }
+});
+test('REAL-E2. spatial finding does NOT fully explain the false result: even the LOWER (less-contaminated) half of each eye\'s real accepted pixels still lands in the low-lightness zone (l<0.35) — proving ROI/sampling contamination alone would not have fixed this without also fixing classifyIrisColor', () => {
+  for (const eye of [REAL_LEFT, REAL_RIGHT]) {
+    const cy = eye.roi.cy;
+    const lower = eye.acceptedPixels.filter(p => p.y - cy >= 0);
+    const rMed = median(lower.map(p => p.r)), gMed = median(lower.map(p => p.g)), bMed = median(lower.map(p => p.b));
+    const { l } = rgbToHsl(rMed, gMed, bMed);
+    assert.ok(l < 0.35, `expected the cleaner lower-half-only aggregate to still be in the ambiguous low-light zone, got l=${l}`);
+  }
+});
+test('REAL-M. LEFT/RIGHT classification is deterministic across repeated calls on the same real pixel data', () => {
+  const ci = REAL_LEFT.classifierInput;
+  const results = new Set();
+  for (let i = 0; i < 20; i++) results.add(classifyIrisColor(ci.r, ci.g, ci.b));
+  assert.strictEqual(results.size, 1, 'repeated classification of identical real input must always produce the identical result');
+});
+test('REAL-N. missing/poor samples still return an explicit null (never a fabricated category) — unchanged, pre-existing sampleIrisColor behavior, unaffected by this turn', () => {
+  // Uniformly bright/near-white ROI: every in-circle pixel is rejected by
+  // the (unchanged) bright_specular gate, so stage-1 accepted count is 0
+  // (<6) and sampleIrisColor must fall back to its existing null-name path
+  // rather than fabricate a category from nothing.
+  const tinyCtx = makeFakeCtx(80, 80, () => [250, 250, 250]);
+  const result = sampleIrisColor(tinyCtx, EYE_POINTS);
+  assert.strictEqual(result.rgb, null, 'insufficient real samples must never produce a fabricated rgb');
+  assert.strictEqual(result.name, null, 'insufficient real samples must never produce a fabricated category');
+});
+test('REAL-O. debug audit parity remains functional after this turn\'s classifyIrisColor change: a broad RGB sweep shows debugIrisClassifyWithTrace.name === real classifyIrisColor for every combination (incl. the new "uncertain" branches)', () => {
+  let checked = 0;
+  for (let r = 0; r <= 255; r += 15) for (let g = 0; g <= 255; g += 31) for (let b = 0; b <= 255; b += 41) {
+    checked++;
+    const real = classifyIrisColor(r, g, b);
+    const trace = debugIrisClassifyWithTrace(r, g, b);
+    assert.strictEqual(trace.name, real, `debug trace/real mismatch at rgb(${r},${g},${b}): trace=${trace.name} real=${real}`);
+  }
+  assert.ok(checked > 500, 'sanity: the sweep actually covered a meaningful number of combinations');
+});
+
+// ================================================================
+// FOLLOW-UP INSTRUMENTATION — regression tests (this turn, part 2).
+// ------------------------------------------------------------
+// User-approved the classifyIrisColor fix but asked for one more
+// upstream investigation into WHY the real capture reaches the
+// classifier this warm/dark, WITHOUT further tuning classifyIrisColor.
+// Four new debug-only helpers were added to buildIrisColorAudit's
+// output (pupilCandidate, regionStats, surroundingRef, roiSnapshot) —
+// purely descriptive, none read by classification. sampleIrisColor,
+// combineIris, and classifyIrisColor/classifyLowLightAmbiguous
+// themselves are NOT touched this part (re-confirmed by INSTR-1/2/9
+// below, reusing the same byte-identity technique as tests I/I2/I3).
+// ================================================================
+test('INSTR-1. sampleIrisColor is STILL byte-identical to the pre-this-turn committed HEAD (unaffected by the new instrumentation, same as test I)', () => {
+  const { execSync } = require('child_process');
+  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
+  function extractSpan(s, startMarker, endMarker) {
+    const st = s.indexOf(startMarker), en = s.indexOf(endMarker, st);
+    if (st === -1 || en === -1) return null;
+    return s.slice(st, en);
+  }
+  const cur = extractSpan(src, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
+  const prev = extractSpan(head, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
+  assert.strictEqual(cur, prev, 'sampleIrisColor must still be byte-identical to the pre-turn HEAD');
+});
+test('INSTR-2. combineIris and classifyIrisColor/classifyLowLightAmbiguous are UNCHANGED from the already-approved fix (compared against THIS session\'s own prior state, not pre-turn HEAD, since HEAD still predates the approved fix)', () => {
+  const classifyBlockStart = src.indexOf('    const IRIS_NAMES = {');
+  const classifyBlockEnd = src.indexOf('\n    function debugIrisRgbToHsl(');
+  const block = src.slice(classifyBlockStart, classifyBlockEnd);
+  // Exact lines approved last turn must still be present verbatim.
+  for (const line of [
+    "uncertain: {ru:'Требует уточнения', en:'Needs clearer capture'},",
+    'function classifyLowLightAmbiguous(h, s) {',
+    "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);",
+    "if (l < 0.35) return classifyLowLightAmbiguous(h, s);",
+    'function combineIris(l, r) {',
+  ]) {
+    assert.ok(block.includes(line) || src.includes(line), `expected the previously-approved line to still be present verbatim: ${line}`);
+  }
+});
+test('INSTR-3. buildIrisColorAudit output (REAL fixture, both eyes) now includes exposure/pupilCandidate/regionStats/surroundingRef/roiSnapshot fields', () => {
+  const ctx = solidCtx(68, 74, 80, 4);
+  const audit = buildIrisColorAudit(ctx, EYE_POINTS);
+  for (const key of ['exposure', 'pupilCandidate', 'regionStats', 'surroundingRef', 'roiSnapshot']) {
+    assert.ok(key in audit, `expected buildIrisColorAudit to return a '${key}' field`);
+  }
+  assert.ok(typeof audit.exposure.candidateMeanLightness === 'number');
+  assert.ok(audit.regionStats.upper && audit.regionStats.lower, 'regionStats must summarize both halves for a normal, well-populated ROI');
+});
+test('INSTR-4. roiSnapshot gracefully returns null in this Node test environment (no `document`) — never throws', () => {
+  assert.strictEqual(typeof document, 'undefined', 'sanity: this test environment genuinely has no document, same as production Node-side tooling would');
+  assert.strictEqual(debugIrisRoiSnapshot(new Uint8ClampedArray(16), 2, 2), null);
+});
+test('INSTR-5. debugIrisPupilCandidate reproduces the REAL fixture\'s dark-cluster geometry: LEFT is far off-center (lash/lid-like), RIGHT is nearly centered (pupil-like) — computed live from the real fixture, not hardcoded', () => {
+  const leftPupil = debugIrisPupilCandidate(REAL_LEFT.rejectedPixels, REAL_LEFT.roi);
+  const rightPupil = debugIrisPupilCandidate(REAL_RIGHT.rejectedPixels, REAL_RIGHT.roi);
+  assert.ok(Math.abs(leftPupil.centerOffset.dx) > 0.5, `LEFT dark-cluster centroid must be far off-center (lash/lid-like), got dx=${leftPupil.centerOffset.dx}`);
+  assert.ok(Math.sqrt(rightPupil.centerOffset.dx ** 2 + rightPupil.centerOffset.dy ** 2) < 0.3, `RIGHT dark-cluster centroid must be close to the ROI center (pupil-like), got ${JSON.stringify(rightPupil.centerOffset)}`);
+});
+test('INSTR-6. debugIrisRegionStats on the REAL fixture reproduces last turn\'s manual upper/lower finding: upper darker+more saturated than lower, for BOTH eyes', () => {
+  for (const eye of [REAL_LEFT, REAL_RIGHT]) {
+    const stats = debugIrisRegionStats(eye.acceptedPixels, eye.roi);
+    assert.ok(stats.upper.meanHsl.l < stats.lower.meanHsl.l, 'upper must read darker than lower');
+    assert.ok(stats.upper.meanHsl.s > stats.lower.meanHsl.s, 'upper must read more saturated than lower');
+  }
+});
+test('INSTR-7. debugIrisSurroundingRef never throws and returns a well-formed shape even when the annulus goes out of the available image bounds', () => {
+  const ctx = solidCtx(68, 74, 80, 4); // 80x80 fake canvas — the 1.4x-2.2x annulus around a small ROI comfortably fits
+  const audit = buildIrisColorAudit(ctx, EYE_POINTS);
+  assert.ok('pixelCount' in audit.surroundingRef);
+  // Deliberately tiny canvas so the annulus request goes out of bounds —
+  // must degrade gracefully (never throw up into buildIrisColorAudit).
+  const tinyCtx = makeFakeCtx(10, 10, () => [80, 80, 80]);
+  assert.doesNotThrow(() => buildIrisColorAudit(tinyCtx, EYE_POINTS));
+});
+test('INSTR-8. calling the new debug-only helpers does not alter what sampleIrisColor subsequently returns for the same input (extends test K to the new instrumentation)', () => {
+  const ctx = solidCtx(68, 74, 80, 4);
+  const before = sampleIrisColor(ctx, EYE_POINTS);
+  buildIrisColorAudit(ctx, EYE_POINTS); // now also computes exposure/pupilCandidate/regionStats/surroundingRef/roiSnapshot internally
+  const after = sampleIrisColor(ctx, EYE_POINTS);
+  assert.deepStrictEqual(before, after, 'production sampleIrisColor must be completely unaffected by the new debug-only instrumentation');
+});
+test('INSTR-9. the full buildIrisColorAudit payload (including the new fields) still survives JSON.stringify (extends test M)', () => {
+  const ctxL = solidCtx(68, 74, 80, 4);
+  const audit = buildIrisColorAudit(ctxL, EYE_POINTS);
+  let jsonStr;
+  assert.doesNotThrow(() => { jsonStr = JSON.stringify(audit); });
+  assert.ok(jsonStr.length > 0);
+  const parsed = JSON.parse(jsonStr);
+  assert.ok(parsed.pupilCandidate && parsed.regionStats && parsed.surroundingRef && ('roiSnapshot' in parsed));
+});
+test('INSTR-10. real-capture pupilCandidate/regionStats findings are reported as investigation findings only — classifyIrisColor itself still ignores them entirely (no wiring introduced)', () => {
+  const classifyBlockStart = src.indexOf('    function classifyIrisColor(r,g,b) {');
+  const classifyBlockEnd = src.indexOf('\n\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
+  const block = src.slice(classifyBlockStart, classifyBlockEnd);
+  assert.ok(!/pupilCandidate|regionStats|surroundingRef|roiSnapshot/.test(block), 'classifyIrisColor must not reference any of the new investigation-only fields');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

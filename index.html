@@ -22,6 +22,14 @@
        land on window.ConsentManager. Phase 1 only: no analytics SDK,
        script, or network request exists anywhere in this codebase yet. -->
   <script src="consent-manager.js"></script>
+  <!-- Analytics (Phase 2, Stage 2.1-2.3): consent-gated event wrapper,
+       same dual-load pattern as consent-manager.js/lash-scan-core.js.
+       Exports land on window.Analytics. STAGE 2.1-2.3 ONLY: the
+       provider adapter inside analytics.js is an inert no-op stub —
+       no real analytics SDK/script/network request exists anywhere in
+       this codebase yet. See analytics.js's own header for the full
+       scope note. -->
+  <script src="analytics.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -8395,7 +8403,7 @@
       );
     }
 
-    function ReviewScreen({ result, onConfirm, onBack }) {
+    function ReviewScreen({ result, onConfirm, onBack, onRescan }) {
       const lang = useLang();
       const initial = result.eyeProfile;
       const [values, setValues] = useState({
@@ -8511,7 +8519,7 @@
             <button onClick={confirm} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)]">
               {t('reviewConfirm', lang)}
             </button>
-            <button onClick={onBack} className="w-full py-3 rounded-md border border-border text-sm text-textSecondary">{t('reviewRescan', lang)}</button>
+            <button onClick={onRescan || onBack} className="w-full py-3 rounded-md border border-border text-sm text-textSecondary">{t('reviewRescan', lang)}</button>
           </div>
         </div>
       );
@@ -8522,6 +8530,7 @@
         try { return localStorage.getItem('lashStudioLang') || 'ru'; } catch (e) { return 'ru'; }
       });
       const setLang = (l) => {
+        if (typeof Analytics !== 'undefined') Analytics.track('language_changed', { lang: l });
         setLangState(l);
         try { localStorage.setItem('lashStudioLang', l); } catch (e) {}
       };
@@ -8551,6 +8560,32 @@
         } catch (e) { /* best-effort; UI still reflects the choice even if persistence fails */ }
         setConsentSettingsOpen(false);
       };
+
+      // ------------------------------------------------------------
+      // ANALYTICS — Phase 2, Stage 2.1-2.3. The ONLY place this app
+      // reads consent for analytics purposes: whenever `consent`
+      // changes (Accept/Reject/Customize-save/withdraw, including the
+      // very first render for a returning already-decided user),
+      // re-read the decision through the EXISTING
+      // ConsentManager.isAnalyticsAllowed(storage) — the same function
+      // the rest of the app already trusts as the single source of
+      // truth for "is analytics allowed right now" — and forward that
+      // boolean into Analytics.setConsent(...). This file never
+      // recomputes the analytics-allowed boolean itself (no
+      // `consent.analytics === true` duplicated here); it defers
+      // entirely to ConsentManager. Analytics itself (analytics.js)
+      // re-checks this on every track() call, not just here — so a
+      // withdrawal takes effect immediately, not only on the next
+      // render. Stage 2.1-2.3: the provider behind Analytics is an
+      // inert no-op stub — this effect never causes a real
+      // script/network request regardless of the boolean's value (see
+      // analytics.js's header).
+      // ------------------------------------------------------------
+      useEffect(() => {
+        if (typeof Analytics !== 'undefined' && typeof ConsentManager !== 'undefined') {
+          Analytics.setConsent(ConsentManager.isAnalyticsAllowed(consentStorageRef.current));
+        }
+      }, [consent]);
 
       const [screen, setScreen] = useState('home');
       const [result, setResult] = useState(null);
@@ -8584,8 +8619,8 @@
         return () => { cancelled = true; };
       }, [loadAttempt]);
 
-      const handleComplete = (rec) => { setResult(rec); setNaturalLashProfile(null); setScreen('review'); };
-      const handleReviewConfirm = (rec) => { setResult(rec); setScreen('hero'); };
+      const handleComplete = (rec) => { if (typeof Analytics !== 'undefined') Analytics.track('scan_completed', { mode: screen === 'scan' ? 'live' : 'photo' }); setResult(rec); setNaturalLashProfile(null); setScreen('review'); };
+      const handleReviewConfirm = (rec) => { if (typeof Analytics !== 'undefined') Analytics.track('results_viewed'); setResult(rec); setScreen('hero'); };
       const retryLoad = () => setLoadAttempt(a => a + 1);
       const viewMap = (design) => { setActiveDesign(design); setScreen('lashmap'); };
       const handleLashScanComplete = (profile) => { setNaturalLashProfile(profile); setScreen('lashprofile'); };
@@ -8599,11 +8634,11 @@
                 <LangToggle lang={lang} setLang={setLang} />
               </div>
             )}
-            {screen === 'home' && <HomeScreen onLive={() => setScreen('scan')} onPhoto={() => setScreen('photo')} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} />}
+            {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} />}
             {screen === 'scan' && <LiveScanScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} onSetLang={setLang} />}
             {screen === 'photo' && <PhotoAnalysisScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} />}
-            {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} />}
-            {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => setScreen('details')} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} />}
+            {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} onRescan={() => { if (typeof Analytics !== 'undefined') Analytics.track('rescan_started'); setScreen('home'); }} />}
+            {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => { if (typeof Analytics !== 'undefined') Analytics.track('details_viewed'); setScreen('details'); }} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} />}
             {screen === 'catalog' && result && <AllDesignsScreen result={result} onSelect={viewMap} onBack={() => setScreen('hero')} />}
             {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={activeDesign} naturalLashProfile={naturalLashProfile} onBack={() => setScreen('hero')} />}
             {screen === 'details' && result && <DetailsScreen result={result} onBack={() => setScreen('hero')} />}

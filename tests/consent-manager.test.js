@@ -251,14 +251,23 @@ test('I1. consent-manager.js is loaded as a plain global <script>, before the ma
   assert.ok(scriptTagIdx < appScriptIdx, 'consent-manager.js must load before the app script that consumes window.ConsentManager');
 });
 
-test('I2. NO analytics SDK, provider script tag, or tracking network call exists anywhere in index.html (Phase 1 scope)', () => {
+// I2 originally forbade `analytics.js`/`.track(` outright, back when
+// Phase 1 had no analytics wrapper at all. Phase 2 (Stage 2.1-2.3,
+// explicitly reviewed and approved) legitimately introduces both — a
+// consent-gated event wrapper whose provider adapter is still an
+// inert no-op stub (see analytics.js's own header/tests). The durable
+// guarantee this test actually protects — no REAL third-party
+// provider signature, no REAL network primitive anywhere in
+// index.html — still holds and is re-asserted below with the two now-
+// legitimate tokens removed from the forbidden list. tests/analytics.test.js
+// carries the more detailed Phase-2-scoped version of this guarantee.
+test('I2. NO real analytics PROVIDER SDK, provider script tag, or actual network-sending primitive exists anywhere in index.html (analytics.js\'s own consent-gated wrapper + its .track() call sites are Phase 2, reviewed/approved, and still only drive an inert no-op stub — see tests/analytics.test.js)', () => {
   const forbiddenSignatures = [
     'plausible.io', 'umami', 'posthog', 'google-analytics', 'googletagmanager',
-    'gtag(', 'analytics.js', 'fetch(', 'XMLHttpRequest', 'navigator.sendBeacon',
-    'new WebSocket', '.track(',
+    'gtag(', 'fetch(', 'XMLHttpRequest', 'navigator.sendBeacon', 'new WebSocket',
   ];
   const hits = forbiddenSignatures.filter((sig) => src.includes(sig));
-  assert.deepStrictEqual(hits, [], `Phase 1 must add zero analytics SDKs/scripts/network calls; found: ${hits.join(', ')}`);
+  assert.deepStrictEqual(hits, [], `index.html must never contain a real analytics provider signature or a real network-sending primitive; found: ${hits.join(', ')}`);
 });
 
 test('I3. consent-manager.js itself contains no network/analytics call of any kind', () => {
@@ -309,18 +318,25 @@ test('I7. the consent banner/settings wrapper divs position themselves via inlin
   assert.ok(!/className="[^"]*\babsolute\b[^"]*"/.test(panelBlock), 'expected NO bare Tailwind `absolute` utility class on any element inside ConsentPanel — it must go through inline style instead');
 });
 
-test('I8. the pre-existing header (RU/EN + privacy icon) row is UNCHANGED from git HEAD except for the one added <ConsentIconButton> — proving Phase 1 did not alter its (pre-existing, unrelated) positioning', () => {
-  const { execSync } = require('child_process');
-  const head = execSync('git show HEAD:index.html', { cwd: repoRoot }).toString();
+// I8 used to assert that the header row textually equalled `git show
+// HEAD:index.html`'s pre-Phase-1 form plus exactly one added line — a
+// check for "Phase 1 didn't alter this div's positioning, only added
+// the icon". Now that Phase 1 itself is the committed HEAD, that
+// pre-Phase-1 form no longer exists in HEAD to compare against, so the
+// lookup fails — the same class of staleness as the old
+// iris-color-audit.test.js I3 (asserting about git history rather than
+// a property of the code). Replaced with the durable, HEAD-independent
+// structural invariant this was actually protecting: the header row
+// keeps its ORIGINAL plain-className positioning (deliberately NOT
+// switched to inline-style, unlike ConsentPanel — see I7) and contains
+// both the privacy icon and the language toggle.
+test('I8. the header (RU/EN + privacy icon) row keeps its original plain-className positioning (never switched to inline-style like ConsentPanel) and contains both ConsentIconButton and LangToggle', () => {
   const cur = extractSpan(src, "            {screen !== 'scan' && screen !== 'lashscan' && (\n              <div className=\"absolute top-3 right-3 z-30 flex items-center gap-2\">", '\n            )}\n            {screen === \'home\'');
   assert.ok(cur, 'expected to locate the current header row block');
-  // HEAD (pre-Phase-1) had no ConsentIconButton — assert the ONLY delta
-  // between current and HEAD's equivalent block is that one added line.
-  const headIdx = head.indexOf('<div className="absolute top-3 right-3 z-30">');
-  assert.ok(headIdx !== -1, 'expected to locate the pre-Phase-1 header row in HEAD');
-  assert.ok(!cur.includes('style={{ position:'), 'the pre-existing header row must NOT have been switched to inline-style positioning by Phase 1 — it is deliberately left as-is');
-  assert.ok(cur.includes('<ConsentIconButton'), 'expected the one authorized addition: the new privacy/settings icon button');
-  assert.ok(cur.includes('<LangToggle'), 'the pre-existing LangToggle usage must remain, unmodified');
+  assert.ok(cur.includes('className="absolute top-3 right-3 z-30 flex items-center gap-2"'), 'the header row must keep its original plain Tailwind className positioning verbatim');
+  assert.ok(!cur.includes('style={{ position:'), 'the header row must NOT use inline-style positioning — that pattern is reserved for the new ConsentPanel wrappers (see I7), not this pre-existing div');
+  assert.ok(cur.includes('<ConsentIconButton'), 'expected the privacy/settings icon button to be present');
+  assert.ok(cur.includes('<LangToggle'), 'expected the pre-existing LangToggle to remain present');
 });
 
 // ---- byte-identity: the scan pipeline itself is untouched ----
@@ -347,12 +363,43 @@ test('J2. PhotoAnalysisScreen is byte-identical to git HEAD (photo analysis flow
   assert.strictEqual(cur, prev, 'PhotoAnalysisScreen must be byte-identical — Phase 1 must not touch photo analysis');
 });
 
-test('J3. the model-loading effect + result handlers (handleComplete..handleLashScanComplete) inside App() are byte-identical to git HEAD', () => {
+// J3 used to demand that the ENTIRE span from `useState('home')` through
+// the App() return statement be byte-identical to git HEAD. That was
+// true for Phase 1 (which never touched result handling at all), but
+// Stage 2.1-2.3 (explicitly reviewed and approved) intentionally adds
+// `Analytics.track(...)` calls inside handleComplete/handleReviewConfirm,
+// so a whole-span byte-identity check is now the wrong tool — same class
+// of staleness as I3/I8/I2 above. The durable invariants this test is
+// actually protecting are: (a) the model-loading effect and the three
+// untouched handlers (retryLoad/viewMap/handleLashScanComplete) remain
+// byte-identical to HEAD, and (b) handleComplete/handleReviewConfirm
+// still contain every one of their ORIGINAL state-transition statements
+// verbatim, in the original order, proving nothing was removed or
+// reordered — only additive, consent-gated Analytics.track(...) calls
+// were layered in ahead of the pre-existing logic.
+test('J3. the model-loading effect + untouched handlers (retryLoad/viewMap/handleLashScanComplete) inside App() are byte-identical to git HEAD, and handleComplete/handleReviewConfirm retain every original state-transition statement verbatim (only additive Analytics.track() calls were layered in)', () => {
   assert.ok(HEAD);
-  const cur = extractSpan(src, '      const [screen, setScreen] = useState(\'home\');', '\n      return (\n        <LangContext.Provider value={lang}>');
-  const prev = extractSpan(HEAD, '      const [screen, setScreen] = useState(\'home\');', '\n      return (\n        <LangContext.Provider value={lang}>');
-  assert.ok(cur !== null && prev !== null, 'expected to locate the App() body span in both current and HEAD source');
-  assert.strictEqual(cur, prev, 'model-loading effect and result handlers must be byte-identical — Phase 1 must not touch result handling');
+
+  // (a) the model-loading effect itself — never touched by Stage 2.1-2.3.
+  const curEffect = extractSpan(src, '      // Models load once at the App root and are reused by every', '\n\n      const handleComplete');
+  const prevEffect = extractSpan(HEAD, '      // Models load once at the App root and are reused by every', '\n\n      const handleComplete');
+  assert.ok(curEffect !== null && prevEffect !== null, 'expected to locate the model-loading effect in both current and HEAD source');
+  assert.strictEqual(curEffect, prevEffect, 'the model-loading effect must be byte-identical — Stage 2.1-2.3 must not touch model loading');
+
+  // (a, cont'd) the three handlers Stage 2.1-2.3 does not instrument at all.
+  const curTail = extractSpan(src, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>');
+  const prevTail = extractSpan(HEAD, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>');
+  assert.ok(curTail !== null && prevTail !== null, 'expected to locate retryLoad..handleLashScanComplete in both current and HEAD source');
+  assert.strictEqual(curTail, prevTail, 'retryLoad/viewMap/handleLashScanComplete must be byte-identical — Stage 2.1-2.3 does not touch them');
+
+  // (b) handleComplete/handleReviewConfirm: original substrings still
+  // present verbatim (nothing removed/reordered), plus the new tracking.
+  const curHandlers = extractSpan(src, '      const handleComplete = ', '\n      const retryLoad = ');
+  assert.ok(curHandlers !== null, 'expected to locate handleComplete/handleReviewConfirm in current source');
+  assert.ok(curHandlers.includes("setResult(rec); setNaturalLashProfile(null); setScreen('review');"), 'handleComplete must still perform its original state transition verbatim');
+  assert.ok(curHandlers.includes("setResult(rec); setScreen('hero');"), 'handleReviewConfirm must still perform its original state transition verbatim');
+  assert.ok(curHandlers.includes("Analytics.track('scan_completed'"), 'handleComplete must fire the reviewed scan_completed event');
+  assert.ok(curHandlers.includes("Analytics.track('results_viewed')"), 'handleReviewConfirm must fire the reviewed results_viewed event');
 });
 
 test('J4. lash-scan-core.js is completely untouched by Phase 1 (git diff is empty)', () => {

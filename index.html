@@ -2373,11 +2373,16 @@
       // corners' measured direction genuinely disagree by a lot, that's
       // usually measurement noise for a single unified label, not real
       // anatomy, and should lower confidence rather than average away.
-      const avgTilt = (left.tiltCorrected + right.tiltCorrected) / 2;
+      // RIGHT is expressed in the mirrored landmark coordinate frame.
+      // Normalize it before deriving the bilateral direction, just as
+      // the asymmetry calculation below already does.
+      const leftPhysicalTilt = left.tiltCorrected;
+      const rightPhysicalTilt = mirrorReflectDeg(right.tiltCorrected);
+      const avgTilt = (leftPhysicalTilt + rightPhysicalTilt) / 2;
       let tiltTendency = 'neutral';
       if (avgTilt < -4) tiltTendency = 'upturned';
       else if (avgTilt > 4) tiltTendency = 'downturned';
-      const tiltLrAgreement = clamp01(1 - Math.abs(left.tiltCorrected - right.tiltCorrected) / 8);
+      const tiltLrAgreement = clamp01(1 - shortestAngleDiffDeg(leftPhysicalTilt, rightPhysicalTilt) / 8);
       const tiltConf = computeConfidence({
         measurementAgreement: clamp01(Math.abs(avgTilt) / 10),
         landmarkStability: stabilityFactor('tilt'),
@@ -2725,6 +2730,7 @@
         eyeShapeCategory, eyeShapeConfidence, shapeMargin,
         appearanceWidth, appearanceConfidence,
         tiltTendency, tiltConfidence, tiltDegrees: avgTilt,
+        perEyeTiltDegrees: { left: leftPhysicalTilt, right: rightPhysicalTilt },
         isHooded, hoodedConfidence, hoodingSignalsAgree, hoodingRatio: avgHoodingA, hoodingLevel,
         eyelidCategory, eyelidCategoryConfidence,
         eyelidType, eyelidTypeConfidence, eyelidSignalsConflict,
@@ -3217,21 +3223,57 @@
         cautions: () => [], correctionMultiplier: 2 },
     ];
 
-    function buildEyeZones(entry, c) {
-      const base = entry.baseZones;
-      let left = [...base], right = [...base];
-      if (c.compositeAsymmetry > 0.07) {
-        const idx = entry.peakZone;
-        const mult = entry.correctionMultiplier || 1;
-        if (c.leftEye.width > c.rightEye.width) right = right.map((v,i) => i===idx ? v+mult : v);
-        else left = left.map((v,i) => i===idx ? v+mult : v);
+    function calculateEyeLashMap(entry, c, side) {
+      const eye = side === 'left' ? c.leftEye : c.rightEye;
+      const other = side === 'left' ? c.rightEye : c.leftEye;
+      const physicalTilt = c.perEyeTiltDegrees?.[side]
+        ?? (side === 'left' ? eye.tiltCorrected : mirrorReflectDeg(eye.tiltCorrected));
+
+      // The catalog supplies only design intent. The peak and all five
+      // lengths are rebuilt independently from this eye's measurements.
+      let peakZone = entry.peakZone;
+      if (physicalTilt > 4 && peakZone > 1) peakZone -= 1;
+      if (physicalTilt < -4 && peakZone < 3 && entry.category !== 'correction') peakZone += 1;
+
+      const avgWidth = Math.max((eye.width + other.width) / 2, 1);
+      const widthScale = clamp01(0.5 + eye.width / avgWidth / 2);
+      const openingScale = clamp01((eye.ear - 0.14) / 0.22);
+      const sizeScale = clamp01((c.relativeEyeSize - 0.26) / 0.16);
+      const peakLength = Math.round(Math.max(8, Math.min(13,
+        8.5 + sizeScale * 2.2 + widthScale * 1.1 + openingScale * 0.7
+      )));
+      const innerDrop = 2 + (c.isCloseSet ? 1 : 0) + (eye.innerTaperDeg < 55 ? 1 : 0);
+      const outerDrop = 1 + (physicalTilt > 4 ? 1 : 0) + (eye.outerTaperDeg > 80 ? 1 : 0);
+      const zones = Array.from({ length: 5 }, (_, i) => {
+        if (i === peakZone) return peakLength;
+        const distance = Math.abs(i - peakZone);
+        const totalDrop = i < peakZone ? innerDrop : outerDrop;
+        return Math.max(5, peakLength - Math.round(totalDrop * distance / Math.max(peakZone, 4 - peakZone, 1)));
+      });
+
+      const widthDeficit = Math.max(0, (other.width - eye.width) / Math.max(other.width, 1));
+      const openingDeficit = Math.max(0, (other.ear - eye.ear) / Math.max(other.ear, 0.01));
+      const measuredCorrection = clamp01(widthDeficit * 0.65 + openingDeficit * 0.35);
+      const correctionMm = c.compositeAsymmetry > 0.07 && measuredCorrection > 0.04
+        ? Math.min(2, Math.max(1, Math.round(measuredCorrection * (entry.correctionMultiplier || 1) * 4)))
+        : 0;
+      if (correctionMm > 0) {
+        zones[peakZone] = Math.min(14, zones[peakZone] + correctionMm);
+        const neighbour = peakZone === 4 ? 3 : peakZone + 1;
+        zones[neighbour] = Math.min(zones[peakZone], zones[neighbour] + Math.max(0, correctionMm - 1));
       }
-      return { left, right };
+      return { zones, peakZone, correctionMm };
+    }
+
+    function buildEyeZones(entry, c) {
+      const left = calculateEyeLashMap(entry, c, 'left');
+      const right = calculateEyeLashMap(entry, c, 'right');
+      return { left: left.zones, right: right.zones, leftPeakZone: left.peakZone, rightPeakZone: right.peakZone, leftCorrectionMm: left.correctionMm, rightCorrectionMm: right.correctionMm };
     }
 
     function buildDesignResult(entry, c, lang) {
       const score = entry.score(c);
-      const { left, right } = buildEyeZones(entry, c);
+      const { left, right, leftPeakZone, rightPeakZone, leftCorrectionMm, rightCorrectionMm } = buildEyeZones(entry, c);
       const curlRec = recommendCurl(c, entry, lang);
       return {
         id: entry.id, category: entry.category,
@@ -3239,7 +3281,10 @@
         ruName: entry.ruName, enName: entry.enName, aliases: entry.aliases,
         score, whyItWorks: entry.why(c, lang), correctionGoal: entry.goal(c, lang),
         limitations: entry.cautions(c, lang), baseCurl: entry.baseCurl, curlOptions: entry.curlOptions,
-        defaultTechnique: entry.defaultTechnique, peakZone: entry.peakZone, texture: entry.texture || null,
+        defaultTechnique: entry.defaultTechnique,
+        peakZone: leftPeakZone === rightPeakZone ? leftPeakZone : entry.peakZone,
+        leftPeakZone, rightPeakZone, leftCorrectionMm, rightCorrectionMm,
+        texture: entry.texture || null,
         leftZones: left, rightZones: right, curlRec,
       };
     }
@@ -3411,7 +3456,7 @@
     function generateApplicationPlan(c, design, technique, curl, zones, otherZones, spikeGeom, lang) {
       const en = lang === 'en';
       const push = (arr, ru, enS) => arr.push(en ? enS : ru);
-      const peakIdx = design.peakZone;
+      const peakIdx = zones.indexOf(Math.max(...zones));
       const peakLen = zones[peakIdx];
       const innerLen = zones[0], outerLen = zones[4];
       const asym = c.compositeAsymmetry > 0.07;
@@ -7648,8 +7693,10 @@
       const customBase = activeEye === 'left' ? customLeft : customRight;
       const zones = (mode === 'ai' ? aiBase : customBase).map(v => Math.max(5, v + (mode==='ai'?lengthDelta:0)));
       const otherZones = mode === 'ai' ? otherAiBase : (activeEye === 'left' ? customRight : customLeft);
-      const peakIdx = design.peakZone;
-      const asym = p.compositeAsymmetry > 0.07;
+      // PEAK follows the actual per-eye map being rendered (including
+      // measured correction), not a catalog-level shared index.
+      const peakIdx = activeEye === 'left' ? design.leftPeakZone : design.rightPeakZone;
+      const asym = p.compositeAsymmetry > 0.07 && Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0) > 0;
       const densityLabel = density==='light' ? t('light',lang) : density==='full' ? t('full',lang) : t('medium',lang);
       const diameter = density==='light' ? '0.07 mm' : density==='full' ? '0.12–0.15 mm' : '0.10 mm';
       const availableCurls = [...new Set([...design.curlOptions, design.curlRec.primary, ...design.curlRec.alternatives])];
@@ -7698,8 +7745,8 @@
                   <p className="text-xs text-peak font-medium mb-1 uppercase tracking-wide">{t('asymBanner', lang)}</p>
                   <p className="text-xs text-textSecondary">
                     {lang==='en'
-                      ? `${p.leftEye.width > p.rightEye.width ? 'Right' : 'Left'} eye peak length was adjusted by ${design.correctionMultiplier||1} mm to compensate — measured width difference ${(p.asymmetryBreakdown.width*100).toFixed(1)}%.`
-                      : `Пик ${p.leftEye.width > p.rightEye.width ? 'правого' : 'левого'} глаза скорректирован на ${design.correctionMultiplier||1} mm для компенсации — измеренная разница ширины ${(p.asymmetryBreakdown.width*100).toFixed(1)}%.`}
+                      ? `${(design.leftCorrectionMm || 0) > 0 ? 'Left' : 'Right'} eye map was adjusted by ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} mm from the measured multi-axis asymmetry.`
+                      : `Карта ${(design.leftCorrectionMm || 0) > 0 ? 'левого' : 'правого'} глаза скорректирована на ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} мм по измеренной многофакторной асимметрии.`}
                   </p>
                 </div>
               )}
@@ -7869,8 +7916,8 @@
                     <PlanSection num={String(planNum.next()).padStart(2,'0')} icon="asymmetry" title={t('asymAdjustTitle', lang)}>
                       <p className="text-sm text-textSecondary leading-relaxed">
                         {lang==='en'
-                          ? `${p.leftEye.width > p.rightEye.width ? 'Right' : 'Left'} eye peak length was adjusted by ${design.correctionMultiplier||1} mm to compensate — measured width difference ${(p.asymmetryBreakdown.width*100).toFixed(1)}%.`
-                          : `Пик ${p.leftEye.width > p.rightEye.width ? 'правого' : 'левого'} глаза скорректирован на ${design.correctionMultiplier||1} mm для компенсации — измеренная разница ширины ${(p.asymmetryBreakdown.width*100).toFixed(1)}%.`}
+                          ? `${(design.leftCorrectionMm || 0) > 0 ? 'Left' : 'Right'} eye map was adjusted by ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} mm from the measured multi-axis asymmetry.`
+                          : `Карта ${(design.leftCorrectionMm || 0) > 0 ? 'левого' : 'правого'} глаза скорректирована на ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} мм по измеренной многофакторной асимметрии.`}
                       </p>
                     </PlanSection>
                   )}

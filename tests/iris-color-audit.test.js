@@ -908,13 +908,14 @@ test('INSTR-1. sampleIrisColor is STILL byte-identical to the pre-this-turn comm
   const prev = extractSpan(head, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
   assert.strictEqual(cur, prev, 'sampleIrisColor must still be byte-identical to the pre-turn HEAD');
 });
-test('INSTR-2. combineIris and classifyIrisColor/classifyLowLightAmbiguous are UNCHANGED from the already-approved fix (compared against THIS session\'s own prior state, not pre-turn HEAD, since HEAD still predates the approved fix)', () => {
+test('INSTR-2. combineIris and classifyIrisColor/classifyLowLightAmbiguous remain unchanged while uncertain uses non-retry wording', () => {
   const classifyBlockStart = src.indexOf('    const IRIS_NAMES = {');
   const classifyBlockEnd = src.indexOf('\n    function debugIrisRgbToHsl(');
   const block = src.slice(classifyBlockStart, classifyBlockEnd);
-  // Exact lines approved last turn must still be present verbatim.
+  // Classification logic remains pinned; only the user-facing wording of
+  // its inconclusive outcome changed because it is not a quality rejection.
   for (const line of [
-    "uncertain: {ru:'Требует уточнения', en:'Needs clearer capture'},",
+    "uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'},",
     'function classifyLowLightAmbiguous(h, s) {',
     "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);",
     "if (l < 0.35) return classifyLowLightAmbiguous(h, s);",

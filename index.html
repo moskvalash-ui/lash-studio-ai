@@ -1834,7 +1834,10 @@
       hazel: {ru:'Ореховые (hazel)', en:'Hazel'}, amber: {ru:'Янтарные', en:'Amber'},
       green: {ru:'Зелёные', en:'Green'}, blue: {ru:'Голубые', en:'Blue'},
       gray: {ru:'Серые', en:'Gray'}, mixed: {ru:'Смешанный оттенок', en:'Mixed'},
-      uncertain: {ru:'Требует уточнения', en:'Needs clearer capture'},
+      // `uncertain` is a COLOR-classification outcome after a capture has
+      // already passed assessFrameQuality; it is not a capture-quality
+      // failure and must not tell the user to retry a valid scan.
+      uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'},
     };
     // Low lightness (<0.35) is colorimetrically ambiguous BY ITSELF: a
     // genuinely dark/brown iris and an underexposed light (blue/green/gray)

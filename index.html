@@ -3100,6 +3100,11 @@
       const sectors = [];
       for (let i = 0; i < zones.length - 1; i++) {
         const start = zones[i], end = zones[i + 1];
+        // A zero-length final PEAK -> OUTER segment is a deliberate
+        // plateau in the five control values, not a sixth visual
+        // sector. Keep OUTER in the source/control-zone plan, but do
+        // not render a second adjacent marker with the same length.
+        if (i === zones.length - 2 && end === start) continue;
         const steps = Math.max(1, Math.ceil(Math.abs(end - start)));
         if (i === 0) sectors.push({ len: start, t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 });
         for (let step = 1; step <= steps; step++) {

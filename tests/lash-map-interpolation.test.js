@@ -27,6 +27,25 @@ test('6,7,9,13,11 includes 10/11/12 before PEAK 13', () => {
   assert.ok(maxJump(lengths(sectors)) <= 1);
 });
 
+test('7,8,9,10,10 keeps the intentional PEAK/OUTER plateau without a duplicate display sector', () => {
+  const controls = [7, 8, 9, 10, 10];
+  const rendered = lengths(expandLashMapSectors(controls, 3));
+  assert.deepStrictEqual(rendered, [7, 8, 9, 10]);
+  assert.deepStrictEqual(controls, [7, 8, 9, 10, 10], 'business control values remain unchanged');
+});
+
+test('7,8,9,10,9 renders the real one-millimeter PEAK to OUTER decrease', () => {
+  const rendered = lengths(expandLashMapSectors([7, 8, 9, 10, 9], 3));
+  assert.deepStrictEqual(rendered, [7, 8, 9, 10, 9]);
+  assert.ok(maxJump(rendered) <= 1);
+});
+
+test('7,8,9,10,9 never gains an extra trailing 9 display sector', () => {
+  const rendered = lengths(expandLashMapSectors([7, 8, 9, 10, 9], 3));
+  assert.notDeepStrictEqual(rendered.slice(-3), [10, 9, 9]);
+  assert.strictEqual(rendered.filter((v, i) => i > 0 && v === 9 && rendered[i - 1] === 9).length, 0);
+});
+
 test('independent LEFT/RIGHT one-millimeter peak correction survives display expansion', () => {
   const left = expandLashMapSectors([6, 7, 9, 12, 11], 3);
   const right = expandLashMapSectors([6, 7, 9, 13, 11], 3);

@@ -355,12 +355,75 @@ test('J1. LiveScanScreen is byte-identical to git HEAD (live camera scan flow un
   assert.strictEqual(cur, prev, 'LiveScanScreen must be byte-identical — Phase 1 must not touch scanning');
 });
 
-test('J2. PhotoAnalysisScreen is byte-identical to git HEAD (photo analysis flow untouched by Phase 1)', () => {
+// J2 used to demand that the ENTIRE PhotoAnalysisScreen span be
+// byte-identical to git HEAD. That was true for Phase 1 (which never
+// touched photo analysis at all), but a later, separately reviewed
+// regression fix (the Photo Analysis quality-gate false-"blurry"
+// rejection — see tests/photo-quality-gate.test.js) intentionally
+// replaces PhotoAnalysisScreen's one-line sharpness measurement with
+// a small local block that re-crops from the original undownscaled
+// image instead of the display canvas — same class of staleness as
+// J3 below (Stage 2.1-2.3's Analytics.track() calls), same fix: narrow
+// the guard to the invariant that is still actually true, don't
+// delete or weaken it.
+//
+// The durable invariant this test now protects: PhotoAnalysisScreen is
+// byte-identical to git HEAD EVERYWHERE except that one documented,
+// reviewed swap — (a) everything before the sharpness measurement
+// (file/canvas/detection setup, headPose, leftMetrics/rightMetrics,
+// physical-eye normalization, brightness sampling) is untouched, (b)
+// everything from the quality-gate call onward (assessFrameQuality
+// itself, the eyelid-crease/iris/design-ranking pipeline, onComplete)
+// is untouched, and (c) the only thing that changed in between is
+// exactly the old `estimateSharpness(ctx, det.detection.box)` call
+// site being replaced — no other statement in that middle span was
+// added, removed, or reordered beyond what the sharpness fix itself
+// requires. This still fails loudly on any UNRELATED drift to photo
+// analysis, which is this guard's whole job.
+test('J2. PhotoAnalysisScreen is byte-identical to git HEAD, except for the one documented, reviewed sharpness-measurement fix (photo analysis is otherwise untouched)', () => {
   assert.ok(HEAD);
-  const cur = extractSpan(src, '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {', '\n    function ParamIcon(');
-  const prev = extractSpan(HEAD, '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {', '\n    function ParamIcon(');
-  assert.ok(cur !== null && prev !== null, 'expected to locate PhotoAnalysisScreen in both current and HEAD source');
-  assert.strictEqual(cur, prev, 'PhotoAnalysisScreen must be byte-identical — Phase 1 must not touch photo analysis');
+  const outerStart = '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {';
+  const outerEnd = '\n    function ParamIcon(';
+  const brightnessLine = '          const brightness = sampleBrightness(ctx, leftEye.concat(rightEye));\n';
+  const qualityLine = '          const quality = assessFrameQuality({';
+  const oldSharpnessLine = '          const sharpness = estimateSharpness(ctx, det.detection.box);\n';
+
+  // Locate all four markers directly in the FULL source (not in an
+  // already-sliced substring — outerEnd/qualityLine only occur in the
+  // full file, and qualityLine/brightnessLine also occur once earlier
+  // in LiveScanScreen, so every indexOf below is anchored to start no
+  // earlier than this PhotoAnalysisScreen's own outerStart).
+  const curOuterStart = src.indexOf(outerStart);
+  const prevOuterStart = HEAD.indexOf(outerStart);
+  assert.ok(curOuterStart !== -1 && prevOuterStart !== -1, 'expected to locate PhotoAnalysisScreen in both current and HEAD source');
+  const curOuterEnd = src.indexOf(outerEnd, curOuterStart);
+  const prevOuterEnd = HEAD.indexOf(outerEnd, prevOuterStart);
+  const curBrightnessIdx = src.indexOf(brightnessLine, curOuterStart);
+  const prevBrightnessIdx = HEAD.indexOf(brightnessLine, prevOuterStart);
+  const curQualityIdx = src.indexOf(qualityLine, curOuterStart);
+  const prevQualityIdx = HEAD.indexOf(qualityLine, prevOuterStart);
+  assert.ok([curOuterEnd, prevOuterEnd, curBrightnessIdx, prevBrightnessIdx, curQualityIdx, prevQualityIdx].every((i) => i !== -1), 'expected to locate the brightness line, quality-gate call, and end of PhotoAnalysisScreen in both current and HEAD source');
+
+  // (a) everything up to and including the (unchanged) brightness line.
+  const curHead = src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length);
+  const prevHead = HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length);
+  assert.strictEqual(curHead, prevHead, 'everything before the sharpness measurement (detection, headPose, leftMetrics/rightMetrics, physical-eye normalization, brightness sampling) must be byte-identical to git HEAD');
+
+  // (b) everything from the quality-gate call onward.
+  const curTail = src.slice(curQualityIdx, curOuterEnd);
+  const prevTail = HEAD.slice(prevQualityIdx, prevOuterEnd);
+  assert.strictEqual(curTail, prevTail, 'everything from the quality-gate call onward (assessFrameQuality, eyelid crease, iris, design ranking, onComplete) must be byte-identical to git HEAD');
+
+  // (c) the middle (sharpness-measurement) span: HEAD must contain
+  // exactly the old one-liner; current must no longer contain it, and
+  // must contain the new local sharpnessBox re-crop instead. This is
+  // the ONLY documented difference this guard now permits.
+  const curMiddle = src.slice(curBrightnessIdx + brightnessLine.length, curQualityIdx);
+  const prevMiddle = HEAD.slice(prevBrightnessIdx + brightnessLine.length, prevQualityIdx);
+  assert.strictEqual(prevMiddle, oldSharpnessLine, 'git HEAD must contain exactly the old, unmodified sharpness call site — proves this guard is comparing against the real pre-fix baseline');
+  assert.ok(!curMiddle.includes('estimateSharpness(ctx, det.detection.box)'), 'the current source must no longer measure sharpness directly off the (possibly heavily downscaled) display canvas');
+  assert.ok(curMiddle.includes('const sharpnessBox = (() => {'), 'the current source must contain the reviewed sharpnessBox re-crop fix');
+  assert.ok(curMiddle.includes("const sharpness = estimateSharpness(sharpCtx, { x: 0, y: 0, width: sharpnessBox.cw, height: sharpnessBox.ch });"), 'the current source must still call the SAME, unmodified estimateSharpness function — only its pixel source changed');
 });
 
 // J3 used to demand that the ENTIRE span from `useState('home')` through

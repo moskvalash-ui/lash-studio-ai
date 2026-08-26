@@ -6859,7 +6859,54 @@
           const physicalRight = getPhysicalEyeLandmarks(det.landmarks, 'right');
           const leftEye = physicalLeft.eye, rightEye = physicalRight.eye;
           const brightness = sampleBrightness(ctx, leftEye.concat(rightEye));
-          const sharpness = estimateSharpness(ctx, det.detection.box);
+          // SHARPNESS FIX (Photo Analysis quality-gate regression).
+          // estimateSharpness's algorithm and assessFrameQuality's
+          // `sharpness < 10` threshold below are BOTH left byte-for-byte
+          // unchanged — still the same shared functions LiveScanScreen
+          // also calls, with the same acceptance bound. Only the PIXELS
+          // this screen hands to estimateSharpness change.
+          //
+          // Root cause: `canvas` above is deliberately capped at 900px
+          // wide for detection/display, but real phone-camera photos are
+          // routinely 3000-4000px+ wide, so that resize alone discards
+          // most of a genuinely sharp photo's real focus detail before
+          // estimateSharpness ever measures it (confirmed by running
+          // this file's own unmodified estimateSharpness against the
+          // SAME synthetic content cropped from the same relative
+          // location at several resize widths: sharpness dropped
+          // ~9x between an undownscaled crop and a 900px-canvas crop of
+          // otherwise-identical detail). Live Scan never hits this: its
+          // own analysis canvas is capped at 640px, sourced from a
+          // getUserMedia video stream that is very rarely higher native
+          // resolution than that to begin with.
+          //
+          // Fix: re-crop the SAME det.detection.box region, at the same
+          // aspect ratio, directly from the original undownscaled `img`
+          // (already decoded in memory, no extra fetch) instead of from
+          // the 900px display canvas — capped at 480px on its longest
+          // side purely to bound memory/CPU for very large close-up
+          // photos, still far closer to native detail than the 900px
+          // path. Detection, landmarks, brightness, and every other
+          // measurement below are untouched — they still read from the
+          // original `canvas`/`ctx` exactly as before. When the source
+          // photo is already <=900px wide (scale === 1), this crop is
+          // pixel-identical to the old behavior — a no-op.
+          const sharpnessBox = (() => {
+            const b = det.detection.box;
+            const toNative = 1 / scale;
+            const nx0 = Math.max(0, b.x * toNative), ny0 = Math.max(0, b.y * toNative);
+            const nx1 = Math.min(img.width, (b.x + b.width) * toNative);
+            const ny1 = Math.min(img.height, (b.y + b.height) * toNative);
+            const nw = Math.max(1, nx1 - nx0), nh = Math.max(1, ny1 - ny0);
+            const cap = 480;
+            const down = Math.min(1, cap / Math.max(nw, nh));
+            return { nx0, ny0, nw, nh, cw: Math.max(1, Math.round(nw * down)), ch: Math.max(1, Math.round(nh * down)) };
+          })();
+          const sharpCanvas = document.createElement('canvas');
+          sharpCanvas.width = sharpnessBox.cw; sharpCanvas.height = sharpnessBox.ch;
+          const sharpCtx = sharpCanvas.getContext('2d', { willReadFrequently: true });
+          sharpCtx.drawImage(img, sharpnessBox.nx0, sharpnessBox.ny0, sharpnessBox.nw, sharpnessBox.nh, 0, 0, sharpnessBox.cw, sharpnessBox.ch);
+          const sharpness = estimateSharpness(sharpCtx, { x: 0, y: 0, width: sharpnessBox.cw, height: sharpnessBox.ch });
           const quality = assessFrameQuality({
             detScore: det.detection.score, headPose, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,
             brightness, sharpness, canvasWidth: canvas.width, boxWidth: det.detection.box.width,

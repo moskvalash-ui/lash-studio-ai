@@ -3088,6 +3088,35 @@
     //            | wet | creative | correction
     // ------------------------------------------------------------
     const ZONE_NAMES = ['INNER','TRANSITION','BODY','PEAK','OUTER'];
+
+    // Display-only expansion of the five professional control zones.
+    // Key zones keep their exact quarter-line positions; intermediate
+    // sectors fill each transition in <= 1 mm steps. The source map is
+    // never mutated, so AI L/R correction and Custom editing still own
+    // the same five values as before.
+    function expandLashMapSectors(zones, peakIdx) {
+      if (!Array.isArray(zones) || zones.length === 0) return [];
+      if (zones.length === 1) return [{ len: zones[0], t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 }];
+      const sectors = [];
+      for (let i = 0; i < zones.length - 1; i++) {
+        const start = zones[i], end = zones[i + 1];
+        const steps = Math.max(1, Math.ceil(Math.abs(end - start)));
+        if (i === 0) sectors.push({ len: start, t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 });
+        for (let step = 1; step <= steps; step++) {
+          const frac = step / steps;
+          const isKey = step === steps;
+          sectors.push({
+            len: Math.round((start + (end - start) * frac) * 10) / 10,
+            t: (i + frac) / (zones.length - 1),
+            keyZoneIndex: isKey ? i + 1 : null,
+            label: isKey ? ZONE_NAMES[i + 1] : null,
+            isKey,
+            isPeak: isKey && i + 1 === peakIdx,
+          });
+        }
+      }
+      return sectors;
+    }
     const CATEGORY_LABELS = {
       natural:{ru:'Натуральные',en:'Natural'}, opening:{ru:'Открывающие',en:'Opening'},
       lifting:{ru:'Лифтинг',en:'Lifting'}, elongating:{ru:'Вытягивающие',en:'Elongating'},
@@ -3461,6 +3490,8 @@
       const innerLen = zones[0], outerLen = zones[4];
       const asym = c.compositeAsymmetry > 0.07;
       const narrative = designNarrative(design, lang);
+      const displaySectors = expandLashMapSectors(zones, peakIdx);
+      const displaySequence = displaySectors.map(s => `${s.len}mm`).join(' → ');
 
       // -------- PREPARATION --------
       const preparation = [];
@@ -3481,8 +3512,8 @@
       const dropAfterPeak = Math.round((peakLen - outerLen) * 10) / 10;
       const steps = [
         { title: t('stepMappingTitle', lang), body: en
-          ? `Divide the lash line into zones per the current AI Lash Map: ${zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}mm`).join(', ')}.`
-          : `Разделите lash line на зоны согласно текущей AI Lash Map: ${zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}mm`).join(', ')}.` },
+          ? `Divide the lash line using the five control zones (${zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}mm`).join(', ')}) and the displayed smooth sequence: ${displaySequence}.`
+          : `Разделите lash line по пяти контрольным зонам (${zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}мм`).join(', ')}) и отображаемой плавной последовательности: ${displaySequence}.` },
         { title: t('stepInnerTitle', lang), body: en
           ? `Inner corner: ${innerLen}mm, curl ${curl}. Start the transition gently${c.isCloseSet ? ' — eyes are close-set, avoid adding extra length here' : ''}.`
           : `Внутренний угол: ${innerLen}mm, изгиб ${curl}. Начинайте переход плавно${c.isCloseSet ? ' — глаза близко посажены, не добавляйте здесь длину' : ''}.` },
@@ -3528,7 +3559,7 @@
       else push(artistNotes, 'Рекомендуется сохранять лёгкость во внутреннем уголке.', 'Recommended: keep the inner corner light.');
       push(artistNotes, 'Финальное профессиональное решение остаётся за мастером.', 'The final professional decision remains with the artist.');
 
-      return { preparation, steps, spikePlan, artistNotes };
+      return { preparation, steps, spikePlan, artistNotes, displaySectors };
     }
 
     // ------------------------------------------------------------
@@ -7582,7 +7613,7 @@
       const upperY = (t) => 175 - Math.sin(t*Math.PI) * 78;
       const lowerY = (t) => 175 + Math.sin(t*Math.PI) * 34;
       const xAt = (t) => 55 + t * 290;
-      const items = zones.map((len, i) => ({ len, isPeak: i === peakIdx, label: ZONE_NAMES[i] }));
+      const items = expandLashMapSectors(zones, peakIdx);
       const upperPath = Array.from({length: 21}, (_,i) => { const tt=i/20; return `${xAt(tt)},${upperY(tt)}`; }).join(' L ');
       const lowerPath = Array.from({length: 21}, (_,i) => { const tt=1-i/20; return `${xAt(tt)},${lowerY(tt)}`; }).join(' L ');
 
@@ -7634,13 +7665,13 @@
           })}
 
           {items.map((z, i) => {
-            const t = i / (items.length - 1);
+            const t = z.t;
             const x = xAt(t), y = upperY(t) - 4;
             return (
               <g key={i} onClick={() => setHoveredZone(hoveredZone === i ? null : i)} className="cursor-pointer">
-                <circle cx={x} cy={y} r={z.isPeak ? 9 : 6} fill={z.isPeak ? '#0A8CFF' : 'rgba(244,247,250,0.22)'} stroke={z.isPeak ? '#53C7FF' : 'none'} strokeWidth="2" className={z.isPeak ? 'peak-glow' : ''} />
-                <text x={x} y={y - 16} textAnchor="middle" fill={z.isPeak ? '#53C7FF' : '#F4F7FA'} fontSize="15" fontWeight={z.isPeak ? '700' : '400'}>{z.len}</text>
-                <text x={x} y={y + 20} textAnchor="middle" fill="rgba(142,154,168,0.75)" fontSize="7" letterSpacing="1">{z.label}</text>
+                <circle cx={x} cy={y} r={z.isPeak ? 9 : z.isKey ? 6 : 4} fill={z.isPeak ? '#0A8CFF' : z.isKey ? 'rgba(244,247,250,0.22)' : 'rgba(83,199,255,0.28)'} stroke={z.isPeak ? '#53C7FF' : 'none'} strokeWidth="2" className={z.isPeak ? 'peak-glow' : ''} />
+                <text x={x} y={y - 16} textAnchor="middle" fill={z.isPeak ? '#53C7FF' : '#F4F7FA'} fontSize={z.isKey ? '15' : '11'} fontWeight={z.isPeak ? '700' : '400'}>{z.len}</text>
+                {z.label && <text x={x} y={y + 20} textAnchor="middle" fill="rgba(142,154,168,0.75)" fontSize="7" letterSpacing="1">{z.label}</text>}
                 {hoveredZone === i && (
                   <g>
                     <rect x={x-52} y={y+26} width="104" height="46" rx="10" fill="rgba(6,16,26,0.96)" stroke="rgba(35,150,255,0.25)"/>
@@ -7876,10 +7907,10 @@
 
                   <PlanSection num={String(planNum.next()).padStart(2,'0')} icon="zoning" title={t('zoningTitle', lang)}>
                     <div className="grid grid-cols-5 gap-1.5">
-                      {zones.map((v,i) => (
-                        <div key={i} className={`rounded-md p-2 text-center border ${i===peakIdx ? 'border-accent/50 bg-accent/10' : 'border-border bg-white/[0.02]'}`}>
-                          <p className={`text-sm font-bold ${i===peakIdx ? 'text-cyan' : 'text-textPrimary'}`}>{v}</p>
-                          <p className="text-[8px] text-textMuted uppercase mt-0.5 leading-tight">{ZONE_NAMES[i]}</p>
+                      {plan.displaySectors.map((sector,i) => (
+                        <div key={i} className={`rounded-md p-2 text-center border ${sector.isPeak ? 'border-accent/50 bg-accent/10' : 'border-border bg-white/[0.02]'}`}>
+                          <p className={`text-sm font-bold ${sector.isPeak ? 'text-cyan' : 'text-textPrimary'}`}>{sector.len}</p>
+                          <p className="text-[8px] text-textMuted uppercase mt-0.5 leading-tight">{sector.label || '·'}</p>
                         </div>
                       ))}
                     </div>

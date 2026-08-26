@@ -120,6 +120,44 @@
 
     const dist = (a,b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
     const angle = (a,b) => Math.atan2(b.y-a.y, b.x-a.x) * 180 / Math.PI;
+    // Shortest circular distance between two angles given in degrees,
+    // normalized into [0, 180] — the correct way to diff two angle
+    // readings that can each independently fall anywhere in (-180, 180].
+    // A naive `Math.abs(a - b)` is wrong whenever the two values sit on
+    // opposite sides of the +/-180 seam (e.g. 179 vs -179 is genuinely
+    // only 2 degrees apart, not 358): this walks the delta back into
+    // (-180, 180] before taking its magnitude, so the seam is never
+    // double-counted.
+    const shortestAngleDiffDeg = (a, b) => {
+      let d = (a - b) % 360;
+      if (d > 180) d -= 360; else if (d < -180) d += 360;
+      return Math.abs(d);
+    };
+    // Reflects an angle across the vertical (y) axis: for a vector
+    // (dx,dy), negating dx while keeping dy maps atan2(dy,dx)=theta to
+    // atan2(dy,-dx)=180-theta (wrapped). This is the exact correction
+    // needed for the RIGHT eye's tiltCorrected reading: physical
+    // LEFT/RIGHT eye landmarks are read from horizontally mirrored
+    // image regions (see getPhysicalEyeLandmarks), so the inner->outer
+    // vector's x-component is mirrored between the two eyes by
+    // construction — LEFT's inner->outer vector points toward +x,
+    // RIGHT's toward -x, for the SAME real-world corner-tilt direction.
+    // Reflecting RIGHT's angle back into LEFT's coordinate frame before
+    // comparing is what makes the two readings genuinely comparable
+    // (proven both analytically and by simulation — see
+    // tests/angle-symmetry.test.js). This is a different fix from
+    // headPose.roll's +/-90 fold two lines above: roll corrects a
+    // single undirected-line ambiguity (0 vs 180 is the same line),
+    // while this corrects two SEPARATE per-eye measurements taken in
+    // mirrored coordinate frames — folding by +/-90 and comparing
+    // magnitudes only (roll's approach) silently misses genuine
+    // opposite-direction (one eye upturned, one downturned) asymmetry.
+    const mirrorReflectDeg = (deg) => {
+      let d = 180 - deg;
+      while (d > 180) d -= 360;
+      while (d <= -180) d += 360;
+      return d;
+    };
     const median = (arr) => { const s = [...arr].sort((a,b)=>a-b); const m = s.length; return m % 2 ? s[(m-1)/2] : (s[m/2-1]+s[m/2])/2; };
     const stdOf = (arr) => { const m = arr.reduce((a,b)=>a+b,0)/arr.length; const v = arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length; return { mean: m, std: Math.sqrt(v) }; };
     const rgbToHex = (r,g,b) => { const h = (n) => Math.round(Math.max(0,Math.min(255,n))).toString(16).padStart(2,'0'); return `#${h(r)}${h(g)}${h(b)}`; };
@@ -2624,7 +2662,7 @@
       const asymmetryBreakdown = {
         width: Math.abs(left.width - right.width) / Math.max(left.width, right.width),
         height: Math.abs(left.height - right.height) / Math.max(left.height, right.height),
-        tilt: Math.abs(left.tiltCorrected - right.tiltCorrected),
+        tilt: shortestAngleDiffDeg(left.tiltCorrected, mirrorReflectDeg(right.tiltCorrected)),
         openness: opennessDiff / Math.max(left.ear, right.ear, 0.01),
         hooding: Math.abs(left.hoodingRatio - right.hoodingRatio) / Math.max(left.hoodingRatio, right.hoodingRatio, 0.01),
         vertical: Math.abs(verticalAsymRaw || 0),

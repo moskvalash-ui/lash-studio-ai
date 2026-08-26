@@ -80,7 +80,7 @@ function test(name, fn) {
 // debug instrumentation. All in one unbroken span (verified: nothing
 // but this pipeline sits between sampleIrisColor and EYE_METRIC_KEYS). ----
 const rgbToHexLine = "    const rgbToHex = (r,g,b) => { const h = (n) => Math.round(Math.max(0,Math.min(255,n))).toString(16).padStart(2,'0'); return `#${h(r)}${h(g)}${h(b)}`; };";
-const pipelineStart = src.indexOf('    function sampleIrisColor(ctx, eyePoints) {');
+const pipelineStart = src.indexOf('    function analyzeIrisSample(ctx, eyePoints) {');
 const pipelineEnd = src.indexOf('\n    const EYE_METRIC_KEYS =');
 if (pipelineStart === -1 || pipelineEnd === -1) throw new Error('Could not locate the iris pipeline block — has it moved?');
 const pipelineSource = src.slice(pipelineStart, pipelineEnd);
@@ -227,12 +227,12 @@ test('E. pixels below the lightness-25 floor are rejected with reason dark_pupil
 // ================================================================
 // F. bright/specular contamination
 // ================================================================
-test('F. pixels above the lightness-200/saturation-0.25 specular gate are rejected with reason bright_specular', () => {
-  const ctx = makeFakeCtx(80, 80, (x, y) => (x < 40 ? [120, 100, 80] : [240, 242, 244]));
+test('F. only near-white/near-achromatic catchlights are rejected as bright_specular', () => {
+  const ctx = makeFakeCtx(80, 80, (x, y) => (x < 40 ? [120, 100, 80] : [250, 250, 250]));
   const audit = buildIrisColorAudit(ctx, EYE_POINTS);
   assert.ok(audit.rejectedPixels.some(p => p.reason === 'bright_specular'), 'expected at least one bright_specular rejection');
   for (const p of audit.rejectedPixels.filter(p => p.reason === 'bright_specular')) {
-    assert.ok(p.lightness > 200 && p.sat < 0.25, 'every bright_specular rejection must genuinely satisfy production\'s own real gate');
+    assert.ok(p.lightness > 235 && p.sat < 0.12, 'every bright_specular rejection must satisfy the narrow catchlight gate');
   }
 });
 
@@ -266,20 +266,20 @@ test('G1c. the SAME low lightness but with RELIABLE saturation in the green hue 
   assert.ok(h >= 70 && h <= 170 && s >= 0.15 && l < 0.32, 'sanity: reliable green hue at low lightness');
   assert.strictEqual(classifyIrisColor(r, g, b), 'green', 'FIXED BEHAVIOR: a real, measurable green hue at low lightness is no longer forced into brown');
 });
-test('G2. the SAME hue/saturation at higher lightness (l>=0.35) correctly reaches gray — unaffected by this turn\'s fix (l>=0.35 zone was not touched)', () => {
+test('G2. pale cold color with measurable absolute chroma reaches blue at normal lightness', () => {
   const [r, g, b] = [110, 120, 132]; // same ~h210 hue, same low saturation, l~0.47
   const { s, l } = rgbToHsl(r, g, b);
   assert.ok(s < 0.15 && l >= 0.35, 'sanity: this genuinely satisfies the gray branch\'s own stated conditions');
-  assert.strictEqual(classifyIrisColor(r, g, b), 'gray', 'confirms the gray branch is unaffected by this turn\'s low-lightness fix');
+  assert.strictEqual(classifyIrisColor(r, g, b), 'blue');
 });
-test('G3. sweeping lightness at fixed low (unreliable) saturation/blue hue: uncertain throughout the low-light zone, THEN gray once lightness crosses 0.35 — no more false "brown" plateau', () => {
+test('G3. low-saturation cold samples remain uncertain when dim, then become blue once luminance makes chroma reliable', () => {
   // Same blue-ish hue (~h210) and low (<0.15) saturation throughout; only
   // lightness varies. Documents the NEW, fixed decision boundary.
   const sweep = [[50, 56, 62], [68, 74, 80], [90, 97, 104], [110, 120, 132]];
   const results = sweep.map(rgb => ({ rgb, l: rgbToHsl(...rgb).l, category: classifyIrisColor(...rgb) }));
-  const firstGrayIdx = results.findIndex(r => r.category === 'gray');
-  assert.ok(firstGrayIdx > 0, 'must still read something other than gray below the gray branch\'s own l>=0.35 floor');
-  for (let i = 0; i < firstGrayIdx; i++) {
+  const firstBlueIdx = results.findIndex(r => r.category === 'blue');
+  assert.ok(firstBlueIdx > 0);
+  for (let i = 0; i < firstBlueIdx; i++) {
     assert.strictEqual(results[i].category, 'uncertain', `expected uncertain (FIXED — no longer brown) below the gray boundary at unreliable saturation, got ${results[i].category} at l=${results[i].l}`);
   }
 });
@@ -348,18 +348,18 @@ test('I3. combineIris: one eye missing falls back to the other eye at a fixed 0.
 });
 
 // ================================================================
-// J. confidence formula — what "34%"-style numbers actually mean
+// J. confidence formula — robust color + spatial consistency
 // ================================================================
-test('J. confidence is a variance/sample-count heuristic, NOT a probability — demonstrated via the real formula', () => {
+test('J. confidence is a robust dispersion/sector-consistency measure, not a probability', () => {
   // High internal consistency (identical pixels) + full sample count -> confidence approaches 1.
   const cleanCtx = solidCtx(68, 74, 80, 0);
   const cleanAudit = buildIrisColorAudit(cleanCtx, EYE_POINTS);
   assert.ok(cleanAudit.confidence > 0.9, `expected near-1.0 confidence for a perfectly uniform sample, got ${cleanAudit.confidence}`);
-  // High internal variance (noisy/contaminated-looking sample) -> confidence drops, even though a definite category is still returned.
+  // High internal dispersion/noisy sectors -> confidence drops.
   const noisyCtx = solidCtx(68, 74, 80, 60);
   const noisyAudit = buildIrisColorAudit(noisyCtx, EYE_POINTS);
-  assert.ok(noisyAudit.confidence < cleanAudit.confidence, 'higher pixel variance must lower confidence — this is a self-consistency measure, not a calibrated probability of the label being correct');
-  assert.ok(noisyAudit.selectedCategory, 'CURRENT BEHAVIOR: a low-confidence result still returns a definite category name, never an "uncertain" fallback (see deliverable Section 11)');
+  assert.ok(noisyAudit.confidence < cleanAudit.confidence, 'lower robust color/sector consistency must lower confidence');
+  assert.ok(noisyAudit.selectedCategory, 'the sample must still produce an explicit category, including uncertain when sectors disagree');
 });
 
 // ================================================================
@@ -463,11 +463,11 @@ test('N4. physical L/R normalization span is untouched by this turn', () => {
   const span = src.slice(start, end);
   assert.ok(!/[Ii]risColorAudit|debugIris/.test(span), 'physical L/R normalization must have zero coupling to the iris audit layer');
 });
-test('N5. sampleIrisColor\'s ROI/rejection formulas are unmodified since the initial commit (ROI/sampling was investigated and proven NOT the cause this turn — see file header — so it was left untouched)', () => {
+test('N5. iris sampling uses the annular mask and narrow catchlight gate', () => {
   const radiusLine = 'const radius = Math.max(3, Math.min(eyeW, eyeH * 2.4) * 0.22);';
-  const brightRejectLine = 'if (lightness > 200 && sat < 0.25) continue;';
-  const darkRejectLine = 'if (lightness < 25) continue;';
-  const grayGate = "if (s < 0.15 && l >= 0.35 && l < 0.7) return 'gray';";
+  const brightRejectLine = "if (lightness > 235 && sat < 0.12) { rejected.push({ ...pixel, reason:'bright_specular' }); continue; }";
+  const darkRejectLine = "if (lightness < 25) { rejected.push({ ...pixel, reason:'dark_pupil_or_lash' }); continue; }";
+  const grayGate = "if (chroma < 10 && l >= 0.35 && l < 0.7) return 'gray';";
   for (const line of [radiusLine, brightRejectLine, darkRejectLine, grayGate]) {
     assert.ok(src.includes(line), `expected the real, unmodified production line to still be present verbatim: ${line}`);
   }
@@ -652,33 +652,16 @@ test('H. HeroScreen/CopyIrisDebugButton never call sampleIrisColor or classifyIr
 // I. sampleIrisColor/classifyIrisColor/combineIris unchanged (re-
 // confirmed this turn specifically, independent of test N5 above)
 // ================================================================
-test('I. sampleIrisColor itself is byte-identical to the pre-turn committed HEAD (ROI/sampling investigated and proven NOT the cause this turn, so left untouched)', () => {
-  const { execSync } = require('child_process');
-  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
-  function extractSpan(s, startMarker, endMarker) {
-    const st = s.indexOf(startMarker);
-    const en = s.indexOf(endMarker, st);
-    if (st === -1 || en === -1) return null;
-    return s.slice(st, en);
-  }
-  const cur = extractSpan(src, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
-  const prev = extractSpan(head, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
-  assert.ok(cur !== null && prev !== null, 'expected to locate the sampleIrisColor span in both current and HEAD source');
-  assert.strictEqual(cur, prev, 'sampleIrisColor must be byte-identical to the pre-this-turn committed HEAD');
+test('I. sampleIrisColor delegates to the one shared analyzeIrisSample implementation', () => {
+  const start = src.indexOf('    function sampleIrisColor(ctx, eyePoints) {');
+  const end = src.indexOf('\n    function rgbToHsl', start);
+  const body = src.slice(start,end);
+  assert.ok(body.includes('const a = analyzeIrisSample(ctx, eyePoints);'));
+  assert.strictEqual((src.match(/function analyzeIrisSample\(/g)||[]).length,1);
 });
-test('I2. combineIris itself is byte-identical to the pre-turn committed HEAD (aggregation investigated and proven NOT the cause this turn, so left untouched)', () => {
-  const { execSync } = require('child_process');
-  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
-  function extractSpan(s, startMarker, endMarker) {
-    const st = s.indexOf(startMarker);
-    const en = s.indexOf(endMarker, st);
-    if (st === -1 || en === -1) return null;
-    return s.slice(st, en);
-  }
-  const cur = extractSpan(src, '    function combineIris(l, r) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
-  const prev = extractSpan(head, '    function combineIris(l, r) {', '\n    // ============================================================\n    // IRIS COLOR — DEBUG-ONLY RAW PIXEL AUDIT');
-  assert.ok(cur !== null && prev !== null, 'expected to locate the combineIris span in both current and HEAD source');
-  assert.strictEqual(cur, prev, 'combineIris must be byte-identical to the pre-this-turn committed HEAD');
+test('I2. combineIris preserves bilateral spatial ambiguity', () => {
+  const uncertain = {rgb:[150,155,160],name:'uncertain',confidence:0.4,hex:'#969ba0'};
+  assert.strictEqual(combineIris(uncertain,uncertain).name,'uncertain');
 });
 // I3 used to assert that classifyIrisColor/IRIS_NAMES textually
 // DIFFERED from `git show HEAD:index.html` — a check for "this turn's
@@ -896,17 +879,9 @@ test('REAL-O. debug audit parity remains functional after this turn\'s classifyI
 // themselves are NOT touched this part (re-confirmed by INSTR-1/2/9
 // below, reusing the same byte-identity technique as tests I/I2/I3).
 // ================================================================
-test('INSTR-1. sampleIrisColor is STILL byte-identical to the pre-this-turn committed HEAD (unaffected by the new instrumentation, same as test I)', () => {
-  const { execSync } = require('child_process');
-  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
-  function extractSpan(s, startMarker, endMarker) {
-    const st = s.indexOf(startMarker), en = s.indexOf(endMarker, st);
-    if (st === -1 || en === -1) return null;
-    return s.slice(st, en);
-  }
-  const cur = extractSpan(src, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
-  const prev = extractSpan(head, '    function sampleIrisColor(ctx, eyePoints) {', '\n    function rgbToHsl(r,g,b) {');
-  assert.strictEqual(cur, prev, 'sampleIrisColor must still be byte-identical to the pre-turn HEAD');
+test('INSTR-1. production sampler and debug audit both use analyzeIrisSample', () => {
+  assert.ok(src.includes('const a = analyzeIrisSample(ctx, eyePoints);'));
+  assert.strictEqual((src.match(/const a = analyzeIrisSample\(ctx, eyePoints\);/g)||[]).length,2);
 });
 test('INSTR-2. combineIris and classifyIrisColor/classifyLowLightAmbiguous remain unchanged while uncertain uses non-retry wording', () => {
   const classifyBlockStart = src.indexOf('    const IRIS_NAMES = {');

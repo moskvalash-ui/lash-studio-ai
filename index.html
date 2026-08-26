@@ -1776,7 +1776,7 @@
       } catch (e) { return 100; }
     }
 
-    function sampleIrisColor(ctx, eyePoints) {
+    function analyzeIrisSample(ctx, eyePoints) {
       const xs = eyePoints.map(p => p.x), ys = eyePoints.map(p => p.y);
       const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
       const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
@@ -1785,9 +1785,15 @@
       const radius = Math.max(3, Math.min(eyeW, eyeH * 2.4) * 0.22);
       const x0 = Math.max(0, Math.round(cx - radius)), y0 = Math.max(0, Math.round(cy - radius));
       const w = Math.max(1, Math.round(radius * 2)), h = Math.max(1, Math.round(radius * 2));
+      const roi = { x0, y0, w, h, cx, cy, radius, eyeW, eyeH };
       let data;
-      try { data = ctx.getImageData(x0, y0, w, h).data; } catch (e) { return { rgb: null, hex: null, name: null, confidence: 0, samples: 0 }; }
+      try { data = ctx.getImageData(x0, y0, w, h).data; } catch (e) {
+        return { valid: false, roi, rgb: null, name: null, confidence: 0, samples: 0, candidates: [], accepted: [], rejected: [] };
+      }
+      const med = arr => { const s = [...arr].sort((a,b)=>a-b); return s[Math.floor(s.length/2)]; };
       const samples = [];
+      const candidates = [];
+      const rejected = [];
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
           const dx = x - w/2, dy = y - h/2;
@@ -1797,21 +1803,53 @@
           const max = Math.max(r,g,b), min = Math.min(r,g,b);
           const lightness = (max+min)/2;
           const sat = max === min ? 0 : (lightness > 127 ? (max-min)/(510-max-min) : (max-min)/(max+min));
-          if (lightness > 200 && sat < 0.25) continue;
-          if (lightness < 25) continue;
-          samples.push({ r, g, b });
+          const pixel = { x: x0+x, y: y0+y, r, g, b, lightness, sat };
+          candidates.push(pixel);
+          // face-api's 68-point model has eyelid contours but no iris
+          // landmarks. The old full-disc sample therefore mixed the pupil
+          // and lid/lash margins into the iris. Sample the stable visible
+          // iris annulus instead: exclude the pupil core and the outer/lid
+          // boundary while retaining all hues and luminance levels.
+          const nx = dx / Math.max(radius, 1);
+          const ny = dy / Math.max(radius * 0.82, 1);
+          const radial = Math.sqrt(nx*nx + ny*ny);
+          if (radial < 0.30) { rejected.push({ ...pixel, reason:'pupil_core' }); continue; }
+          if (radial > 0.88) { rejected.push({ ...pixel, reason:'outside_iris_annulus' }); continue; }
+          // Only near-white, near-achromatic pixels are catchlights. The old
+          // >200/<0.25 rule also removed legitimate pale blue/gray iris.
+          if (lightness > 235 && sat < 0.12) { rejected.push({ ...pixel, reason:'bright_specular' }); continue; }
+          if (lightness < 25) { rejected.push({ ...pixel, reason:'dark_pupil_or_lash' }); continue; }
+          samples.push(pixel);
         }
       }
-      if (samples.length < 6) return { rgb: null, hex: null, name: null, confidence: 0, samples: samples.length };
-      const med = arr => { const s = [...arr].sort((a,b)=>a-b); return s[Math.floor(s.length/2)]; };
+      if (samples.length < 6) return { valid: true, roi, rgb: null, name: null, confidence: 0, samples: samples.length, candidates, accepted: [], rejected };
       let rMed = med(samples.map(s=>s.r)), gMed = med(samples.map(s=>s.g)), bMed = med(samples.map(s=>s.b));
       const withDist = samples.map(s => ({ ...s, d: (s.r-rMed)**2 + (s.g-gMed)**2 + (s.b-bMed)**2 }));
       withDist.sort((a,b) => a.d - b.d);
       const trimmed = withDist.slice(0, Math.max(6, Math.floor(withDist.length * 0.8)));
+      for (const p of withDist.slice(trimmed.length)) rejected.push({ ...p, reason:'trimmed_outlier' });
       rMed = med(trimmed.map(s=>s.r)); gMed = med(trimmed.map(s=>s.g)); bMed = med(trimmed.map(s=>s.b));
-      const variance = trimmed.reduce((acc,s) => acc + ((s.r-rMed)**2 + (s.g-gMed)**2 + (s.b-bMed)**2), 0) / trimmed.length;
-      const confidence = Math.max(0, Math.min(1, 1 - variance/2200)) * Math.min(1, trimmed.length/20);
-      return { rgb: [rMed,gMed,bMed], hex: rgbToHex(rMed,gMed,bMed), name: classifyIrisColor(rMed,gMed,bMed), confidence, samples: trimmed.length };
+      const name = classifyIrisColor(rMed,gMed,bMed);
+      const medianDistance = med(trimmed.map(s => Math.sqrt((s.r-rMed)**2 + (s.g-gMed)**2 + (s.b-bMed)**2)));
+      const colorConsistency = Math.max(0, Math.min(1, 1 - medianDistance/45));
+      const sectors = [[],[],[],[]];
+      for (const s of trimmed) {
+        const sx = s.x - cx, sy = s.y - cy;
+        sectors[(sy >= 0 ? 2 : 0) + (sx >= 0 ? 1 : 0)].push(s);
+      }
+      const sectorNames = sectors.filter(s => s.length >= 3).map(s => classifyIrisColor(med(s.map(p=>p.r)), med(s.map(p=>p.g)), med(s.map(p=>p.b))));
+      const sectorAgreement = sectorNames.length ? sectorNames.filter(v => v === name).length / sectorNames.length : 0;
+      const coverage = Math.min(1, trimmed.length/20);
+      const confidence = coverage * (0.55*colorConsistency + 0.45*sectorAgreement);
+      // A spatially split mixture is genuinely ambiguous even if its global
+      // median happens to land in one category.
+      const selectedName = sectorNames.length >= 3 && sectorAgreement < 0.6 ? 'uncertain' : name;
+      return { valid: true, roi, rgb:[rMed,gMed,bMed], name:selectedName, confidence, samples:trimmed.length, candidates, accepted:trimmed, rejected, medianDistance, colorConsistency, sectorAgreement, sectorNames };
+    }
+
+    function sampleIrisColor(ctx, eyePoints) {
+      const a = analyzeIrisSample(ctx, eyePoints);
+      return { rgb:a.rgb, hex:a.rgb ? rgbToHex(...a.rgb) : null, name:a.name, confidence:a.confidence, samples:a.samples };
     }
 
     function rgbToHsl(r,g,b) {
@@ -1864,13 +1902,19 @@
     }
     function classifyIrisColor(r,g,b) {
       const { h, s, l } = rgbToHsl(r,g,b);
+      const chroma = Math.max(r,g,b) - Math.min(r,g,b);
       if (l < 0.16) return 'dark';
+      // Absolute chroma is more stable than HSL saturation for pale colors:
+      // the same visible blue channel separation produces a lower HSL S as
+      // luminance rises. Chroma <10 is treated as neutral gray; >=10 with a
+      // cold hue is measurable blue evidence, not merely "light" evidence.
+      if (l >= 0.35 && h >= 175 && h <= 250 && chroma >= 10) return 'blue';
       if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);
       if (h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55) return 'hazel';
       if (h >= 40 && h <= 70 && s > 0.15 && l >= 0.35) return 'amber';
       if (h >= 70 && h <= 170 && s > 0.15) return 'green';
       if (h >= 180 && h <= 250 && s > 0.12) return 'blue';
-      if (s < 0.15 && l >= 0.35 && l < 0.7) return 'gray';
+      if (chroma < 10 && l >= 0.35 && l < 0.7) return 'gray';
       if (l < 0.35) return classifyLowLightAmbiguous(h, s);
       return 'mixed';
     }
@@ -1883,7 +1927,8 @@
       const diff = Math.sqrt((l.rgb[0]-r.rgb[0])**2 + (l.rgb[1]-r.rgb[1])**2 + (l.rgb[2]-r.rgb[2])**2);
       const consistency = Math.max(0, 1 - diff/80);
       const confidence = Math.min(l.confidence, r.confidence) * (0.5 + 0.5*consistency);
-      return { color: true, hex: rgbToHex(rgb[0],rgb[1],rgb[2]), name: classifyIrisColor(rgb[0],rgb[1],rgb[2]), confidence };
+      const name = l.name === 'uncertain' && r.name === 'uncertain' ? 'uncertain' : classifyIrisColor(rgb[0],rgb[1],rgb[2]);
+      return { color: true, hex: rgbToHex(rgb[0],rgb[1],rgb[2]), name, confidence };
     }
 
     // ============================================================
@@ -1891,12 +1936,10 @@
     // ------------------------------------------------------------
     // NOT a second detector. sampleIrisColor/classifyIrisColor/
     // combineIris (all three above, frozen, unmodified by this
-    // block) remain the ONLY functions production ever calls — this
-    // block re-runs the EXACT SAME formulas (same ROI radius, same
-    // rejection thresholds, same two-stage median/trim, same
-    // classifyIrisColor call) purely to expose the per-pixel/per-
-    // stage detail those functions don't return, for visual/numeric
-    // inspection in ?debug=1. Parity with the real functions is
+    // block) remain the ONLY functions production ever calls. The audit
+    // reads the result of the SAME analyzeIrisSample implementation instead
+    // of duplicating sampling formulas, then exposes its per-pixel/per-stage
+    // detail for visual/numeric inspection in ?debug=1. Parity is
     // asserted by a dedicated regression test (same technique used
     // for V2.1's currentV2Winner cross-check against V2) — this
     // block's own selectedCategory/confidence/rgb must always exactly
@@ -1913,29 +1956,10 @@
     // path instead of inventing scores that don't exist.
     function debugIrisClassifyWithTrace(r, g, b) {
       const { h, s, l } = rgbToHsl(r, g, b);
-      const lowLight1 = l < 0.32 && s < 0.35; // same trigger box as production's first low-light gate
-      const lowLight2 = !lowLight1 && !(h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55) && !(h >= 40 && h <= 70 && s > 0.15 && l >= 0.35)
-        && !(h >= 70 && h <= 170 && s > 0.15) && !(h >= 180 && h <= 250 && s > 0.12) && !(s < 0.15 && l >= 0.35 && l < 0.7) && l < 0.35; // same trigger box as production's fallback low-light gate
-      const rules = [
-        { rule: 'l<0.16 -> dark', category: 'dark', passed: l < 0.16 },
-        { rule: 'l<0.32 && s<0.35 && s<0.15 -> uncertain (low light, hue unreliable)', category: 'uncertain', passed: lowLight1 && s < 0.15 },
-        { rule: 'l<0.32 && s<0.35 && s>=0.15 && h in [70,170] -> green (low light, reliable hue)', category: 'green', passed: lowLight1 && s >= 0.15 && h >= 70 && h <= 170 },
-        { rule: 'l<0.32 && s<0.35 && s>=0.15 && h in (170,250] -> blue (low light, reliable hue)', category: 'blue', passed: lowLight1 && s >= 0.15 && h > 170 && h <= 250 },
-        { rule: 'l<0.32 && s<0.35 && s>=0.15 && h in (250,360]U[0,70) -> brown (low light, reliable warm hue)', category: 'brown', passed: lowLight1 && s >= 0.15 && (h > 250 || h < 70) },
-        { rule: 'h in [20,45] && s>0.25 && l in [0.25,0.55) -> hazel', category: 'hazel', passed: h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55 },
-        { rule: 'h in [40,70] && s>0.15 && l>=0.35 -> amber', category: 'amber', passed: h >= 40 && h <= 70 && s > 0.15 && l >= 0.35 },
-        { rule: 'h in [70,170] && s>0.15 -> green', category: 'green', passed: h >= 70 && h <= 170 && s > 0.15 },
-        { rule: 'h in [180,250] && s>0.12 -> blue', category: 'blue', passed: h >= 180 && h <= 250 && s > 0.12 },
-        { rule: 's<0.15 && l in [0.35,0.7) -> gray', category: 'gray', passed: s < 0.15 && l >= 0.35 && l < 0.7 },
-        { rule: 'l<0.35 && s<0.15 -> uncertain (low light fallback, hue unreliable)', category: 'uncertain', passed: lowLight2 && s < 0.15 },
-        { rule: 'l<0.35 && s>=0.15 && h in [70,170] -> green (low light fallback, reliable hue)', category: 'green', passed: lowLight2 && s >= 0.15 && h >= 70 && h <= 170 },
-        { rule: 'l<0.35 && s>=0.15 && h in (170,250] -> blue (low light fallback, reliable hue)', category: 'blue', passed: lowLight2 && s >= 0.15 && h > 170 && h <= 250 },
-        { rule: 'l<0.35 && s>=0.15 && h in (250,360]U[0,70) -> brown (low light fallback, reliable warm hue)', category: 'brown', passed: lowLight2 && s >= 0.15 && (h > 250 || h < 70) },
-      ];
-      let matchedRule = null;
-      for (const r2 of rules) { if (r2.passed) { matchedRule = r2.rule; break; } }
-      const name = matchedRule ? rules.find(r2 => r2.rule === matchedRule).category : 'mixed';
-      return { h, s, l, evaluatedRules: rules, matchedRule, name };
+      const name = classifyIrisColor(r,g,b);
+      const chroma = Math.max(r,g,b)-Math.min(r,g,b);
+      const matchedRule = `production classifyIrisColor -> ${name}`;
+      return { h, s, l, chroma, evaluatedRules:[{rule:matchedRule,category:name,passed:true}], matchedRule, name };
     }
 
     // Structural helpers — plain descriptive statistics, not
@@ -2069,106 +2093,43 @@
     // this function never receives or infers anything sampleIrisColor
     // itself doesn't already have access to.
     function buildIrisColorAudit(ctx, eyePoints) {
-      const xs = eyePoints.map(p => p.x), ys = eyePoints.map(p => p.y);
-      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-      const eyeW = Math.max(...xs) - Math.min(...xs);
-      const eyeH = Math.max(...ys) - Math.min(...ys);
-      const radius = Math.max(3, Math.min(eyeW, eyeH * 2.4) * 0.22);
-      const x0 = Math.max(0, Math.round(cx - radius)), y0 = Math.max(0, Math.round(cy - radius));
-      const w = Math.max(1, Math.round(radius * 2)), h = Math.max(1, Math.round(radius * 2));
-      const roi = { x0, y0, w, h, cx, cy, radius, eyeW, eyeH };
-      let data;
-      try { data = ctx.getImageData(x0, y0, w, h).data; } catch (e) {
-        return { valid: false, roi, candidatePixelCount: 0, acceptedPixelCount: 0, rejectedPixelCount: 0, acceptedFraction: null, rejectionSummary: {}, rawColorStats: null, classifierInput: null, selectedCategory: null, confidence: 0 };
-      }
-      // Stage 1 — same circular-boundary scan + same two rejection
-      // rules sampleIrisColor itself uses, tagged with a reason.
-      const candidates = [];
-      const stage1Accepted = [];
-      const rejected = [];
-      const allScannedLightness = []; // EVERY in-circle pixel regardless of accept/reject — exposure indicator only, never fed to classification
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const dx = x - w / 2, dy = y - h / 2;
-          if (dx * dx + dy * dy > radius * radius) continue; // outside the circular sampling boundary — never scanned by production either
-          candidates.push({ x: x0 + x, y: y0 + y });
-          const idx = (y * w + x) * 4;
-          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-          const max = Math.max(r, g, b), min = Math.min(r, g, b);
-          const lightness = (max + min) / 2;
-          const sat = max === min ? 0 : (lightness > 127 ? (max - min) / (510 - max - min) : (max - min) / (max + min));
-          allScannedLightness.push(lightness);
-          if (lightness > 200 && sat < 0.25) { rejected.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat, reason: 'bright_specular' }); continue; }
-          if (lightness < 25) { rejected.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat, reason: 'dark_pupil_or_lash' }); continue; }
-          stage1Accepted.push({ x: x0 + x, y: y0 + y, r, g, b, lightness, sat });
-        }
-      }
-      if (stage1Accepted.length < 6) {
-        return {
-          valid: true, roi, candidatePixelCount: candidates.length, acceptedPixelCount: 0,
-          rejectedPixelCount: rejected.length + stage1Accepted.length, acceptedFraction: 0,
-          rejectionSummary: debugIrisRejectionSummary(rejected, stage1Accepted.length, 'insufficient_stage1_samples'),
-          rawColorStats: null, classifierInput: null, selectedCategory: null, confidence: 0,
-          exposure: { candidateMeanLightness: debugIrisMean(allScannedLightness), candidateMedianLightness: debugIrisMedian(allScannedLightness) },
-          pupilCandidate: debugIrisPupilCandidate(rejected, roi),
-          regionStats: null, surroundingRef: debugIrisSurroundingRef(ctx, roi), roiSnapshot: null,
-        };
-      }
-      // Stage 2 — same distance-from-median trim (keep closest 80%,
-      // minimum 6) sampleIrisColor itself uses; the excluded 20% get
-      // their own reason so they're visually distinguishable too.
-      const med1 = { r: debugIrisMedian(stage1Accepted.map(s => s.r)), g: debugIrisMedian(stage1Accepted.map(s => s.g)), b: debugIrisMedian(stage1Accepted.map(s => s.b)) };
-      const withDist = stage1Accepted.map(s => ({ ...s, d: (s.r - med1.r) ** 2 + (s.g - med1.g) ** 2 + (s.b - med1.b) ** 2 }));
-      withDist.sort((a, b) => a.d - b.d);
-      const keepCount = Math.max(6, Math.floor(withDist.length * 0.8));
-      const trimmed = withDist.slice(0, keepCount);
-      const trimmedOut = withDist.slice(keepCount);
-      for (const t of trimmedOut) rejected.push({ x: t.x, y: t.y, r: t.r, g: t.g, b: t.b, lightness: t.lightness, sat: t.sat, reason: 'trimmed_outlier' });
-
-      const rMed = debugIrisMedian(trimmed.map(s => s.r)), gMed = debugIrisMedian(trimmed.map(s => s.g)), bMed = debugIrisMedian(trimmed.map(s => s.b));
-      const variance = trimmed.reduce((acc, s) => acc + ((s.r - rMed) ** 2 + (s.g - gMed) ** 2 + (s.b - bMed) ** 2), 0) / trimmed.length;
-      const confidence = Math.max(0, Math.min(1, 1 - variance / 2200)) * Math.min(1, trimmed.length / 20);
-
-      const hslList = trimmed.map(s => rgbToHsl(s.r, s.g, s.b));
-      const rawColorStats = {
-        meanRgb: { r: debugIrisMean(trimmed.map(s => s.r)), g: debugIrisMean(trimmed.map(s => s.g)), b: debugIrisMean(trimmed.map(s => s.b)) },
-        medianRgb: { r: rMed, g: gMed, b: bMed },
-        meanHsl: { h: debugIrisMean(hslList.map(v => v.h)), s: debugIrisMean(hslList.map(v => v.s)), l: debugIrisMean(hslList.map(v => v.l)) },
-        medianHsl: { h: debugIrisMedian(hslList.map(v => v.h)), s: debugIrisMedian(hslList.map(v => v.s)), l: debugIrisMedian(hslList.map(v => v.l)) },
-        hueRange: [Math.min(...hslList.map(v => v.h)), Math.max(...hslList.map(v => v.h))],
-        satRange: [Math.min(...hslList.map(v => v.s)), Math.max(...hslList.map(v => v.s))],
-        lightnessRange: [Math.min(...hslList.map(v => v.l)), Math.max(...hslList.map(v => v.l))],
-        variance,
-      };
-      const trace = debugIrisClassifyWithTrace(rMed, gMed, bMed);
-      const realName = classifyIrisColor(rMed, gMed, bMed); // the REAL production function — trace.name must always equal this (asserted by test)
+      const a = analyzeIrisSample(ctx, eyePoints);
+      const accepted = a.accepted || [];
+      const hslList = accepted.map(p => rgbToHsl(p.r,p.g,p.b));
+      const mean = arr => arr.length ? arr.reduce((sum,v)=>sum+v,0)/arr.length : null;
+      const med = arr => { if (!arr.length) return null; const s=[...arr].sort((x,y)=>x-y); return s[Math.floor(s.length/2)]; };
+      const trace = a.rgb ? debugIrisClassifyWithTrace(...a.rgb) : null;
+      let snapshot = null;
+      try { snapshot = debugIrisRoiSnapshot(ctx.getImageData(a.roi.x0,a.roi.y0,a.roi.w,a.roi.h).data,a.roi.w,a.roi.h); } catch (e) {}
       return {
-        valid: true, roi,
-        candidatePixelCount: candidates.length,
-        acceptedPixelCount: trimmed.length,
-        rejectedPixelCount: rejected.length,
-        acceptedFraction: candidates.length > 0 ? trimmed.length / candidates.length : null,
-        rejectionSummary: debugIrisRejectionSummary(rejected),
-        rawColorStats,
-        classifierInput: { r: rMed, g: gMed, b: bMed, h: trace.h, s: trace.s, l: trace.l },
-        classifierTrace: trace.evaluatedRules,
-        selectedCategory: realName,
-        confidence,
-        // Untruncated pixel-level detail for Copy JSON / overlay —
-        // small (ROI is a few hundred to ~1500px), never a full image.
-        acceptedPixels: trimmed.map(s => ({ x: s.x, y: s.y, r: s.r, g: s.g, b: s.b })),
-        rejectedPixels: rejected,
-        // NEW THIS TURN — see the four debugIris* helpers above for what
-        // each of these is and why; all purely descriptive, all debug-only,
-        // none read by classification.
-        exposure: { candidateMeanLightness: debugIrisMean(allScannedLightness), candidateMedianLightness: debugIrisMedian(allScannedLightness) },
-        pupilCandidate: debugIrisPupilCandidate(rejected, roi),
-        regionStats: debugIrisRegionStats(trimmed, roi),
-        surroundingRef: debugIrisSurroundingRef(ctx, roi),
-        roiSnapshot: debugIrisRoiSnapshot(data, w, h),
+        valid:a.valid, roi:a.roi,
+        candidatePixelCount:a.candidates.length, acceptedPixelCount:accepted.length,
+        rejectedPixelCount:a.rejected.length,
+        acceptedFraction:a.candidates.length ? accepted.length/a.candidates.length : null,
+        rejectionSummary:debugIrisRejectionSummary(a.rejected),
+        rawColorStats:a.rgb ? {
+          meanRgb:{r:mean(accepted.map(p=>p.r)),g:mean(accepted.map(p=>p.g)),b:mean(accepted.map(p=>p.b))},
+          medianRgb:{r:a.rgb[0],g:a.rgb[1],b:a.rgb[2]},
+          meanHsl:{h:mean(hslList.map(v=>v.h)),s:mean(hslList.map(v=>v.s)),l:mean(hslList.map(v=>v.l))},
+          medianHsl:{h:med(hslList.map(v=>v.h)),s:med(hslList.map(v=>v.s)),l:med(hslList.map(v=>v.l))},
+          hueRange:[Math.min(...hslList.map(v=>v.h)),Math.max(...hslList.map(v=>v.h))],
+          satRange:[Math.min(...hslList.map(v=>v.s)),Math.max(...hslList.map(v=>v.s))],
+          lightnessRange:[Math.min(...hslList.map(v=>v.l)),Math.max(...hslList.map(v=>v.l))],
+          medianDistance:a.medianDistance, colorConsistency:a.colorConsistency,
+          sectorAgreement:a.sectorAgreement, sectorNames:a.sectorNames,
+        } : null,
+        classifierInput:a.rgb ? {r:a.rgb[0],g:a.rgb[1],b:a.rgb[2],h:trace.h,s:trace.s,l:trace.l} : null,
+        classifierTrace:trace ? trace.evaluatedRules : null,
+        selectedCategory:a.name, confidence:a.confidence,
+        acceptedPixels:accepted.map(p=>({x:p.x,y:p.y,r:p.r,g:p.g,b:p.b})),
+        rejectedPixels:a.rejected,
+        exposure:{candidateMeanLightness:mean(a.candidates.map(p=>p.lightness)),candidateMedianLightness:med(a.candidates.map(p=>p.lightness))},
+        pupilCandidate:debugIrisPupilCandidate(a.rejected,a.roi),
+        regionStats:debugIrisRegionStats(accepted,a.roi),
+        surroundingRef:debugIrisSurroundingRef(ctx,a.roi), roiSnapshot:snapshot,
       };
     }
+
     function debugIrisRejectionSummary(rejected, extraCount, extraReason) {
       const summary = {};
       for (const r of rejected) summary[r.reason] = (summary[r.reason] || 0) + 1;

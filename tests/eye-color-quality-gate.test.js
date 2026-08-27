@@ -13,7 +13,7 @@ function test(name, fn) {
 }
 
 const qualityStart = src.indexOf('    function assessFrameQuality(');
-const qualityEnd = src.indexOf('\n    function analyzeIrisSample(', qualityStart);
+const qualityEnd = src.indexOf('\n    function estimateIrisCenter(', qualityStart);
 assert.ok(qualityStart >= 0 && qualityEnd > qualityStart, 'shared quality pipeline not found');
 const qualitySource = src.slice(qualityStart, qualityEnd);
 const { assessFrameQuality, sampleBrightness } = new Function(

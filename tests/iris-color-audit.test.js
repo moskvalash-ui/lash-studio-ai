@@ -80,7 +80,7 @@ function test(name, fn) {
 // debug instrumentation. All in one unbroken span (verified: nothing
 // but this pipeline sits between sampleIrisColor and EYE_METRIC_KEYS). ----
 const rgbToHexLine = "    const rgbToHex = (r,g,b) => { const h = (n) => Math.round(Math.max(0,Math.min(255,n))).toString(16).padStart(2,'0'); return `#${h(r)}${h(g)}${h(b)}`; };";
-const pipelineStart = src.indexOf('    function analyzeIrisSample(ctx, eyePoints) {');
+const pipelineStart = src.indexOf('    function estimateIrisCenter(ctx, eyePoints) {');
 const pipelineEnd = src.indexOf('\n    const EYE_METRIC_KEYS =');
 if (pipelineStart === -1 || pipelineEnd === -1) throw new Error('Could not locate the iris pipeline block — has it moved?');
 const pipelineSource = src.slice(pipelineStart, pipelineEnd);

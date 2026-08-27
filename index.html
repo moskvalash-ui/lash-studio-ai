@@ -1790,7 +1790,7 @@
         const search=[];
         for(let y=0;y<h;y++)for(let x=0;x<w;x++){
           const gx=x0+x,gy=y0+y;
-          if(Math.abs(gy-fallback.y)>eyeH*.22||Math.abs(gx-fallback.x)>eyeW*.30)continue;
+          if(!isInsideIrisCenterSearch(gx,gy,fallback,eyeW,eyeH))continue;
           refs.push(luma(x,y)); search.push({x,y,gx,gy});
         }
         if(refs.length<9)return {...fallback,method:'landmark_midpoint',contrast:0};
@@ -1834,6 +1834,12 @@
 
     function hasPupilEnclosure(centerMean, ringLuma) {
       return ringLuma.length>=18&&ringLuma.filter(v=>v>=centerMean+12).length/ringLuma.length>=5/6;
+    }
+
+    function isInsideIrisCenterSearch(x, y, center, eyeW, eyeH) {
+      const nx=(x-center.x)/Math.max(eyeW*.30,1);
+      const ny=(y-center.y)/Math.max(eyeH*.22,1);
+      return nx*nx+ny*ny<=1;
     }
 
     function analyzeIrisSample(ctx, eyePoints) {

@@ -1,0 +1,23 @@
+{
+  "source": "iris-debug-post-c89cfbf-20260827.txt",
+  "leftControl": {
+    "landmarkCenter": [570.4857122166851, 352.64394988099485],
+    "eyeW": 90.53132027387619,
+    "eyeH": 29.494602143764496,
+    "detectedCenter": [579, 354]
+  },
+  "landmarkCenter": [338.0688925101259, 349.3709549007788],
+  "eyeW": 87.10287347435951,
+  "eyeH": 30.954816788434982,
+  "selectedFalseCenter": [361, 344],
+  "selectedNormalizedRadius": 1.180315,
+  "oldEnclosure": {
+    "centerMean": 15.458310344827586,
+    "brighterRingSamples": 20,
+    "ringSamples": 24
+  },
+  "enclosedFalseCenters": [
+    [361,344], [362,344], [361,343], [361,345], [362,345], [363,345], [363,344],
+    [362,343], [364,345], [364,346], [363,346], [362,346], [364,344], [363,343]
+  ]
+}

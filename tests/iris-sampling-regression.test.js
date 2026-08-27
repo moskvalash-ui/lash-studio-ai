@@ -6,9 +6,10 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const start = src.indexOf('    function estimateIrisCenter(');
 const end = src.indexOf('\n    const EYE_METRIC_KEYS =', start);
 const rgbToHex = "const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');";
-const api = new Function(rgbToHex + '\n' + src.slice(start,end) + '\nreturn {analyzeIrisSample,sampleIrisColor,classifyIrisColor,combineIris,hasPupilEnclosure};')();
-const { analyzeIrisSample, sampleIrisColor, classifyIrisColor, combineIris, hasPupilEnclosure } = api;
+const api = new Function(rgbToHex + '\n' + src.slice(start,end) + '\nreturn {analyzeIrisSample,sampleIrisColor,classifyIrisColor,combineIris,hasPupilEnclosure,isInsideIrisCenterSearch};')();
+const { analyzeIrisSample, sampleIrisColor, classifyIrisColor, combineIris, hasPupilEnclosure, isInsideIrisCenterSearch } = api;
 const REAL_ENCLOSURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'real-capture-2026-08-27-pupil-enclosure.json'), 'utf8'));
+const POST_FIX_SEARCH = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'real-capture-post-c89cfbf-pupil-search.json'), 'utf8'));
 
 let pass=0, fail=0;
 function test(name,fn){try{fn();pass++;console.log(`  ok  - ${name}`);}catch(e){fail++;console.log(`FAIL  - ${name}\n        ${e.message}`);}}
@@ -94,6 +95,23 @@ test('an elongated dark lash edge cannot relocate the iris ROI',()=>{
   assert.strictEqual(a.roi.centerMethod,'landmark_midpoint');
   assert.strictEqual(a.roi.cx,50);
   assert.strictEqual(a.roi.cy,50);
+});
+test('post-c89cfbf real false-positive cluster is outside the anatomical eye-search ellipse',()=>{
+  const center={x:POST_FIX_SEARCH.landmarkCenter[0],y:POST_FIX_SEARCH.landmarkCenter[1]};
+  const left=POST_FIX_SEARCH.leftControl;
+  assert.strictEqual(isInsideIrisCenterSearch(left.detectedCenter[0],left.detectedCenter[1],{x:left.landmarkCenter[0],y:left.landmarkCenter[1]},left.eyeW,left.eyeH),true,'real LEFT pupil control must remain eligible');
+  assert.strictEqual(POST_FIX_SEARCH.oldEnclosure.brighterRingSamples/POST_FIX_SEARCH.oldEnclosure.ringSamples,5/6);
+  for(const [x,y] of POST_FIX_SEARCH.enclosedFalseCenters){
+    assert.strictEqual(isInsideIrisCenterSearch(x,y,center,POST_FIX_SEARCH.eyeW,POST_FIX_SEARCH.eyeH),false,`${x},${y} must be outside`);
+  }
+});
+
+test('anatomical ellipse preserves a genuine horizontally off-center pupil',()=>{
+  assert.strictEqual(isInsideIrisCenterSearch(62,50,{x:50,y:50},60,24),true);
+  const a=analyzeIrisSample(offCenterBlueCtx(),EYE);
+  assert.strictEqual(a.roi.centerMethod,'dark_pupil');
+  assert.ok(Math.abs(a.roi.cx-62)<=2,`cx=${a.roi.cx}`);
+  assert.strictEqual(a.name,'blue');
 });
 test('spatially inconsistent low-saturation neutral mixture stays uncertain',()=>{
   const a=analyzeIrisSample(ctxFor(null,{quadrants:[[145,151,158],[158,150,145],[145,151,158],[158,150,145]]}),EYE);

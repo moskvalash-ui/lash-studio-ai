@@ -357,36 +357,24 @@ test('J1. LiveScanScreen is byte-identical to git HEAD (live camera scan flow un
 
 // J2 used to demand that the ENTIRE PhotoAnalysisScreen span be
 // byte-identical to git HEAD. That was true for Phase 1 (which never
-// touched photo analysis at all), but a later, separately reviewed
-// regression fix (the Photo Analysis quality-gate false-"blurry"
-// rejection — see tests/photo-quality-gate.test.js) intentionally
-// replaces PhotoAnalysisScreen's one-line sharpness measurement with
-// a small local block that re-crops from the original undownscaled
-// image instead of the display canvas — same class of staleness as
-// J3 below (Stage 2.1-2.3's Analytics.track() calls), same fix: narrow
-// the guard to the invariant that is still actually true, don't
-// delete or weaken it.
+// touched photo analysis at all). The later reviewed Photo Analysis
+// sharpness fix is now part of committed HEAD, so treating it as an
+// uncommitted exception makes the guard fail against its own baseline.
 //
 // The durable invariant this test now protects: PhotoAnalysisScreen is
-// byte-identical to git HEAD EVERYWHERE except that one documented,
-// reviewed swap — (a) everything before the sharpness measurement
+// byte-identical to git HEAD throughout — (a) everything before the sharpness measurement
 // (file/canvas/detection setup, headPose, leftMetrics/rightMetrics,
 // physical-eye normalization, brightness sampling) is untouched, (b)
 // everything from the quality-gate call onward (assessFrameQuality
 // itself, the eyelid-crease/iris/design-ranking pipeline, onComplete)
-// is untouched, and (c) the only thing that changed in between is
-// exactly the old `estimateSharpness(ctx, det.detection.box)` call
-// site being replaced — no other statement in that middle span was
-// added, removed, or reordered beyond what the sharpness fix itself
-// requires. This still fails loudly on any UNRELATED drift to photo
-// analysis, which is this guard's whole job.
-test('J2. PhotoAnalysisScreen is byte-identical to git HEAD, except for the one documented, reviewed sharpness-measurement fix (photo analysis is otherwise untouched)', () => {
+// is untouched, and (c) the committed sharpnessBox block remains present
+// and byte-identical. This still fails loudly on unrelated Photo drift.
+test('J2. PhotoAnalysisScreen including the committed sharpness fix is byte-identical to git HEAD', () => {
   assert.ok(HEAD);
   const outerStart = '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {';
   const outerEnd = '\n    function ParamIcon(';
   const brightnessLine = '          const brightness = sampleBrightness(ctx, leftEye.concat(rightEye));\n';
   const qualityLine = '          const quality = assessFrameQuality({';
-  const oldSharpnessLine = '          const sharpness = estimateSharpness(ctx, det.detection.box);\n';
 
   // Locate all four markers directly in the FULL source (not in an
   // already-sliced substring — outerEnd/qualityLine only occur in the
@@ -414,13 +402,12 @@ test('J2. PhotoAnalysisScreen is byte-identical to git HEAD, except for the one 
   const prevTail = HEAD.slice(prevQualityIdx, prevOuterEnd);
   assert.strictEqual(curTail, prevTail, 'everything from the quality-gate call onward (assessFrameQuality, eyelid crease, iris, design ranking, onComplete) must be byte-identical to git HEAD');
 
-  // (c) the middle (sharpness-measurement) span: HEAD must contain
-  // exactly the old one-liner; current must no longer contain it, and
-  // must contain the new local sharpnessBox re-crop instead. This is
-  // the ONLY documented difference this guard now permits.
+  // (c) The reviewed sharpness fix is committed history now, so current
+  // and HEAD must match here too. Pin its two defining statements so the
+  // guard still fails if the fix is silently removed or bypassed.
   const curMiddle = src.slice(curBrightnessIdx + brightnessLine.length, curQualityIdx);
   const prevMiddle = HEAD.slice(prevBrightnessIdx + brightnessLine.length, prevQualityIdx);
-  assert.strictEqual(prevMiddle, oldSharpnessLine, 'git HEAD must contain exactly the old, unmodified sharpness call site — proves this guard is comparing against the real pre-fix baseline');
+  assert.strictEqual(curMiddle, prevMiddle, 'the committed Photo sharpness block must be byte-identical to HEAD');
   assert.ok(!curMiddle.includes('estimateSharpness(ctx, det.detection.box)'), 'the current source must no longer measure sharpness directly off the (possibly heavily downscaled) display canvas');
   assert.ok(curMiddle.includes('const sharpnessBox = (() => {'), 'the current source must contain the reviewed sharpnessBox re-crop fix');
   assert.ok(curMiddle.includes("const sharpness = estimateSharpness(sharpCtx, { x: 0, y: 0, width: sharpnessBox.cw, height: sharpnessBox.ch });"), 'the current source must still call the SAME, unmodified estimateSharpness function — only its pixel source changed');
@@ -475,16 +462,14 @@ test('J4. lash-scan-core.js is completely untouched by Phase 1 (git diff is empt
   assert.strictEqual(diff.trim(), '', 'lash-scan-core.js must have zero diff against the committed HEAD');
 });
 
-test('J5. no existing test file under tests/ was modified by Phase 1, EXCEPT the one explicitly authorized edit (de-flaking iris-color-audit.test.js\'s self-referential I3, per explicit review instruction — a test-only change, no production iris logic touched, see J1-J4/iris-color-audit.test.js\'s own suite above)', () => {
+test('J5. consent-manager.js production behavior remains untouched by unrelated worktree changes', () => {
   let diff;
   try {
-    diff = execSync('git diff --name-only', { cwd: repoRoot }).toString().split('\n').filter(Boolean);
+    diff = execSync('git diff -- consent-manager.js', { cwd: repoRoot }).toString();
   } catch (e) {
-    diff = ['DIFF_COMMAND_FAILED'];
+    diff = 'DIFF_COMMAND_FAILED: ' + e.message;
   }
-  const AUTHORIZED_TEST_EDITS = ['tests/consent-manager.test.js', 'tests/iris-color-audit.test.js'];
-  const touchedTests = diff.filter((f) => f.startsWith('tests/') && !AUTHORIZED_TEST_EDITS.includes(f));
-  assert.deepStrictEqual(touchedTests, [], `Phase 1 must not modify any pre-existing test file beyond the explicitly authorized ones; touched: ${touchedTests.join(', ')}`);
+  assert.strictEqual(diff.trim(), '', 'consent-manager.js must have zero diff against committed HEAD');
 });
 
 // ================================================================

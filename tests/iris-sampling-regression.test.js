@@ -6,8 +6,9 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const start = src.indexOf('    function estimateIrisCenter(');
 const end = src.indexOf('\n    const EYE_METRIC_KEYS =', start);
 const rgbToHex = "const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');";
-const api = new Function(rgbToHex + '\n' + src.slice(start,end) + '\nreturn {analyzeIrisSample,sampleIrisColor,classifyIrisColor,combineIris};')();
-const { analyzeIrisSample, sampleIrisColor, classifyIrisColor, combineIris } = api;
+const api = new Function(rgbToHex + '\n' + src.slice(start,end) + '\nreturn {analyzeIrisSample,sampleIrisColor,classifyIrisColor,combineIris,hasPupilEnclosure};')();
+const { analyzeIrisSample, sampleIrisColor, classifyIrisColor, combineIris, hasPupilEnclosure } = api;
+const REAL_ENCLOSURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'real-capture-2026-08-27-pupil-enclosure.json'), 'utf8'));
 
 let pass=0, fail=0;
 function test(name,fn){try{fn();pass++;console.log(`  ok  - ${name}`);}catch(e){fail++;console.log(`FAIL  - ${name}\n        ${e.message}`);}}
@@ -70,6 +71,29 @@ test('off-center gaze relocates ROI from warm eyelid/skin pixels to the dark pup
   assert.deepStrictEqual(a.rgb,[120,165,205]);
   assert.strictEqual(a.name,'blue');
   assert.ok(a.confidence>0.7,`confidence=${a.confidence}`);
+});
+test('real-capture pupil enclosure accepts the left pupil and rejects the right lash/eyelid edge',()=>{
+  assert.strictEqual(hasPupilEnclosure(REAL_ENCLOSURE.left.centerMean,REAL_ENCLOSURE.left.ringLuma), true);
+  assert.strictEqual(hasPupilEnclosure(REAL_ENCLOSURE.right.centerMean,REAL_ENCLOSURE.right.ringLuma), false);
+  assert.strictEqual(hasPupilEnclosure(REAL_ENCLOSURE.left.centerMean,REAL_ENCLOSURE.left.ringLuma), REAL_ENCLOSURE.left.expectedEnclosed);
+  assert.strictEqual(hasPupilEnclosure(REAL_ENCLOSURE.right.centerMean,REAL_ENCLOSURE.right.ringLuma), REAL_ENCLOSURE.right.expectedEnclosed);
+});
+
+test('an elongated dark lash edge cannot relocate the iris ROI',()=>{
+  const ctx={getImageData(x0,y0,w,h){
+    const data=new Uint8ClampedArray(w*h*4);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const px=x0+x,py=y0+y;
+      let rgb=[120,165,205];
+      if(Math.abs(py-46-(px-50)*0.35)<3)rgb=[12,12,12];
+      const i=(y*w+x)*4;data[i]=rgb[0];data[i+1]=rgb[1];data[i+2]=rgb[2];data[i+3]=255;
+    }
+    return {data};
+  }};
+  const a=analyzeIrisSample(ctx,EYE);
+  assert.strictEqual(a.roi.centerMethod,'landmark_midpoint');
+  assert.strictEqual(a.roi.cx,50);
+  assert.strictEqual(a.roi.cy,50);
 });
 test('spatially inconsistent low-saturation neutral mixture stays uncertain',()=>{
   const a=analyzeIrisSample(ctxFor(null,{quadrants:[[145,151,158],[158,150,145],[145,151,158],[158,150,145]]}),EYE);

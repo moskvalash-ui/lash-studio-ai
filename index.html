@@ -1796,6 +1796,7 @@
         if(refs.length<9)return {...fallback,method:'landmark_midpoint',contrast:0};
         const sorted=[...refs].sort((a,b)=>a-b), reference=sorted[Math.floor(sorted.length/2)];
         const windowRadius=Math.max(1,Math.round(eyeH*.10));
+        const enclosureRadius=Math.max(windowRadius+2,Math.round(eyeH*.25));
         let best=null;
         for(const c of search){
           let sum=0,n=0;
@@ -1806,6 +1807,22 @@
           }
           if(!n)continue;
           const mean=sum/n;
+          // A pupil is a compact dark basin surrounded by lighter iris in
+          // nearly every direction.  A lash/eyelid edge can be darker than
+          // the pupil, but remains dark along one side of this ring.  Reject
+          // those open, elongated dark edges before they can relocate the
+          // iris ROI onto eyelid/skin.  This is deliberately luminance-only:
+          // light and dark iris colours use the same geometry check.
+          const ring=[];
+          for(let k=0;k<24;k++){
+            const angle=k*Math.PI*2/24;
+            const px=Math.round(c.x+enclosureRadius*Math.cos(angle));
+            const py=Math.round(c.y+enclosureRadius*Math.sin(angle));
+            if(px<0||py<0||px>=w||py>=h)continue;
+            ring.push(luma(px,py));
+          }
+          const enclosed=hasPupilEnclosure(mean,ring);
+          if(!enclosed)continue;
           const dx=(c.gx-fallback.x)/Math.max(eyeW*.30,1),dy=(c.gy-fallback.y)/Math.max(eyeH*.22,1);
           const score=mean+8*dx*dx+12*dy*dy;
           if(!best||score<best.score)best={x:c.gx,y:c.gy,mean,score};
@@ -1813,6 +1830,10 @@
         const contrast=best?reference-best.mean:0;
         return best&&contrast>=10?{x:best.x,y:best.y,method:'dark_pupil',contrast}:{...fallback,method:'landmark_midpoint',contrast};
       }catch(e){return {...fallback,method:'landmark_midpoint',contrast:0};}
+    }
+
+    function hasPupilEnclosure(centerMean, ringLuma) {
+      return ringLuma.length>=18&&ringLuma.filter(v=>v>=centerMean+12).length/ringLuma.length>=5/6;
     }
 
     function analyzeIrisSample(ctx, eyePoints) {

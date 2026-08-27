@@ -403,7 +403,8 @@ test('L3. PhotoAnalysisScreen: iris audit console.log is gated by isDebugModeEna
   const anchor = src.indexOf('const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);');
   const auditLogIdx = src.indexOf("'[Photo] IRIS COLOR AUDIT", anchor);
   const gateIdx = src.lastIndexOf('if (isDebugModeEnabled()) {', auditLogIdx);
-  assert.ok(anchor !== -1 && auditLogIdx !== -1 && gateIdx !== -1 && gateIdx < auditLogIdx && auditLogIdx - gateIdx < 300, 'PhotoAnalysisScreen iris audit log must be immediately gated by isDebugModeEnabled()');
+  const gateEnd = src.indexOf('\n          }', auditLogIdx);
+  assert.ok(anchor !== -1 && auditLogIdx !== -1 && gateIdx !== -1 && gateIdx < auditLogIdx && gateEnd > auditLogIdx, 'PhotoAnalysisScreen iris audit log must remain inside isDebugModeEnabled()');
 });
 
 // ================================================================
@@ -881,7 +882,8 @@ test('REAL-O. debug audit parity remains functional after this turn\'s classifyI
 // ================================================================
 test('INSTR-1. production sampler and debug audit both use analyzeIrisSample', () => {
   assert.ok(src.includes('const a = analyzeIrisSample(ctx, eyePoints);'));
-  assert.strictEqual((src.match(/const a = analyzeIrisSample\(ctx, eyePoints\);/g)||[]).length,2);
+  assert.strictEqual((src.match(/const a = analyzeIrisSample\(ctx, eyePoints\);/g)||[]).length,1, 'production sampleIrisColor must keep its direct shared-pipeline call');
+  assert.ok(src.includes('const a = fixedCenter ? analyzeIrisSample(ctx, eyePoints, fixedCenter) : analyzeIrisSample(ctx, eyePoints);'), 'debug audit may supply only the mapped native center while retaining the same sampler');
 });
 test('INSTR-2. combineIris and classifyIrisColor/classifyLowLightAmbiguous remain unchanged while uncertain uses non-retry wording', () => {
   const classifyBlockStart = src.indexOf('    const IRIS_NAMES = {');

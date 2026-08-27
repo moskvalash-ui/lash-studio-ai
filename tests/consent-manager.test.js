@@ -369,7 +369,7 @@ test('J1. LiveScanScreen is byte-identical to git HEAD (live camera scan flow un
 // itself, the eyelid-crease/iris/design-ranking pipeline, onComplete)
 // is untouched, and (c) the committed sharpnessBox block remains present
 // and byte-identical. This still fails loudly on unrelated Photo drift.
-test('J2. PhotoAnalysisScreen including the committed sharpness fix is byte-identical to git HEAD', () => {
+test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HEAD outside the separately-guarded iris debug audit', () => {
   assert.ok(HEAD);
   const outerStart = '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {';
   const outerEnd = '\n    function ParamIcon(';
@@ -400,7 +400,29 @@ test('J2. PhotoAnalysisScreen including the committed sharpness fix is byte-iden
   // (b) everything from the quality-gate call onward.
   const curTail = src.slice(curQualityIdx, curOuterEnd);
   const prevTail = HEAD.slice(prevQualityIdx, prevOuterEnd);
-  assert.strictEqual(curTail, prevTail, 'everything from the quality-gate call onward (assessFrameQuality, eyelid crease, iris, design ranking, onComplete) must be byte-identical to git HEAD');
+  const debugStart = '          let irisColorAuditForRec = null;';
+  const debugEnd = '          const designs = rankDesigns(classified, lang);';
+  const omitIrisDebugAudit = (tail) => {
+    const start = tail.indexOf(debugStart);
+    const end = tail.indexOf(debugEnd, start);
+    assert.ok(start !== -1 && end > start, 'the exclusion must resolve only the bounded irisColorAuditForRec debug block');
+    return { comparable: tail.slice(0, start) + debugEnd + tail.slice(end + debugEnd.length), block: tail.slice(start, end) };
+  };
+  const curGuarded = omitIrisDebugAudit(curTail);
+  const prevGuarded = omitIrisDebugAudit(prevTail);
+  assert.strictEqual(curGuarded.comparable, prevGuarded.comparable, 'everything from the quality-gate call onward outside the bounded iris debug block must remain byte-identical to git HEAD');
+
+  // The intentionally excluded span is not unguarded: pin its debug gate,
+  // native-coordinate mapping, direct source-image read, paired comparison,
+  // console exposure, and prohibition on replacing production iris values.
+  assert.ok(curGuarded.block.includes('if (isDebugModeEnabled()) {'));
+  assert.ok(curGuarded.block.includes('debugBuildIrisNativeMapping(naturalWidth,naturalHeight,canvas.width,canvas.height,leftEye,rightEye,resizedLeftAudit,resizedRightAudit)'));
+  assert.ok(curGuarded.block.includes("nativeCtx.drawImage(img,0,0,naturalWidth,naturalHeight);"));
+  assert.ok(curGuarded.block.includes('buildIrisColorAudit(nativeCtx,mapping.left.eyePoints,mapping.left.center)'));
+  assert.ok(curGuarded.block.includes('buildIrisColorAudit(nativeCtx,mapping.right.eyePoints,mapping.right.center)'));
+  assert.ok(curGuarded.block.includes('debugBuildPairedIrisStats(nativeCtx,resizedLeftAudit.acceptedPixels'));
+  assert.ok(curGuarded.block.includes("console.log('[Photo] IRIS COLOR AUDIT (debug shadow, not used in production)', irisColorAuditForRec);"));
+  assert.ok(!/leftIris\s*=\s*native|rightIris\s*=\s*native|iris\s*=\s*native/.test(curGuarded.block));
 
   // (c) The reviewed sharpness fix is committed history now, so current
   // and HEAD must match here too. Pin its two defining statements so the

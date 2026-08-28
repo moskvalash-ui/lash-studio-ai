@@ -347,12 +347,20 @@ try {
   HEAD = null;
 }
 
-test('J1. LiveScanScreen is byte-identical to git HEAD (live camera scan flow untouched by Phase 1)', () => {
+test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only contextual iris additions', () => {
   assert.ok(HEAD, 'expected `git show HEAD:index.html` to succeed inside a git working tree');
   const cur = extractSpan(src, '    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {', '\n    function PhotoAnalysisScreen(');
   const prev = extractSpan(HEAD, '    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {', '\n    function PhotoAnalysisScreen(');
   assert.ok(cur !== null && prev !== null, 'expected to locate LiveScanScreen in both current and HEAD source');
-  assert.strictEqual(cur, prev, 'LiveScanScreen must be byte-identical — Phase 1 must not touch scanning');
+  const omitContextualIrisDebug = span => span
+    .replace(
+      "              const leftAudit=buildIrisColorAudit(ctx,leftEye),rightAudit=buildIrisColorAudit(ctx,rightEye);\n              debugIrisAuditRef.current = {\n                left:leftAudit,right:rightAudit,\n                contextual:debugBuildIrisContextFeatures(ctx,leftEye,rightEye,leftAudit,rightAudit,bestFrameRef.current.leftIris,bestFrameRef.current.rightIris),\n              };",
+      "              debugIrisAuditRef.current = {\n                left: buildIrisColorAudit(ctx, leftEye),\n                right: buildIrisColorAudit(ctx, rightEye),\n              };"
+    )
+    .replace("\n              contextual: debugIrisAuditRef.current.contextual,", '');
+  assert.strictEqual(omitContextualIrisDebug(cur),omitContextualIrisDebug(prev),'LiveScanScreen outside the two bounded contextual debug additions must remain byte-identical to HEAD');
+  assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
+  assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
 });
 
 // J2 used to demand that the ENTIRE PhotoAnalysisScreen span be

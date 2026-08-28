@@ -2040,6 +2040,104 @@
       return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
     }
 
+    // DEBUG-ONLY contextual colour experiment. OKLab is used here only as
+    // a perceptually useful coordinate system for describing iris-minus-
+    // sclera differences. These values never enter classifyIrisColor,
+    // combineIris, confidence, capture quality, or any production field.
+    function debugIrisRgbToOklab(r, g, b) {
+      const linear = v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; };
+      r=linear(r);g=linear(g);b=linear(b);
+      const l=.4122214708*r+.5363325363*g+.0514459929*b;
+      const m=.2119034982*r+.6806995451*g+.1073969566*b;
+      const s=.0883024619*r+.2817188376*g+.6299787005*b;
+      const l3=Math.cbrt(l),m3=Math.cbrt(m),s3=Math.cbrt(s);
+      return {L:.2104542553*l3+.793617785*m3-.0040720468*s3,a:1.9779984951*l3-2.428592205*m3+.4505937099*s3,b:.0259040371*l3+.7827717662*m3-.808675766*s3};
+    }
+
+    function debugIrisPointInPolygon(x,y,points) {
+      let inside=false;
+      for(let i=0,j=points.length-1;i<points.length;j=i++){
+        const a=points[i],b=points[j];
+        if(((a.y>y)!==(b.y>y))&&(x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x))inside=!inside;
+      }
+      return inside;
+    }
+
+    function debugExtractIrisScleraReference(ctx,eyePoints,roi,physicalSide) {
+      const xs=eyePoints.map(p=>p.x),ys=eyePoints.map(p=>p.y);
+      const x0=Math.max(0,Math.floor(Math.min(...xs))),y0=Math.max(0,Math.floor(Math.min(...ys)));
+      const w=Math.max(1,Math.ceil(Math.max(...xs))-x0+1),h=Math.max(1,Math.ceil(Math.max(...ys))-y0+1);
+      const rejected={outsideEyeOpening:0,irisOrPupil:0,deepShadow:0,highlight:0,vessel:0,skinOrEyelid:0};
+      const nasal=[],temporal=[],allCandidates=[];
+      try{
+        const data=ctx.getImageData(x0,y0,w,h).data;
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+          const px=x0+x,py=y0+y,dx=px-roi.cx,dy=py-roi.cy;
+          // Only the two lateral pockets inside the six-point eye-opening
+          // polygon qualify. The central iris/pupil disc and the superior/
+          // inferior lid margins can therefore never become reference.
+          if(!debugIrisPointInPolygon(px+.5,py+.5,eyePoints)){rejected.outsideEyeOpening++;continue;}
+          if(Math.sqrt(dx*dx+dy*dy)<roi.radius*1.12){rejected.irisOrPupil++;continue;}
+          if(Math.abs(dx)>roi.eyeW*.48||Math.abs(dy)>roi.eyeH*.28)continue;
+          const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+          const max=Math.max(r,g,b),min=Math.min(r,g,b),chroma=max-min,light=(max+min)/2;
+          const sat=max===min?0:(light>127?chroma/(510-max-min):chroma/(max+min));
+          const p={x:px,y:py,r,g,b};allCandidates.push(p);
+          if(light<45){rejected.deepShadow++;continue;}
+          if(light>225&&chroma<18){rejected.highlight++;continue;}
+          if(r-g>28&&r-b>18){rejected.vessel++;continue;}
+          if(sat>.38||(r>g+22&&g>=b)){rejected.skinOrEyelid++;continue;}
+          const isNasal=physicalSide==='left'?dx<0:dx>0;
+          (isNasal?nasal:temporal).push(p);
+        }
+      }catch(e){return {valid:false,quality:0,nasalPixelCount:0,temporalPixelCount:0,validPixelCount:0,meanRgb:null,medianRgb:null,meanOklab:null,medianOklab:null,nasalTemporalAgreement:null,rejected,error:'unavailable'};}
+      const summarize=pixels=>{
+        if(!pixels.length)return null;
+        const meanRgb={r:debugIrisMean(pixels.map(p=>p.r)),g:debugIrisMean(pixels.map(p=>p.g)),b:debugIrisMean(pixels.map(p=>p.b))};
+        const medianRgb={r:debugIrisMedian(pixels.map(p=>p.r)),g:debugIrisMedian(pixels.map(p=>p.g)),b:debugIrisMedian(pixels.map(p=>p.b))};
+        const labs=pixels.map(p=>debugIrisRgbToOklab(p.r,p.g,p.b));
+        return {meanRgb,medianRgb,meanOklab:{L:debugIrisMean(labs.map(v=>v.L)),a:debugIrisMean(labs.map(v=>v.a)),b:debugIrisMean(labs.map(v=>v.b))},medianOklab:{L:debugIrisMedian(labs.map(v=>v.L)),a:debugIrisMedian(labs.map(v=>v.a)),b:debugIrisMedian(labs.map(v=>v.b))}};
+      };
+      const ns=summarize(nasal),ts=summarize(temporal),combined=summarize([...nasal,...temporal]);
+      const agreement=ns&&ts?Math.sqrt((ns.medianOklab.L-ts.medianOklab.L)**2+(ns.medianOklab.a-ts.medianOklab.a)**2+(ns.medianOklab.b-ts.medianOklab.b)**2):null;
+      const countQuality=Math.min(1,Math.min(nasal.length,temporal.length)/8);
+      const agreementQuality=agreement===null?0:Math.max(0,1-agreement/.12);
+      const centerQuality=roi.centerMethod==='landmark_midpoint'?.35:1;
+      const valid=nasal.length>=4&&temporal.length>=4&&agreement!==null&&agreement<.12;
+      return {valid,quality:countQuality*agreementQuality*centerQuality,centerQuality,nasalPixelCount:nasal.length,temporalPixelCount:temporal.length,validPixelCount:nasal.length+temporal.length,meanRgb:combined&&combined.meanRgb,medianRgb:combined&&combined.medianRgb,meanOklab:combined&&combined.meanOklab,medianOklab:combined&&combined.medianOklab,nasalTemporalAgreement:agreement,rejected,candidatePixelCount:allCandidates.length};
+    }
+
+    function debugBuildIrisContextEye(ctx,eyePoints,audit,productionIris,physicalSide) {
+      const reference=debugExtractIrisScleraReference(ctx,eyePoints,audit.roi,physicalSide);
+      const rgb=productionIris&&productionIris.rgb;
+      const irisOklab=rgb?debugIrisRgbToOklab(...rgb):null,ref=reference.medianOklab;
+      let relative=null;
+      if(irisOklab&&ref&&reference.valid){
+        const eps=1;
+        relative={deltaL:irisOklab.L-ref.L,deltaA:irisOklab.a-ref.a,deltaB:irisOklab.b-ref.b};
+        relative.deltaE=Math.sqrt(relative.deltaL**2+relative.deltaA**2+relative.deltaB**2);
+        relative.logBRContrast=Math.log((rgb[2]+eps)/(rgb[0]+eps))-Math.log((reference.medianRgb.b+eps)/(reference.medianRgb.r+eps));
+        relative.logGRContrast=Math.log((rgb[1]+eps)/(rgb[0]+eps))-Math.log((reference.medianRgb.g+eps)/(reference.medianRgb.r+eps));
+        relative.rawBRDelta=(rgb[2]-rgb[0])-(reference.medianRgb.b-reference.medianRgb.r);
+        relative.rawBGDelta=(rgb[2]-rgb[1])-(reference.medianRgb.b-reference.medianRgb.g);
+        const ih=rgbToHsl(...rgb),rh=rgbToHsl(reference.medianRgb.r,reference.medianRgb.g,reference.medianRgb.b);
+        relative.relativeChromaChange=(Math.max(...rgb)-Math.min(...rgb))-(Math.max(...Object.values(reference.medianRgb))-Math.min(...Object.values(reference.medianRgb)));
+        relative.relativeSaturationChange=ih.s-rh.s;
+      }
+      return {iris:{rgb:rgb||null,oklab:irisOklab,absoluteCategory:productionIris&&productionIris.name,confidence:productionIris&&productionIris.confidence},reference,relative,contextualCoolDirection:!!(relative&&relative.deltaB<0),productionActivationBlocked:true};
+    }
+
+    function debugBuildIrisContextFeatures(ctx,leftEye,rightEye,leftAudit,rightAudit,leftIris,rightIris) {
+      const left=debugBuildIrisContextEye(ctx,leftEye,leftAudit,leftIris,'left');
+      const right=debugBuildIrisContextEye(ctx,rightEye,rightAudit,rightIris,'right');
+      const l=left.relative,r=right.relative;
+      const distance=l&&r?Math.sqrt(['deltaL','deltaA','deltaB','logBRContrast','logGRContrast'].reduce((s,k)=>s+(l[k]-r[k])**2,0)):null;
+      const combined={leftRightRelativeFeatureDistance:distance,deltaASignAgreement:!!(l&&r&&Math.sign(l.deltaA)===Math.sign(r.deltaA)),deltaBSignAgreement:!!(l&&r&&Math.sign(l.deltaB)===Math.sign(r.deltaB)),brContrastAgreement:!!(l&&r&&Math.sign(l.logBRContrast)===Math.sign(r.logBRContrast)),referenceQualityAgreement:!!(left.reference.valid&&right.reference.valid&&Math.abs(left.reference.quality-right.reference.quality)<=.35)};
+      combined.bilateralContextualEvidence=!!(left.contextualCoolDirection&&right.contextualCoolDirection&&combined.deltaBSignAgreement&&combined.brContrastAgreement&&combined.referenceQualityAgreement);
+      combined.productionActivationBlocked=true;
+      return {contextualSchemaVersion:1,left,right,combined};
+    }
+
     // ------------------------------------------------------------
     // NEW THIS TURN — forward-looking DEBUG-ONLY instrumentation for the
     // NEXT real capture. None of these four helpers are called by
@@ -6066,9 +6164,10 @@
             // block, including the audit calls themselves, never
             // executes, so normal mode pays zero cost for it.
             if (debugAvailable) {
+              const leftAudit=buildIrisColorAudit(ctx,leftEye),rightAudit=buildIrisColorAudit(ctx,rightEye);
               debugIrisAuditRef.current = {
-                left: buildIrisColorAudit(ctx, leftEye),
-                right: buildIrisColorAudit(ctx, rightEye),
+                left:leftAudit,right:rightAudit,
+                contextual:debugBuildIrisContextFeatures(ctx,leftEye,rightEye,leftAudit,rightAudit,bestFrameRef.current.leftIris,bestFrameRef.current.rightIris),
               };
             }
           }
@@ -6166,6 +6265,7 @@
               left: debugIrisAuditRef.current.left,
               right: debugIrisAuditRef.current.right,
               combined: buildIrisColorAuditCombined(debugIrisAuditRef.current.left, debugIrisAuditRef.current.right, best.leftIris, best.rightIris, iris),
+              contextual: debugIrisAuditRef.current.contextual,
             };
             setDebugIrisAudit(irisColorAuditForRec);
           }
@@ -7167,6 +7267,7 @@
             irisColorAuditForRec = {
               left: resizedLeftAudit, right: resizedRightAudit,
               combined: buildIrisColorAuditCombined(null, null, leftIris, rightIris, iris),
+              contextual:debugBuildIrisContextFeatures(ctx,leftEye,rightEye,resizedLeftAudit,resizedRightAudit,leftIris,rightIris),
               nativeVsResized:{
                 image:mapping.image,
                 left:{native:nativeLeftAudit,resized:resizedLeftAudit,paired:debugBuildPairedIrisStats(nativeCtx,resizedLeftAudit.acceptedPixels,mapping.image.scaleX,mapping.image.scaleY,naturalWidth,naturalHeight)},

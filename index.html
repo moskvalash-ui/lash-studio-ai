@@ -3320,11 +3320,6 @@
       const sectors = [];
       for (let i = 0; i < zones.length - 1; i++) {
         const start = zones[i], end = zones[i + 1];
-        // A zero-length final PEAK -> OUTER segment is a deliberate
-        // plateau in the five control values, not a sixth visual
-        // sector. Keep OUTER in the source/control-zone plan, but do
-        // not render a second adjacent marker with the same length.
-        if (i === zones.length - 2 && end === start) continue;
         const steps = Math.max(1, Math.ceil(Math.abs(end - start)));
         if (i === 0) sectors.push({ len: start, t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 });
         for (let step = 1; step <= steps; step++) {
@@ -3496,13 +3491,29 @@
       const peakLength = Math.round(Math.max(8, Math.min(13,
         8.5 + sizeScale * 2.2 + widthScale * 1.1 + openingScale * 0.7
       )));
-      const innerDrop = 2 + (c.isCloseSet ? 1 : 0) + (eye.innerTaperDeg < 55 ? 1 : 0);
-      const outerDrop = 1 + (physicalTilt > 4 ? 1 : 0) + (eye.outerTaperDeg > 80 ? 1 : 0);
-      const zones = Array.from({ length: 5 }, (_, i) => {
-        if (i === peakZone) return peakLength;
-        const distance = Math.abs(i - peakZone);
-        const totalDrop = i < peakZone ? innerDrop : outerDrop;
-        return Math.max(5, peakLength - Math.round(totalDrop * distance / Math.max(peakZone, 4 - peakZone, 1)));
+      const template=entry.baseZones,templatePeak=entry.peakZone,templatePeakLength=template[templatePeak];
+      const profilePeakLength=Math.max(peakLength,5+templatePeakLength-Math.min(...template));
+      const sampleTemplate=x=>{
+        const lo=Math.max(0,Math.min(4,Math.floor(x))),hi=Math.max(0,Math.min(4,Math.ceil(x)));
+        if(lo===hi)return template[lo];
+        return template[lo]+(template[hi]-template[lo])*(x-lo)/(hi-lo);
+      };
+      // Move the complete professional profile with the measured peak:
+      // each side is independently stretched/compressed around PEAK,
+      // preserving TRANSITION/BODY/shoulder intent instead of rebuilding
+      // a generic linear ramp from only the two endpoint drops.
+      const warpedTemplate=Array.from({length:5},(_,i)=>{
+        if(i===peakZone)return templatePeakLength;
+        if(i<peakZone)return sampleTemplate(templatePeak*i/Math.max(peakZone,1));
+        return sampleTemplate(templatePeak+(4-templatePeak)*(i-peakZone)/Math.max(4-peakZone,1));
+      });
+      const innerAdjustment=(c.isCloseSet?1:0)+(eye.innerTaperDeg<55?1:0);
+      const outerAdjustment=(physicalTilt>4?1:0)+(eye.outerTaperDeg>80?1:0);
+      const zones=warpedTemplate.map((v,i)=>{
+        const profileLength=profilePeakLength+(v-templatePeakLength);
+        const innerPenalty=i<peakZone?innerAdjustment*(peakZone-i)/Math.max(peakZone,1):0;
+        const outerPenalty=i>peakZone?outerAdjustment*(i-peakZone)/Math.max(4-peakZone,1):0;
+        return Math.max(5,Math.round(profileLength-innerPenalty-outerPenalty));
       });
 
       const widthDeficit = Math.max(0, (other.width - eye.width) / Math.max(other.width, 1));
@@ -7969,10 +7980,11 @@
       const otherAiBase = activeEye === 'left' ? design.rightZones : design.leftZones;
       const customBase = activeEye === 'left' ? customLeft : customRight;
       const zones = (mode === 'ai' ? aiBase : customBase).map(v => Math.max(5, v + (mode==='ai'?lengthDelta:0)));
-      const otherZones = mode === 'ai' ? otherAiBase : (activeEye === 'left' ? customRight : customLeft);
+      const otherZones = mode === 'ai' ? otherAiBase.map(v => Math.max(5, v + lengthDelta)) : (activeEye === 'left' ? customRight : customLeft);
       // PEAK follows the actual per-eye map being rendered (including
-      // measured correction), not a catalog-level shared index.
-      const peakIdx = activeEye === 'left' ? design.leftPeakZone : design.rightPeakZone;
+      // measured correction). Custom edits may deliberately move the
+      // maximum, so diagram and written plan derive the same peak there.
+      const peakIdx = mode==='custom' ? zones.indexOf(Math.max(...zones)) : activeEye === 'left' ? design.leftPeakZone : design.rightPeakZone;
       const asym = p.compositeAsymmetry > 0.07 && Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0) > 0;
       const densityLabel = density==='light' ? t('light',lang) : density==='full' ? t('full',lang) : t('medium',lang);
       const diameter = density==='light' ? '0.07 mm' : density==='full' ? '0.12–0.15 mm' : '0.10 mm';

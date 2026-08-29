@@ -10,6 +10,9 @@ assert.ok(start >= 0 && end > start, 'lash-map display helper must be extractabl
 const { expandLashMapSectors } = new Function(
   src.slice(start, end) + '\nreturn { expandLashMapSectors };'
 )();
+const catalogStart = src.indexOf('    const DESIGN_CATALOG = ');
+const catalogEnd = src.indexOf('\n\n    function calculateEyeLashMap(', catalogStart);
+const DESIGN_CATALOG = new Function(src.slice(catalogStart, catalogEnd) + '\nreturn DESIGN_CATALOG;')();
 
 const lengths = sectors => sectors.map(s => s.len);
 const maxJump = values => Math.max(0, ...values.slice(1).map((v, i) => Math.abs(v - values[i])));
@@ -27,10 +30,12 @@ test('6,7,9,13,11 includes 10/11/12 before PEAK 13', () => {
   assert.ok(maxJump(lengths(sectors)) <= 1);
 });
 
-test('7,8,9,10,10 keeps the intentional PEAK/OUTER plateau without a duplicate display sector', () => {
+test('7,8,9,10,10 keeps all five named control zones, including numeric OUTER', () => {
   const controls = [7, 8, 9, 10, 10];
-  const rendered = lengths(expandLashMapSectors(controls, 3));
-  assert.deepStrictEqual(rendered, [7, 8, 9, 10]);
+  const sectors = expandLashMapSectors(controls, 3);
+  assert.deepStrictEqual(lengths(sectors), controls);
+  assert.deepStrictEqual(sectors.filter(s => s.isKey).map(s => s.label), ['INNER', 'TRANSITION', 'BODY', 'PEAK', 'OUTER']);
+  assert.strictEqual(sectors.find(s => s.label === 'OUTER').len, 10);
   assert.deepStrictEqual(controls, [7, 8, 9, 10, 10], 'business control values remain unchanged');
 });
 
@@ -44,6 +49,12 @@ test('7,8,9,10,9 never gains an extra trailing 9 display sector', () => {
   const rendered = lengths(expandLashMapSectors([7, 8, 9, 10, 9], 3));
   assert.notDeepStrictEqual(rendered.slice(-3), [10, 9, 9]);
   assert.strictEqual(rendered.filter((v, i) => i > 0 && v === 9 && rendered[i - 1] === 9).length, 0);
+});
+
+test('no key zone disappears when adjacent control values are equal', () => {
+  const sectors = expandLashMapSectors([7, 8, 9, 10, 10], 3);
+  assert.strictEqual(sectors.filter(s => s.isKey).length, 5);
+  assert.ok(sectors.every(s => typeof s.len === 'number'));
 });
 
 test('independent LEFT/RIGHT one-millimeter peak correction survives display expansion', () => {
@@ -70,4 +81,18 @@ test('diagram and written plan share the same expanded sectors', () => {
   assert.ok(src.includes('const items = expandLashMapSectors(zones, peakIdx);'));
   assert.ok(src.includes('const displaySectors = expandLashMapSectors(zones, peakIdx);'));
   assert.ok(src.includes('plan.displaySectors.map((sector,i) =>'));
+});
+
+test('every catalog profile expands smoothly without mutating its five source zones', () => {
+  for(const entry of DESIGN_CATALOG){
+    const before=[...entry.baseZones],sectors=expandLashMapSectors(entry.baseZones,entry.peakZone);
+    assert.deepStrictEqual(entry.baseZones,before,entry.id);
+    assert.deepStrictEqual(sectors.filter(s=>s.isKey).map(s=>s.label),['INNER','TRANSITION','BODY','PEAK','OUTER'],entry.id);
+    assert.ok(maxJump(lengths(sectors))<=1,entry.id);
+  }
+});
+
+test('Custom mode derives PEAK from edited values and AI length delta is bilateral', () => {
+  assert.ok(src.includes("const peakIdx = mode==='custom' ? zones.indexOf(Math.max(...zones))"));
+  assert.ok(src.includes("otherAiBase.map(v => Math.max(5, v + lengthDelta))"));
 });

@@ -3425,38 +3425,16 @@
       };
     }
 
-    // Deterministic label scheduler. Markers are never removed; only
-    // lower-priority text is suppressed when the compact eye crop cannot
-    // hold it clearly. Priority: PEAK > anatomical ends > length change
-    // > source anchor. Repeated plateau values are intentionally omitted.
+    // PHOTO keeps only the three professional anchors. All samples and
+    // technical values remain available in the geometry, Diagram, and
+    // five-zone specification row; only floating PHOTO text is reduced.
     function selectProfessionalEyeLabels(points, crop) {
       if(!Array.isArray(points)||!crop)return [];
-      const candidates=points.map((point,index)=>{
-        const end=point.label==='INNER'||point.label==='OUTER';
-        const changed=index===0||point.len!==points[index-1].len;
-        const priority=point.isPeak?5:end?4:changed?3:0;
-        return {point,index,priority};
-      }).filter(item=>item.priority>0).sort((a,b)=>b.priority-a.priority||a.index-b.index);
-      const placed=[],result=Array(points.length).fill(null);
-      const minX=crop.width*.075,minY=crop.height*.16;
-      for(const item of candidates){
-        if(item.point.isPeak){
-          const position={x:item.point.profileX,y:item.point.profileY-crop.height*.045,lane:0};
-          result[item.index]={...position,priority:item.priority};placed.push(position);continue;
-        }
-        const lanes=[item.index%2,1-(item.index%2),2];
-        let position=null;
-        for(const lane of lanes){
-          const x=item.point.profileX,y=item.point.profileY-crop.height*(.04+lane*.075);
-          if(!placed.some(p=>Math.abs(p.x-x)<minX&&Math.abs(p.y-y)<minY)){position={x,y,lane};break;}
-        }
-        // Mandatory labels cannot disappear; their priority already lets
-        // them displace optional labels by being scheduled first.
-        if(position||item.priority>=4){
-          position=position||{x:item.point.profileX,y:item.point.profileY-crop.height*.19,lane:2};
-          result[item.index]={...position,priority:item.priority};placed.push(position);
-        }
-      }
+      const result=Array(points.length).fill(null);
+      points.forEach((point,index)=>{
+        if(point.isPeak)result[index]={x:point.profileX,y:point.profileY-crop.height*.045,priority:5,kind:'PEAK'};
+        else if(point.label==='INNER'||point.label==='OUTER')result[index]={x:point.x,y:point.y+crop.height*.075,priority:4,kind:point.label};
+      });
       return result;
     }
     const CATEGORY_LABELS = {
@@ -8040,10 +8018,9 @@
             <svg className="absolute inset-0 h-full w-full" viewBox={`${crop.x} ${crop.y} ${crop.width} ${crop.height}`} preserveAspectRatio="xMidYMid meet">
               <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
               <rect x={crop.x} y={crop.y} width={crop.width} height={crop.height} fill="rgba(2,6,11,.12)" />
-              <path d={path} fill="none" stroke="rgba(3,8,14,.68)" strokeWidth={unit*.82} strokeLinecap="round" />
-              <path d={path} fill="none" stroke="#E7EFF5" strokeWidth={unit*.38} strokeLinecap="round" />
-              {points.map((point,i)=><line key={`profile-stem-${i}`} x1={point.x} y1={point.y} x2={point.profileX} y2={point.profileY} stroke={point.isPeak?'rgba(83,199,255,.82)':'rgba(231,239,245,.24)'} strokeWidth={unit*(point.isPeak ? 0.48 : 0.18)} strokeLinecap="round"/>)}
-              <path d={profilePath} fill="none" stroke="rgba(231,239,245,.92)" strokeWidth={unit*.42} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={path} fill="none" stroke="rgba(231,239,245,.46)" strokeWidth={unit*.28} strokeLinecap="round" />
+              {points.map((point,i)=><line key={`profile-stem-${i}`} x1={point.x} y1={point.y} x2={point.profileX} y2={point.profileY} stroke={point.isPeak?'rgba(83,199,255,.62)':'rgba(231,239,245,.18)'} strokeWidth={unit*(point.isPeak ? 0.32 : 0.12)} strokeLinecap="round"/>)}
+              <path d={profilePath} fill="none" stroke="rgba(231,239,245,.96)" strokeWidth={unit*.52} strokeLinecap="round" strokeLinejoin="round"/>
               {points.map((point,i)=><circle key={`profile-point-${i}`} cx={point.profileX} cy={point.profileY} r={unit*(point.isPeak?1.25:.62)} fill={point.isPeak?'#53C7FF':'rgba(244,247,250,.9)'} stroke="rgba(2,6,11,.75)" strokeWidth={unit*.24}/>)}
               {points.map((point,i)=>{
                 const label=labels[i],r=unit*(point.isPeak?2.25:point.isKey?1.5:1.1),diamond=unit*2.8;

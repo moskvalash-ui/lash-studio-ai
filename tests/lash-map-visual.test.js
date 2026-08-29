@@ -13,6 +13,10 @@ const { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessional
 const catalogStart=src.indexOf('    const DESIGN_CATALOG = '),catalogEnd=src.indexOf('\n\n    function calculateEyeLashMap(',catalogStart);
 const DESIGN_CATALOG=new Function(src.slice(catalogStart,catalogEnd)+'\nreturn DESIGN_CATALOG;')();
 const curveFor=entry=>({zonePositions:entry.zonePositions||null,postPeakShape:entry.postPeakShape||'linear',plateauShape:entry.plateauShape||'linear'});
+const rendererStart=src.indexOf('    function ProfessionalEyeMap(');
+const rendererEnd=src.indexOf('\n    function LashMapScreen(',rendererStart);
+assert.ok(rendererStart>=0&&rendererEnd>rendererStart,'ProfessionalEyeMap must be structurally extractable');
+const professionalEyeMapSource=src.slice(rendererStart,rendererEnd);
 
 const leftEye = [
   {x:100,y:100},{x:126,y:84},{x:158,y:82},
@@ -101,14 +105,14 @@ test('responsive SVG scaling preserves normalized projection coordinates',()=>{
 });
 
 test('rendering uses the retained image without presentation mirroring or eye swapping',()=>{
-  const component=src.slice(src.indexOf('    function ProfessionalEyeMap('),src.indexOf('\n    function LashMapScreen(',src.indexOf('    function ProfessionalEyeMap(')));
+  const component=professionalEyeMapSource;
   assert.ok(component.includes('getPhysicalEyeLandmarks(result.landmarks,side).eye'));
   assert.ok(component.includes('href={result.originalImage}'));
   assert.ok(!/scaleX\s*\(\s*-1|rotateY\s*\(\s*180|transform[^\n]*mirror/i.test(component));
 });
 
 test('visual point count and labels come directly from derived sectors',()=>{
-  const component=src.slice(src.indexOf('    function ProfessionalEyeMap('),src.indexOf('\n    function LashMapScreen(',src.indexOf('    function ProfessionalEyeMap(')));
+  const component=professionalEyeMapSource;
   assert.ok(component.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
   assert.ok(component.includes('points.map((point,i)=>'));
   assert.ok(component.includes('data-length={point.len}'));
@@ -124,6 +128,23 @@ test('PEAK label is mandatory and collision scheduling is deterministic',()=>{
   assert.strictEqual(a[peakIndex].priority,5);
   assert.strictEqual(a[peakIndex].x,mapped.points[peakIndex].profileX);
   assert.strictEqual(a[peakIndex].y,mapped.points[peakIndex].profileY-mapped.crop.height*.045);
+});
+
+test('PHOTO permanently labels only INNER, PEAK, and OUTER while retaining every marker',()=>{
+  const mapped=project(leftEye),labels=selectProfessionalEyeLabels(mapped.points,mapped.crop);
+  assert.deepStrictEqual(labels.map((label,i)=>label&&mapped.points[i].isPeak?'PEAK':label&&mapped.points[i].label).filter(Boolean),['INNER','PEAK','OUTER']);
+  assert.ok(professionalEyeMapSource.includes('{points.map((point,i)=>'));
+  assert.ok(professionalEyeMapSource.includes('data-map-point={i}'));
+  assert.ok(professionalEyeMapSource.includes("point.isPeak?`PEAK ${point.len}`:point.len"));
+});
+
+test('PHOTO visual hierarchy is silhouette above baseline above ordinary stems',()=>{
+  assert.ok(professionalEyeMapSource.includes('<path d={profilePath} fill="none" stroke="rgba(231,239,245,.96)" strokeWidth={unit*.52}'));
+  assert.ok(professionalEyeMapSource.includes('<path d={path} fill="none" stroke="rgba(231,239,245,.46)" strokeWidth={unit*.28}'));
+  assert.ok(professionalEyeMapSource.includes("stroke={point.isPeak?'rgba(83,199,255,.62)':'rgba(231,239,245,.18)'}"));
+  assert.ok(professionalEyeMapSource.includes('strokeWidth={unit*(point.isPeak ? 0.32 : 0.12)}'));
+  assert.strictEqual((professionalEyeMapSource.match(/<path d=\{path\}/g)||[]).length,1,'baseline must use one stroke');
+  assert.ok(!src.includes('profileBandPath'),'unused profile-band geometry must not remain');
 });
 
 test('plateau values do not produce redundant repeated labels',()=>{
@@ -175,10 +196,9 @@ test('normal projection preserves engine t, length, and PEAK and is deterministi
   assert.strictEqual(a.points.find(p=>p.isPeak).t,sectors.find(p=>p.isPeak).t);
 });
 
-test('projection helper has no effect-specific rendering rule',()=>{
-  const helper=src.slice(src.indexOf('    function buildProfessionalEyeProjection('),src.indexOf('\n    // Deterministic label scheduler',src.indexOf('    function buildProfessionalEyeProjection(')));
-  assert.ok(!/fox|cat|squirrel|doll|natural|softfox/i.test(helper));
-  assert.ok(!helper.includes('expandLashMapSectors('));
+test('ProfessionalEyeMap has no effect-specific rendering rule',()=>{
+  assert.ok(!/\b(?:fox|cat|squirrel|doll|natural|softfox)\b/i.test(professionalEyeMapSource));
+  assert.strictEqual((professionalEyeMapSource.match(/expandLashMapSectors\(/g)||[]).length,1);
 });
 
 test('unstable degenerate upper-lid tangent fails closed to vertical projection',()=>{

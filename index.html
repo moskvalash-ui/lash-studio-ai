@@ -3432,10 +3432,16 @@
       if(!Array.isArray(points)||!crop)return [];
       const result=Array(points.length).fill(null);
       points.forEach((point,index)=>{
-        if(point.isPeak)result[index]={x:point.profileX,y:point.profileY-crop.height*.045,priority:5,kind:'PEAK'};
+        if(point.isPeak)result[index]={x:point.x,y:point.y-crop.height*.055,priority:5,kind:'PEAK'};
         else if(point.label==='INNER'||point.label==='OUTER')result[index]={x:point.x,y:point.y+crop.height*.075,priority:4,kind:point.label};
       });
       return result;
+    }
+
+    // Display-only radius: 5 mm starts at .75 unit, each millimeter adds
+    // .09 unit, and the result is capped for legibility on compact photos.
+    function professionalSampleRadius(len, unit=1) {
+      return unit*Math.max(.72,Math.min(1.42,.3+.09*len));
     }
     const CATEGORY_LABELS = {
       natural:{ru:'Натуральные',en:'Natural'}, opening:{ru:'Открывающие',en:'Opening'},
@@ -8006,7 +8012,7 @@
       const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
       const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
       if(!projection)return null;
-      const {crop,points,path,profilePath}=projection;
+      const {crop,points,path}=projection;
       const labels=selectProfessionalEyeLabels(points,crop);
       const unit=Math.max(crop.width,crop.height)/100;
       const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');
@@ -8018,16 +8024,12 @@
             <svg className="absolute inset-0 h-full w-full" viewBox={`${crop.x} ${crop.y} ${crop.width} ${crop.height}`} preserveAspectRatio="xMidYMid meet">
               <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
               <rect x={crop.x} y={crop.y} width={crop.width} height={crop.height} fill="rgba(2,6,11,.12)" />
-              <path d={path} fill="none" stroke="rgba(231,239,245,.46)" strokeWidth={unit*.28} strokeLinecap="round" />
-              {points.map((point,i)=><line key={`profile-stem-${i}`} x1={point.x} y1={point.y} x2={point.profileX} y2={point.profileY} stroke={point.isPeak?'rgba(83,199,255,.62)':'rgba(231,239,245,.18)'} strokeWidth={unit*(point.isPeak ? 0.32 : 0.12)} strokeLinecap="round"/>)}
-              <path d={profilePath} fill="none" stroke="rgba(231,239,245,.96)" strokeWidth={unit*.52} strokeLinecap="round" strokeLinejoin="round"/>
-              {points.map((point,i)=><circle key={`profile-point-${i}`} cx={point.profileX} cy={point.profileY} r={unit*(point.isPeak?1.25:.62)} fill={point.isPeak?'#53C7FF':'rgba(244,247,250,.9)'} stroke="rgba(2,6,11,.75)" strokeWidth={unit*.24}/>)}
+              <path data-photo-map-line="true" d={path} fill="none" stroke="rgba(231,239,245,.78)" strokeWidth={unit*.34} strokeLinecap="round" />
               {points.map((point,i)=>{
-                const label=labels[i],r=unit*(point.isPeak?2.25:point.isKey?1.5:1.1),diamond=unit*2.8;
+                const label=labels[i],sampleRadius=professionalSampleRadius(point.len,unit),r=point.isPeak?sampleRadius*1.18:sampleRadius;
                 return <g key={i} data-map-point={i} data-length={point.len} data-peak={point.isPeak?'true':'false'}>
-                  {point.isPeak?<polygon points={`${point.x},${point.y-diamond} ${point.x+diamond},${point.y} ${point.x},${point.y+diamond} ${point.x-diamond},${point.y}`} fill="#0A8CFF" stroke="#B9E8FF" strokeWidth={unit*.48}/>:<circle cx={point.x} cy={point.y} r={r} fill="#F4F7FA" stroke="rgba(3,8,14,.9)" strokeWidth={unit*.48}/>}
-                  {label&&<text x={label.x} y={label.y} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*1.15} fill={point.isPeak?'#8DD9FF':'#FFFFFF'} fontSize={unit*(point.isPeak?4.35:4.2)} fontWeight={point.isPeak?'700':'600'} letterSpacing={point.isPeak?unit*.25:0}>{point.isPeak?`PEAK ${point.len}`:point.len}</text>}
-                  {point.isKey&&(point.label==='INNER'||point.label==='OUTER')&&<text x={point.x} y={point.y+unit*5.8} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.9)" strokeWidth={unit*.85} fill="rgba(230,240,248,.84)" fontSize={unit*2.55} letterSpacing={unit*.32}>{point.label}</text>}
+                  <circle data-photo-sample="true" cx={point.x} cy={point.y} r={r} fill={point.isPeak?'#0A8CFF':'rgba(244,247,250,.88)'} stroke={point.isPeak?'#B9E8FF':'rgba(3,8,14,.88)'} strokeWidth={unit*(point.isPeak?.34:.26)}/>
+                  {label&&<text x={label.x} y={label.y} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*.95} fill={point.isPeak?'#8DD9FF':'#FFFFFF'} fontSize={unit*(point.isPeak?3.8:3.45)} fontWeight={point.isPeak?'700':'600'} letterSpacing={point.isPeak?unit*.2:unit*.08}>{point.isPeak?`PEAK ${point.len}`:`${point.label} ${point.len}`}</text>}
                 </g>;
               })}
             </svg>

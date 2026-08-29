@@ -3465,14 +3465,19 @@
       };
     }
 
-    // The projection crop reserves former profile-contour headroom. PHOTO
-    // needs only enough horizontal room for endpoint labels, so it frames
-    // the same physical INNER/OUTER span more tightly without moving it.
-    function buildProfessionalPhotoCrop(points, crop, imageWidth) {
-      if(!Array.isArray(points)||!points.length||!crop||!imageWidth)return crop;
-      const xs=points.map(point=>point.x),left=Math.min(...xs),right=Math.max(...xs),span=Math.max(1,right-left),pad=span*.16;
-      const x=Math.max(0,left-pad),edge=Math.min(imageWidth,right+pad);
-      return {...crop,x,width:Math.max(1,edge-x)};
+    // PHOTO is rendered in a 16:9 card with `meet`, so its viewBox must
+    // share that aspect. Framing the anatomical INNER/OUTER span at 75%
+    // removes side letterboxing while retaining the eye and annotations.
+    function buildProfessionalPhotoCrop(eye, points, imageWidth, imageHeight) {
+      if(!Array.isArray(eye)||!eye.length||!Array.isArray(points)||!points.length||!imageWidth||!imageHeight)return null;
+      const lineXs=points.map(point=>point.mapX),left=Math.min(...lineXs),right=Math.max(...lineXs),span=Math.max(1,right-left);
+      const width=Math.min(imageWidth,imageHeight*16/9,span/.75),height=width*9/16,unit=width/100;
+      const contentTop=Math.min(...points.map(point=>point.mapY))-height*.048-unit*2;
+      const cueBottom=Math.max(...points.filter(point=>point.isKey).map(point=>point.mapY+unit*(point.label==='BODY'?10.3:8.5)));
+      const contentBottom=Math.max(Math.max(...eye.map(point=>point.y)),cueBottom);
+      const centerX=(left+right)/2,centerY=(contentTop+contentBottom)/2;
+      const x=Math.max(0,Math.min(imageWidth-width,centerX-width/2)),y=Math.max(0,Math.min(imageHeight-height,centerY-height/2));
+      return {x,y,width,height};
     }
 
     const CATEGORY_LABELS = {
@@ -8044,10 +8049,11 @@
       const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
       const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
       if(!projection)return null;
-      const {crop,points}=projection;
+      const {points}=projection;
       const workingLine=buildProfessionalPhotoLine(normalized,points);
       if(!workingLine)return null;
-      const photoCrop=buildProfessionalPhotoCrop(points,crop,result.imageWidth);
+      const photoCrop=buildProfessionalPhotoCrop(normalized,workingLine.points,result.imageWidth,result.imageHeight);
+      if(!photoCrop)return null;
       const labels=selectProfessionalEyeLabels(workingLine.points,photoCrop);
       const unit=Math.max(photoCrop.width,photoCrop.height)/100;
       const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');

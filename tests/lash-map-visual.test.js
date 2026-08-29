@@ -26,6 +26,14 @@ const rightEye = [
   {x:390,y:100},{x:364,y:84},{x:332,y:82},
   {x:300,y:101},{x:332,y:112},{x:364,y:113},
 ];
+const fixtureLeftEye = [
+  {x:338.11,y:109.02},{x:345.56,y:103.47},{x:355.32,y:102.54},
+  {x:363.55,y:105.56},{x:356.05,y:109.17},{x:346.06,y:109.48},
+];
+const fixtureRightEye = [
+  {x:298.71,y:114.85},{x:289.77,y:112.07},{x:280.39,y:113.50},
+  {x:275.54,y:117.67},{x:282.11,y:119.32},{x:291.39,y:118.62},
+];
 const zones=[7,8,10,11,9];
 const sectors=expandLashMapSectors(zones,3,{zonePositions:[0,.2,.46,.66,1],plateauShape:'shoulder',postPeakShape:'gradual'});
 const project=eye=>buildProfessionalEyeProjection(eye,sectors,500,250);
@@ -78,11 +86,13 @@ test('INNER and OUTER land on canonical anatomical endpoints',()=>{
 });
 
 test('PHOTO framing keeps both physical endpoints visible and makes the working line fill the crop',()=>{
-  for(const eye of [leftEye,rightEye]){
-    const mapped=project(eye),photoCrop=buildProfessionalPhotoCrop(mapped.points,mapped.crop,500),inner=mapped.points[0],outer=mapped.points.at(-1);
+  for(const eye of [fixtureLeftEye,fixtureRightEye]){
+    const mapped=project(eye),line=buildProfessionalPhotoLine(eye,mapped.points),photoCrop=buildProfessionalPhotoCrop(eye,line.points,500,250),inner=line.points[0],outer=line.points.at(-1);
     assert.ok(inner.x>=photoCrop.x&&inner.x<=photoCrop.x+photoCrop.width);
     assert.ok(outer.x>=photoCrop.x&&outer.x<=photoCrop.x+photoCrop.width);
-    assert.ok(Math.abs(outer.x-inner.x)/photoCrop.width>.7);
+    assert.strictEqual(photoCrop.width/photoCrop.height,16/9);
+    const scale=Math.min(400/photoCrop.width,225/photoCrop.height),effectiveCoverage=Math.abs(outer.mapX-inner.mapX)*scale/400;
+    assert.ok(effectiveCoverage>=.7&&effectiveCoverage<=.8);
     assert.ok(mapped.path.startsWith(`M ${eye[0].x} ${eye[0].y}`));
     assert.ok(mapped.path.endsWith(`${eye[3].x} ${eye[3].y}`));
   }
@@ -95,6 +105,27 @@ test('PHOTO working curve is one smooth constant offset of physical INNER-to-OUT
     assert.ok(line.path.endsWith(`${eye[3].x} ${eye[3].y-line.offset}`));
     assert.ok(line.points.every((point,index)=>point.mapX===mapped.points[index].x&&point.mapY===mapped.points[index].y-line.offset));
     assert.ok(line.points.slice(1).every((point,index)=>Math.sign(point.mapX-line.points[index].mapX)===Math.sign(eye[3].x-eye[0].x)));
+  }
+});
+
+test('real LEFT and RIGHT cubics have valid derivatives and no internal curvature reversal',()=>{
+  const derivative=(eye,t)=>{const u=1-t;return {x:3*u*u*(eye[1].x-eye[0].x)+6*u*t*(eye[2].x-eye[1].x)+3*t*t*(eye[3].x-eye[2].x),y:3*u*u*(eye[1].y-eye[0].y)+6*u*t*(eye[2].y-eye[1].y)+3*t*t*(eye[3].y-eye[2].y)};};
+  const second=(eye,t)=>({x:6*(1-t)*(eye[2].x-2*eye[1].x+eye[0].x)+6*t*(eye[3].x-2*eye[2].x+eye[1].x),y:6*(1-t)*(eye[2].y-2*eye[1].y+eye[0].y)+6*t*(eye[3].y-2*eye[2].y+eye[1].y)});
+  for(const eye of [fixtureLeftEye,fixtureRightEye]){
+    const signs=[];
+    for(let step=0;step<=40;step++){const t=step/40,d=derivative(eye,t),d2=second(eye,t);assert.ok(Math.hypot(d.x,d.y)>1e-6);signs.push(Math.sign(d.x*d2.y-d.y*d2.x));}
+    assert.strictEqual(new Set(signs).size,1);
+  }
+});
+
+test('16:9 PHOTO crop contains the eye, numeric labels, PEAK, and five zone cues',()=>{
+  for(const eye of [fixtureLeftEye,fixtureRightEye]){
+    const mapped=project(eye),line=buildProfessionalPhotoLine(eye,mapped.points),photoCrop=buildProfessionalPhotoCrop(eye,line.points,500,250),labels=selectProfessionalEyeLabels(line.points,photoCrop),unit=photoCrop.width/100;
+    const inside=(x,y)=>x>=photoCrop.x&&x<=photoCrop.x+photoCrop.width&&y>=photoCrop.y&&y<=photoCrop.y+photoCrop.height;
+    assert.ok(eye.every(point=>inside(point.x,point.y)));
+    assert.ok(labels.filter(Boolean).every(label=>inside(label.x,label.y-unit*1.8)));
+    assert.ok(line.points.filter(point=>point.isKey).every(point=>inside(point.mapX,point.mapY+unit*(point.label==='BODY'?10.3:8.5))));
+    assert.ok(inside(line.points.find(point=>point.isPeak).mapX,line.points.find(point=>point.isPeak).mapY));
   }
 });
 
@@ -246,6 +277,18 @@ test('normal projection preserves engine t, length, and PEAK and is deterministi
   assert.deepStrictEqual(a.points.map(p=>p.t),sectors.map(p=>p.t));
   assert.deepStrictEqual(a.points.map(p=>p.len),sectors.map(p=>p.len));
   assert.strictEqual(a.points.find(p=>p.isPeak).t,sectors.find(p=>p.isPeak).t);
+});
+
+test('PHOTO crop and offset preserve every engine sample field and add no point after OUTER',()=>{
+  for(const eye of [leftEye,rightEye]){
+    const mapped=project(eye),line=buildProfessionalPhotoLine(eye,mapped.points);
+    assert.strictEqual(line.points.length,mapped.points.length);
+    assert.deepStrictEqual(line.points.map(({t,len,isPeak,isKey,label})=>({t,len,isPeak,isKey,label})),mapped.points.map(({t,len,isPeak,isKey,label})=>({t,len,isPeak,isKey,label})));
+    const last=line.points.at(-1);
+    assert.strictEqual(last.t,1);
+    assert.deepStrictEqual({x:last.mapX,y:last.mapY+line.offset},eye[3]);
+    assert.ok(line.path.endsWith(`${eye[3].x} ${eye[3].y-line.offset}`));
+  }
 });
 
 test('ProfessionalEyeMap has no effect-specific rendering rule',()=>{

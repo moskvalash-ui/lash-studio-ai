@@ -3425,24 +3425,56 @@
       };
     }
 
-    // PHOTO keeps only the three professional anchors. All samples and
-    // technical values remain available in the geometry, Diagram, and
-    // five-zone specification row; only floating PHOTO text is reduced.
+    // PHOTO labels all five source anchors, then admits changed derived
+    // values only where compact staggered lanes remain collision-safe.
     function selectProfessionalEyeLabels(points, crop) {
       if(!Array.isArray(points)||!crop)return [];
       const result=Array(points.length).fill(null);
       points.forEach((point,index)=>{
-        if(point.isPeak)result[index]={x:point.x,y:point.y-crop.height*.055,priority:5,kind:'PEAK'};
-        else if(point.label==='INNER'||point.label==='OUTER')result[index]={x:point.x,y:point.y+crop.height*.075,priority:4,kind:point.label};
+        if(!point.isKey)return;
+        const kind=point.isPeak?'PEAK':point.label;
+        const priority=point.isPeak?5:(kind==='INNER'||kind==='OUTER')?4:3;
+        const lane=index%2;
+        result[index]={x:point.mapX,y:point.mapY-crop.height*(.032+lane*.016),priority,kind,zone:kind,isDerived:false,lane};
+      });
+      const placed=result.filter(Boolean),minX=crop.width*.038,minY=crop.height*.055;
+      let previousVisible=null;
+      points.forEach((point,index)=>{
+        if(result[index]){previousVisible=point.len;return;}
+        if(point.len===previousVisible)return;
+        const lane=index%2;
+        const candidate={x:point.mapX,y:point.mapY-crop.height*(.03+lane*.015),priority:1,kind:'DERIVED',zone:null,isDerived:true,lane};
+        if(placed.some(label=>Math.abs(label.x-candidate.x)<minX&&Math.abs(label.y-candidate.y)<minY))return;
+        result[index]=candidate;placed.push(candidate);previousVisible=point.len;
       });
       return result;
     }
 
-    // Display-only radius: 5 mm starts at .75 unit, each millimeter adds
-    // .09 unit, and the result is capped for legibility on compact photos.
-    function professionalSampleRadius(len, unit=1) {
-      return unit*Math.max(.72,Math.min(1.42,.3+.09*len));
+    // One display-only working curve: the physical upper-eye cubic and all
+    // of its engine-t samples receive the same small upward image-space
+    // offset. This keeps LEFT/RIGHT equally smooth and effect-independent.
+    function buildProfessionalPhotoLine(eye, points) {
+      if(!Array.isArray(eye)||eye.length<4||!Array.isArray(points))return null;
+      const upper=[eye[0],eye[1],eye[2],eye[3]].map(point=>({x:+point.x,y:+point.y}));
+      if(upper.some(point=>!Number.isFinite(point.x)||!Number.isFinite(point.y)))return null;
+      const eyeW=Math.max(1,Math.max(...upper.map(point=>point.x))-Math.min(...upper.map(point=>point.x))),offset=Math.max(1,eyeW*.055);
+      return {
+        offset,
+        path:`M ${upper[0].x} ${upper[0].y-offset} C ${upper[1].x} ${upper[1].y-offset} ${upper[2].x} ${upper[2].y-offset} ${upper[3].x} ${upper[3].y-offset}`,
+        points:points.map(point=>({...point,mapX:point.x,mapY:point.y-offset})),
+      };
     }
+
+    // The projection crop reserves former profile-contour headroom. PHOTO
+    // needs only enough horizontal room for endpoint labels, so it frames
+    // the same physical INNER/OUTER span more tightly without moving it.
+    function buildProfessionalPhotoCrop(points, crop, imageWidth) {
+      if(!Array.isArray(points)||!points.length||!crop||!imageWidth)return crop;
+      const xs=points.map(point=>point.x),left=Math.min(...xs),right=Math.max(...xs),span=Math.max(1,right-left),pad=span*.16;
+      const x=Math.max(0,left-pad),edge=Math.min(imageWidth,right+pad);
+      return {...crop,x,width:Math.max(1,edge-x)};
+    }
+
     const CATEGORY_LABELS = {
       natural:{ru:'Натуральные',en:'Natural'}, opening:{ru:'Открывающие',en:'Opening'},
       lifting:{ru:'Лифтинг',en:'Lifting'}, elongating:{ru:'Вытягивающие',en:'Elongating'},
@@ -8012,24 +8044,28 @@
       const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
       const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
       if(!projection)return null;
-      const {crop,points,path}=projection;
-      const labels=selectProfessionalEyeLabels(points,crop);
-      const unit=Math.max(crop.width,crop.height)/100;
+      const {crop,points}=projection;
+      const workingLine=buildProfessionalPhotoLine(normalized,points);
+      if(!workingLine)return null;
+      const photoCrop=buildProfessionalPhotoCrop(points,crop,result.imageWidth);
+      const labels=selectProfessionalEyeLabels(workingLine.points,photoCrop);
+      const unit=Math.max(photoCrop.width,photoCrop.height)/100;
       const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');
       const peak=points.find(p=>p.isPeak);
       const curlSpec=[curl,...design.curlRec.alternatives.filter(v=>v!==curl)].slice(0,2).join(' / ');
       return (
         <article className={`overflow-hidden rounded-xl border transition-colors ${active?'border-accent/60 bg-accent/[0.04]':'border-border bg-surface/70'}`}>
           <button type="button" onClick={onActivate} className="relative block w-full aspect-[16/9] overflow-hidden text-left" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
-            <svg className="absolute inset-0 h-full w-full" viewBox={`${crop.x} ${crop.y} ${crop.width} ${crop.height}`} preserveAspectRatio="xMidYMid meet">
+            <svg className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
               <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
-              <rect x={crop.x} y={crop.y} width={crop.width} height={crop.height} fill="rgba(2,6,11,.12)" />
-              <path data-photo-map-line="true" d={path} fill="none" stroke="rgba(231,239,245,.78)" strokeWidth={unit*.34} strokeLinecap="round" />
-              {points.map((point,i)=>{
-                const label=labels[i],sampleRadius=professionalSampleRadius(point.len,unit),r=point.isPeak?sampleRadius*1.18:sampleRadius;
+              <rect x={photoCrop.x} y={photoCrop.y} width={photoCrop.width} height={photoCrop.height} fill="rgba(2,6,11,.12)" />
+              <path data-photo-map-line="true" d={workingLine.path} fill="none" stroke="rgba(244,247,250,.92)" strokeWidth={unit*.34} strokeLinecap="round" />
+              {workingLine.points.map((point,i)=>{
+                const label=labels[i],r=unit*(point.isPeak?.95:.68),leaderEnd=point.mapY+unit*(point.label==='BODY'?7.2:5.4);
                 return <g key={i} data-map-point={i} data-length={point.len} data-peak={point.isPeak?'true':'false'}>
-                  <circle data-photo-sample="true" cx={point.x} cy={point.y} r={r} fill={point.isPeak?'#0A8CFF':'rgba(244,247,250,.88)'} stroke={point.isPeak?'#B9E8FF':'rgba(3,8,14,.88)'} strokeWidth={unit*(point.isPeak?.34:.26)}/>
-                  {label&&<text x={label.x} y={label.y} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*.95} fill={point.isPeak?'#8DD9FF':'#FFFFFF'} fontSize={unit*(point.isPeak?3.8:3.45)} fontWeight={point.isPeak?'700':'600'} letterSpacing={point.isPeak?unit*.2:unit*.08}>{point.isPeak?`PEAK ${point.len}`:`${point.label} ${point.len}`}</text>}
+                  <circle data-photo-sample="true" cx={point.mapX} cy={point.mapY} r={r} fill={point.isPeak?'#0A8CFF':'#F4F7FA'} stroke={point.isPeak?'#B9E8FF':'rgba(3,8,14,.88)'} strokeWidth={unit*(point.isPeak?.32:.24)}/>
+                  {label&&<text data-photo-label={label.kind} x={label.x} y={label.y} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.96)" strokeWidth={unit*(label.isDerived?.72:.88)} fill={point.isPeak?'#53C7FF':'#FFFFFF'} fontSize={unit*(point.isPeak?3.45:label.isDerived?2.7:3)} fontWeight={point.isPeak?'700':label.isDerived?'500':'600'}>{point.len}</text>}
+                  {point.isKey&&<g data-photo-zone={point.label}><line x1={point.mapX} y1={point.mapY+unit*1.7} x2={point.mapX} y2={leaderEnd} stroke={point.isPeak?'#0A8CFF':'rgba(244,247,250,.82)'} strokeWidth={unit*.2}/><text x={point.mapX} y={leaderEnd+unit*2.1} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*.62} fill={point.isPeak?'#53C7FF':'rgba(244,247,250,.86)'} fontSize={unit*1.65} fontWeight={point.isPeak?'700':'600'}>{`${point.label} ${point.len}`}</text></g>}
                 </g>;
               })}
             </svg>

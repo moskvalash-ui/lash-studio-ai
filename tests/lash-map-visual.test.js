@@ -7,8 +7,8 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const start = src.indexOf('    const ZONE_NAMES = ');
 const end = src.indexOf('\n    const CATEGORY_LABELS =', start);
 assert.ok(start >= 0 && end > start, 'projection helpers must be extractable');
-const { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, professionalSampleRadius } = new Function(
-  src.slice(start, end) + '\nreturn { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, professionalSampleRadius };'
+const { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, buildProfessionalPhotoLine, buildProfessionalPhotoCrop } = new Function(
+  src.slice(start, end) + '\nreturn { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, buildProfessionalPhotoLine, buildProfessionalPhotoCrop };'
 )();
 const catalogStart=src.indexOf('    const DESIGN_CATALOG = '),catalogEnd=src.indexOf('\n\n    function calculateEyeLashMap(',catalogStart);
 const DESIGN_CATALOG=new Function(src.slice(catalogStart,catalogEnd)+'\nreturn DESIGN_CATALOG;')();
@@ -77,6 +77,27 @@ test('INNER and OUTER land on canonical anatomical endpoints',()=>{
   }
 });
 
+test('PHOTO framing keeps both physical endpoints visible and makes the working line fill the crop',()=>{
+  for(const eye of [leftEye,rightEye]){
+    const mapped=project(eye),photoCrop=buildProfessionalPhotoCrop(mapped.points,mapped.crop,500),inner=mapped.points[0],outer=mapped.points.at(-1);
+    assert.ok(inner.x>=photoCrop.x&&inner.x<=photoCrop.x+photoCrop.width);
+    assert.ok(outer.x>=photoCrop.x&&outer.x<=photoCrop.x+photoCrop.width);
+    assert.ok(Math.abs(outer.x-inner.x)/photoCrop.width>.7);
+    assert.ok(mapped.path.startsWith(`M ${eye[0].x} ${eye[0].y}`));
+    assert.ok(mapped.path.endsWith(`${eye[3].x} ${eye[3].y}`));
+  }
+});
+
+test('PHOTO working curve is one smooth constant offset of physical INNER-to-OUTER geometry',()=>{
+  for(const eye of [leftEye,rightEye]){
+    const mapped=project(eye),line=buildProfessionalPhotoLine(eye,mapped.points);
+    assert.ok(line.path.startsWith(`M ${eye[0].x} ${eye[0].y-line.offset}`));
+    assert.ok(line.path.endsWith(`${eye[3].x} ${eye[3].y-line.offset}`));
+    assert.ok(line.points.every((point,index)=>point.mapX===mapped.points[index].x&&point.mapY===mapped.points[index].y-line.offset));
+    assert.ok(line.points.slice(1).every((point,index)=>Math.sign(point.mapX-line.points[index].mapX)===Math.sign(eye[3].x-eye[0].x)));
+  }
+});
+
 test('engine peak remains the displayed peak with its exact length',()=>{
   const mapped=project(leftEye),sourcePeak=sectors.find(p=>p.isPeak),displayPeak=mapped.points.find(p=>p.isPeak);
   assert.strictEqual(mapped.points.filter(p=>p.isPeak).length,1);
@@ -100,7 +121,7 @@ test('responsive SVG scaling preserves normalized projection coordinates',()=>{
   const small=atSize(320,180),large=atSize(640,360);
   assert.strictEqual(large.x,small.x*2);
   assert.strictEqual(large.y,small.y*2);
-  assert.ok(src.includes('viewBox={`${crop.x} ${crop.y} ${crop.width} ${crop.height}`}'));
+  assert.ok(src.includes('viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`}'));
   assert.ok(src.includes('preserveAspectRatio="xMidYMid meet"'));
 });
 
@@ -116,48 +137,52 @@ test('visual point count and labels come directly from derived sectors',()=>{
   assert.ok(component.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
   assert.ok(component.includes('points.map((point,i)=>'));
   assert.ok(component.includes('data-length={point.len}'));
-  assert.ok(component.includes("point.isPeak?`PEAK ${point.len}`:`${point.label} ${point.len}`"));
+  assert.ok(component.includes('data-photo-label={label.kind}'));
   assert.strictEqual((component.match(/expandLashMapSectors\(/g)||[]).length,1);
 });
 
 test('PEAK label is mandatory and collision scheduling is deterministic',()=>{
-  const mapped=project(leftEye),a=selectProfessionalEyeLabels(mapped.points,mapped.crop),b=selectProfessionalEyeLabels(mapped.points,mapped.crop);
+  const mapped=project(leftEye),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,a=selectProfessionalEyeLabels(points,mapped.crop),b=selectProfessionalEyeLabels(points,mapped.crop);
   const peakIndex=mapped.points.findIndex(p=>p.isPeak);
   assert.deepStrictEqual(a,b);
   assert.ok(a[peakIndex]);
   assert.strictEqual(a[peakIndex].priority,5);
-  assert.strictEqual(a[peakIndex].x,mapped.points[peakIndex].x);
-  assert.strictEqual(a[peakIndex].y,mapped.points[peakIndex].y-mapped.crop.height*.055);
+  assert.strictEqual(a[peakIndex].x,points[peakIndex].mapX);
+  assert.ok(a[peakIndex].y<points[peakIndex].mapY);
 });
 
-test('PHOTO permanently labels only INNER, PEAK, and OUTER while retaining every marker',()=>{
-  const mapped=project(leftEye),labels=selectProfessionalEyeLabels(mapped.points,mapped.crop);
-  assert.deepStrictEqual(labels.map((label,i)=>label&&mapped.points[i].isPeak?'PEAK':label&&mapped.points[i].label).filter(Boolean),['INNER','PEAK','OUTER']);
-  assert.ok(professionalEyeMapSource.includes('{points.map((point,i)=>'));
+test('PHOTO permanently labels all five source zones while retaining every marker',()=>{
+  const mapped=project(leftEye),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
+  assert.deepStrictEqual(labels.filter(label=>label&&!label.isDerived).map(label=>label.zone),['INNER','TRANSITION','BODY','PEAK','OUTER']);
+  assert.ok(professionalEyeMapSource.includes('{workingLine.points.map((point,i)=>'));
   assert.ok(professionalEyeMapSource.includes('data-map-point={i}'));
-  assert.ok(professionalEyeMapSource.includes("point.isPeak?`PEAK ${point.len}`:`${point.label} ${point.len}`"));
+  assert.ok(professionalEyeMapSource.includes('data-photo-label={label.kind}'));
+});
+
+test('PHOTO zone cues and professional summary share the five source values',()=>{
+  assert.ok(professionalEyeMapSource.includes('data-photo-zone={point.label}'));
+  assert.ok(professionalEyeMapSource.includes('`${point.label} ${point.len}`'));
+  assert.ok(professionalEyeMapSource.includes('{zones.map((len,i)=>'));
+  assert.ok(professionalEyeMapSource.includes('key={ZONE_NAMES[i]}'));
 });
 
 test('PHOTO renders one anatomical mapping line with no elevated contour or stems',()=>{
   assert.strictEqual((professionalEyeMapSource.match(/<path\b/g)||[]).length,1);
   assert.strictEqual((professionalEyeMapSource.match(/data-photo-map-line=/g)||[]).length,1);
   assert.ok(!professionalEyeMapSource.includes('profilePath'));
-  assert.ok(!professionalEyeMapSource.includes('<line'));
+  assert.ok(!professionalEyeMapSource.includes('profile-stem'));
   assert.ok(!professionalEyeMapSource.includes('profileX'));
   assert.ok(!professionalEyeMapSource.includes('profileY'));
 });
 
-test('PHOTO marker radius is length-only, monotonic, and bounded',()=>{
-  const radii=Array.from({length:16},(_,len)=>professionalSampleRadius(len));
-  assert.ok(radii.slice(1).every((radius,i)=>radius>=radii[i]));
-  assert.ok(radii.every(radius=>radius>=.72&&radius<=1.42));
-  assert.deepStrictEqual([5,8,10,11].map(len=>+professionalSampleRadius(len).toFixed(2)),[.75,1.02,1.2,1.29]);
-  assert.ok(professionalEyeMapSource.includes('sampleRadius=professionalSampleRadius(point.len,unit)'));
+test('PHOTO uses uniform regular markers and one slightly larger PEAK circle',()=>{
+  assert.ok(professionalEyeMapSource.includes("r=unit*(point.isPeak?.95:.68)"));
+  assert.ok(!professionalEyeMapSource.includes('professionalSampleRadius'));
 });
 
 test('PHOTO renders exactly one circular marker per sample and one engine PEAK treatment',()=>{
   assert.strictEqual((professionalEyeMapSource.match(/data-photo-sample=/g)||[]).length,1,'one mapped circle template must render for every point');
-  assert.ok(professionalEyeMapSource.includes('r=point.isPeak?sampleRadius*1.18:sampleRadius'));
+  assert.ok(professionalEyeMapSource.includes("r=unit*(point.isPeak?.95:.68)"));
   assert.ok(professionalEyeMapSource.includes("fill={point.isPeak?'#0A8CFF'"));
   assert.ok(!professionalEyeMapSource.includes('<polygon'));
   assert.ok(!professionalEyeMapSource.includes('diamond'));
@@ -165,10 +190,18 @@ test('PHOTO renders exactly one circular marker per sample and one engine PEAK t
 
 test('plateau values do not produce redundant repeated labels',()=>{
   const plateau=expandLashMapSectors([7,8,10,10,9],2,{zonePositions:[0,.2,.5,.7,1],plateauShape:'shoulder'});
-  const mapped=buildProfessionalEyeProjection(leftEye,plateau,500,250),labels=selectProfessionalEyeLabels(mapped.points,mapped.crop);
-  const visibleTens=mapped.points.filter((p,i)=>p.len===10&&labels[i]);
-  assert.ok(visibleTens.some(p=>p.isPeak));
-  assert.strictEqual(visibleTens.filter(p=>!p.isPeak&&p.label!=='INNER'&&p.label!=='OUTER').length,0);
+  const mapped=buildProfessionalEyeProjection(leftEye,plateau,500,250),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
+  const derivedTens=mapped.points.filter((point,index)=>point.len===10&&labels[index]?.isDerived);
+  assert.strictEqual(derivedTens.length,0);
+  assert.strictEqual(labels.filter(label=>label&&!label.isDerived).length,5);
+});
+
+test('useful derived labels are exact expanded-sector values and explain the Fox transition',()=>{
+  const fox=DESIGN_CATALOG.find(entry=>entry.id==='fox'),items=expandLashMapSectors([5,5,8,11,10],3,curveFor(fox));
+  const mapped=buildProfessionalEyeProjection(leftEye,items,500,250),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
+  const displayed=points.filter((point,index)=>labels[index]).map(point=>point.len);
+  assert.deepStrictEqual(displayed,[5,5,6,7,8,9,10,11,10.5,10]);
+  assert.ok(displayed.every(value=>items.some(item=>item.len===value)));
 });
 
 test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{
@@ -184,12 +217,12 @@ test('Fox marker topology keeps a late peak and a still-large outer sample',()=>
   const items=expandLashMapSectors([5,5,8,11,10],3,curveFor(fox));
   const points=buildProfessionalEyeProjection(leftEye,items,500,250).points,peak=points.find(p=>p.isPeak),outer=points.find(p=>p.label==='OUTER'),inner=points.find(p=>p.label==='INNER');
   assert.ok(peak.t>=.6&&peak.t<=.7);
-  assert.ok(professionalSampleRadius(inner.len)<professionalSampleRadius(peak.len));
-  assert.ok(professionalSampleRadius(outer.len)>professionalSampleRadius(inner.len));
+  assert.ok(inner.len<peak.len);
+  assert.ok(outer.len>inner.len);
 });
 
 test('Cat marker topology peaks later and drops more at OUTER than Fox',()=>{
-  const topology=(id,zones)=>{const entry=DESIGN_CATALOG.find(e=>e.id===id),points=buildProfessionalEyeProjection(leftEye,expandLashMapSectors(zones,3,curveFor(entry)),500,250).points,peak=points.find(p=>p.isPeak),outer=points.find(p=>p.label==='OUTER');return {peak,outer,drop:professionalSampleRadius(peak.len)-professionalSampleRadius(outer.len)};};
+  const topology=(id,zones)=>{const entry=DESIGN_CATALOG.find(e=>e.id===id),points=buildProfessionalEyeProjection(leftEye,expandLashMapSectors(zones,3,curveFor(entry)),500,250).points,peak=points.find(p=>p.isPeak),outer=points.find(p=>p.label==='OUTER');return {peak,outer,drop:peak.len-outer.len};};
   const cat=topology('cat',[5,5,8,10,8]),fox=topology('fox',[5,5,8,11,10]);
   assert.ok(cat.peak.t>fox.peak.t);
   assert.ok(cat.drop>fox.drop);

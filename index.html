@@ -3358,6 +3358,65 @@
       }
       return sectors;
     }
+
+    // Professional Lash Map projection. The mapping engine owns `sectors`;
+    // this helper only places those existing samples on the real upper-lid
+    // contour. Physical eye normalization guarantees eye[0] is INNER and
+    // eye[3] is OUTER for both sides, independent of their image x direction.
+    function buildProfessionalEyeProjection(eye, sectors, imageWidth, imageHeight) {
+      if (!Array.isArray(eye) || eye.length < 6 || !Array.isArray(sectors) || !imageWidth || !imageHeight) return null;
+      const upper = [eye[0], eye[1], eye[2], eye[3]].map(p => ({x:+p.x,y:+p.y}));
+      if (upper.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return null;
+      const pointAt = t => {
+        const u=1-t;
+        return {
+          x:u*u*u*upper[0].x+3*u*u*t*upper[1].x+3*u*t*t*upper[2].x+t*t*t*upper[3].x,
+          y:u*u*u*upper[0].y+3*u*u*t*upper[1].y+3*u*t*t*upper[2].y+t*t*t*upper[3].y,
+        };
+      };
+      const eyeXs=eye.map(p=>+p.x),eyeYs=eye.map(p=>+p.y);
+      const eyeW=Math.max(1,Math.max(...eyeXs)-Math.min(...eyeXs));
+      const eyeH=Math.max(1,Math.max(...eyeYs)-Math.min(...eyeYs));
+      const padX=eyeW*.28,padTop=Math.max(eyeH*2.6,eyeW*.22),padBottom=Math.max(eyeH*1.45,eyeW*.12);
+      const x=Math.max(0,Math.min(...eyeXs)-padX),y=Math.max(0,Math.min(...eyeYs)-padTop);
+      const right=Math.min(imageWidth,Math.max(...eyeXs)+padX),bottom=Math.min(imageHeight,Math.max(...eyeYs)+padBottom);
+      return {
+        path:`M ${upper[0].x} ${upper[0].y} C ${upper[1].x} ${upper[1].y} ${upper[2].x} ${upper[2].y} ${upper[3].x} ${upper[3].y}`,
+        crop:{x,y,width:Math.max(1,right-x),height:Math.max(1,bottom-y)},
+        points:sectors.map(sector=>({...sector,...pointAt(Math.max(0,Math.min(1,sector.t)))})),
+      };
+    }
+
+    // Deterministic label scheduler. Markers are never removed; only
+    // lower-priority text is suppressed when the compact eye crop cannot
+    // hold it clearly. Priority: PEAK > anatomical ends > length change
+    // > source anchor. Repeated plateau values are intentionally omitted.
+    function selectProfessionalEyeLabels(points, crop) {
+      if(!Array.isArray(points)||!crop)return [];
+      const candidates=points.map((point,index)=>{
+        const end=point.label==='INNER'||point.label==='OUTER';
+        const changed=index===0||point.len!==points[index-1].len;
+        const priority=point.isPeak?5:end?4:changed?3:0;
+        return {point,index,priority};
+      }).filter(item=>item.priority>0).sort((a,b)=>b.priority-a.priority||a.index-b.index);
+      const placed=[],result=Array(points.length).fill(null);
+      const minX=crop.width*.075,minY=crop.height*.16;
+      for(const item of candidates){
+        const lanes=item.point.isPeak?[2,1,0]:[item.index%2,1-(item.index%2),2];
+        let position=null;
+        for(const lane of lanes){
+          const x=item.point.x,y=item.point.y-crop.height*(.12+lane*.09);
+          if(!placed.some(p=>Math.abs(p.x-x)<minX&&Math.abs(p.y-y)<minY)){position={x,y,lane};break;}
+        }
+        // Mandatory labels cannot disappear; their priority already lets
+        // them displace optional labels by being scheduled first.
+        if(position||item.priority>=4){
+          position=position||{x:item.point.x,y:item.point.y-crop.height*.3,lane:2};
+          result[item.index]={...position,priority:item.priority};placed.push(position);
+        }
+      }
+      return result;
+    }
     const CATEGORY_LABELS = {
       natural:{ru:'Натуральные',en:'Natural'}, opening:{ru:'Открывающие',en:'Opening'},
       lifting:{ru:'Лифтинг',en:'Lifting'}, elongating:{ru:'Вытягивающие',en:'Elongating'},
@@ -7895,93 +7954,81 @@
       );
     }
 
-    // Stylized eye diagram — NOT the client's photo. A closed almond
-    // outline with iris/pupil reference, lash-line zone markers, and
-    // (for textured/creative designs) alternating spike ticks so
-    // Wispy/Kim/Manga are visually distinct, not just relabeled.
-    function LashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, lang }) {
-      const upperY = (t) => 175 - Math.sin(t*Math.PI) * 78;
-      const lowerY = (t) => 175 + Math.sin(t*Math.PI) * 34;
-      const xAt = (t) => 55 + t * 290;
+    // Secondary technical diagram retained alongside the photo map.
+    // It consumes the same derived items and texture geometry, but does
+    // not participate in any recommendation or source-zone calculation.
+    function LashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique }) {
+      const upperY=t=>175-Math.sin(t*Math.PI)*78,lowerY=t=>175+Math.sin(t*Math.PI)*34,xAt=t=>55+t*290;
       const items = expandLashMapSectors(zones, peakIdx, curve);
-      const upperPath = Array.from({length: 21}, (_,i) => { const tt=i/20; return `${xAt(tt)},${upperY(tt)}`; }).join(' L ');
-      const lowerPath = Array.from({length: 21}, (_,i) => { const tt=1-i/20; return `${xAt(tt)},${lowerY(tt)}`; }).join(' L ');
-
-      // Spike/ray layer: pattern-specific rendering so Wispy (soft,
-      // jittered), Kim (bold, evenly spaced, high contrast) and Manga
-      // (every position tall, sharp triangular tip) are visibly
-      // different, not just relabeled ticks. Geometry comes from the
-      // shared computeSpikeGeometry() — same numbers as the written
-      // Spike/Ray Plan.
-      const spikeDraw = (spikeGeom ? spikeGeom.spikes : []).map((sp, i) => {
-        const x = xAt(sp.t), y = upperY(sp.t);
-        const h = (sp.spikeLen - sp.baseLen) * 3.2 + (sp.tall ? 8 : 4);
-        const isMain = sp.tall && sp.spikeLen === spikeGeom.spikeMax;
-        return { x, y, h, tall: sp.tall, isMain, len: sp.spikeLen };
-      });
-
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
-          <defs>
-            <radialGradient id="eyeBg" cx="50%" cy="50%" r="70%">
-              <stop offset="0%" stopColor="rgba(10,140,255,0.07)" />
-              <stop offset="100%" stopColor="rgba(2,6,11,0)" />
-            </radialGradient>
-          </defs>
-          <rect x="0" y="0" width="400" height="300" fill="url(#eyeBg)" />
-          <path d={`M ${upperPath} L ${lowerPath} Z`} fill="rgba(83,199,255,0.03)" stroke="rgba(83,199,255,0.22)" strokeWidth="1.5" />
-          <circle cx={xAt(0.44)} cy={(upperY(0.44)+lowerY(0.44))/2 + 4} r="13" fill="rgba(83,199,255,0.05)" stroke="rgba(83,199,255,0.25)" strokeDasharray="2 3" />
-          <circle cx={xAt(0.44)} cy={(upperY(0.44)+lowerY(0.44))/2 + 4} r="5" fill="rgba(83,199,255,0.14)" />
-          <text x={xAt(0.44)} y={(upperY(0.44)+lowerY(0.44))/2 + 26} textAnchor="middle" fill="rgba(142,154,168,0.7)" fontSize="8" letterSpacing="1">IRIS</text>
-          <text x="52" y="200" textAnchor="middle" fill="rgba(142,154,168,0.7)" fontSize="9" letterSpacing="1">INNER</text>
-          <text x="348" y="200" textAnchor="middle" fill="rgba(142,154,168,0.7)" fontSize="9" letterSpacing="1">OUTER</text>
-
-          {spikeDraw.map((s,i) => {
-            // Every ray/spike is a tapered polygon (wide-ish at the
-            // base, narrowing to a fine point) — never a uniform-
-            // width stick — so Wispy/Kim/Manga all read as individual
-            // extension fibers, just with different base widths and
-            // heights per pattern.
-            const baseHalfWidth = spikeGeom.pattern === 'kim' ? (s.tall ? 1.5 : 1) : spikeGeom.pattern === 'manga' ? (s.tall ? 1.7 : 0.9) : (s.tall ? 1.2 : 0.8);
-            const fill = s.tall ? (spikeGeom.pattern === 'kim' ? 'rgba(83,199,255,0.9)' : 'rgba(10,140,255,0.72)') : 'rgba(10,140,255,0.34)';
-            return (
-            <g key={i}>
-              <polygon points={`${s.x-baseHalfWidth},${s.y} ${s.x+baseHalfWidth},${s.y} ${s.x},${s.y-s.h}`} fill={fill} />
-              {s.isMain && (
-                <text x={s.x} y={s.y - s.h - 5} textAnchor="middle" fill="#53C7FF" fontSize="8" fontWeight="600">{s.len}</text>
-              )}
-            </g>
-            );
-          })}
-
-          {items.map((z, i) => {
-            const t = z.t;
-            const x = xAt(t), y = upperY(t) - 4;
-            return (
-              <g key={i} onClick={() => setHoveredZone(hoveredZone === i ? null : i)} className="cursor-pointer">
-                <circle cx={x} cy={y} r={z.isPeak ? 9 : z.isKey ? 6 : 4} fill={z.isPeak ? '#0A8CFF' : z.isKey ? 'rgba(244,247,250,0.22)' : 'rgba(83,199,255,0.28)'} stroke={z.isPeak ? '#53C7FF' : 'none'} strokeWidth="2" className={z.isPeak ? 'peak-glow' : ''} />
-                <text x={x} y={y - 16} textAnchor="middle" fill={z.isPeak ? '#53C7FF' : '#F4F7FA'} fontSize={z.isKey ? '15' : '11'} fontWeight={z.isPeak ? '700' : '400'}>{z.len}</text>
-                {z.label && <text x={x} y={y + 20} textAnchor="middle" fill="rgba(142,154,168,0.75)" fontSize="7" letterSpacing="1">{z.label}</text>}
-                {hoveredZone === i && (
-                  <g>
-                    <rect x={x-52} y={y+26} width="104" height="46" rx="10" fill="rgba(6,16,26,0.96)" stroke="rgba(35,150,255,0.25)"/>
-                    <text x={x} y={y+44} textAnchor="middle" fill="#F4F7FA" fontSize="11">{z.len} mm · {curl}</text>
-                    <text x={x} y={y+61} textAnchor="middle" fill="rgba(142,154,168,0.85)" fontSize="9">{technique}</text>
-                  </g>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      );
+      const upper=Array.from({length:21},(_,i)=>`${xAt(i/20)},${upperY(i/20)}`).join(' L ');
+      const lower=Array.from({length:21},(_,i)=>`${xAt(1-i/20)},${lowerY(1-i/20)}`).join(' L ');
+      return <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+        <defs><radialGradient id="diagramEyeBg" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="rgba(10,140,255,.07)"/><stop offset="100%" stopColor="rgba(2,6,11,0)"/></radialGradient></defs>
+        <rect width="400" height="300" fill="url(#diagramEyeBg)"/>
+        <path d={`M ${upper} L ${lower} Z`} fill="rgba(83,199,255,.03)" stroke="rgba(83,199,255,.22)" strokeWidth="1.5"/>
+        <circle cx={xAt(.44)} cy={(upperY(.44)+lowerY(.44))/2+4} r="13" fill="rgba(83,199,255,.05)" stroke="rgba(83,199,255,.25)" strokeDasharray="2 3"/>
+        <circle cx={xAt(.44)} cy={(upperY(.44)+lowerY(.44))/2+4} r="5" fill="rgba(83,199,255,.14)"/>
+        {(spikeGeom?.spikes||[]).map((sp,i)=>{const x=xAt(sp.t),y=upperY(sp.t),h=(sp.spikeLen-sp.baseLen)*3.2+(sp.tall?8:4);return <polygon key={`s${i}`} points={`${x-(sp.tall?1.3:.8)},${y} ${x+(sp.tall?1.3:.8)},${y} ${x},${y-h}`} fill={sp.tall?'rgba(83,199,255,.8)':'rgba(10,140,255,.34)'}/>;})}
+        {items.map((z,i)=>{const x=xAt(z.t),y=upperY(z.t)-4;return <g key={i} onClick={()=>setHoveredZone(hoveredZone===i?null:i)} className="cursor-pointer">
+          <circle cx={x} cy={y} r={z.isPeak?9:z.isKey?6:4} fill={z.isPeak?'#0A8CFF':z.isKey?'rgba(244,247,250,.22)':'rgba(83,199,255,.28)'} stroke={z.isPeak?'#53C7FF':'none'} strokeWidth="2"/>
+          <text x={x} y={y-16} textAnchor="middle" fill={z.isPeak?'#53C7FF':'#F4F7FA'} fontSize={z.isKey?15:11} fontWeight={z.isPeak?700:400}>{z.len}</text>
+          {z.label&&<text x={x} y={y+20} textAnchor="middle" fill="rgba(142,154,168,.75)" fontSize="7" letterSpacing="1">{z.label}</text>}
+          {hoveredZone===i&&<g><rect x={x-52} y={y+26} width="104" height="46" rx="10" fill="rgba(6,16,26,.96)" stroke="rgba(35,150,255,.25)"/><text x={x} y={y+44} textAnchor="middle" fill="#F4F7FA" fontSize="11">{z.len} mm · {curl}</text><text x={x} y={y+61} textAnchor="middle" fill="rgba(142,154,168,.85)" fontSize="9">{technique}</text></g>}
+        </g>;})}
+      </svg>;
     }
 
-    function LegendItem({ color, label }) {
+    // Artist-facing map over the exact captured eye. SVG image and
+    // landmarks share the analysis-image coordinate system, so the
+    // responsive crop cannot drift through CSS object-fit behavior.
+    function ProfessionalEyeMap({ result, side, zones, peakIdx, curve, design, curl, technique, texture, active, onActivate, lang }) {
+      const items = expandLashMapSectors(zones, peakIdx, curve);
+      const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
+      const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
+      if(!projection)return null;
+      const {crop,points,path}=projection;
+      const labels=selectProfessionalEyeLabels(points,crop);
+      const unit=Math.max(crop.width,crop.height)/100;
+      const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');
+      const peak=points.find(p=>p.isPeak);
+      const curlSpec=[curl,...design.curlRec.alternatives.filter(v=>v!==curl)].slice(0,2).join(' / ');
       return (
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{background: color}}></span>
-          <span className="text-[9px] text-textMuted uppercase tracking-wide">{label}</span>
-        </div>
+        <article className={`overflow-hidden rounded-xl border transition-colors ${active?'border-accent/60 bg-accent/[0.04]':'border-border bg-surface/70'}`}>
+          <button type="button" onClick={onActivate} className="relative block w-full aspect-[16/9] overflow-hidden text-left" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
+            <svg className="absolute inset-0 h-full w-full" viewBox={`${crop.x} ${crop.y} ${crop.width} ${crop.height}`} preserveAspectRatio="xMidYMid meet">
+              <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
+              <rect x={crop.x} y={crop.y} width={crop.width} height={crop.height} fill="rgba(2,6,11,.12)" />
+              <path d={path} fill="none" stroke="rgba(3,8,14,.68)" strokeWidth={unit*.82} strokeLinecap="round" />
+              <path d={path} fill="none" stroke="#E7EFF5" strokeWidth={unit*.38} strokeLinecap="round" />
+              {points.map((point,i)=>{
+                const label=labels[i],r=unit*(point.isPeak?2.25:point.isKey?1.5:1.1),diamond=unit*2.8;
+                return <g key={i} data-map-point={i} data-length={point.len} data-peak={point.isPeak?'true':'false'}>
+                  {point.isPeak?<polygon points={`${point.x},${point.y-diamond} ${point.x+diamond},${point.y} ${point.x},${point.y+diamond} ${point.x-diamond},${point.y}`} fill="#0A8CFF" stroke="#B9E8FF" strokeWidth={unit*.48}/>:<circle cx={point.x} cy={point.y} r={r} fill="#F4F7FA" stroke="rgba(3,8,14,.9)" strokeWidth={unit*.48}/>}
+                  {label&&<text x={label.x} y={label.y} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*1.15} fill={point.isPeak?'#8DD9FF':'#FFFFFF'} fontSize={unit*(point.isPeak?5.2:4.2)} fontWeight={point.isPeak?'700':'600'}>{point.len}</text>}
+                  {point.isPeak&&<text x={label.x} y={label.y-unit*5.1} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*1.05} fill="#8DD9FF" fontSize={unit*3.15} fontWeight="700" letterSpacing={unit*.45}>PEAK</text>}
+                  {point.isKey&&(point.label==='INNER'||point.label==='OUTER')&&<text x={point.x} y={point.y+unit*5.8} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.9)" strokeWidth={unit*.85} fill="rgba(230,240,248,.84)" fontSize={unit*2.55} letterSpacing={unit*.32}>{point.label}</text>}
+                </g>;
+              })}
+            </svg>
+            <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-bg/75 px-2.5 py-1 text-[10px] font-semibold tracking-[.14em] text-white backdrop-blur-sm">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
+            <span className="absolute bottom-2 right-3 text-[9px] font-medium tracking-wider text-white/70">MM</span>
+          </button>
+          <div className="border-t border-white/[.07] p-3">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div><p className="text-sm font-semibold text-textPrimary">{design.name}</p><p className="text-[10px] uppercase tracking-widest text-textMuted">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</p></div>
+              <div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{lang==='en'?'Peak':'Пик'}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div>
+            </div>
+            <dl className="grid grid-cols-3 gap-2 border-y border-white/[.06] py-2.5">
+              <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">Curl</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{curlSpec}</dd></div>
+              <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">Length</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{Math.min(...zones)}–{Math.max(...zones)} mm</dd></div>
+              <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">Texture</dt><dd className="mt-0.5 truncate text-xs font-medium text-textPrimary">{textureLabel}</dd></div>
+            </dl>
+            <div className="mt-2.5 grid grid-cols-5 gap-1">
+              {zones.map((len,i)=><div key={ZONE_NAMES[i]} className="min-w-0 text-center"><p className="truncate text-[7px] tracking-wide text-textMuted">{ZONE_NAMES[i]}</p><p className="text-xs font-semibold text-textPrimary">{len}</p></div>)}
+            </div>
+            <p className="sr-only">{technique}</p>
+          </div>
+        </article>
       );
     }
 
@@ -7995,7 +8042,8 @@
       // fields) always reflects the current language.
       const design = localizeDesign(designProp, result.eyeProfile, lang);
       const [activeEye, setActiveEye] = useState('left');
-      const [hoveredZone, setHoveredZone] = useState(null);
+      const [viewMode,setViewMode]=useState('photo');
+      const [hoveredZone,setHoveredZone]=useState(null);
       const [mode, setMode] = useState('ai');
       const [technique, setTechnique] = useState(design.defaultTechnique);
       const [curl, setCurl] = useState(design.curlRec.primary);
@@ -8014,9 +8062,13 @@
       const customBase = activeEye === 'left' ? customLeft : customRight;
       const zones = (mode === 'ai' ? aiBase : customBase).map(v => Math.max(5, v + (mode==='ai'?lengthDelta:0)));
       const otherZones = mode === 'ai' ? otherAiBase.map(v => Math.max(5, v + lengthDelta)) : (activeEye === 'left' ? customRight : customLeft);
+      const leftZones=activeEye==='left'?zones:otherZones;
+      const rightZones=activeEye==='right'?zones:otherZones;
       // PEAK follows the actual per-eye map being rendered (including
       // measured correction). Custom edits may deliberately move the
       // maximum, so diagram and written plan derive the same peak there.
+      const leftPeakIdx=mode==='custom'?leftZones.indexOf(Math.max(...leftZones)):design.leftPeakZone;
+      const rightPeakIdx=mode==='custom'?rightZones.indexOf(Math.max(...rightZones)):design.rightPeakZone;
       const peakIdx = mode==='custom' ? zones.indexOf(Math.max(...zones)) : activeEye === 'left' ? design.leftPeakZone : design.rightPeakZone;
       const asym = p.compositeAsymmetry > 0.07 && Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0) > 0;
       const densityLabel = density==='light' ? t('light',lang) : density==='full' ? t('full',lang) : t('medium',lang);
@@ -8074,16 +8126,15 @@
               )}
             </div>
             <div className="px-4">
-              <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden bg-surface border border-border mb-3">
-                <LashMapDiagram zones={zones} peakIdx={peakIdx} spikeGeom={spikeGeom} curve={design.curve} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} curl={curl} technique={technique} lang={lang} />
+              <div className="mb-3 flex rounded-md border border-border bg-surface p-1" aria-label="Lash Map view">
+                {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
               </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 mb-4 px-1">
-                <LegendItem color="#0A8CFF" label={t('legendPeak', lang)} />
-                <LegendItem color="rgba(244,247,250,0.4)" label={t('legendBase', lang)} />
-                {spikeGeom && <LegendItem color="#53C7FF" label={t('legendSpike', lang)} />}
-                <LegendItem color="rgba(142,154,168,0.5)" label={t('legendInner', lang)} />
-                <LegendItem color="rgba(142,154,168,0.5)" label={t('legendOuter', lang)} />
-              </div>
+              {viewMode==='photo'?<div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <ProfessionalEyeMap result={result} side="left" zones={leftZones} peakIdx={leftPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='left'} onActivate={()=>setActiveEye('left')} lang={lang}/>
+                <ProfessionalEyeMap result={result} side="right" zones={rightZones} peakIdx={rightPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='right'} onActivate={()=>setActiveEye('right')} lang={lang}/>
+              </div>:<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
+                <LashMapDiagram zones={zones} peakIdx={peakIdx} spikeGeom={spikeGeom} curve={design.curve} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} curl={curl} technique={technique}/>
+              </div>}
 
               {mode === 'custom' && (
                 <div className="mb-4">

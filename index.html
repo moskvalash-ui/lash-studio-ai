@@ -3314,20 +3314,41 @@
     // sectors fill each transition in <= 1 mm steps. The source map is
     // never mutated, so AI L/R correction and Custom editing still own
     // the same five values as before.
-    function expandLashMapSectors(zones, peakIdx) {
+    function expandLashMapSectors(zones, peakIdx, curve={}) {
       if (!Array.isArray(zones) || zones.length === 0) return [];
       if (zones.length === 1) return [{ len: zones[0], t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 }];
+      const positions=Array.isArray(curve.zonePositions)&&curve.zonePositions.length===zones.length
+        ? curve.zonePositions : zones.map((_,i)=>i/(zones.length-1));
+      const intervalShape=i=>i===peakIdx?curve.postPeakShape:i===peakIdx-1?curve.plateauShape:null;
+      const shapeSlope=shape=>shape==='frontLoaded'?1.6:shape==='shoulder'?1.5:1;
+      const desiredSteps=zones.slice(0,-1).map((v,i)=>Math.max(2,Math.ceil(Math.abs(zones[i+1]-v)*shapeSlope(intervalShape(i)))));
+      // Eight intervals (nine points) preserve readable curve shape even
+      // for flat profiles. Thirteen intervals cap the display at fourteen
+      // points; steeper creative maps may therefore retain >1 mm visual
+      // jumps where the point-count and <=1 mm constraints cannot coexist.
+      while(desiredSteps.reduce((a,b)=>a+b,0)>13){
+        const reducible=desiredSteps.map((v,i)=>({v,i})).filter(x=>x.v>2).sort((a,b)=>b.v-a.v||a.i-b.i)[0];
+        if(!reducible)break;
+        desiredSteps[reducible.i]--;
+      }
+      const shapeFraction=(shape,u)=>{
+        if(shape==='frontLoaded')return u<=.5?1.6*u:.8+.4*(u-.5);
+        if(shape==='shoulder')return u<=.5?1.5*u:.75+.5*(u-.5);
+        return u;
+      };
       const sectors = [];
       for (let i = 0; i < zones.length - 1; i++) {
         const start = zones[i], end = zones[i + 1];
-        const steps = Math.max(1, Math.ceil(Math.abs(end - start)));
+        const steps = desiredSteps[i];
         if (i === 0) sectors.push({ len: start, t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 });
         for (let step = 1; step <= steps; step++) {
           const frac = step / steps;
           const isKey = step === steps;
+          const shape=intervalShape(i);
+          const shapedFrac=shapeFraction(shape,frac);
           sectors.push({
-            len: Math.round((start + (end - start) * frac) * 10) / 10,
-            t: (i + frac) / (zones.length - 1),
+            len: isKey?end:Math.round((start+(end-start)*shapedFrac)*10)/10,
+            t: isKey?positions[i+1]:positions[i]+(positions[i+1]-positions[i])*frac,
             keyZoneIndex: isKey ? i + 1 : null,
             label: isKey ? ZONE_NAMES[i + 1] : null,
             isKey,
@@ -3371,6 +3392,7 @@
         cautions: () => [] },
       { id:'doll', category:'opening', ruName:'Doll / Open Eye', enName:'Doll / Open Eye', aliases:['Soft Doll','Central Peak'],
         baseZones:[8,9,10,10,9], peakZone:2, baseCurl:'CC', curlOptions:['CC','D','L'], defaultTechnique:'Volume 3D',
+        zonePositions:[0,.24,.46,.60,1], plateauShape:'shoulder', postPeakShape:'gradual',
         score: c => clampScore(45 + (c.isHooded? c.hoodedConfidence*35 : -10) + (c.isCloseSet?8:0) + c.shapeTendencies.round*6),
         why: (c,l) => l==='en' ? 'Visually opens the eye against a hooded lid via central volume.' : 'Визуально открывает взгляд при нависшем веке за счёт акцента в центре.',
         goal: (c,l) => l==='en' ? 'Open up the eye, add volume in the central zone.' : 'Визуально открыть взгляд, добавить объём в центральной зоне.',
@@ -3382,7 +3404,8 @@
         goal: (c,l) => l==='en' ? 'Soften an elongated shape, round out the gaze.' : 'Смягчить вытянутую форму, визуально округлить взгляд.',
         cautions: () => [] },
       { id:'squirrel', category:'lifting', ruName:'Squirrel', enName:'Squirrel', aliases:['Soft Squirrel'],
-        baseZones:[7,8,9,11,10], peakZone:3, baseCurl:'C', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
+        baseZones:[7,8,10,11,10], peakZone:3, baseCurl:'C', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
+        zonePositions:[0,.20,.46,.62,1], plateauShape:'shoulder', postPeakShape:'gradual',
         score: c => clampScore(50 + c.shapeTendencies.round*18 + (c.tiltTendency==='downturned'? c.tiltConfidence*20 : (c.tiltTendency==='neutral'?8:-10)) + (c.isWideSet?6:0)),
         why: (c,l) => l==='en' ? 'Lifts the outer sector without visually weighting the outer corner.' : 'Поднимает внешний сектор без визуального утяжеления внешнего угла.',
         goal: (c,l) => l==='en' ? 'Elongate toward the temple, lift the outer corner.' : 'Визуально вытянуть форму глаза к виску, приподнять внешний уголок.',
@@ -3395,6 +3418,7 @@
         cautions: () => [] },
       { id:'cat', category:'elongating', ruName:'Cat Eye', enName:'Cat Eye', aliases:[],
         baseZones:[7,8,10,12,10], peakZone:3, baseCurl:'CC', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
+        zonePositions:[0,.22,.48,.78,1], postPeakShape:'frontLoaded',
         score: c => clampScore(46 + (c.tiltTendency==='upturned'? c.tiltConfidence*22 : (c.tiltTendency==='neutral'?6:-14)) + c.shapeTendencies.almond*12 + (c.isHooded?-4:0)),
         why: (c,l) => l==='en' ? 'Classic elongation toward the outer corner.' : 'Классическое вытяжение к внешнему уголку.',
         goal: (c,l) => l==='en' ? 'Elongate and lift toward the outer corner.' : 'Вытянуть и приподнять взгляд к внешнему уголку.',
@@ -3405,12 +3429,20 @@
         why: (c,l) => l==='en' ? 'Gentle horizontal elongation, visually lifts a downturned corner.' : 'Даёт мягкое горизонтальное вытяжение и визуально приподнимает опущенный уголок.',
         goal: (c,l) => l==='en' ? 'Correct a downturned outer corner.' : 'Скорректировать опущенный внешний уголок глаза.',
         cautions: (c,l) => c.isHooded ? [l==='en'?'With hooding, keep curl at CC or below':'При нависании — контролировать изгиб, не более CC'] : [] },
-      { id:'fox', category:'elongating', ruName:'Fox', enName:'Fox', aliases:['Soft Fox','Fox-inspired'],
+      { id:'fox', category:'elongating', ruName:'Fox', enName:'Fox', aliases:['Fox-inspired'],
         baseZones:[6,7,9,12,11], peakZone:3, baseCurl:'C', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
+        zonePositions:[0,.20,.44,.66,1], postPeakShape:'gradual',
         score: c => clampScore(42 + (c.isWideSet?14:0) + (c.tiltTendency==='upturned'? c.tiltConfidence*22 : -6) + c.shapeTendencies.elongated*10 + (c.isHooded?-8:0) + (c.isCloseSet?-10:0)),
         why: (c,l) => l==='en' ? 'Enhances natural upward lift and elongation toward the temple.' : 'Усиливает природную приподнятость и вытяжение к виску.',
         goal: (c,l) => l==='en' ? 'Maximize elongation toward the temple.' : 'Максимально вытянуть форму глаза к виску.',
         cautions: (c,l) => [l==='en'?'Needs confident length control — risk of weighing the gaze down':'Требует уверенного контроля длины — риск утяжелить взгляд'] },
+      { id:'softfox', category:'elongating', ruName:'Soft Fox', enName:'Soft Fox', aliases:['Fox-inspired Soft'],
+        baseZones:[7,8,10,10,9], peakZone:2, baseCurl:'C', curlOptions:['B','C','CC'], defaultTechnique:'Light Volume 2D',
+        zonePositions:[0,.21,.52,.70,1], plateauShape:'shoulder', postPeakShape:'gradual',
+        score: c => clampScore(47 + (c.tiltTendency==='upturned'?c.tiltConfidence*14:4) + c.shapeTendencies.elongated*8 + (c.isHooded?-4:0)),
+        why: (c,l) => l==='en' ? 'Broad, low-amplitude outer lift with a gentle tail.' : 'Широкий мягкий подъём с плавным снижением к внешнему углу.',
+        goal: (c,l) => l==='en' ? 'Add soft elongation without a sharp outer peak.' : 'Мягко вытянуть взгляд без резкого внешнего пика.',
+        cautions: () => [] },
       { id:'eyeliner', category:'elongating', ruName:'Eyeliner Effect', enName:'Eyeliner Effect', aliases:['Arrow Effect'],
         baseZones:[8,8,9,10,9], peakZone:3, baseCurl:'CC', curlOptions:['CC','D'], defaultTechnique:'Volume 3D',
         score: c => clampScore(40 + (c.isCloseSet?10:0) + (c.compositeAsymmetry>0.08?10:0) + (c.isHooded?6:0)),
@@ -3550,6 +3582,7 @@
         peakZone: leftPeakZone === rightPeakZone ? leftPeakZone : entry.peakZone,
         leftPeakZone, rightPeakZone, leftCorrectionMm, rightCorrectionMm,
         texture: entry.texture || null,
+        curve:{zonePositions:entry.zonePositions||null,postPeakShape:entry.postPeakShape||'linear',plateauShape:entry.plateauShape||'linear'},
         leftZones: left, rightZones: right, curlRec,
       };
     }
@@ -3718,7 +3751,7 @@
       return { body: byCategory[design.category] || byCategory.natural };
     }
 
-    function generateApplicationPlan(c, design, technique, curl, zones, otherZones, spikeGeom, lang) {
+    function generateApplicationPlan(c, design, technique, curl, zones, otherZones, spikeGeom, curve, lang) {
       const en = lang === 'en';
       const push = (arr, ru, enS) => arr.push(en ? enS : ru);
       const peakIdx = zones.indexOf(Math.max(...zones));
@@ -3726,7 +3759,7 @@
       const innerLen = zones[0], outerLen = zones[4];
       const asym = c.compositeAsymmetry > 0.07;
       const narrative = designNarrative(design, lang);
-      const displaySectors = expandLashMapSectors(zones, peakIdx);
+      const displaySectors = expandLashMapSectors(zones, peakIdx, curve);
       const displaySequence = displaySectors.map(s => `${s.len}mm`).join(' → ');
 
       // -------- PREPARATION --------
@@ -7866,11 +7899,11 @@
     // outline with iris/pupil reference, lash-line zone markers, and
     // (for textured/creative designs) alternating spike ticks so
     // Wispy/Kim/Manga are visually distinct, not just relabeled.
-    function LashMapDiagram({ zones, peakIdx, spikeGeom, hoveredZone, setHoveredZone, curl, technique, lang }) {
+    function LashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, lang }) {
       const upperY = (t) => 175 - Math.sin(t*Math.PI) * 78;
       const lowerY = (t) => 175 + Math.sin(t*Math.PI) * 34;
       const xAt = (t) => 55 + t * 290;
-      const items = expandLashMapSectors(zones, peakIdx);
+      const items = expandLashMapSectors(zones, peakIdx, curve);
       const upperPath = Array.from({length: 21}, (_,i) => { const tt=i/20; return `${xAt(tt)},${upperY(tt)}`; }).join(' L ');
       const lowerPath = Array.from({length: 21}, (_,i) => { const tt=1-i/20; return `${xAt(tt)},${lowerY(tt)}`; }).join(' L ');
 
@@ -7994,7 +8027,7 @@
         ? (customSpikesOn ? { pattern: customSpikePattern, frequency: customSpikeFreq, baseToSpikeDiff: customSpikeDiff } : null)
         : design.texture;
       const spikeGeom = computeSpikeGeometry(zones, effectiveTexture);
-      const plan = generateApplicationPlan(p, design, technique, curl, zones, otherZones, spikeGeom, lang);
+      const plan = generateApplicationPlan(p, design, technique, curl, zones, otherZones, spikeGeom, design.curve, lang);
       let planNumCounter = 0;
       const planNum = { next: () => ++planNumCounter };
       const lashObsAvailable = !!(naturalLashProfile && (naturalLashProfile.left?.hasData || naturalLashProfile.right?.hasData));
@@ -8042,7 +8075,7 @@
             </div>
             <div className="px-4">
               <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden bg-surface border border-border mb-3">
-                <LashMapDiagram zones={zones} peakIdx={peakIdx} spikeGeom={spikeGeom} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} curl={curl} technique={technique} lang={lang} />
+                <LashMapDiagram zones={zones} peakIdx={peakIdx} spikeGeom={spikeGeom} curve={design.curve} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} curl={curl} technique={technique} lang={lang} />
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-1 mb-4 px-1">
                 <LegendItem color="#0A8CFF" label={t('legendPeak', lang)} />

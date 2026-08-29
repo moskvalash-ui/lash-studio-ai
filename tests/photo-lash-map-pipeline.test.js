@@ -17,6 +17,9 @@ const { calculateEyeLashMap, buildEyeZones } = new Function(
 const catalogStart = src.indexOf('    const DESIGN_CATALOG = ');
 const catalogEnd = src.indexOf('\n\n    function calculateEyeLashMap(', catalogStart);
 const DESIGN_CATALOG = new Function(src.slice(catalogStart, catalogEnd) + '\nreturn DESIGN_CATALOG;')();
+const zoneStart=src.indexOf('    const ZONE_NAMES = '),zoneEnd=src.indexOf('\n    const CATEGORY_LABELS =',zoneStart);
+const expandLashMapSectors=new Function(src.slice(zoneStart,zoneEnd)+'\nreturn expandLashMapSectors;')();
+const curveFor=entry=>({zonePositions:entry.zonePositions||null,postPeakShape:entry.postPeakShape||'linear',plateauShape:entry.plateauShape||'linear'});
 
 const entry = { peakZone: 3, category: 'lifting', correctionMultiplier: 1, baseZones: [6,7,8,9,8] };
 const profile = {
@@ -109,7 +112,7 @@ test('major effect families retain distinct professional geometry', () => {
   }));
   assert.deepStrictEqual(maps.natural.map(v=>v-Math.max(...maps.natural)), [-2,-1,0,0,-1]);
   assert.deepStrictEqual(maps.doll.map(v=>v-Math.max(...maps.doll)), [-2,-1,0,0,-1]);
-  assert.deepStrictEqual(maps.squirrel.map(v=>v-Math.max(...maps.squirrel)), [-4,-3,-2,0,-1]);
+  assert.deepStrictEqual(maps.squirrel.map(v=>v-Math.max(...maps.squirrel)), [-4,-3,-1,0,-1]);
   assert.deepStrictEqual(maps.kitten.map(v=>v-Math.max(...maps.kitten)), [-3,-2,-1,0,-1]);
   assert.deepStrictEqual(maps.cat.map(v=>v-Math.max(...maps.cat)), [-5,-4,-2,0,-2]);
   assert.deepStrictEqual(maps.softcat.map(v=>v-Math.max(...maps.softcat)), [-4,-3,-2,0,-2]);
@@ -148,5 +151,40 @@ test('mirror-equivalent LEFT and RIGHT measurements produce equivalent map geome
     assert.deepStrictEqual(maps.left,maps.right,entry.id);
     assert.strictEqual(maps.leftPeakZone,maps.rightPeakZone,entry.id);
     assert.strictEqual(maps.leftCorrectionMm,0);assert.strictEqual(maps.rightCorrectionMm,0);
+  }
+});
+
+test('Soft Fox is a first-class catalog design, not a Fox alias',()=>{
+  const soft=DESIGN_CATALOG.find(e=>e.id==='softfox'),fox=DESIGN_CATALOG.find(e=>e.id==='fox');
+  assert.ok(soft);assert.ok(!fox.aliases.includes('Soft Fox'));
+  assert.notDeepStrictEqual(soft.baseZones,fox.baseZones);
+  assert.notDeepStrictEqual(soft.zonePositions,fox.zonePositions);
+});
+
+test('anatomical corrections preserve each refined family peak and five-zone topology',()=>{
+  const corrected={...neutralProfile,isCloseSet:true,leftEye:{...neutralProfile.leftEye,innerTaperDeg:45,outerTaperDeg:90},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:6}};
+  for(const id of ['doll','cat','fox','squirrel','softfox']){
+    const map=calculateEyeLashMap(DESIGN_CATALOG.find(e=>e.id===id),corrected,'left');
+    assert.strictEqual(map.zones.length,5,id);
+    assert.strictEqual(map.zones[map.peakZone],Math.max(...map.zones),id);
+    assert.ok(map.zones.every((v,i)=>Number.isFinite(v)&&v>=5),id);
+  }
+});
+
+test('mirror-equivalent eyes also produce identical derived professional curves',()=>{
+  for(const id of ['doll','cat','fox','squirrel','softfox']){
+    const entry=DESIGN_CATALOG.find(e=>e.id===id),maps=buildEyeZones(entry,neutralProfile),curve=curveFor(entry);
+    const left=expandLashMapSectors(maps.left,maps.leftPeakZone,curve),right=expandLashMapSectors(maps.right,maps.rightPeakZone,curve);
+    assert.deepStrictEqual(left,right,id);assert.ok(left.length>=9&&left.length<=14,id);
+  }
+});
+
+test('derived topology remains deterministic after per-eye peak movement',()=>{
+  const shifted={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:6},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:6}};
+  for(const id of ['doll','cat','fox','squirrel','softfox']){
+    const entry=DESIGN_CATALOG.find(e=>e.id===id),map=calculateEyeLashMap(entry,shifted,'left'),curve=curveFor(entry);
+    const a=expandLashMapSectors(map.zones,map.peakZone,curve),b=expandLashMapSectors(map.zones,map.peakZone,curve);
+    assert.deepStrictEqual(a,b,id);assert.strictEqual(a.find(x=>x.isPeak).len,Math.max(...map.zones),id);
+    assert.deepStrictEqual(a.filter(x=>x.isKey).map(x=>x.len),map.zones,id);
   }
 });

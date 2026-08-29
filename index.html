@@ -2124,7 +2124,24 @@
         relative.relativeChromaChange=(Math.max(...rgb)-Math.min(...rgb))-(Math.max(...Object.values(reference.medianRgb))-Math.min(...Object.values(reference.medianRgb)));
         relative.relativeSaturationChange=ih.s-rh.s;
       }
-      return {iris:{rgb:rgb||null,oklab:irisOklab,absoluteCategory:productionIris&&productionIris.name,confidence:productionIris&&productionIris.confidence},reference,relative,contextualCoolDirection:!!(relative&&relative.deltaB<0),productionActivationBlocked:true};
+      const absoluteCategory=productionIris&&productionIris.name;
+      const contextualEligible=absoluteCategory==='gray'||absoluteCategory==='uncertain';
+      const referenceReliable=!!(reference.valid&&reference.quality>=.4&&reference.centerQuality===1);
+      const coolSignals=relative?{
+        deltaA:relative.deltaA<0,
+        deltaB:relative.deltaB<0,
+        brContrast:relative.logBRContrast>0,
+      }:null;
+      const coolSignalCount=coolSignals?Object.values(coolSignals).filter(Boolean).length:0;
+      const contextualCoherence={
+        contextualEligible,
+        referenceReliable,
+        coolSignals,
+        coolSignalCount,
+        coolSignalFraction:coolSignals?coolSignalCount/3:null,
+        coherentCoolDirection:!!(contextualEligible&&referenceReliable&&coolSignalCount>=2),
+      };
+      return {iris:{rgb:rgb||null,oklab:irisOklab,absoluteCategory,confidence:productionIris&&productionIris.confidence},reference,relative,contextualCoolDirection:!!(relative&&relative.deltaB<0),contextualCoherence,productionActivationBlocked:true};
     }
 
     function debugBuildIrisContextFeatures(ctx,leftEye,rightEye,leftAudit,rightAudit,leftIris,rightIris) {
@@ -2134,8 +2151,11 @@
       const distance=l&&r?Math.sqrt(['deltaL','deltaA','deltaB','logBRContrast','logGRContrast'].reduce((s,k)=>s+(l[k]-r[k])**2,0)):null;
       const combined={leftRightRelativeFeatureDistance:distance,deltaASignAgreement:!!(l&&r&&Math.sign(l.deltaA)===Math.sign(r.deltaA)),deltaBSignAgreement:!!(l&&r&&Math.sign(l.deltaB)===Math.sign(r.deltaB)),brContrastAgreement:!!(l&&r&&Math.sign(l.logBRContrast)===Math.sign(r.logBRContrast)),referenceQualityAgreement:!!(left.reference.valid&&right.reference.valid&&Math.abs(left.reference.quality-right.reference.quality)<=.35)};
       combined.bilateralContextualEvidence=!!(left.contextualCoolDirection&&right.contextualCoolDirection&&combined.deltaBSignAgreement&&combined.brContrastAgreement&&combined.referenceQualityAgreement);
+      combined.sharedCoolSignals=Object.fromEntries(['deltaA','deltaB','brContrast'].map(k=>[k,!!(left.contextualCoherence.coolSignals&&right.contextualCoherence.coolSignals&&left.contextualCoherence.coolSignals[k]&&right.contextualCoherence.coolSignals[k])]));
+      combined.sharedCoolSignalCount=Object.values(combined.sharedCoolSignals).filter(Boolean).length;
+      combined.bilateralCoherentContextualEvidence=!!(left.contextualCoherence.coherentCoolDirection&&right.contextualCoherence.coherentCoolDirection&&combined.sharedCoolSignalCount>=2&&combined.referenceQualityAgreement);
       combined.productionActivationBlocked=true;
-      return {contextualSchemaVersion:1,left,right,combined};
+      return {contextualSchemaVersion:2,left,right,combined};
     }
 
     // ------------------------------------------------------------

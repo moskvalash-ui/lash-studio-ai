@@ -3374,16 +3374,54 @@
           y:u*u*u*upper[0].y+3*u*u*t*upper[1].y+3*u*t*t*upper[2].y+t*t*t*upper[3].y,
         };
       };
+      const tangentAt=t=>{
+        const u=1-t;
+        const dx=3*u*u*(upper[1].x-upper[0].x)+6*u*t*(upper[2].x-upper[1].x)+3*t*t*(upper[3].x-upper[2].x);
+        const dy=3*u*u*(upper[1].y-upper[0].y)+6*u*t*(upper[2].y-upper[1].y)+3*t*t*(upper[3].y-upper[2].y);
+        const magnitude=Math.hypot(dx,dy);
+        return magnitude>1e-6?{x:dx/magnitude,y:dy/magnitude}:null;
+      };
       const eyeXs=eye.map(p=>+p.x),eyeYs=eye.map(p=>+p.y);
       const eyeW=Math.max(1,Math.max(...eyeXs)-Math.min(...eyeXs));
       const eyeH=Math.max(1,Math.max(...eyeYs)-Math.min(...eyeYs));
-      const padX=eyeW*.28,padTop=Math.max(eyeH*2.6,eyeW*.22),padBottom=Math.max(eyeH*1.45,eyeW*.12);
+      const apertureCenter={x:eyeXs.reduce((a,b)=>a+b,0)/eyeXs.length,y:eyeYs.reduce((a,b)=>a+b,0)/eyeYs.length};
+      const padX=eyeW*.28,padTop=Math.max(eyeH*2.6,eyeW*.36),padBottom=Math.max(eyeH*1.45,eyeW*.12);
       const x=Math.max(0,Math.min(...eyeXs)-padX),y=Math.max(0,Math.min(...eyeYs)-padTop);
       const right=Math.min(imageWidth,Math.max(...eyeXs)+padX),bottom=Math.min(imageHeight,Math.max(...eyeYs)+padBottom);
+      const projected=sectors.map(sector=>{
+        const baseline=pointAt(Math.max(0,Math.min(1,sector.t)));
+        // Display-only height: a small fixed visual root plus a linear
+        // length scale. It is deliberately not an effect rule and does
+        // not claim a physical pixel-to-millimeter calibration.
+        const profileHeight=eyeW*(.04+.011*sector.len);
+        const tangent=tangentAt(Math.max(0,Math.min(1,sector.t)));
+        if(!tangent)return {...sector,...baseline,profileHeight,normal:null};
+        const candidates=[{x:-tangent.y,y:tangent.x},{x:tangent.y,y:-tangent.x}];
+        const radial={x:baseline.x-apertureCenter.x,y:baseline.y-apertureCenter.y};
+        const radialMagnitude=Math.hypot(radial.x,radial.y);
+        const normal=candidates.sort((a,b)=>(b.x*radial.x+b.y*radial.y)-(a.x*radial.x+a.y*radial.y))[0];
+        const outwardness=radialMagnitude>1e-6?(normal.x*radial.x+normal.y*radial.y)/radialMagnitude:-1;
+        return {...sector,...baseline,profileHeight,tangent,normal,outwardness,profileX:baseline.x+normal.x*profileHeight,profileY:baseline.y+normal.y*profileHeight};
+      });
+      const segmentsCross=(a,b,c,d)=>{
+        const turn=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+        return turn(a,b,c)*turn(a,b,d)<0&&turn(c,d,a)*turn(c,d,b)<0;
+      };
+      const hasCrossing=projected.some((_,i)=>i<projected.length-1&&projected.some((__,j)=>j>i+1&&j<projected.length-1&&segmentsCross(
+        {x:projected[i].profileX,y:projected[i].profileY},{x:projected[i+1].profileX,y:projected[i+1].profileY},
+        {x:projected[j].profileX,y:projected[j].profileY},{x:projected[j+1].profileX,y:projected[j+1].profileY}
+      )));
+      const normalSafe=projected.every((point,index)=>point.normal&&point.outwardness>.15&&
+        point.profileX>=x&&point.profileX<=right&&point.profileY>=y&&point.profileY<=bottom&&
+        (!index||point.normal.x*projected[index-1].normal.x+point.normal.y*projected[index-1].normal.y>.35));
+      const projectionMode=normalSafe&&!hasCrossing?'normal':'vertical-fallback';
+      const points=projectionMode==='normal'?projected:projected.map(point=>({...point,normal:{x:0,y:-1},outwardness:null,profileX:point.x,profileY:point.y-point.profileHeight}));
       return {
         path:`M ${upper[0].x} ${upper[0].y} C ${upper[1].x} ${upper[1].y} ${upper[2].x} ${upper[2].y} ${upper[3].x} ${upper[3].y}`,
         crop:{x,y,width:Math.max(1,right-x),height:Math.max(1,bottom-y)},
-        points:sectors.map(sector=>({...sector,...pointAt(Math.max(0,Math.min(1,sector.t)))})),
+        points,
+        projectionMode,
+        profilePath:points.map((point,index)=>`${index?'L':'M'} ${point.profileX} ${point.profileY}`).join(' '),
       };
     }
 
@@ -3402,16 +3440,20 @@
       const placed=[],result=Array(points.length).fill(null);
       const minX=crop.width*.075,minY=crop.height*.16;
       for(const item of candidates){
-        const lanes=item.point.isPeak?[2,1,0]:[item.index%2,1-(item.index%2),2];
+        if(item.point.isPeak){
+          const position={x:item.point.profileX,y:item.point.profileY-crop.height*.045,lane:0};
+          result[item.index]={...position,priority:item.priority};placed.push(position);continue;
+        }
+        const lanes=[item.index%2,1-(item.index%2),2];
         let position=null;
         for(const lane of lanes){
-          const x=item.point.x,y=item.point.y-crop.height*(.12+lane*.09);
+          const x=item.point.profileX,y=item.point.profileY-crop.height*(.04+lane*.075);
           if(!placed.some(p=>Math.abs(p.x-x)<minX&&Math.abs(p.y-y)<minY)){position={x,y,lane};break;}
         }
         // Mandatory labels cannot disappear; their priority already lets
         // them displace optional labels by being scheduled first.
         if(position||item.priority>=4){
-          position=position||{x:item.point.x,y:item.point.y-crop.height*.3,lane:2};
+          position=position||{x:item.point.profileX,y:item.point.profileY-crop.height*.19,lane:2};
           result[item.index]={...position,priority:item.priority};placed.push(position);
         }
       }
@@ -7986,7 +8028,7 @@
       const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
       const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
       if(!projection)return null;
-      const {crop,points,path}=projection;
+      const {crop,points,path,profilePath}=projection;
       const labels=selectProfessionalEyeLabels(points,crop);
       const unit=Math.max(crop.width,crop.height)/100;
       const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');
@@ -8000,18 +8042,19 @@
               <rect x={crop.x} y={crop.y} width={crop.width} height={crop.height} fill="rgba(2,6,11,.12)" />
               <path d={path} fill="none" stroke="rgba(3,8,14,.68)" strokeWidth={unit*.82} strokeLinecap="round" />
               <path d={path} fill="none" stroke="#E7EFF5" strokeWidth={unit*.38} strokeLinecap="round" />
+              {points.map((point,i)=><line key={`profile-stem-${i}`} x1={point.x} y1={point.y} x2={point.profileX} y2={point.profileY} stroke={point.isPeak?'rgba(83,199,255,.82)':'rgba(231,239,245,.24)'} strokeWidth={unit*(point.isPeak ? 0.48 : 0.18)} strokeLinecap="round"/>)}
+              <path d={profilePath} fill="none" stroke="rgba(231,239,245,.92)" strokeWidth={unit*.42} strokeLinecap="round" strokeLinejoin="round"/>
+              {points.map((point,i)=><circle key={`profile-point-${i}`} cx={point.profileX} cy={point.profileY} r={unit*(point.isPeak?1.25:.62)} fill={point.isPeak?'#53C7FF':'rgba(244,247,250,.9)'} stroke="rgba(2,6,11,.75)" strokeWidth={unit*.24}/>)}
               {points.map((point,i)=>{
                 const label=labels[i],r=unit*(point.isPeak?2.25:point.isKey?1.5:1.1),diamond=unit*2.8;
                 return <g key={i} data-map-point={i} data-length={point.len} data-peak={point.isPeak?'true':'false'}>
                   {point.isPeak?<polygon points={`${point.x},${point.y-diamond} ${point.x+diamond},${point.y} ${point.x},${point.y+diamond} ${point.x-diamond},${point.y}`} fill="#0A8CFF" stroke="#B9E8FF" strokeWidth={unit*.48}/>:<circle cx={point.x} cy={point.y} r={r} fill="#F4F7FA" stroke="rgba(3,8,14,.9)" strokeWidth={unit*.48}/>}
-                  {label&&<text x={label.x} y={label.y} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*1.15} fill={point.isPeak?'#8DD9FF':'#FFFFFF'} fontSize={unit*(point.isPeak?5.2:4.2)} fontWeight={point.isPeak?'700':'600'}>{point.len}</text>}
-                  {point.isPeak&&<text x={label.x} y={label.y-unit*5.1} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*1.05} fill="#8DD9FF" fontSize={unit*3.15} fontWeight="700" letterSpacing={unit*.45}>PEAK</text>}
+                  {label&&<text x={label.x} y={label.y} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*1.15} fill={point.isPeak?'#8DD9FF':'#FFFFFF'} fontSize={unit*(point.isPeak?4.35:4.2)} fontWeight={point.isPeak?'700':'600'} letterSpacing={point.isPeak?unit*.25:0}>{point.isPeak?`PEAK ${point.len}`:point.len}</text>}
                   {point.isKey&&(point.label==='INNER'||point.label==='OUTER')&&<text x={point.x} y={point.y+unit*5.8} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.9)" strokeWidth={unit*.85} fill="rgba(230,240,248,.84)" fontSize={unit*2.55} letterSpacing={unit*.32}>{point.label}</text>}
                 </g>;
               })}
             </svg>
             <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-bg/75 px-2.5 py-1 text-[10px] font-semibold tracking-[.14em] text-white backdrop-blur-sm">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
-            <span className="absolute bottom-2 right-3 text-[9px] font-medium tracking-wider text-white/70">MM</span>
           </button>
           <div className="border-t border-white/[.07] p-3">
             <div className="mb-3 flex items-start justify-between gap-3">

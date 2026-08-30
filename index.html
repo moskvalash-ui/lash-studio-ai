@@ -419,6 +419,10 @@
       lashMapTitle: {ru:'Профессиональная Lash Map', en:'Professional Lash Map'},
       leftEye: {ru:'ЛЕВЫЙ ГЛАЗ', en:'LEFT EYE'},
       rightEye: {ru:'ПРАВЫЙ ГЛАЗ', en:'RIGHT EYE'},
+      lashMapEdit: {ru:'НАСТРОИТЬ СХЕМУ', en:'EDIT MAP'},
+      lashMapEditing: {ru:'НАСТРОЙКА СХЕМЫ', en:'EDITING MAP'},
+      lashMapReset: {ru:'СБРОСИТЬ', en:'RESET'},
+      lashMapDone: {ru:'ГОТОВО', en:'DONE'},
       curlLabel: {ru:'Изгиб', en:'Curl'},
       maxLengthLabel: {ru:'Макс. длина', en:'Max length'},
       designLabel: {ru:'Дизайн', en:'Design'},
@@ -8173,8 +8177,8 @@
               </g>)}
             </svg>
             <div data-photo-edit-controls="true" className="absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2 pointer-events-none">
-              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[.12em] backdrop-blur-sm ${editing?'border-accent/45 bg-accent/20 text-cyan':'border-white/15 bg-bg/75 text-white'}`}>{editing?'EDITING MAP':side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
-              <div className="flex items-center gap-1.5 pointer-events-auto">{editing?<><button type="button" onClick={event=>{event.stopPropagation();onReset();}} className="rounded-full border border-white/20 bg-bg/80 px-2.5 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">RESET</button><button type="button" onClick={event=>{event.stopPropagation();onDone();}} className="rounded-full border border-accent/50 bg-accent px-2.5 py-1 text-[9px] font-semibold text-white shadow-[0_0_14px_rgba(10,140,255,.25)]">DONE</button></>:<button type="button" onClick={event=>{event.stopPropagation();onEdit();}} className="rounded-full border border-accent/45 bg-bg/80 px-3 py-1 text-[9px] font-semibold tracking-wide text-cyan backdrop-blur-sm">EDIT MAP</button>}</div>
+              <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[.08em] backdrop-blur-sm ${editing?'border-accent/45 bg-accent/20 text-cyan':'border-white/15 bg-bg/75 text-white'}`}>{editing?t('lashMapEditing',lang):side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
+              <div className="flex items-center gap-1 pointer-events-auto">{editing?<><button type="button" onClick={event=>{event.stopPropagation();onReset();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-white/20 bg-bg/80 px-2 text-[8px] font-semibold text-white backdrop-blur-sm">{t('lashMapReset',lang)}</button><button type="button" onClick={event=>{event.stopPropagation();onDone();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/50 bg-accent px-2 text-[8px] font-semibold text-white shadow-[0_0_14px_rgba(10,140,255,.25)]">{t('lashMapDone',lang)}</button></>:<button type="button" onClick={event=>{event.stopPropagation();onEdit();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/45 bg-bg/80 px-2.5 text-[8px] font-semibold tracking-wide text-cyan backdrop-blur-sm">{t('lashMapEdit',lang)}</button>}</div>
             </div>
           </div>
           <div className="border-t border-white/[.07] p-3">

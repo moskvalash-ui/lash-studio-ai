@@ -374,13 +374,25 @@ test('mobile PHOTO places EDIT MAP visibly inside the image overlay and exposes 
   const controlsIndex=professionalEyeMapSource.indexOf('data-photo-edit-controls="true"'),svgIndex=professionalEyeMapSource.indexOf('<svg ref={svgRef}'),summaryIndex=professionalEyeMapSource.indexOf('<div className="border-t border-white/[.07] p-3">'),controls=professionalEyeMapSource.slice(controlsIndex,summaryIndex);
   assert.ok(svgIndex>=0&&controlsIndex>svgIndex&&summaryIndex>controlsIndex,'controls must be inside PHOTO image area before summary panel');
   assert.ok(controls.includes('className="absolute inset-x-3 top-3 z-20'));
-  assert.ok(controls.includes("editing?'EDITING MAP'"));
+  assert.ok(controls.includes("editing?t('lashMapEditing',lang)"));
   assert.ok(controls.includes("editing?<><button type=\"button\""));
-  assert.ok(controls.includes('>RESET</button>'));assert.ok(controls.includes('>DONE</button>'));assert.ok(controls.includes('>EDIT MAP</button>'));
+  assert.ok(controls.includes("{t('lashMapReset',lang)}</button>"));assert.ok(controls.includes("{t('lashMapDone',lang)}</button>"));assert.ok(controls.includes("{t('lashMapEdit',lang)}</button>"));
   assert.ok(controls.includes('onEdit();'));assert.ok(controls.includes('onReset();'));assert.ok(controls.includes('onDone();'));
+  assert.strictEqual((controls.match(/min-h-\[44px\]/g)||[]).length,3);assert.strictEqual((controls.match(/min-w-\[44px\]/g)||[]).length,3);
   assert.ok(!/\bhidden\b|opacity-0|invisible|md:|lg:/.test(controls),'mobile control must have no responsive or visibility suppression');
   const diagram=src.slice(src.indexOf('    function LashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LashMapDiagram(')));
   assert.ok(!diagram.includes('EDIT MAP'));assert.ok(!diagram.includes('data-photo-edit-controls'));
+});
+
+test('manual PHOTO controls use live RU/EN localization without coupling language to adjustment state',()=>{
+  for(const [key,ru,en] of [['lashMapEdit','НАСТРОИТЬ СХЕМУ','EDIT MAP'],['lashMapEditing','НАСТРОЙКА СХЕМЫ','EDITING MAP'],['lashMapReset','СБРОСИТЬ','RESET'],['lashMapDone','ГОТОВО','DONE']]){
+    assert.ok(src.includes(`${key}: {ru:'${ru}', en:'${en}'}`));
+    assert.ok(professionalEyeMapSource.includes(`t('${key}',lang)`));
+  }
+  const screen=src.slice(src.indexOf('    function LashMapScreen('),src.indexOf('\n    function ApplicationStepCard(',src.indexOf('    function LashMapScreen(')));
+  assert.ok(screen.includes("const lang = useLang();"));
+  assert.ok(screen.includes("const [manualPhotoAdjustments,setManualPhotoAdjustments]=useState"));
+  assert.ok(!/useEffect\([^)]*lang[^)]*setManualPhotoAdjustments|setManualPhotoAdjustments\([^\n]*lang/.test(screen));
 });
 
 test('orientation diagnostic reads runtime landmarks and classifies canthi by nose distance',()=>{

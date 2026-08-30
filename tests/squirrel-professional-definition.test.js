@@ -1,0 +1,98 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert');
+const crypto=require('node:crypto');
+const fs=require('node:fs');
+const path=require('node:path');
+const Library=require('../professional-lash-library.js');
+
+const root=path.join(__dirname,'..');
+const indexSource=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const domainSource=fs.readFileSync(path.join(root,'lash-design-domain.js'),'utf8');
+const squirrel=Library.getDefinition('geometry.squirrel');
+
+test('geometry.squirrel is a reviewed professional mapping definition with unresolved numeric precision',()=>{
+  assert.strictEqual(squirrel.id,'geometry.squirrel');
+  assert.strictEqual(squirrel.kind,'MAPPING_GEOMETRY');
+  assert.strictEqual(squirrel.validation.status,'EXPERT_REVIEWED');
+  assert.ok(squirrel.professionalDefinition);
+  assert.strictEqual(squirrel.professionalDefinition.primaryIntent,'OUTER_LIFT');
+  assert.strictEqual(squirrel.validation.evidence[0].numericClaims,false);
+  assert.ok(squirrel.validation.provenance.length>0);
+});
+
+test('professional peak is a qualitative range/region and never the legacy fixed 0.62',()=>{
+  const peak=squirrel.professionalDefinition.peak;
+  assert.deepStrictEqual(peak.positionRange,{unit:'NORMALIZED_LASH_LINE',min:null,max:null,region:'PRE_OUTER',resolution:'NUMERIC_RANGE_UNRESOLVED'});
+  assert.deepStrictEqual(peak.zoneRange,{regions:['PRE_OUTER'],resolution:'QUALITATIVE_REGION_ONLY'});
+  assert.deepStrictEqual(peak.plateauAllowed,{value:null,resolution:'UNRESOLVED'});
+  assert.ok(!JSON.stringify(squirrel.professionalDefinition).includes('0.62'));
+  assert.strictEqual(squirrel.legacyReference.normalizedGeometry.peakPosition,0.62);
+});
+
+test('normalized geometry, educational template mm, and production legacy values are separated',()=>{
+  const professional=squirrel.professionalDefinition;
+  assert.strictEqual(professional.normalizedProfile.unit,'RELATIVE_TO_LASH_LINE');
+  assert.strictEqual(professional.normalizedProfile.numericSamples,null);
+  assert.ok(!Object.hasOwn(professional,'templateMm'));
+  assert.strictEqual(squirrel.templateMm.purpose,'STARTING_TEMPLATE_ONLY');
+  assert.strictEqual(squirrel.templateMm.universal,false);
+  assert.strictEqual(squirrel.templateMm.values,null);
+  assert.deepStrictEqual(squirrel.legacyReference.templateMm,[7,8,10,11,10]);
+  assert.deepStrictEqual(squirrel.legacyReference.topology,{zonePositions:[0,.20,.46,.62,1],plateauShape:'shoulder',postPeakShape:'gradual'});
+});
+
+test('reviewed topology contains pre-outer lift and controlled OUTER decrease without invented samples',()=>{
+  const definition=squirrel.professionalDefinition;
+  assert.strictEqual(definition.topology.rise,'BUILDS_TOWARD_PRE_OUTER_MAXIMUM');
+  assert.strictEqual(definition.topology.postPeak,'CONTROLLED_DECREASE');
+  assert.strictEqual(definition.topology.outerBehavior,'LOWER_THAN_PRE_OUTER_MAXIMUM');
+  assert.strictEqual(definition.topology.shoulder,'UNRESOLVED');
+  assert.strictEqual(definition.normalizedProfile.sequence.at(-1).relationship,'CONTROLLED_DECREASE_FROM_MAXIMUM');
+});
+
+test('non-production comparison metadata keeps Squirrel distinct from Cat and Fox',()=>{
+  const comparisons=squirrel.professionalDefinition.crossEffectComparison;
+  for(const id of ['geometry.cat','geometry.fox']){
+    assert.ok(comparisons[id]);
+    assert.strictEqual(comparisons[id].squirrelPeakRegion,'PRE_OUTER');
+    assert.strictEqual(comparisons[id].squirrelOuterBehavior,'CONTROLLED_DECREASE');
+    assert.strictEqual(comparisons[id].squirrelIntent,'OUTER_LIFT');
+    assert.strictEqual(comparisons[id].otherIntentClass,'ELONGATION');
+    assert.match(comparisons[id].otherDefinitionStatus,/UNRESOLVED_PENDING_/);
+  }
+  assert.strictEqual(Library.getDefinition('geometry.cat').professionalDefinition,null);
+  assert.strictEqual(Library.getDefinition('geometry.fox').professionalDefinition,null);
+});
+
+test('Squirrel and every other professional definition remain production-inactive',()=>{
+  assert.strictEqual(Library.library.activation.productionEnabled,false);
+  assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
+  assert.strictEqual(Library.library.activation.defaultState,'INACTIVE');
+  assert.ok(!indexSource.includes('ProfessionalLashLibrary'));
+  assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
+});
+
+test('all 21 legacy IDs and exact legacy Squirrel inputs remain unchanged',()=>{
+  const catalogStart=indexSource.indexOf('    const DESIGN_CATALOG = '),catalogEnd=indexSource.indexOf('\n\n    function calculateEyeLashMap(',catalogStart),catalogSource=indexSource.slice(catalogStart,catalogEnd);
+  const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
+  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction']);
+  const legacySquirrel=catalog.find(entry=>entry.id==='squirrel');
+  assert.deepStrictEqual(legacySquirrel.baseZones,[7,8,10,11,10]);
+  assert.strictEqual(legacySquirrel.peakZone,3);
+  assert.deepStrictEqual(legacySquirrel.zonePositions,[0,.20,.46,.62,1]);
+  assert.strictEqual(legacySquirrel.plateauShape,'shoulder');
+  assert.strictEqual(legacySquirrel.postPeakShape,'gradual');
+  const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
+  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
+});
+
+test('production Recommendation, PHOTO, DIAGRAM, Application Plan, and domain source remain unchanged',()=>{
+  const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
+  assert.strictEqual(digest(indexSource),'51a6c0871b4113ac5a133381690eaa7b376ea9bbf5b301a8af0fb08104347f39');
+  assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
+  assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, i);'));
+  assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
+  assert.ok(indexSource.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
+  assert.ok(indexSource.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
+});

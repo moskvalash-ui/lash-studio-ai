@@ -82,13 +82,87 @@
     },
   });
 
+  // Phase 1B reviewed structure only. The supplied review establishes the
+  // identity and qualitative topology, but provides no reviewed numeric
+  // peak range or millimeter template. Those fields stay explicitly
+  // unresolved; current production numbers live only in legacyReference.
+  const squirrelDefinition = identity('geometry.squirrel', 'Squirrel', 'MAPPING_GEOMETRY', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['squirrel'],
+  });
+  squirrelDefinition.professionalDefinition = {
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE',
+      numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'BELOW_PRE_OUTER_MAXIMUM' },
+        { region: 'BODY', relationship: 'BUILDS_TOWARD_PRE_OUTER_MAXIMUM' },
+        { region: 'PRE_OUTER', relationship: 'MAXIMUM_REGION' },
+        { region: 'OUTER', relationship: 'CONTROLLED_DECREASE_FROM_MAXIMUM' },
+      ],
+    },
+    peak: {
+      positionRange: {
+        unit: 'NORMALIZED_LASH_LINE', min: null, max: null,
+        region: 'PRE_OUTER', resolution: 'NUMERIC_RANGE_UNRESOLVED',
+      },
+      zoneRange: { regions: ['PRE_OUTER'], resolution: 'QUALITATIVE_REGION_ONLY' },
+      plateauAllowed: { value: null, resolution: 'UNRESOLVED' },
+    },
+    topology: {
+      rise: 'BUILDS_TOWARD_PRE_OUTER_MAXIMUM',
+      shoulder: 'UNRESOLVED',
+      postPeak: 'CONTROLLED_DECREASE',
+      outerBehavior: 'LOWER_THAN_PRE_OUTER_MAXIMUM',
+    },
+    primaryIntent: 'OUTER_LIFT',
+    crossEffectComparison: {
+      'geometry.cat': {
+        squirrelPeakRegion: 'PRE_OUTER', squirrelOuterBehavior: 'CONTROLLED_DECREASE', squirrelIntent: 'OUTER_LIFT',
+        otherDefinitionStatus: 'UNRESOLVED_PENDING_CAT_PROFESSIONAL_DEFINITION', otherIntentClass: 'ELONGATION',
+      },
+      'geometry.fox': {
+        squirrelPeakRegion: 'PRE_OUTER', squirrelOuterBehavior: 'CONTROLLED_DECREASE', squirrelIntent: 'OUTER_LIFT',
+        otherDefinitionStatus: 'UNRESOLVED_PENDING_FOX_PROFESSIONAL_DEFINITION', otherIntentClass: 'ELONGATION',
+      },
+    },
+  };
+  squirrelDefinition.templateMm = {
+    purpose: 'STARTING_TEMPLATE_ONLY', universal: false, values: null,
+    resolution: 'NO_REVIEWED_NUMERIC_TEMPLATE_SUPPLIED',
+  };
+  squirrelDefinition.compatibility = {
+    compatibleTechniqueIds: [], compatibleConstructionRecipeIds: [],
+    incompatibleIds: [], conditions: [], resolution: 'UNRESOLVED',
+  };
+  squirrelDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1b-squirrel-structure', type: 'REVIEWED_PROFESSIONAL_STRUCTURE',
+      scope: ['MAPPING_GEOMETRY_IDENTITY', 'PRE_OUTER_MAXIMUM', 'CONTROLLED_OUTER_DECREASE', 'OUTER_LIFT_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1B_APPROVED_PROFESSIONAL_BRIEF', scope: 'STRUCTURAL_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1B_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Numeric peak range, normalized samples, template mm, compatibility, and variants remain unresolved.'],
+  };
+  squirrelDefinition.legacyReference = {
+    legacyIds: ['squirrel'], legacyAliases: ['Soft Squirrel'], relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakPosition: 0.62 },
+    templateMm: [7, 8, 10, 11, 10],
+    topology: { zonePositions: [0, 0.20, 0.46, 0.62, 1], plateauShape: 'shoulder', postPeakShape: 'gradual' },
+    scoreCoefficients: null, spikeDeltas: null, textureFrequencies: null,
+    curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
       'geometry.doll': identity('geometry.doll', 'Doll', 'MAPPING_GEOMETRY', { legacyIds: ['doll'] }),
       'geometry.cat': identity('geometry.cat', 'Cat', 'MAPPING_GEOMETRY', { legacyIds: ['cat'] }),
       'geometry.fox': identity('geometry.fox', 'Fox', 'MAPPING_GEOMETRY', { legacyIds: ['fox'] }),
-      'geometry.squirrel': identity('geometry.squirrel', 'Squirrel', 'MAPPING_GEOMETRY', { legacyIds: ['squirrel'] }),
+      'geometry.squirrel': squirrelDefinition,
     },
     techniques: {
       'technique.classic-one-to-one': identity('technique.classic-one-to-one', 'Classic', 'APPLICATION_TECHNIQUE', { legacyAliases: ['Classic 1:1'] }),

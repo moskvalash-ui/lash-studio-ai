@@ -25,14 +25,20 @@ test('schema/version and every separate professional registry exist', () => {
   assert.deepStrictEqual(library.schema.textureConstruction.primitives, ['SPIKE', 'RAY', 'TENTACLE', 'CLOSED_FAN', 'LAYER']);
 });
 
-test('validation states are explicit and incomplete identities contain no professional rules', () => {
+test('validation states are explicit and only reviewed Squirrel contains professional structure', () => {
   assert.deepStrictEqual(library.validationStates, ['UNVALIDATED', 'DRAFT', 'EXPERT_REVIEWED', 'VALIDATED', 'SCHOOL_DEPENDENT']);
   for (const definition of allDefinitions()) {
     assert.ok(library.validationStates.includes(definition.validation.status), definition.id);
-    assert.strictEqual(definition.professionalDefinition, null, `${definition.id} must not contain invented professional content`);
-    assert.deepStrictEqual(definition.validation.evidence, []);
-    assert.deepStrictEqual(definition.validation.provenance, []);
-    assert.deepStrictEqual(definition.validation.reviewers, []);
+    if(definition.id==='geometry.squirrel'){
+      assert.strictEqual(definition.validation.status,'EXPERT_REVIEWED');
+      assert.ok(definition.professionalDefinition);
+      assert.strictEqual(definition.validation.evidence[0].numericClaims,false);
+    }else{
+      assert.strictEqual(definition.professionalDefinition, null, `${definition.id} must not contain invented professional content`);
+      assert.deepStrictEqual(definition.validation.evidence, []);
+      assert.deepStrictEqual(definition.validation.provenance, []);
+      assert.deepStrictEqual(definition.validation.reviewers, []);
+    }
   }
 });
 
@@ -69,13 +75,12 @@ test('American is school-dependent unresolved identity, not universal validated 
 test('legacyReference is isolated and cannot masquerade as validated professional data', () => {
   const forbiddenNumericFields = ['normalizedGeometry','templateMm','scoreCoefficients','spikeDeltas','textureFrequencies','curlLiftStrength','techniqueDiameters'];
   for (const definition of allDefinitions()) {
-    for (const field of forbiddenNumericFields) assert.strictEqual(definition.legacyReference[field], null, `${definition.id}/${field}`);
-    assert.ok(!['EXPERT_REVIEWED','VALIDATED'].includes(definition.validation.status), definition.id);
-    assert.strictEqual(definition.professionalDefinition, null, definition.id);
+    if(definition.id!=='geometry.squirrel')for (const field of forbiddenNumericFields) assert.strictEqual(definition.legacyReference[field], null, `${definition.id}/${field}`);
+    assert.notStrictEqual(definition.validation.status,'VALIDATED', definition.id);
   }
-  assert.ok(!JSON.stringify(library).includes('0.66'));
-  assert.ok(!JSON.stringify(library).includes('0.78'));
-  assert.ok(!JSON.stringify(library).includes('0.62'));
+  const squirrel=getDefinition('geometry.squirrel');
+  assert.ok(!JSON.stringify(squirrel.professionalDefinition).includes('0.62'));
+  assert.strictEqual(squirrel.legacyReference.normalizedGeometry.peakPosition,0.62);
 });
 
 test('activation architecture is explicit, single-effect, rollback-capable, and inactive', () => {

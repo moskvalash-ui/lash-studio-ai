@@ -156,10 +156,94 @@
     curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1C reviewed structure only. The supplied review establishes a
+  // central/open-eye topology with a broad maximum or plateau, but does not
+  // establish numeric boundaries, millimeter values, curls, or construction
+  // rules. Current production numbers remain isolated in legacyReference.
+  const dollDefinition = identity('geometry.doll', 'Doll', 'MAPPING_GEOMETRY', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['doll'],
+  });
+  dollDefinition.professionalDefinition = {
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE',
+      numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'CONTROLLED_REDUCTION_FROM_CENTRAL_MAXIMUM' },
+        { region: 'CENTRAL', relationship: 'BROAD_MAXIMUM_OR_PLATEAU_REGION' },
+        { region: 'OUTER', relationship: 'CONTROLLED_REDUCTION_FROM_CENTRAL_MAXIMUM' },
+      ],
+    },
+    peak: {
+      positionRange: {
+        unit: 'NORMALIZED_LASH_LINE', min: null, max: null,
+        region: 'CENTRAL', resolution: 'NUMERIC_RANGE_UNRESOLVED',
+      },
+      zoneRange: { regions: ['CENTRAL'], resolution: 'QUALITATIVE_REGION_ONLY' },
+      plateauAllowed: { value: true, boundaries: null, resolution: 'QUALITATIVE_ONLY' },
+    },
+    topology: {
+      rise: 'CONTROLLED_RISE_TOWARD_CENTRAL_MAXIMUM_OR_PLATEAU',
+      shoulder: 'BROAD_CENTRAL_MAXIMUM_OR_PLATEAU_ALLOWED',
+      postPeak: 'CONTROLLED_REDUCTION_TOWARD_OUTER',
+      outerBehavior: 'LOWER_THAN_CENTRAL_MAXIMUM_OR_PLATEAU',
+    },
+    primaryIntent: 'OPEN_EYE_CENTRAL_EMPHASIS',
+    crossEffectComparison: {
+      'geometry.natural': {
+        dollEmphasis: 'CENTRAL', dollPlateauIntent: 'OPEN_EYE', dollOuterBehavior: 'CONTROLLED_REDUCTION',
+        dollIntentClass: 'OPENING', otherDefinitionStatus: 'UNRESOLVED_PENDING_NATURAL_PROFESSIONAL_DEFINITION',
+        otherIntentClass: 'NATURAL_DISTRIBUTION',
+      },
+      'geometry.squirrel': {
+        dollEmphasis: 'CENTRAL', dollPlateauIntent: 'OPEN_EYE', dollOuterBehavior: 'CONTROLLED_REDUCTION',
+        dollIntentClass: 'OPENING', otherDefinitionStatus: 'EXPERT_REVIEWED', otherIntentClass: 'OUTER_LIFT',
+      },
+      'geometry.cat': {
+        dollEmphasis: 'CENTRAL', dollPlateauIntent: 'OPEN_EYE', dollOuterBehavior: 'CONTROLLED_REDUCTION',
+        dollIntentClass: 'OPENING', otherDefinitionStatus: 'UNRESOLVED_PENDING_CAT_PROFESSIONAL_DEFINITION',
+        otherIntentClass: 'ELONGATION',
+      },
+      'geometry.fox': {
+        dollEmphasis: 'CENTRAL', dollPlateauIntent: 'OPEN_EYE', dollOuterBehavior: 'CONTROLLED_REDUCTION',
+        dollIntentClass: 'OPENING', otherDefinitionStatus: 'UNRESOLVED_PENDING_FOX_PROFESSIONAL_DEFINITION',
+        otherIntentClass: 'ELONGATION',
+      },
+    },
+  };
+  dollDefinition.templateMm = {
+    purpose: 'STARTING_TEMPLATE_ONLY', universal: false, values: null,
+    resolution: 'NO_REVIEWED_NUMERIC_TEMPLATE_SUPPLIED',
+  };
+  dollDefinition.compatibility = {
+    compatibleTechniqueIds: [], compatibleConstructionRecipeIds: [],
+    incompatibleIds: [], conditions: [], resolution: 'UNRESOLVED',
+  };
+  dollDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1c-doll-structure', type: 'REVIEWED_PROFESSIONAL_STRUCTURE',
+      scope: ['MAPPING_GEOMETRY_IDENTITY', 'CENTRAL_MAXIMUM_OR_PLATEAU', 'CONTROLLED_INNER_OUTER_REDUCTION', 'OPEN_EYE_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1C_APPROVED_PROFESSIONAL_BRIEF', scope: 'STRUCTURAL_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1C_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Numeric peak and plateau boundaries, normalized samples, template mm, compatibility, and variants remain unresolved.'],
+  };
+  dollDefinition.legacyReference = {
+    legacyIds: ['doll'], legacyAliases: ['Soft Doll', 'Central Peak'], relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakZone: 2 },
+    templateMm: [8, 9, 10, 10, 9],
+    topology: { zonePositions: [0, 0.24, 0.46, 0.60, 1], plateauShape: 'shoulder', postPeakShape: 'gradual' },
+    scoreCoefficients: null, spikeDeltas: null, textureFrequencies: null,
+    curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
-      'geometry.doll': identity('geometry.doll', 'Doll', 'MAPPING_GEOMETRY', { legacyIds: ['doll'] }),
+      'geometry.doll': dollDefinition,
       'geometry.cat': identity('geometry.cat', 'Cat', 'MAPPING_GEOMETRY', { legacyIds: ['cat'] }),
       'geometry.fox': identity('geometry.fox', 'Fox', 'MAPPING_GEOMETRY', { legacyIds: ['fox'] }),
       'geometry.squirrel': squirrelDefinition,

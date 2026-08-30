@@ -8167,9 +8167,8 @@
     // Artist-facing map over the exact captured eye. SVG image and
     // landmarks share the analysis-image coordinate system, so the
     // responsive crop cannot drift through CSS object-fit behavior.
-    function ProfessionalEyeMap({ result, side, zones, peakIdx, curve, design, curl, technique, texture, active, onActivate, lang, editing, adjustment, onAdjustmentChange, onEdit, onReset, onDone }) {
+    function LegacyProfessionalEyeMap({ result, side, zones, peakIdx, items, curve, design, curl, technique, texture, active, onActivate, lang, editing, adjustment, onAdjustmentChange, onEdit, onReset, onDone }) {
       const svgRef=useRef(null),dragRef=useRef(null);
-      const items = expandLashMapSectors(zones, peakIdx, curve);
       const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
       const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
       if(!projection)return null;
@@ -8250,6 +8249,13 @@
       );
     }
 
+    // Phase 2C consumer boundary: PHOTO reads canonical runtime data while
+    // the established projection/SVG renderer above remains unchanged.
+    function ProfessionalEyeMap({ clientDesign, result, side, active, onActivate, lang, editing, onAdjustmentChange, onEdit, onReset, onDone }) {
+      const photoProps=LashDesignDomain.photoPropsFromClientDesign(clientDesign,side);
+      return <LegacyProfessionalEyeMap {...photoProps} result={result} active={active} onActivate={onActivate} lang={lang} editing={editing} onAdjustmentChange={onAdjustmentChange} onEdit={onEdit} onReset={onReset} onDone={onDone}/>;
+    }
+
     function CopyLashMapOrientationDebugButton({ data }) {
       const [copied,setCopied]=useState(false);
       const copy=()=>{
@@ -8322,6 +8328,14 @@
       const diagramClientDesign=LashDesignDomain.withDiagramRuntime(runtimeCanonicalBase,{
         activeSide:activeEye,zones,peakIdx,spikeGeometry:spikeGeom,curve:design.curve,curl,technique,
       });
+      const photoClientDesign=LashDesignDomain.withPhotoRuntime(runtimeCanonicalBase,{
+        activeSide:activeEye,topology:design.curve,technique,curl,textureDescriptor:effectiveTexture,
+        physicalEyes:{
+          left:{finalMm:leftZones,peakZone:leftPeakIdx,derivedSectors:expandLashMapSectors(leftZones,leftPeakIdx,design.curve)},
+          right:{finalMm:rightZones,peakZone:rightPeakIdx,derivedSectors:expandLashMapSectors(rightZones,rightPeakIdx,design.curve)},
+        },
+        manualAdjustment:manualPhotoAdjustments,
+      });
       let planNumCounter = 0;
       const planNum = { next: () => ++planNumCounter };
       const lashObsAvailable = !!(naturalLashProfile && (naturalLashProfile.left?.hasData || naturalLashProfile.right?.hasData));
@@ -8375,8 +8389,8 @@
                 {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
               </div>
               {viewMode==='photo'?<div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <ProfessionalEyeMap result={result} side="left" zones={leftZones} peakIdx={leftPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='left'} onActivate={()=>setActiveEye('left')} lang={lang} editing={editingPhotoEye==='left'} adjustment={manualPhotoAdjustments.left} onAdjustmentChange={next=>setPhotoAdjustment('left',next)} onEdit={()=>{setActiveEye('left');setEditingPhotoEye('left');}} onReset={()=>resetPhotoAdjustment('left')} onDone={()=>setEditingPhotoEye(null)}/>
-                <ProfessionalEyeMap result={result} side="right" zones={rightZones} peakIdx={rightPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='right'} onActivate={()=>setActiveEye('right')} lang={lang} editing={editingPhotoEye==='right'} adjustment={manualPhotoAdjustments.right} onAdjustmentChange={next=>setPhotoAdjustment('right',next)} onEdit={()=>{setActiveEye('right');setEditingPhotoEye('right');}} onReset={()=>resetPhotoAdjustment('right')} onDone={()=>setEditingPhotoEye(null)}/>
+                <ProfessionalEyeMap clientDesign={photoClientDesign} result={result} side="left" active={activeEye==='left'} onActivate={()=>setActiveEye('left')} lang={lang} editing={editingPhotoEye==='left'} onAdjustmentChange={next=>setPhotoAdjustment('left',next)} onEdit={()=>{setActiveEye('left');setEditingPhotoEye('left');}} onReset={()=>resetPhotoAdjustment('left')} onDone={()=>setEditingPhotoEye(null)}/>
+                <ProfessionalEyeMap clientDesign={photoClientDesign} result={result} side="right" active={activeEye==='right'} onActivate={()=>setActiveEye('right')} lang={lang} editing={editingPhotoEye==='right'} onAdjustmentChange={next=>setPhotoAdjustment('right',next)} onEdit={()=>{setActiveEye('right');setEditingPhotoEye('right');}} onReset={()=>resetPhotoAdjustment('right')} onDone={()=>setEditingPhotoEye(null)}/>
               </div>:<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
                 <LashMapDiagram clientDesign={diagramClientDesign} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone}/>
               </div>}

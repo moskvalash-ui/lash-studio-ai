@@ -13,7 +13,7 @@ const { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessional
 const catalogStart=src.indexOf('    const DESIGN_CATALOG = '),catalogEnd=src.indexOf('\n\n    function calculateEyeLashMap(',catalogStart);
 const DESIGN_CATALOG=new Function(src.slice(catalogStart,catalogEnd)+'\nreturn DESIGN_CATALOG;')();
 const curveFor=entry=>({zonePositions:entry.zonePositions||null,postPeakShape:entry.postPeakShape||'linear',plateauShape:entry.plateauShape||'linear'});
-const rendererStart=src.indexOf('    function ProfessionalEyeMap(');
+const rendererStart=src.indexOf('    function LegacyProfessionalEyeMap(');
 const rendererEnd=src.indexOf('\n    function LashMapScreen(',rendererStart);
 assert.ok(rendererStart>=0&&rendererEnd>rendererStart,'ProfessionalEyeMap must be structurally extractable');
 const professionalEyeMapSource=src.slice(rendererStart,rendererEnd);
@@ -168,13 +168,13 @@ test('rendering uses the retained image without presentation mirroring or eye sw
   assert.ok(!/scaleX\s*\(\s*-1|rotateY\s*\(\s*180|transform[^\n]*mirror/i.test(component));
 });
 
-test('visual point count and labels come directly from derived sectors',()=>{
+test('visual point count and labels come directly from canonical derived sectors',()=>{
   const component=professionalEyeMapSource;
-  assert.ok(component.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
+  assert.ok(component.includes('function LegacyProfessionalEyeMap({ result, side, zones, peakIdx, items,'));
   assert.ok(component.includes('points.map((point,i)=>'));
   assert.ok(component.includes('data-length={point.len}'));
   assert.ok(component.includes('data-photo-label={label.kind}'));
-  assert.strictEqual((component.match(/expandLashMapSectors\(/g)||[]).length,1);
+  assert.strictEqual((component.match(/expandLashMapSectors\(/g)||[]).length,0);
 });
 
 test('PEAK label is mandatory and collision scheduling is deterministic',()=>{
@@ -298,7 +298,7 @@ test('PHOTO crop and offset preserve every engine sample field and add no point 
 
 test('ProfessionalEyeMap has no effect-specific rendering rule',()=>{
   assert.ok(!/\b(?:fox|cat|squirrel|doll|natural|softfox)\b/i.test(professionalEyeMapSource));
-  assert.strictEqual((professionalEyeMapSource.match(/expandLashMapSectors\(/g)||[]).length,1);
+  assert.strictEqual((professionalEyeMapSource.match(/expandLashMapSectors\(/g)||[]).length,0);
 });
 
 test('unstable degenerate upper-lid tangent fails closed to vertical projection',()=>{
@@ -309,8 +309,8 @@ test('unstable degenerate upper-lid tangent fails closed to vertical projection'
 });
 
 test('both professional eye cards receive independent engine maps',()=>{
-  assert.ok(src.includes('side="left" zones={leftZones} peakIdx={leftPeakIdx}'));
-  assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
+  assert.ok(src.includes('side="left" active={activeEye===\'left\'}'));
+  assert.ok(src.includes('side="right" active={activeEye===\'right\'}'));
   assert.ok(src.includes("const leftZones=activeEye==='left'?zones:otherZones"));
   assert.ok(src.includes("const rightZones=activeEye==='right'?zones:otherZones"));
 });
@@ -354,7 +354,8 @@ test('manual PHOTO state is independent per eye, survives view changes, and neve
   const screen=src.slice(src.indexOf('    function LashMapScreen('),src.indexOf('\n    function ApplicationStepCard(',src.indexOf('    function LashMapScreen('))),diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(screen.includes("useState(()=>({left:createManualPhotoAdjustment(),right:createManualPhotoAdjustment()}))"));
   assert.ok(screen.includes("setManualPhotoAdjustments(current=>({...current,[side]:next}))"));
-  assert.ok(screen.includes("adjustment={manualPhotoAdjustments.left}"));assert.ok(screen.includes("adjustment={manualPhotoAdjustments.right}"));
+  assert.ok(screen.includes('manualAdjustment:manualPhotoAdjustments'));
+  assert.ok(screen.includes('clientDesign={photoClientDesign}'));
   assert.ok(screen.includes("viewMode==='photo'?"));assert.ok(!diagram.includes('manualPhotoAdjustment'));assert.ok(!diagram.includes('applyManualPhotoAdjustment'));
 });
 

@@ -134,13 +134,12 @@ test('runtime canonical view copies selections exactly and does not mutate base 
   assert.notStrictEqual(result.mapping.applicationPlan.active.finalMm, runtime.zones);
 });
 
-test('Application Plan remains canonical while Recommendation, PHOTO, Custom, language, and Natural Lash remain legacy consumers', () => {
+test('Application Plan remains isolated while PHOTO uses its own canonical boundary', () => {
   assert.ok(src.includes('const planClientDesign=LashDesignDomain.withApplicationPlanRuntime('));
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.strictEqual((src.match(/generateApplicationPlan\(/g) || []).length, 2, 'one definition and one canonical call');
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
-  assert.ok(src.includes('side="left" zones={leftZones} peakIdx={leftPeakIdx}'));
-  assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
+  assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));
   assert.ok(src.includes("const [customRight, setCustomRight] = useState(design.rightZones);"));

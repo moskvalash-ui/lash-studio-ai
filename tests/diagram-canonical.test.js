@@ -134,7 +134,7 @@ test('DIAGRAM runtime adapter is deterministic, defensive, and does not mutate i
 test('canonical wrapper feeds the unchanged legacy SVG renderer and no other consumer migrates', () => {
   const legacyStart = src.indexOf('    function LegacyLashMapDiagram(');
   const wrapperStart = src.indexOf('    function LashMapDiagram(', legacyStart);
-  const photoStart = src.indexOf('    function ProfessionalEyeMap(', wrapperStart);
+  const photoStart = src.indexOf('    function LegacyProfessionalEyeMap(', wrapperStart);
   const legacyRenderer = src.slice(legacyStart, wrapperStart), wrapper = src.slice(wrapperStart, photoStart);
   assert.ok(legacyRenderer.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
   assert.ok(legacyRenderer.includes('(spikeGeom?.spikes||[]).map'));
@@ -145,8 +145,7 @@ test('canonical wrapper feeds the unchanged legacy SVG renderer and no other con
   assert.ok(!wrapper.includes('<svg'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
-  assert.ok(src.includes('side="left" zones={leftZones} peakIdx={leftPeakIdx}'));
-  assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
+  assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(!naturalSource.includes('LashDesignDomain'));

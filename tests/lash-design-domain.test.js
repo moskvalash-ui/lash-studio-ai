@@ -200,15 +200,14 @@ test('building every canonical wrapper leaves legacy ranking and top six byte-fo
   assert.deepStrictEqual(ranked.slice(0, 6), before.slice(0, 6));
 });
 
-test('index integration is out-of-band and production consumers remain on legacy objects', () => {
+test('index integration keeps only explicitly migrated consumer boundaries canonical', () => {
   assert.ok(src.includes('<script src="lash-design-domain.js"></script>'));
   assert.ok(src.includes('const CLIENT_LASH_DESIGN_REGISTRY = new WeakMap();'));
   assert.ok(src.includes('CLIENT_LASH_DESIGN_REGISTRY.set(legacyDesign, LashDesignDomain.legacyToClientLashDesign({'));
   assert.ok(src.includes('return legacyDesign;'));
   assert.strictEqual((src.match(/getCanonicalClientLashDesign\(/g) || []).length, 1, 'canonical getter must have no production consumer');
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
-  assert.ok(src.includes('side="left" zones={leftZones} peakIdx={leftPeakIdx}'));
-  assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
+  assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));

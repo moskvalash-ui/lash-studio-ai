@@ -309,6 +309,58 @@
     };
   }
 
+  // Phase 2C: immutable canonical view of the exact current PHOTO inputs.
+  // Manual adjustment stays presentation-only; it is never copied into the
+  // professional mapping fields.
+  function withPhotoRuntime(clientDesign, runtime) {
+    if (!clientDesign || clientDesign.version !== CLIENT_LASH_DESIGN_VERSION) {
+      throw new TypeError('ClientLashDesign v2 is required');
+    }
+    const input = runtime || {};
+    const result = cloneValue(clientDesign);
+    result.mapping.photo = {
+      activeSide: input.activeSide,
+      topology: cloneValue(input.topology),
+    };
+    for (const side of ['left', 'right']) {
+      const eye = input.physicalEyes?.[side];
+      if (!eye) throw new TypeError(`PHOTO ${side} physical-eye runtime is required`);
+      result.mapping.physicalEyes[side] = {
+        ...result.mapping.physicalEyes[side],
+        finalMm: cloneValue(eye.finalMm),
+        peakZone: eye.peakZone,
+        derivedSectors: cloneValue(eye.derivedSectors),
+      };
+    }
+    result.application.photoTechnique = input.technique;
+    result.curl.photoCurl = input.curl;
+    result.texture.photoDescriptor = cloneValue(input.textureDescriptor ?? null);
+    result.presentation.photo.manualAdjustment = cloneValue(input.manualAdjustment || { left: null, right: null });
+    return result;
+  }
+
+  function photoPropsFromClientDesign(clientDesign, side) {
+    const eye = clientDesign?.mapping?.physicalEyes?.[side];
+    if (!clientDesign || clientDesign.version !== CLIENT_LASH_DESIGN_VERSION || !clientDesign.mapping?.photo || !eye) {
+      throw new TypeError('ClientLashDesign v2 with PHOTO runtime and physical eye is required');
+    }
+    return {
+      side,
+      zones: cloneValue(eye.finalMm),
+      peakIdx: eye.peakZone,
+      items: cloneValue(eye.derivedSectors),
+      curve: cloneValue(clientDesign.mapping.photo.topology),
+      design: {
+        name: clientDesign.display.name,
+        curlRec: { alternatives: cloneValue(clientDesign.curl.alternatives || []) },
+      },
+      curl: clientDesign.curl.photoCurl,
+      technique: clientDesign.application.photoTechnique,
+      texture: cloneValue(clientDesign.texture.photoDescriptor ?? null),
+      adjustment: cloneValue(clientDesign.presentation.photo.manualAdjustment?.[side] ?? null),
+    };
+  }
+
   return {
     CLIENT_LASH_DESIGN_VERSION,
     ZONE_NAMES,
@@ -319,5 +371,7 @@
     withApplicationPlanRuntime,
     withDiagramRuntime,
     diagramPropsFromClientDesign,
+    withPhotoRuntime,
+    photoPropsFromClientDesign,
   };
 });

@@ -8136,7 +8136,7 @@
     // Secondary technical diagram retained alongside the photo map.
     // It consumes the same derived items and texture geometry, but does
     // not participate in any recommendation or source-zone calculation.
-    function LashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique }) {
+    function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique }) {
       const upperY=t=>175-Math.sin(t*Math.PI)*78,lowerY=t=>175+Math.sin(t*Math.PI)*34,xAt=t=>55+t*290;
       const items = expandLashMapSectors(zones, peakIdx, curve);
       const upper=Array.from({length:21},(_,i)=>`${xAt(i/20)},${upperY(i/20)}`).join(' L ');
@@ -8155,6 +8155,13 @@
           {hoveredZone===i&&<g><rect x={x-52} y={y+26} width="104" height="46" rx="10" fill="rgba(6,16,26,.96)" stroke="rgba(35,150,255,.25)"/><text x={x} y={y+44} textAnchor="middle" fill="#F4F7FA" fontSize="11">{z.len} mm · {curl}</text><text x={x} y={y+61} textAnchor="middle" fill="rgba(142,154,168,.85)" fontSize="9">{technique}</text></g>}
         </g>;})}
       </svg>;
+    }
+
+    // Phase 2B consumer boundary: DIAGRAM receives canonical data;
+    // the proven SVG renderer above remains byte-for-byte unchanged.
+    function LashMapDiagram({ clientDesign, hoveredZone, setHoveredZone }) {
+      const diagramProps=LashDesignDomain.diagramPropsFromClientDesign(clientDesign);
+      return <LegacyLashMapDiagram {...diagramProps} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone}/>;
     }
 
     // Artist-facing map over the exact captured eye. SVG image and
@@ -8305,13 +8312,16 @@
         ? (customSpikesOn ? { pattern: customSpikePattern, frequency: customSpikeFreq, baseToSpikeDiff: customSpikeDiff } : null)
         : design.texture;
       const spikeGeom = computeSpikeGeometry(zones, effectiveTexture);
-      const planCanonicalBase=LashDesignDomain.legacyToClientLashDesign({
+      const runtimeCanonicalBase=LashDesignDomain.legacyToClientLashDesign({
         design,catalogEntry:DESIGN_CATALOG.find(entry=>entry.id===design.id),eyeProfile:p,expandSectors:expandLashMapSectors,
       });
-      const planClientDesign=LashDesignDomain.withApplicationPlanRuntime(planCanonicalBase,{
+      const planClientDesign=LashDesignDomain.withApplicationPlanRuntime(runtimeCanonicalBase,{
         activeSide:activeEye,zones,otherZones,technique,curl,textureDescriptor:effectiveTexture,spikeGeometry:spikeGeom,curve:design.curve,
       });
       const plan = generateApplicationPlan(planClientDesign, lang);
+      const diagramClientDesign=LashDesignDomain.withDiagramRuntime(runtimeCanonicalBase,{
+        activeSide:activeEye,zones,peakIdx,spikeGeometry:spikeGeom,curve:design.curve,curl,technique,
+      });
       let planNumCounter = 0;
       const planNum = { next: () => ++planNumCounter };
       const lashObsAvailable = !!(naturalLashProfile && (naturalLashProfile.left?.hasData || naturalLashProfile.right?.hasData));
@@ -8368,7 +8378,7 @@
                 <ProfessionalEyeMap result={result} side="left" zones={leftZones} peakIdx={leftPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='left'} onActivate={()=>setActiveEye('left')} lang={lang} editing={editingPhotoEye==='left'} adjustment={manualPhotoAdjustments.left} onAdjustmentChange={next=>setPhotoAdjustment('left',next)} onEdit={()=>{setActiveEye('left');setEditingPhotoEye('left');}} onReset={()=>resetPhotoAdjustment('left')} onDone={()=>setEditingPhotoEye(null)}/>
                 <ProfessionalEyeMap result={result} side="right" zones={rightZones} peakIdx={rightPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='right'} onActivate={()=>setActiveEye('right')} lang={lang} editing={editingPhotoEye==='right'} adjustment={manualPhotoAdjustments.right} onAdjustmentChange={next=>setPhotoAdjustment('right',next)} onEdit={()=>{setActiveEye('right');setEditingPhotoEye('right');}} onReset={()=>resetPhotoAdjustment('right')} onDone={()=>setEditingPhotoEye(null)}/>
               </div>:<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
-                <LashMapDiagram zones={zones} peakIdx={peakIdx} spikeGeom={spikeGeom} curve={design.curve} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} curl={curl} technique={technique}/>
+                <LashMapDiagram clientDesign={diagramClientDesign} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone}/>
               </div>}
 
               {mode === 'custom' && (

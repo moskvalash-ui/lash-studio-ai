@@ -274,6 +274,41 @@
     return result;
   }
 
+  // Phase 2B: immutable canonical view of the exact current DIAGRAM
+  // inputs. Values are copied verbatim; sector expansion and spike
+  // geometry remain owned by the existing legacy functions.
+  function withDiagramRuntime(clientDesign, runtime) {
+    if (!clientDesign || clientDesign.version !== CLIENT_LASH_DESIGN_VERSION) {
+      throw new TypeError('ClientLashDesign v2 is required');
+    }
+    const input = runtime || {};
+    const result = cloneValue(clientDesign);
+    result.mapping.diagram = {
+      activeSide: input.activeSide,
+      finalMm: cloneValue(input.zones),
+      peakZone: input.peakIdx,
+      topology: cloneValue(input.curve),
+    };
+    result.application.diagramTechnique = input.technique;
+    result.curl.diagramCurl = input.curl;
+    result.texture.diagramSpikeGeometry = cloneValue(input.spikeGeometry ?? null);
+    return result;
+  }
+
+  function diagramPropsFromClientDesign(clientDesign) {
+    if (!clientDesign || clientDesign.version !== CLIENT_LASH_DESIGN_VERSION || !clientDesign.mapping?.diagram) {
+      throw new TypeError('ClientLashDesign v2 with DIAGRAM runtime is required');
+    }
+    return {
+      zones: cloneValue(clientDesign.mapping.diagram.finalMm),
+      peakIdx: clientDesign.mapping.diagram.peakZone,
+      spikeGeom: cloneValue(clientDesign.texture.diagramSpikeGeometry ?? null),
+      curve: cloneValue(clientDesign.mapping.diagram.topology),
+      curl: clientDesign.curl.diagramCurl,
+      technique: clientDesign.application.diagramTechnique,
+    };
+  }
+
   return {
     CLIENT_LASH_DESIGN_VERSION,
     ZONE_NAMES,
@@ -282,5 +317,7 @@
     legacyToClientLashDesign,
     buildNaturalLashEvidence,
     withApplicationPlanRuntime,
+    withDiagramRuntime,
+    diagramPropsFromClientDesign,
   };
 });

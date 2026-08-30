@@ -209,7 +209,7 @@ test('index integration is out-of-band and production consumers remain on legacy
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(src.includes('side="left" zones={leftZones} peakIdx={leftPeakIdx}'));
   assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
-  assert.ok(src.includes('<LashMapDiagram zones={zones} peakIdx={peakIdx}'));
+  assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));
   assert.ok(src.includes("const [customRight, setCustomRight] = useState(design.rightZones);"));

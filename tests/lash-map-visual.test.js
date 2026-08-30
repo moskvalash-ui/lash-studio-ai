@@ -243,9 +243,9 @@ test('useful derived labels are exact expanded-sector values and explain the Fox
 test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{
   assert.ok(src.includes("const [viewMode,setViewMode]=useState('photo')"));
   assert.ok(src.includes("viewMode==='photo'?"));
-  const diagram=src.slice(src.indexOf('    function LashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LashMapDiagram(')));
+  const diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(diagram.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
-  assert.ok(src.includes('<LashMapDiagram zones={zones} peakIdx={peakIdx}'));
+  assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
 });
 
 test('Fox marker topology keeps a late peak and a still-large outer sample',()=>{
@@ -351,7 +351,7 @@ test('allowed manual deformation remains finite, smooth, and anatomically ordere
 });
 
 test('manual PHOTO state is independent per eye, survives view changes, and never reaches DIAGRAM',()=>{
-  const screen=src.slice(src.indexOf('    function LashMapScreen('),src.indexOf('\n    function ApplicationStepCard(',src.indexOf('    function LashMapScreen('))),diagram=src.slice(src.indexOf('    function LashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LashMapDiagram(')));
+  const screen=src.slice(src.indexOf('    function LashMapScreen('),src.indexOf('\n    function ApplicationStepCard(',src.indexOf('    function LashMapScreen('))),diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(screen.includes("useState(()=>({left:createManualPhotoAdjustment(),right:createManualPhotoAdjustment()}))"));
   assert.ok(screen.includes("setManualPhotoAdjustments(current=>({...current,[side]:next}))"));
   assert.ok(screen.includes("adjustment={manualPhotoAdjustments.left}"));assert.ok(screen.includes("adjustment={manualPhotoAdjustments.right}"));
@@ -380,7 +380,7 @@ test('mobile PHOTO places EDIT MAP visibly inside the image overlay and exposes 
   assert.ok(controls.includes('onEdit();'));assert.ok(controls.includes('onReset();'));assert.ok(controls.includes('onDone();'));
   assert.strictEqual((controls.match(/min-h-\[44px\]/g)||[]).length,3);assert.strictEqual((controls.match(/min-w-\[44px\]/g)||[]).length,3);
   assert.ok(!/\bhidden\b|opacity-0|invisible|md:|lg:/.test(controls),'mobile control must have no responsive or visibility suppression');
-  const diagram=src.slice(src.indexOf('    function LashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LashMapDiagram(')));
+  const diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(!diagram.includes('EDIT MAP'));assert.ok(!diagram.includes('data-photo-edit-controls'));
 });
 

@@ -16,6 +16,10 @@
        plain <script> tags above, its exports land on window and are
        consumed as bare globals by the code below, same as before. -->
   <script src="lash-scan-core.js"></script>
+  <!-- Phase 1 canonical lash-design foundation. This pure adapter wraps
+       already-computed legacy results; all production consumers remain
+       on the legacy recommendation/map objects in this phase. -->
+  <script src="lash-design-domain.js"></script>
   <!-- Consent foundation (Phase 1): pure consent-state logic, extracted
        to its own plain script for the same reason as lash-scan-core.js
        above — zero-duplication Node testability via require(). Exports
@@ -3763,11 +3767,14 @@
       return { left: left.zones, right: right.zones, leftPeakZone: left.peakZone, rightPeakZone: right.peakZone, leftCorrectionMm: left.correctionMm, rightCorrectionMm: right.correctionMm };
     }
 
+    const CLIENT_LASH_DESIGN_REGISTRY = new WeakMap();
+    function getCanonicalClientLashDesign(legacyDesign) { return CLIENT_LASH_DESIGN_REGISTRY.get(legacyDesign) || null; }
+
     function buildDesignResult(entry, c, lang) {
       const score = entry.score(c);
       const { left, right, leftPeakZone, rightPeakZone, leftCorrectionMm, rightCorrectionMm } = buildEyeZones(entry, c);
       const curlRec = recommendCurl(c, entry, lang);
-      return {
+      const legacyDesign = {
         id: entry.id, category: entry.category,
         name: lang === 'en' ? entry.enName : entry.ruName,
         ruName: entry.ruName, enName: entry.enName, aliases: entry.aliases,
@@ -3780,6 +3787,15 @@
         curve:{zonePositions:entry.zonePositions||null,postPeakShape:entry.postPeakShape||'linear',plateauShape:entry.plateauShape||'linear'},
         leftZones: left, rightZones: right, curlRec,
       };
+      // Additive Phase 1 wrapper only: the returned legacy object and
+      // every production consumer remain unchanged. Canonical data is
+      // held out-of-band for parity tests/debugging and future adapters.
+      if (typeof LashDesignDomain !== 'undefined') {
+        CLIENT_LASH_DESIGN_REGISTRY.set(legacyDesign, LashDesignDomain.legacyToClientLashDesign({
+          design: legacyDesign, catalogEntry: entry, eyeProfile: c, expandSectors: expandLashMapSectors,
+        }));
+      }
+      return legacyDesign;
     }
     function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }
 

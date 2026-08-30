@@ -62,7 +62,7 @@ test('non-production comparison metadata keeps Squirrel distinct from Cat and Fo
     assert.match(comparisons[id].otherDefinitionStatus,/UNRESOLVED_PENDING_/);
   }
   assert.strictEqual(Library.getDefinition('geometry.cat').professionalDefinition,null);
-  assert.strictEqual(Library.getDefinition('geometry.fox').professionalDefinition,null);
+  assert.ok(Library.getDefinition('geometry.fox').professionalDefinition);
 });
 
 test('Squirrel and every other professional definition remain production-inactive',()=>{

@@ -25,11 +25,11 @@ test('schema/version and every separate professional registry exist', () => {
   assert.deepStrictEqual(library.schema.textureConstruction.primitives, ['SPIKE', 'RAY', 'TENTACLE', 'CLOSED_FAN', 'LAYER']);
 });
 
-test('validation states are explicit and only reviewed Squirrel and Doll contain professional structure', () => {
+test('validation states are explicit and only reviewed Squirrel, Doll, and Fox contain professional structure', () => {
   assert.deepStrictEqual(library.validationStates, ['UNVALIDATED', 'DRAFT', 'EXPERT_REVIEWED', 'VALIDATED', 'SCHOOL_DEPENDENT']);
   for (const definition of allDefinitions()) {
     assert.ok(library.validationStates.includes(definition.validation.status), definition.id);
-    if(['geometry.squirrel','geometry.doll'].includes(definition.id)){
+    if(['geometry.squirrel','geometry.doll','geometry.fox'].includes(definition.id)){
       assert.strictEqual(definition.validation.status,'EXPERT_REVIEWED');
       assert.ok(definition.professionalDefinition);
       assert.strictEqual(definition.validation.evidence[0].numericClaims,false);
@@ -75,7 +75,7 @@ test('American is school-dependent unresolved identity, not universal validated 
 test('legacyReference is isolated and cannot masquerade as validated professional data', () => {
   const forbiddenNumericFields = ['normalizedGeometry','templateMm','scoreCoefficients','spikeDeltas','textureFrequencies','curlLiftStrength','techniqueDiameters'];
   for (const definition of allDefinitions()) {
-    if(!['geometry.squirrel','geometry.doll'].includes(definition.id))for (const field of forbiddenNumericFields) assert.strictEqual(definition.legacyReference[field], null, `${definition.id}/${field}`);
+    if(!['geometry.squirrel','geometry.doll','geometry.fox'].includes(definition.id))for (const field of forbiddenNumericFields) assert.strictEqual(definition.legacyReference[field], null, `${definition.id}/${field}`);
     assert.notStrictEqual(definition.validation.status,'VALIDATED', definition.id);
   }
   const squirrel=getDefinition('geometry.squirrel');
@@ -84,6 +84,9 @@ test('legacyReference is isolated and cannot masquerade as validated professiona
   const doll=getDefinition('geometry.doll');
   assert.ok(!JSON.stringify(doll.professionalDefinition).includes('[0,0.24,0.46,0.6,1]'));
   assert.deepStrictEqual(doll.legacyReference.topology.zonePositions,[0,.24,.46,.60,1]);
+  const fox=getDefinition('geometry.fox');
+  assert.ok(!JSON.stringify(fox.professionalDefinition).includes('0.66'));
+  assert.strictEqual(fox.legacyReference.normalizedGeometry.peakPosition,0.66);
 });
 
 test('activation architecture is explicit, single-effect, rollback-capable, and inactive', () => {

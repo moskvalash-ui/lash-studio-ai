@@ -240,12 +240,93 @@
     curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1D reviewed structure only. The supplied review establishes late
+  // outer emphasis and temporal elongation with a controlled outer tail, but
+  // provides no reviewed coordinate, millimeter template, drop amount, curl,
+  // volume, or direction angle. Production numbers remain legacy-only.
+  const foxDefinition = identity('geometry.fox', 'Fox', 'MAPPING_GEOMETRY', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['fox'],
+  });
+  foxDefinition.professionalDefinition = {
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE',
+      numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'BELOW_LATE_OUTER_EMPHASIS' },
+        { region: 'BODY', relationship: 'BUILDS_TOWARD_LATE_OUTER_EMPHASIS' },
+        { region: 'LATE_OUTER', relationship: 'EMPHASIS_REGION' },
+        { region: 'OUTER_TAIL', relationship: 'CONTROLLED_TAIL_BEHAVIOR' },
+      ],
+    },
+    peak: {
+      positionRange: {
+        unit: 'NORMALIZED_LASH_LINE', min: null, max: null,
+        region: 'LATE_OUTER', resolution: 'NUMERIC_RANGE_UNRESOLVED',
+      },
+      zoneRange: { regions: ['LATE_OUTER'], resolution: 'QUALITATIVE_REGION_ONLY' },
+      plateauAllowed: { value: null, resolution: 'UNRESOLVED' },
+    },
+    topology: {
+      rise: 'BUILDS_TOWARD_LATE_OUTER_EMPHASIS',
+      shoulder: 'UNRESOLVED',
+      postPeak: 'CONTROLLED_OUTER_TAIL',
+      outerBehavior: 'CONTROLLED_TAIL_AFTER_LATE_OUTER_EMPHASIS',
+    },
+    primaryIntent: 'HORIZONTAL_TEMPORAL_ELONGATION',
+    crossEffectComparison: {
+      'geometry.cat': {
+        foxPeakRegion: 'LATE_OUTER', foxOuterBehavior: 'CONTROLLED_TAIL', foxIntentClass: 'TEMPORAL_ELONGATION',
+        foxDeclineOrPlateau: 'UNRESOLVED', otherDefinitionStatus: 'UNRESOLVED_PENDING_CAT_PROFESSIONAL_DEFINITION',
+        distinction: 'RELATIVE_PEAK_AND_TAIL_CHARACTER_REMAINS_QUALITATIVE_PENDING_CAT_REVIEW',
+      },
+      'geometry.squirrel': {
+        foxPeakRegion: 'LATE_OUTER', foxOuterBehavior: 'CONTROLLED_TAIL', foxIntentClass: 'TEMPORAL_ELONGATION',
+        otherDefinitionStatus: 'EXPERT_REVIEWED', otherPeakRegion: 'PRE_OUTER', otherIntentClass: 'OUTER_LIFT',
+        distinction: 'ELONGATION_VERSUS_LIFT_WITH_PRE_OUTER_MAXIMUM_AND_CONTROLLED_DECREASE',
+      },
+      'geometry.doll': {
+        foxPeakRegion: 'LATE_OUTER', foxOuterBehavior: 'CONTROLLED_TAIL', foxIntentClass: 'TEMPORAL_ELONGATION',
+        otherDefinitionStatus: 'EXPERT_REVIEWED', otherPeakRegion: 'CENTRAL', otherIntentClass: 'OPENING',
+        distinction: 'TEMPORAL_ELONGATION_VERSUS_CENTRAL_OPENING',
+      },
+    },
+  };
+  foxDefinition.templateMm = {
+    purpose: 'STARTING_TEMPLATE_ONLY', universal: false, values: null,
+    resolution: 'NO_REVIEWED_NUMERIC_TEMPLATE_SUPPLIED',
+  };
+  foxDefinition.compatibility = {
+    compatibleTechniqueIds: [], compatibleConstructionRecipeIds: [],
+    incompatibleIds: [], conditions: [], resolution: 'UNRESOLVED',
+  };
+  foxDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1d-fox-structure', type: 'REVIEWED_PROFESSIONAL_STRUCTURE',
+      scope: ['MAPPING_GEOMETRY_IDENTITY', 'LATE_OUTER_EMPHASIS', 'CONTROLLED_OUTER_TAIL', 'TEMPORAL_ELONGATION_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1D_APPROVED_PROFESSIONAL_BRIEF', scope: 'STRUCTURAL_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1D_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Numeric peak range, normalized samples, plateau, tail drop, template mm, compatibility, and variants remain unresolved.'],
+  };
+  foxDefinition.legacyReference = {
+    legacyIds: ['fox'], legacyAliases: ['Fox-inspired'], relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakPosition: 0.66, peakZone: 3 },
+    templateMm: [6, 7, 9, 12, 11],
+    topology: { zonePositions: [0, 0.20, 0.44, 0.66, 1], plateauShape: 'linear', postPeakShape: 'gradual' },
+    scoreCoefficients: null, spikeDeltas: null, textureFrequencies: null,
+    curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
       'geometry.doll': dollDefinition,
       'geometry.cat': identity('geometry.cat', 'Cat', 'MAPPING_GEOMETRY', { legacyIds: ['cat'] }),
-      'geometry.fox': identity('geometry.fox', 'Fox', 'MAPPING_GEOMETRY', { legacyIds: ['fox'] }),
+      'geometry.fox': foxDefinition,
       'geometry.squirrel': squirrelDefinition,
     },
     techniques: {

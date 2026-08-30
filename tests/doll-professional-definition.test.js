@@ -64,7 +64,7 @@ test('non-production metadata differentiates Doll from Natural, Squirrel, Cat, a
   assert.strictEqual(Library.getDefinition('geometry.natural').professionalDefinition,null);
   assert.ok(Library.getDefinition('geometry.squirrel').professionalDefinition);
   assert.strictEqual(Library.getDefinition('geometry.cat').professionalDefinition,null);
-  assert.strictEqual(Library.getDefinition('geometry.fox').professionalDefinition,null);
+  assert.ok(Library.getDefinition('geometry.fox').professionalDefinition);
 });
 
 test('Doll and every professional definition remain production-inactive',()=>{

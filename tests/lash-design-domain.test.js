@@ -210,7 +210,7 @@ test('index integration is out-of-band and production consumers remain on legacy
   assert.ok(src.includes('side="left" zones={leftZones} peakIdx={leftPeakIdx}'));
   assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
   assert.ok(src.includes('<LashMapDiagram zones={zones} peakIdx={peakIdx}'));
-  assert.ok(src.includes('const plan = generateApplicationPlan(p, design, technique, curl, zones, otherZones, spikeGeom, design.curve, lang);'));
+  assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));
   assert.ok(src.includes("const [customRight, setCustomRight] = useState(design.rightZones);"));
   assert.ok(src.includes('const design = localizeDesign(designProp, result.eyeProfile, lang);'));

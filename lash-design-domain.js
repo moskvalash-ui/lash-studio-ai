@@ -219,6 +219,14 @@
         measured: {},
         inferred: {},
         manuallyConfirmed: input.eyeProfile?.artistConfirmed ? { eyeProfile: true } : {},
+        applicationPlanProfile: {
+          compositeAsymmetry: input.eyeProfile?.compositeAsymmetry,
+          isHooded: input.eyeProfile?.isHooded,
+          isCloseSet: input.eyeProfile?.isCloseSet,
+          isWideSet: input.eyeProfile?.isWideSet,
+          tiltTendency: input.eyeProfile?.tiltTendency,
+          provenance: 'LEGACY_CLIENT_PROFILE',
+        },
         naturalLashes: buildNaturalLashEvidence(input.naturalLashProfile || null),
         unavailable: [...UNAVAILABLE_NATURAL_LASH_EVIDENCE],
       },
@@ -243,6 +251,29 @@
     };
   }
 
+  // Phase 2A: create an immutable canonical view of the CURRENT Lash
+  // Map editor selections for the Application Plan only. This copies
+  // existing runtime values verbatim; it does not derive or validate
+  // zones, curl, technique, texture, or spike geometry.
+  function withApplicationPlanRuntime(clientDesign, runtime) {
+    if (!clientDesign || clientDesign.version !== CLIENT_LASH_DESIGN_VERSION) {
+      throw new TypeError('ClientLashDesign v2 is required');
+    }
+    const input = runtime || {};
+    const result = cloneValue(clientDesign);
+    result.mapping.applicationPlan = {
+      activeSide: input.activeSide,
+      active: { finalMm: cloneValue(input.zones) },
+      other: { finalMm: cloneValue(input.otherZones) },
+      topology: cloneValue(input.curve),
+    };
+    result.application.selectedTechnique = input.technique;
+    result.curl.selected = input.curl;
+    result.texture.runtimeDescriptor = cloneValue(input.textureDescriptor ?? null);
+    result.texture.spikeGeometry = cloneValue(input.spikeGeometry ?? null);
+    return result;
+  }
+
   return {
     CLIENT_LASH_DESIGN_VERSION,
     ZONE_NAMES,
@@ -250,5 +281,6 @@
     LEGACY_TAXONOMY,
     legacyToClientLashDesign,
     buildNaturalLashEvidence,
+    withApplicationPlanRuntime,
   };
 });

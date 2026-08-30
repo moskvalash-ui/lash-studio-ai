@@ -3962,7 +3962,7 @@
       return { body: byCategory[design.category] || byCategory.natural };
     }
 
-    function generateApplicationPlan(c, design, technique, curl, zones, otherZones, spikeGeom, curve, lang) {
+    function generateLegacyApplicationPlan(c, design, technique, curl, zones, otherZones, spikeGeom, curve, lang) {
       const en = lang === 'en';
       const push = (arr, ru, enS) => arr.push(en ? enS : ru);
       const peakIdx = zones.indexOf(Math.max(...zones));
@@ -4040,6 +4040,33 @@
       push(artistNotes, 'Финальное профессиональное решение остаётся за мастером.', 'The final professional decision remains with the artist.');
 
       return { preparation, steps, spikePlan, artistNotes, displaySectors };
+    }
+
+    // Phase 2A consumer boundary: Application Plan reads only the
+    // canonical ClientLashDesign. The legacy text generator above is
+    // intentionally unchanged and receives a lossless compatibility
+    // view, preserving every current string and section byte-for-byte.
+    function generateApplicationPlan(clientDesign, lang) {
+      const runtime=clientDesign.mapping.applicationPlan;
+      const text=clientDesign.presentation.localizedText;
+      return generateLegacyApplicationPlan(
+        clientDesign.evidence.applicationPlanProfile,
+        {
+          id:clientDesign.legacyDesignId,
+          name:clientDesign.display.name,
+          category:clientDesign.display.category,
+          texture:clientDesign.texture.legacyDescriptor,
+          limitations:text.limitations,
+          correctionGoal:text.correctionGoal,
+        },
+        clientDesign.application.selectedTechnique,
+        clientDesign.curl.selected,
+        runtime.active.finalMm,
+        runtime.other.finalMm,
+        clientDesign.texture.spikeGeometry,
+        runtime.topology,
+        lang
+      );
     }
 
     // ------------------------------------------------------------
@@ -8278,7 +8305,13 @@
         ? (customSpikesOn ? { pattern: customSpikePattern, frequency: customSpikeFreq, baseToSpikeDiff: customSpikeDiff } : null)
         : design.texture;
       const spikeGeom = computeSpikeGeometry(zones, effectiveTexture);
-      const plan = generateApplicationPlan(p, design, technique, curl, zones, otherZones, spikeGeom, design.curve, lang);
+      const planCanonicalBase=LashDesignDomain.legacyToClientLashDesign({
+        design,catalogEntry:DESIGN_CATALOG.find(entry=>entry.id===design.id),eyeProfile:p,expandSectors:expandLashMapSectors,
+      });
+      const planClientDesign=LashDesignDomain.withApplicationPlanRuntime(planCanonicalBase,{
+        activeSide:activeEye,zones,otherZones,technique,curl,textureDescriptor:effectiveTexture,spikeGeometry:spikeGeom,curve:design.curve,
+      });
+      const plan = generateApplicationPlan(planClientDesign, lang);
       let planNumCounter = 0;
       const planNum = { next: () => ++planNumCounter };
       const lashObsAvailable = !!(naturalLashProfile && (naturalLashProfile.left?.hasData || naturalLashProfile.right?.hasData));

@@ -17,6 +17,11 @@ const rendererStart=src.indexOf('    function ProfessionalEyeMap(');
 const rendererEnd=src.indexOf('\n    function LashMapScreen(',rendererStart);
 assert.ok(rendererStart>=0&&rendererEnd>rendererStart,'ProfessionalEyeMap must be structurally extractable');
 const professionalEyeMapSource=src.slice(rendererStart,rendererEnd);
+const normalizationStart=src.indexOf('    function normalizeEyePoints(raw, source) {');
+const normalizationEnd=src.indexOf('\n    function computeHeadPose(',normalizationStart);
+const debugRuntime=new Function(
+  src.slice(normalizationStart,normalizationEnd)+src.slice(start,end)+'\nreturn { buildLashMapOrientationDebug };'
+)();
 
 const leftEye = [
   {x:100,y:100},{x:126,y:84},{x:158,y:82},
@@ -308,4 +313,50 @@ test('both professional eye cards receive independent engine maps',()=>{
   assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
   assert.ok(src.includes("const leftZones=activeEye==='left'?zones:otherZones"));
   assert.ok(src.includes("const rightZones=activeEye==='right'?zones:otherZones"));
+});
+
+test('orientation diagnostic reads runtime landmarks and classifies canthi by nose distance',()=>{
+  const nose=[{x:245,y:150},{x:250,y:155},{x:255,y:150}];
+  const rawLeft=[{x:180,y:100},{x:190,y:90},{x:210,y:90},{x:220,y:100},{x:210,y:110},{x:190,y:110}];
+  const rawRight=[{x:280,y:100},{x:290,y:90},{x:310,y:90},{x:320,y:100},{x:310,y:110},{x:290,y:110}];
+  const positions=Array(68).fill(null).map(()=>({x:0,y:0}));positions.splice(36,6,...rawLeft);positions.splice(42,6,...rawRight);
+  const landmarks={positions,getNose:()=>nose,getLeftEye:()=>rawLeft,getRightEye:()=>rawRight,getLeftEyeBrow:()=>[],getRightEyeBrow:()=>[]};
+  const result={source:'photo',imageWidth:500,imageHeight:250,landmarks};
+  const data=debugRuntime.buildLashMapOrientationDebug(result,zones,3,zones,3,{zonePositions:[0,.2,.46,.66,1],plateauShape:'shoulder',postPeakShape:'gradual'});
+  assert.strictEqual(data.sourceMode,'photo');
+  assert.strictEqual(data.noseCenterX,250);
+  assert.deepStrictEqual(data.rawLeftEye.p0,rawLeft[0]);
+  assert.deepStrictEqual(data.rawRightEye.p3,rawRight[3]);
+  assert.strictEqual(data.anatomicalCheck.leftInnerIsNasal,true);
+  assert.strictEqual(data.anatomicalCheck.leftOuterIsTemporal,true);
+  assert.strictEqual(data.anatomicalCheck.rightInnerIsNasal,true);
+  assert.strictEqual(data.anatomicalCheck.rightOuterIsTemporal,true);
+});
+
+test('orientation diagnostic reports actual normalized and rendered PHOTO coordinates',()=>{
+  const rawLeft=[{x:180,y:100},{x:190,y:90},{x:210,y:90},{x:220,y:100},{x:210,y:110},{x:190,y:110}],rawRight=[{x:280,y:100},{x:290,y:90},{x:310,y:90},{x:320,y:100},{x:310,y:110},{x:290,y:110}],positions=Array(68).fill(null).map(()=>({x:0,y:0}));positions.splice(36,6,...rawLeft);positions.splice(42,6,...rawRight);
+  const landmarks={positions,getNose:()=>[{x:250,y:150}],getLeftEye:()=>rawLeft,getRightEye:()=>rawRight,getLeftEyeBrow:()=>[],getRightEyeBrow:()=>[]};
+  const result={source:'live',imageWidth:500,imageHeight:250,landmarks},curve={zonePositions:[0,.2,.46,.66,1],plateauShape:'shoulder',postPeakShape:'gradual'};
+  const data=debugRuntime.buildLashMapOrientationDebug(result,zones,3,zones,3,curve);
+  assert.deepStrictEqual(data.normalizedPhysicalLeft.inner,{x:280,y:100});
+  assert.deepStrictEqual(data.normalizedPhysicalLeft.outer,{x:320,y:100});
+  assert.deepStrictEqual(data.normalizedPhysicalRight.inner,{x:220,y:100});
+  assert.deepStrictEqual(data.normalizedPhysicalRight.outer,{x:180,y:100});
+  assert.strictEqual(data.photoLeft.innerX,data.normalizedPhysicalLeft.innerX);
+  assert.strictEqual(data.photoLeft.outerX,data.normalizedPhysicalLeft.outerX);
+  assert.strictEqual(data.photoRight.innerX,data.normalizedPhysicalRight.innerX);
+  assert.strictEqual(data.photoRight.outerX,data.normalizedPhysicalRight.outerX);
+  assert.strictEqual(data.photoLeft.tDirection,'increasing-x');
+  assert.strictEqual(data.photoRight.tDirection,'decreasing-x');
+  assert.strictEqual(data.photoLeft.peakT,sectors.find(point=>point.isPeak).t);
+  assert.strictEqual(data.photoRight.peakT,sectors.find(point=>point.isPeak).t);
+});
+
+test('orientation diagnostic UI and console are debug-gated and do not alter PHOTO geometry',()=>{
+  const screen=src.slice(src.indexOf('    function LashMapScreen('),src.indexOf('\n    function ApplicationStepCard(',src.indexOf('    function LashMapScreen(')));
+  assert.ok(screen.includes("const debugAvailable=isDebugModeEnabled();"));
+  assert.ok(screen.includes('{debugAvailable&&<CopyLashMapOrientationDebugButton data={orientationDebug}/>}'));
+  assert.ok(screen.includes("if(orientationDebug)console.log('LASH_MAP_ORIENTATION_DEBUG',orientationDebug)"));
+  assert.strictEqual((professionalEyeMapSource.match(/data-photo-map-line/g)||[]).length,1);
+  assert.ok(!professionalEyeMapSource.includes('buildLashMapOrientationDebug'));
 });

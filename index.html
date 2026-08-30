@@ -3480,6 +3480,49 @@
       return {x,y,width,height};
     }
 
+    // TEMPORARY DEBUG-ONLY orientation snapshot. This reuses the exact
+    // normalization/projection/PHOTO-line helpers used by ProfessionalEyeMap;
+    // it observes their output without changing any rendering input.
+    const LASH_MAP_ORIENTATION_DEBUG_COMMIT = 'd56fff71948ffa98fb1f54a461cd482102b7587c';
+    function buildLashMapOrientationDebug(result, leftZones, leftPeakIdx, rightZones, rightPeakIdx, curve) {
+      if(!result||!result.landmarks)return null;
+      const landmarks=result.landmarks,nose=landmarks.getNose();
+      if(!Array.isArray(nose)||!nose.length)return null;
+      const noseCenterX=nose.reduce((sum,point)=>sum+point.x,0)/nose.length;
+      const positions=landmarks.positions;
+      if(!Array.isArray(positions)||positions.length<48)return null;
+      const rawLeft=positions.slice(36,42),rawRight=positions.slice(42,48);
+      const physicalLeft=getPhysicalEyeLandmarks(landmarks,'left').eye;
+      const physicalRight=getPhysicalEyeLandmarks(landmarks,'right').eye;
+      const point=source=>({x:source.x,y:source.y});
+      const rawEye=eye=>({p0:point(eye[0]),p1:point(eye[1]),p2:point(eye[2]),p3:point(eye[3]),centerX:eye.reduce((sum,p)=>sum+p.x,0)/eye.length});
+      const normalizedEye=eye=>({inner:point(eye[0]),upper1:point(eye[1]),upper2:point(eye[2]),outer:point(eye[3]),innerX:eye[0].x,outerX:eye[3].x});
+      const photoEye=(eye,zones,peakIdx)=>{
+        const items=expandLashMapSectors(zones,peakIdx,curve);
+        const projection=buildProfessionalEyeProjection(eye,items,result.imageWidth,result.imageHeight);
+        const line=projection&&buildProfessionalPhotoLine(eye,projection.points);
+        if(!line||!line.points.length)return null;
+        const inner=line.points.find(p=>p.label==='INNER'),peak=line.points.find(p=>p.isPeak),outer=line.points.find(p=>p.label==='OUTER');
+        if(!inner||!peak||!outer)return null;
+        return {innerX:inner.mapX,peakX:peak.mapX,outerX:outer.mapX,peakT:peak.t,tDirection:outer.mapX>=inner.mapX?'increasing-x':'decreasing-x'};
+      };
+      const photoLeft=photoEye(physicalLeft,leftZones,leftPeakIdx),photoRight=photoEye(physicalRight,rightZones,rightPeakIdx);
+      if(!photoLeft||!photoRight)return null;
+      const leftInnerDistanceToNose=Math.abs(physicalLeft[0].x-noseCenterX),leftOuterDistanceToNose=Math.abs(physicalLeft[3].x-noseCenterX);
+      const rightInnerDistanceToNose=Math.abs(physicalRight[0].x-noseCenterX),rightOuterDistanceToNose=Math.abs(physicalRight[3].x-noseCenterX);
+      return {
+        deployedCommit:LASH_MAP_ORIENTATION_DEBUG_COMMIT,sourceMode:result.source||null,imageWidth:result.imageWidth,imageHeight:result.imageHeight,noseCenterX,
+        rawLeftEye:rawEye(rawLeft),rawRightEye:rawEye(rawRight),
+        normalizedPhysicalLeft:normalizedEye(physicalLeft),normalizedPhysicalRight:normalizedEye(physicalRight),
+        photoLeft,photoRight,
+        anatomicalCheck:{
+          leftInnerDistanceToNose,leftOuterDistanceToNose,rightInnerDistanceToNose,rightOuterDistanceToNose,
+          leftInnerIsNasal:leftInnerDistanceToNose<leftOuterDistanceToNose,leftOuterIsTemporal:leftOuterDistanceToNose>leftInnerDistanceToNose,
+          rightInnerIsNasal:rightInnerDistanceToNose<rightOuterDistanceToNose,rightOuterIsTemporal:rightOuterDistanceToNose>rightInnerDistanceToNose,
+        },
+      };
+    }
+
     const CATEGORY_LABELS = {
       natural:{ru:'Натуральные',en:'Natural'}, opening:{ru:'Открывающие',en:'Opening'},
       lifting:{ru:'Лифтинг',en:'Lifting'}, elongating:{ru:'Вытягивающие',en:'Elongating'},
@@ -8096,6 +8139,16 @@
       );
     }
 
+    function CopyLashMapOrientationDebugButton({ data }) {
+      const [copied,setCopied]=useState(false);
+      const copy=()=>{
+        if(!data)return;
+        const payload=JSON.stringify(data,null,2);
+        if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(payload).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500);}).catch(()=>{});
+      };
+      return <button type="button" data-lash-map-orientation-debug="true" onClick={copy} className="mb-3 w-full rounded-md border border-amber-400/40 bg-amber-500/10 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200 press-scale">{copied?'COPIED':'COPY LASH MAP ORIENTATION DEBUG'}</button>;
+    }
+
     function LashMapScreen({ result, design: designProp, naturalLashProfile, onBack }) {
       const lang = useLang();
       // designProp may have been built (and its text fields baked in)
@@ -8134,6 +8187,9 @@
       const leftPeakIdx=mode==='custom'?leftZones.indexOf(Math.max(...leftZones)):design.leftPeakZone;
       const rightPeakIdx=mode==='custom'?rightZones.indexOf(Math.max(...rightZones)):design.rightPeakZone;
       const peakIdx = mode==='custom' ? zones.indexOf(Math.max(...zones)) : activeEye === 'left' ? design.leftPeakZone : design.rightPeakZone;
+      const debugAvailable=isDebugModeEnabled();
+      const orientationDebug=useMemo(()=>debugAvailable?buildLashMapOrientationDebug(result,leftZones,leftPeakIdx,rightZones,rightPeakIdx,design.curve):null,[debugAvailable,result,leftZones,leftPeakIdx,rightZones,rightPeakIdx,design.curve]);
+      useEffect(()=>{if(orientationDebug)console.log('LASH_MAP_ORIENTATION_DEBUG',orientationDebug);},[orientationDebug]);
       const asym = p.compositeAsymmetry > 0.07 && Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0) > 0;
       const densityLabel = density==='light' ? t('light',lang) : density==='full' ? t('full',lang) : t('medium',lang);
       const diameter = density==='light' ? '0.07 mm' : density==='full' ? '0.12–0.15 mm' : '0.10 mm';
@@ -8190,6 +8246,7 @@
               )}
             </div>
             <div className="px-4">
+              {debugAvailable&&<CopyLashMapOrientationDebugButton data={orientationDebug}/>}
               <div className="mb-3 flex rounded-md border border-border bg-surface p-1" aria-label="Lash Map view">
                 {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
               </div>

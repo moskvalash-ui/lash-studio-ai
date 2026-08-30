@@ -63,7 +63,7 @@ test('non-production metadata differentiates Doll from Natural, Squirrel, Cat, a
   assert.strictEqual(comparisons['geometry.fox'].otherIntentClass,'ELONGATION');
   assert.strictEqual(Library.getDefinition('geometry.natural').professionalDefinition,null);
   assert.ok(Library.getDefinition('geometry.squirrel').professionalDefinition);
-  assert.strictEqual(Library.getDefinition('geometry.cat').professionalDefinition,null);
+  assert.ok(Library.getDefinition('geometry.cat').professionalDefinition);
   assert.ok(Library.getDefinition('geometry.fox').professionalDefinition);
 });
 

@@ -62,7 +62,7 @@ test('non-production metadata differentiates Fox from Cat, Squirrel, and Doll',(
   assert.strictEqual(comparisons['geometry.squirrel'].otherIntentClass,'OUTER_LIFT');
   assert.strictEqual(comparisons['geometry.doll'].otherPeakRegion,'CENTRAL');
   assert.strictEqual(comparisons['geometry.doll'].otherIntentClass,'OPENING');
-  assert.strictEqual(Library.getDefinition('geometry.cat').professionalDefinition,null);
+  assert.ok(Library.getDefinition('geometry.cat').professionalDefinition);
   assert.ok(Library.getDefinition('geometry.squirrel').professionalDefinition);
   assert.ok(Library.getDefinition('geometry.doll').professionalDefinition);
 });

@@ -61,7 +61,7 @@ test('non-production comparison metadata keeps Squirrel distinct from Cat and Fo
     assert.strictEqual(comparisons[id].otherIntentClass,'ELONGATION');
     assert.match(comparisons[id].otherDefinitionStatus,/UNRESOLVED_PENDING_/);
   }
-  assert.strictEqual(Library.getDefinition('geometry.cat').professionalDefinition,null);
+  assert.ok(Library.getDefinition('geometry.cat').professionalDefinition);
   assert.ok(Library.getDefinition('geometry.fox').professionalDefinition);
 });
 

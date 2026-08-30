@@ -321,11 +321,99 @@
     curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1E reviewed structure only. The supplied review establishes a
+  // pronounced late/outer feline emphasis with controlled physical-OUTER
+  // behavior, but does not establish an exact coordinate, slope, drop,
+  // template, curl, volume, or direction angle. Production values stay
+  // isolated in legacyReference.
+  const catDefinition = identity('geometry.cat', 'Cat', 'MAPPING_GEOMETRY', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['cat'],
+  });
+  catDefinition.professionalDefinition = {
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE',
+      numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'BELOW_PRONOUNCED_LATE_OUTER_EMPHASIS' },
+        { region: 'BODY', relationship: 'BUILDS_TOWARD_PRONOUNCED_LATE_OUTER_EMPHASIS' },
+        { region: 'LATE_OUTER', relationship: 'PRONOUNCED_EMPHASIS_REGION' },
+        { region: 'PHYSICAL_OUTER', relationship: 'CONTROLLED_OUTER_BEHAVIOR' },
+      ],
+    },
+    peak: {
+      positionRange: {
+        unit: 'NORMALIZED_LASH_LINE', min: null, max: null,
+        region: 'LATE_OUTER', resolution: 'NUMERIC_RANGE_UNRESOLVED',
+      },
+      zoneRange: { regions: ['LATE_OUTER'], resolution: 'QUALITATIVE_REGION_ONLY' },
+      plateauAllowed: { value: null, resolution: 'UNRESOLVED' },
+    },
+    topology: {
+      rise: 'BUILDS_TOWARD_PRONOUNCED_LATE_OUTER_EMPHASIS',
+      shoulder: 'UNRESOLVED',
+      postPeak: 'CONTROLLED_BEHAVIOR_TOWARD_PHYSICAL_OUTER',
+      outerBehavior: 'CONTROLLED_AT_PHYSICAL_OUTER',
+    },
+    primaryIntent: 'STRONGER_FELINE_OUTER_ELONGATION',
+    crossEffectComparison: {
+      'geometry.fox': {
+        catPeakRegion: 'LATE_OUTER', foxPeakRegion: 'LATE_OUTER', relativePeakOrder: 'UNRESOLVED',
+        relativeSharpness: 'UNRESOLVED', catOuterBehavior: 'CONTROLLED_AT_PHYSICAL_OUTER',
+        foxOuterBehavior: 'CONTROLLED_OUTER_TAIL', tailDeclineOrPlateauDifference: 'UNRESOLVED',
+        catIntentClass: 'STRONGER_FELINE_OUTER_EMPHASIS', foxIntentClass: 'HORIZONTAL_TEMPORAL_ELONGATION',
+        directionDependency: {
+          status: 'UNRESOLVED_NEEDS_DIRECTION_STRATEGY_VALIDATION',
+          note: 'Mapping geometry alone may not fully distinguish the visual effects.',
+        },
+        numericLegacyComparisonUsed: false,
+      },
+      'geometry.squirrel': {
+        catPeakRegion: 'LATE_OUTER', catIntentClass: 'OUTER_ELONGATION', catOuterBehavior: 'CONTROLLED_AT_PHYSICAL_OUTER',
+        otherDefinitionStatus: 'EXPERT_REVIEWED', otherPeakRegion: 'PRE_OUTER', otherIntentClass: 'OUTER_LIFT',
+        distinction: 'ELONGATION_VERSUS_PRE_OUTER_LIFT_WITH_CONTROLLED_DECREASE',
+      },
+      'geometry.doll': {
+        catPeakRegion: 'LATE_OUTER', catIntentClass: 'OUTER_ELONGATION', catOuterBehavior: 'CONTROLLED_AT_PHYSICAL_OUTER',
+        otherDefinitionStatus: 'EXPERT_REVIEWED', otherPeakRegion: 'CENTRAL', otherIntentClass: 'OPENING',
+        distinction: 'OUTER_ELONGATION_VERSUS_CENTRAL_OPENING',
+      },
+    },
+  };
+  catDefinition.templateMm = {
+    purpose: 'STARTING_TEMPLATE_ONLY', universal: false, values: null,
+    resolution: 'NO_REVIEWED_NUMERIC_TEMPLATE_SUPPLIED',
+  };
+  catDefinition.compatibility = {
+    compatibleTechniqueIds: [], compatibleConstructionRecipeIds: [],
+    incompatibleIds: [], conditions: [], resolution: 'UNRESOLVED',
+  };
+  catDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1e-cat-structure', type: 'REVIEWED_PROFESSIONAL_STRUCTURE',
+      scope: ['MAPPING_GEOMETRY_IDENTITY', 'PRONOUNCED_LATE_OUTER_EMPHASIS', 'CONTROLLED_PHYSICAL_OUTER_BEHAVIOR', 'FELINE_OUTER_ELONGATION_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1E_APPROVED_PROFESSIONAL_BRIEF', scope: 'STRUCTURAL_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1E_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Numeric peak range, normalized samples, outer drop and slope, template mm, compatibility, variants, and direction-strategy distinction remain unresolved.'],
+  };
+  catDefinition.legacyReference = {
+    legacyIds: ['cat'], legacyAliases: [], relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakPosition: 0.78, peakZone: 3 },
+    templateMm: [7, 8, 10, 12, 10],
+    topology: { zonePositions: [0, 0.22, 0.48, 0.78, 1], plateauShape: 'linear', postPeakShape: 'frontLoaded' },
+    scoreCoefficients: null, spikeDeltas: null, textureFrequencies: null,
+    curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
       'geometry.doll': dollDefinition,
-      'geometry.cat': identity('geometry.cat', 'Cat', 'MAPPING_GEOMETRY', { legacyIds: ['cat'] }),
+      'geometry.cat': catDefinition,
       'geometry.fox': foxDefinition,
       'geometry.squirrel': squirrelDefinition,
     },

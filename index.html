@@ -8153,7 +8153,7 @@
       const handlePoints={inner:workingLine.points[0],peak:workingLine.points.find(point=>point.isPeak),outer:workingLine.points.at(-1)};
       return (
         <article className={`overflow-hidden rounded-xl border transition-colors ${active?'border-accent/60 bg-accent/[0.04]':'border-border bg-surface/70'}`}>
-          <button type="button" onClick={onActivate} className="relative block w-full aspect-[16/9] overflow-hidden text-left" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
+          <div role="button" tabIndex="0" onClick={onActivate} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onActivate();}}} className="relative block w-full aspect-[16/9] overflow-hidden text-left" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
             <svg ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
               <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
               <rect x={photoCrop.x} y={photoCrop.y} width={photoCrop.width} height={photoCrop.height} fill="rgba(2,6,11,.12)" />
@@ -8172,12 +8172,15 @@
                 <circle cx={point.mapX} cy={point.mapY} r={unit*1.35} fill="rgba(10,140,255,.9)" stroke="#D8F3FF" strokeWidth={unit*.28}/>
               </g>)}
             </svg>
-            <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-bg/75 px-2.5 py-1 text-[10px] font-semibold tracking-[.14em] text-white backdrop-blur-sm">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
-          </button>
+            <div data-photo-edit-controls="true" className="absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2 pointer-events-none">
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[.12em] backdrop-blur-sm ${editing?'border-accent/45 bg-accent/20 text-cyan':'border-white/15 bg-bg/75 text-white'}`}>{editing?'EDITING MAP':side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
+              <div className="flex items-center gap-1.5 pointer-events-auto">{editing?<><button type="button" onClick={event=>{event.stopPropagation();onReset();}} className="rounded-full border border-white/20 bg-bg/80 px-2.5 py-1 text-[9px] font-semibold text-white backdrop-blur-sm">RESET</button><button type="button" onClick={event=>{event.stopPropagation();onDone();}} className="rounded-full border border-accent/50 bg-accent px-2.5 py-1 text-[9px] font-semibold text-white shadow-[0_0_14px_rgba(10,140,255,.25)]">DONE</button></>:<button type="button" onClick={event=>{event.stopPropagation();onEdit();}} className="rounded-full border border-accent/45 bg-bg/80 px-3 py-1 text-[9px] font-semibold tracking-wide text-cyan backdrop-blur-sm">EDIT MAP</button>}</div>
+            </div>
+          </div>
           <div className="border-t border-white/[.07] p-3">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div><p className="text-sm font-semibold text-textPrimary">{design.name}</p><p className="text-[10px] uppercase tracking-widest text-textMuted">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</p></div>
-              <div className="flex items-center gap-2">{editing?<><button type="button" onClick={onReset} className="rounded border border-white/15 px-2 py-1 text-[9px] font-semibold text-textSecondary">RESET</button><button type="button" onClick={onDone} className="rounded bg-accent px-2 py-1 text-[9px] font-semibold text-white">DONE</button></>:<button type="button" onClick={onEdit} className="rounded border border-accent/35 px-2 py-1 text-[9px] font-semibold text-cyan">EDIT MAP</button>}<div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{editing?'EDITING MAP':lang==='en'?'Peak':'Пик'}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div></div>
+              <div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{lang==='en'?'Peak':'Пик'}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div>
             </div>
             <dl className="grid grid-cols-3 gap-2 border-y border-white/[.06] py-2.5">
               <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">Curl</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{curlSpec}</dd></div>

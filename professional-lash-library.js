@@ -409,6 +409,105 @@
     curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1F direction foundation. Direction remains a separate professional
+  // layer from mapping geometry and curl. Only reviewed qualitative intent is
+  // represented; angles, vectors, curls, and zone boundaries stay unresolved.
+  const catDirectionDefinition = identity('direction.cat', 'Cat Direction', 'DIRECTION_STRATEGY', {
+    status: 'EXPERT_REVIEWED',
+  });
+  catDirectionDefinition.professionalDefinition = {
+    directionalIntent: 'FELINE_OUTER_LIFT',
+    dominantAxis: 'UPWARD_OUTER',
+    outerOrientation: 'OUTER_FOCUSED',
+    visualBehavior: 'COMPARATIVELY_UPWARD_CURVED',
+    liftVsElongation: 'LIFT_WITH_OUTER_EMPHASIS',
+    directionDependency: {
+      role: 'MEANINGFUL_CONTRIBUTOR',
+      universality: 'UNRESOLVED',
+    },
+    mappingDirectionRelationship: {
+      geometryId: 'geometry.cat',
+      layers: ['MAPPING_GEOMETRY', 'DIRECTION_STRATEGY'],
+      relationship: 'COMPOSITE_CONTRIBUTOR',
+      directionAloneDefinesEffect: false,
+      universalComposition: 'UNRESOLVED',
+    },
+    numericAngles: null,
+    directionVectors: null,
+    zoneBoundaries: null,
+    curlInteraction: { relationship: 'MAY_INTERACT', exactCurl: null, resolution: 'UNRESOLVED' },
+    schoolDependency: { status: 'UNRESOLVED' },
+    crossEffectComparison: {
+      'direction.fox': {
+        catAxis: 'UPWARD_OUTER', foxAxis: 'TEMPORAL_OUTWARD',
+        catVisualBehavior: 'COMPARATIVELY_UPWARD_CURVED', foxVisualBehavior: 'COMPARATIVELY_OUTWARD_LINEAR',
+        relativeDirectionDependency: 'FOX_STRONGER_THAN_CAT', exactDependencyMagnitude: 'UNRESOLVED',
+      },
+    },
+    unresolved: ['EXACT_ANGLES', 'EXACT_VECTORS', 'EXACT_CURL', 'EXACT_FAN_DIRECTION', 'EXACT_ZONE_BOUNDARIES', 'UNIVERSAL_DIRECTION_DEPENDENCY'],
+  };
+  catDirectionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1f-cat-direction-structure', type: 'REVIEWED_PROFESSIONAL_DIRECTION_STRUCTURE',
+      scope: ['FELINE_OUTER_LIFT', 'UPWARD_CURVED_VISUAL_BEHAVIOR', 'MAPPING_DIRECTION_COMPOSITE'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1F_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_DIRECTION_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1F_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Universality, exact execution, numeric angles, curl interaction, and school variants remain unresolved.'],
+  };
+
+  const foxDirectionDefinition = identity('direction.fox', 'Fox Direction', 'DIRECTION_STRATEGY', {
+    status: 'EXPERT_REVIEWED',
+  });
+  foxDirectionDefinition.professionalDefinition = {
+    directionalIntent: 'TEMPORAL_HORIZONTAL_ELONGATION',
+    dominantAxis: 'TEMPORAL_OUTWARD',
+    outerOrientation: 'OUTWARD_TEMPORAL',
+    visualBehavior: 'COMPARATIVELY_OUTWARD_LINEAR',
+    liftVsElongation: 'HORIZONTAL_TEMPORAL_ELONGATION',
+    directionDependency: {
+      role: 'STRONG_CONTRIBUTOR',
+      universality: 'UNRESOLVED',
+    },
+    mappingDirectionRelationship: {
+      geometryId: 'geometry.fox',
+      layers: ['MAPPING_GEOMETRY', 'DIRECTION_STRATEGY'],
+      relationship: 'COMPOSITE_CONTRIBUTOR',
+      directionAloneDefinesEffect: false,
+      universalComposition: 'UNRESOLVED',
+    },
+    numericAngles: null,
+    directionVectors: null,
+    zoneBoundaries: null,
+    curlInteraction: { relationship: 'MAY_INTERACT', exactCurl: null, resolution: 'UNRESOLVED' },
+    schoolDependency: { status: 'UNRESOLVED' },
+    crossEffectComparison: {
+      'direction.cat': {
+        foxAxis: 'TEMPORAL_OUTWARD', catAxis: 'UPWARD_OUTER',
+        foxVisualBehavior: 'COMPARATIVELY_OUTWARD_LINEAR', catVisualBehavior: 'COMPARATIVELY_UPWARD_CURVED',
+        relativeDirectionDependency: 'FOX_STRONGER_THAN_CAT', exactDependencyMagnitude: 'UNRESOLVED',
+      },
+    },
+    unresolved: ['EXACT_ANGLES', 'EXACT_VECTORS', 'EXACT_CURL', 'EXACT_FAN_DIRECTION', 'EXACT_ZONE_BOUNDARIES', 'UNIVERSAL_DIRECTION_DEPENDENCY'],
+  };
+  foxDirectionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1f-fox-direction-structure', type: 'REVIEWED_PROFESSIONAL_DIRECTION_STRUCTURE',
+      scope: ['TEMPORAL_HORIZONTAL_ELONGATION', 'OUTWARD_LINEAR_VISUAL_BEHAVIOR', 'STRONG_DIRECTION_CONTRIBUTION', 'MAPPING_DIRECTION_COMPOSITE'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1F_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_DIRECTION_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1F_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Universality, exact execution, numeric angles, curl interaction, and school variants remain unresolved.'],
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
@@ -434,7 +533,10 @@
       }),
       'construction.jellyfish': identity('construction.jellyfish', 'Jellyfish', 'CONSTRUCTION_RECIPE'),
     },
-    directionStrategies: {},
+    directionStrategies: {
+      'direction.cat': catDirectionDefinition,
+      'direction.fox': foxDirectionDefinition,
+    },
     curlStrategies: {},
     fanConstructions: {},
     presets: {
@@ -462,7 +564,15 @@
       recipe: 'REFERENCE_TO_CONSTRUCTION_RECIPES_REGISTRY',
       primitives: ['SPIKE', 'RAY', 'TENTACLE', 'CLOSED_FAN', 'LAYER'],
     },
-    direction: 'REFERENCE_TO_DIRECTION_STRATEGIES_REGISTRY',
+    direction: {
+      registry: 'REFERENCE_TO_DIRECTION_STRATEGIES_REGISTRY',
+      separateFromMappingGeometry: true,
+      separateFromCurlStrategy: true,
+      qualitativeFields: ['directionalIntent', 'dominantAxis', 'outerOrientation', 'liftVsElongation', 'directionDependency'],
+      mappingRelationship: 'EXPLICIT_COMPOSITE_WITHOUT_MERGING_LAYERS',
+      numericAngles: 'OPTIONAL_OR_UNRESOLVED',
+      schoolDependency: 'EXPLICIT_STATUS',
+    },
     curlStrategy: 'REFERENCE_TO_CURL_STRATEGIES_REGISTRY',
     volumeFanConstruction: 'REFERENCE_TO_FAN_CONSTRUCTIONS_REGISTRY',
     compatibility: 'IDS_CONDITIONS_AND_CONSTRAINTS',

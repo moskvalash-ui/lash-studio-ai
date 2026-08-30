@@ -25,11 +25,11 @@ test('schema/version and every separate professional registry exist', () => {
   assert.deepStrictEqual(library.schema.textureConstruction.primitives, ['SPIKE', 'RAY', 'TENTACLE', 'CLOSED_FAN', 'LAYER']);
 });
 
-test('validation states are explicit and only reviewed Squirrel, Doll, Fox, and Cat contain professional structure', () => {
+test('validation states are explicit and only reviewed geometries plus Cat/Fox directions contain professional structure', () => {
   assert.deepStrictEqual(library.validationStates, ['UNVALIDATED', 'DRAFT', 'EXPERT_REVIEWED', 'VALIDATED', 'SCHOOL_DEPENDENT']);
   for (const definition of allDefinitions()) {
     assert.ok(library.validationStates.includes(definition.validation.status), definition.id);
-    if(['geometry.squirrel','geometry.doll','geometry.fox','geometry.cat'].includes(definition.id)){
+    if(['geometry.squirrel','geometry.doll','geometry.fox','geometry.cat','direction.cat','direction.fox'].includes(definition.id)){
       assert.strictEqual(definition.validation.status,'EXPERT_REVIEWED');
       assert.ok(definition.professionalDefinition);
       assert.strictEqual(definition.validation.evidence[0].numericClaims,false);

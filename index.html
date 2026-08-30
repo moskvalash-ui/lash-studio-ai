@@ -3823,6 +3823,17 @@
     }
     function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }
 
+    // Phase 2D Recommendation output boundary. Ranking and localization stay
+    // legacy; the UI receives an immutable canonical presentation view.
+    function canonicalRecommendationProps(legacyDesign, c, lang, rank) {
+      const localizedLegacy=localizeDesign(legacyDesign,c,lang);
+      const canonicalBase=getCanonicalClientLashDesign(legacyDesign)||LashDesignDomain.legacyToClientLashDesign({
+        design:legacyDesign,catalogEntry:DESIGN_CATALOG.find(entry=>entry.id===legacyDesign.id),eyeProfile:c,expandSectors:expandLashMapSectors,
+      });
+      const clientDesign=LashDesignDomain.withRecommendationRuntime(canonicalBase,{rank,localizedLegacy});
+      return LashDesignDomain.recommendationPropsFromClientDesign(clientDesign);
+    }
+
     // ---- Lash Design Considerations ----
     // Deliberately reuses the SAME, unmodified recommendation engine
     // (DESIGN_CATALOG + buildDesignResult + recommendCurl) that
@@ -3845,7 +3856,8 @@
       return LASH_DESIGN_CONSIDERATION_IDS.map(id => {
         const entry = DESIGN_CATALOG.find(e => e.id === id);
         if (!entry) return null;
-        const d = buildDesignResult(entry, c, lang);
+        const legacyDesign = buildDesignResult(entry, c, lang);
+        const d = canonicalRecommendationProps(legacyDesign, c, lang, null);
         const maxLeft = Math.max(...d.leftZones), maxRight = Math.max(...d.rightZones);
         const lrDiffers = Math.abs(maxLeft - maxRight) >= 1 || d.leftZones.some((v,i) => Math.abs(v - d.rightZones[i]) >= 1);
         const lrNote = lrDiffers
@@ -8057,7 +8069,7 @@
                 // text fields for the *current* language on every render
                 // so a later language switch on this screen can't leave
                 // stale-language card text (see localizeDesign above).
-                const d = localizeDesign(raw, p, lang);
+                const d = canonicalRecommendationProps(raw, p, lang, i);
                 return (
                 <div key={d.id} className="glass rounded-lg p-4">
                   <div className="flex justify-between items-start mb-3">
@@ -8080,7 +8092,7 @@
                       <span>{d.limitations[0]}</span>
                     </p>
                   )}
-                  <button onClick={() => onViewMap(d)} className="w-full py-2.5 rounded-md bg-white/[0.06] border border-border text-textPrimary text-xs font-semibold uppercase tracking-wide press-scale">{t('viewMap', lang)}</button>
+                  <button onClick={() => onViewMap(d.clientDesign)} className="w-full py-2.5 rounded-md bg-white/[0.06] border border-border text-textPrimary text-xs font-semibold uppercase tracking-wide press-scale">{t('viewMap', lang)}</button>
                 </div>
                 );
               })}
@@ -8092,7 +8104,7 @@
 
     function AllDesignsScreen({ result, onSelect, onBack }) {
       const lang = useLang();
-      const all = rankDesignsAll(result.eyeProfile, lang);
+      const all = rankDesignsAll(result.eyeProfile, lang).map((design,rank)=>canonicalRecommendationProps(design,result.eyeProfile,lang,rank));
       const categories = [...new Set(DESIGN_CATALOG.map(e => e.category))];
       return (
         <div className="h-full flex flex-col fade-in">
@@ -8109,7 +8121,7 @@
                   {all.filter(d => d.category === cat).map((d) => {
                     const rank = all.findIndex(x=>x.id===d.id);
                     return (
-                      <button key={d.id} onClick={() => onSelect(d)} className="w-full glass rounded-lg p-4 text-left press-scale block">
+                      <button key={d.id} onClick={() => onSelect(d.clientDesign)} className="w-full glass rounded-lg p-4 text-left press-scale block">
                         <div className="flex justify-between items-start mb-1.5">
                           <h4 className="text-sm font-semibold text-textPrimary">{d.name.toUpperCase()}</h4>
                           <span className={`text-sm font-bold flex-shrink-0 ml-2 ${rank===0 ? 'text-accent' : 'text-textPrimary'}`}>{d.score}%</span>
@@ -9404,7 +9416,7 @@
             {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} onRescan={() => { if (typeof Analytics !== 'undefined') Analytics.track('rescan_started'); setScreen('home'); }} />}
             {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => { if (typeof Analytics !== 'undefined') Analytics.track('details_viewed'); setScreen('details'); }} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} />}
             {screen === 'catalog' && result && <AllDesignsScreen result={result} onSelect={viewMap} onBack={() => setScreen('hero')} />}
-            {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={activeDesign} naturalLashProfile={naturalLashProfile} onBack={() => setScreen('hero')} />}
+            {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={LashDesignDomain.recommendationPropsFromClientDesign(activeDesign)} naturalLashProfile={naturalLashProfile} onBack={() => setScreen('hero')} />}
             {screen === 'details' && result && <DetailsScreen result={result} onBack={() => setScreen('hero')} />}
             {screen === 'lashscan' && <NaturalLashScanScreen onComplete={handleLashScanComplete} onBack={() => setScreen('hero')} modelsLoaded={modelsLoaded} />}
             {screen === 'lashprofile' && naturalLashProfile && <NaturalLashProfileScreen profile={naturalLashProfile} onDone={() => setScreen('hero')} onBack={() => setScreen('hero')} />}

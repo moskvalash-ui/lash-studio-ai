@@ -205,7 +205,8 @@ test('index integration keeps only explicitly migrated consumer boundaries canon
   assert.ok(src.includes('const CLIENT_LASH_DESIGN_REGISTRY = new WeakMap();'));
   assert.ok(src.includes('CLIENT_LASH_DESIGN_REGISTRY.set(legacyDesign, LashDesignDomain.legacyToClientLashDesign({'));
   assert.ok(src.includes('return legacyDesign;'));
-  assert.strictEqual((src.match(/getCanonicalClientLashDesign\(/g) || []).length, 1, 'canonical getter must have no production consumer');
+  assert.strictEqual((src.match(/getCanonicalClientLashDesign\(/g) || []).length, 2, 'only the Phase 2D Recommendation boundary may consume the canonical registry getter');
+  assert.ok(src.includes('const canonicalBase=getCanonicalClientLashDesign(legacyDesign)||LashDesignDomain.legacyToClientLashDesign({'));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));

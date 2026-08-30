@@ -197,6 +197,8 @@
       },
       curl: {
         global: design.curlRec?.primary ?? design.baseCurl ?? null,
+        base: design.baseCurl ?? null,
+        options: cloneValue(design.curlOptions || []),
         byZone: null,
         transitions: [],
         alternatives: cloneValue(design.curlRec?.alternatives || []),
@@ -361,6 +363,71 @@
     };
   }
 
+  // Phase 2D: immutable presentation view of an already-ranked legacy
+  // recommendation. Localized strings are copied from the unchanged legacy
+  // localizer; this layer never scores, ranks, selects, or generates copy.
+  function withRecommendationRuntime(clientDesign, runtime) {
+    if (!clientDesign || clientDesign.version !== CLIENT_LASH_DESIGN_VERSION) {
+      throw new TypeError('ClientLashDesign v2 is required');
+    }
+    const input = runtime || {}, localized = input.localizedLegacy;
+    if (!localized || localized.id !== clientDesign.legacyDesignId) {
+      throw new TypeError('matching localized legacy recommendation is required');
+    }
+    const result = cloneValue(clientDesign);
+    result.display.name = localized.name;
+    result.presentation.localizedText = {
+      whyItWorks: localized.whyItWorks,
+      correctionGoal: localized.correctionGoal,
+      limitations: cloneValue(localized.limitations || []),
+    };
+    result.curl.global = localized.curlRec?.primary ?? localized.baseCurl ?? null;
+    result.curl.alternatives = cloneValue(localized.curlRec?.alternatives || []);
+    result.curl.reason = localized.curlRec?.reason ?? null;
+    result.recommendation.rank = input.rank;
+    return result;
+  }
+
+  function recommendationPropsFromClientDesign(clientDesign) {
+    if (!clientDesign || clientDesign.version !== CLIENT_LASH_DESIGN_VERSION) {
+      throw new TypeError('ClientLashDesign v2 is required');
+    }
+    const left = clientDesign.mapping?.physicalEyes?.left;
+    const right = clientDesign.mapping?.physicalEyes?.right;
+    if (!left || !right) throw new TypeError('ClientLashDesign physical-eye mapping is required');
+    return {
+      id: clientDesign.legacyDesignId,
+      category: clientDesign.display.category,
+      name: clientDesign.display.name,
+      ruName: clientDesign.display.ruName,
+      enName: clientDesign.display.enName,
+      aliases: cloneValue(clientDesign.display.aliases || []),
+      score: clientDesign.recommendation.score,
+      rank: clientDesign.recommendation.rank,
+      whyItWorks: clientDesign.presentation.localizedText.whyItWorks,
+      correctionGoal: clientDesign.presentation.localizedText.correctionGoal,
+      limitations: cloneValue(clientDesign.presentation.localizedText.limitations || []),
+      baseCurl: clientDesign.curl.base,
+      curlOptions: cloneValue(clientDesign.curl.options || []),
+      defaultTechnique: clientDesign.application.legacyLabel,
+      peakZone: left.peakZone === right.peakZone ? left.peakZone : clientDesign.mapping.template.peakZone,
+      leftPeakZone: left.peakZone,
+      rightPeakZone: right.peakZone,
+      leftCorrectionMm: clientDesign.personalization.left.correctionMm,
+      rightCorrectionMm: clientDesign.personalization.right.correctionMm,
+      texture: cloneValue(clientDesign.texture.legacyDescriptor),
+      curve: cloneValue(clientDesign.mapping.template.topology),
+      leftZones: cloneValue(left.finalMm),
+      rightZones: cloneValue(right.finalMm),
+      curlRec: {
+        primary: clientDesign.curl.global,
+        alternatives: cloneValue(clientDesign.curl.alternatives || []),
+        reason: clientDesign.curl.reason,
+      },
+      clientDesign,
+    };
+  }
+
   return {
     CLIENT_LASH_DESIGN_VERSION,
     ZONE_NAMES,
@@ -373,5 +440,7 @@
     diagramPropsFromClientDesign,
     withPhotoRuntime,
     photoPropsFromClientDesign,
+    withRecommendationRuntime,
+    recommendationPropsFromClientDesign,
   };
 });

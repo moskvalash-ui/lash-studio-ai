@@ -19,7 +19,10 @@ test('stable Cat and Fox direction identities exist uniquely in the direction re
   assert.notStrictEqual(catDirection.id,foxDirection.id);
   assert.strictEqual(catDirection.kind,'DIRECTION_STRATEGY');
   assert.strictEqual(foxDirection.kind,'DIRECTION_STRATEGY');
-  assert.deepStrictEqual(Object.keys(Library.library.registries.directionStrategies),['direction.cat','direction.fox']);
+  const directionIds=Object.keys(Library.library.registries.directionStrategies);
+  assert.ok(directionIds.includes('direction.cat'));
+  assert.ok(directionIds.includes('direction.fox'));
+  assert.strictEqual(new Set(directionIds).size,directionIds.length);
 });
 
 test('Cat and Fox are structurally distinguishable without display names or legacy geometry',()=>{

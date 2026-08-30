@@ -508,6 +508,158 @@
     notes: ['Universality, exact execution, numeric angles, curl interaction, and school variants remain unresolved.'],
   };
 
+  // Phase 1G Eyeliner foundation. The reviewed invariant is the visible
+  // root-line outcome, not one universal physical execution method.
+  const rootDefinitionConstruction = identity('construction.root-definition', 'Root Definition', 'CONSTRUCTION_RECIPE', {
+    status: 'EXPERT_REVIEWED',
+  });
+  rootDefinitionConstruction.professionalDefinition = {
+    outcomeType: 'ROOT_LINE_DEFINITION',
+    invariantOutcome: {
+      visualResult: 'DEFINED_DARKER_LINER_LIKE_ROOT_LINE',
+      continuity: 'VISUALLY_MORE_CONTINUOUS_ROOT_APPEARANCE',
+      separateFromVisibleSilhouette: true,
+    },
+    executionMethods: {
+      universalMethod: null,
+      status: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+      possibleMethodClasses: ['DENSE_ROOT_PLACEMENT', 'CLOSED_FANS', 'NARROW_FANS', 'LAYERING', 'WET_LINE_CONSTRUCTION'],
+      possibleMethodsAreRequirements: false,
+    },
+    exactDensity: null,
+    exactFanWidth: null,
+    exactFanClosure: null,
+    exactVolume: null,
+    exactDiameter: null,
+    exactLayerCount: null,
+    exactSpacing: null,
+    exactLashCount: null,
+    exactMillimeters: null,
+    schoolDependency: { status: 'UNRESOLVED' },
+    unresolved: ['EXECUTION_METHOD', 'DENSITY', 'FAN_WIDTH', 'FAN_CLOSURE', 'VOLUME', 'DIAMETER', 'LAYER_COUNT', 'SPACING', 'LASH_COUNT', 'MILLIMETERS', 'SCHOOL_VARIANTS'],
+  };
+  rootDefinitionConstruction.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1g-root-definition-outcome', type: 'REVIEWED_PROFESSIONAL_CONSTRUCTION_OUTCOME',
+      scope: ['ROOT_LINE_DEFINITION', 'DARKER_CONTINUOUS_LINER_LIKE_ROOT_APPEARANCE', 'OUTCOME_EXECUTION_SEPARATION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1G_APPROVED_PROFESSIONAL_BRIEF', scope: 'OUTCOME_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1G_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Physical execution methods and every numeric construction parameter remain unresolved or variant-dependent.'],
+  };
+
+  // This is a direction slot, not a universal Eyeliner direction rule. The
+  // qualitative contribution is draft because orientation varies by variant.
+  const eyelinerDirectionDefinition = identity('direction.eyeliner', 'Eyeliner Direction', 'DIRECTION_STRATEGY', {
+    status: 'DRAFT', unresolved: true,
+  });
+  eyelinerDirectionDefinition.professionalDefinition = {
+    directionalIntent: 'LINER_LIKE_ELONGATION',
+    dominantAxis: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+    outerOrientation: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+    visualContributions: ['MAY_SUPPORT_ELONGATION', 'MAY_SUPPORT_LINE_CONTINUITY', 'MAY_SUPPORT_OUTER_EXTENSION'],
+    appearanceModes: ['FLAT', 'TEMPORAL', 'LIFTED'],
+    appearanceModesAreUniversalRequirements: false,
+    directionDependency: { role: 'COMPOSITE_CONTRIBUTOR', universality: 'UNRESOLVED' },
+    mappingDirectionRelationship: {
+      presetId: 'preset.eyeliner',
+      layers: ['MAPPING_GEOMETRY', 'DIRECTION_STRATEGY'],
+      relationship: 'SEPARATE_COMPOSITE_LAYERS',
+      directionAloneDefinesEffect: false,
+    },
+    numericAngles: null,
+    directionVectors: null,
+    zoneBoundaries: null,
+    outerTailAngle: null,
+    universalHorizontalRequirement: false,
+    curlInteraction: { relationship: 'MAY_INTERACT', exactCurl: null, resolution: 'SCHOOL_OR_VARIANT_DEPENDENT' },
+    schoolDependency: { status: 'UNRESOLVED' },
+    unresolved: ['UNIVERSAL_ORIENTATION', 'EXACT_ANGLES', 'EXACT_VECTORS', 'DIRECTIONAL_ZONE_BOUNDARIES', 'OUTER_TAIL_ANGLE', 'SCHOOL_VARIANTS'],
+  };
+  eyelinerDirectionDefinition.validation = {
+    status: 'DRAFT',
+    evidence: [{
+      id: 'phase-1g-eyeliner-direction-slot', type: 'REVIEWED_COMPOSITE_SLOT_WITH_UNRESOLVED_STRATEGY',
+      scope: ['DIRECTION_AS_SEPARATE_LAYER', 'POTENTIAL_LINE_CONTINUITY_AND_ELONGATION_CONTRIBUTION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1G_APPROVED_PROFESSIONAL_BRIEF', scope: 'DIRECTION_SLOT_AND_UNCERTAINTY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1G_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['No universal Eyeliner direction orientation or execution has been established.'],
+  };
+
+  const eyelinerPresetDefinition = identity('preset.eyeliner', 'Eyeliner', 'COMPOSITE_PRESET', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['eyeliner'],
+  });
+  eyelinerPresetDefinition.professionalDefinition = {
+    invariant: {
+      rootDefinitionOutcome: 'REQUIRED',
+      visualResult: 'DEFINED_DARKER_LINER_LIKE_ROOT_LINE',
+      constructionId: 'construction.root-definition',
+    },
+    layers: {
+      geometry: {
+        domain: 'MAPPING_GEOMETRY', role: 'MANDATORY_CARRIER_SLOT',
+        selection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+      },
+      direction: {
+        domain: 'DIRECTION_STRATEGY', role: 'COMPOSITE_CONTRIBUTOR',
+        strategySlotId: 'direction.eyeliner', universalStrategy: 'UNRESOLVED',
+      },
+      construction: {
+        domain: 'CONSTRUCTION_RECIPE', role: 'MANDATORY_CORE_OUTCOME',
+        constructionId: 'construction.root-definition', universalExecutionMethod: null,
+      },
+      curl: {
+        domain: 'CURL_STRATEGY', role: 'OPTIONAL_SCHOOL_DEPENDENT_COMPATIBILITY', strategyId: null,
+        exactCurl: null, contributions: ['MAY_AFFECT_FLATNESS', 'MAY_AFFECT_LIFT', 'MAY_AFFECT_DIRECTIONAL_CONTINUITY', 'MAY_AFFECT_OUTER_EXTENSION', 'MAY_AFFECT_ROOT_LINE_VISIBILITY'],
+      },
+      applicationTechnique: {
+        domain: 'APPLICATION_TECHNIQUE', role: 'SCHOOL_OR_VARIANT_DEPENDENT', techniqueId: null,
+      },
+      layering: { role: 'OPTIONAL_VARIANT_SPECIFIC', universalMethod: null },
+      fanConstruction: { domain: 'FAN_CONSTRUCTION', role: 'VARIANT_SPECIFIC', constructionId: null },
+    },
+    invariantVsExecution: {
+      invariant: 'DEFINED_DARKER_LINER_LIKE_ROOT_LINE',
+      executionMethodStatus: 'UNRESOLVED_SCHOOL_OR_VARIANT_DEPENDENT',
+      differentMethodsMayShareCanonicalIdentity: true,
+    },
+    schoolDependency: { status: 'UNRESOLVED' },
+    unresolved: ['GEOMETRY_SELECTION', 'UNIVERSAL_DIRECTION', 'EXACT_CURL', 'APPLICATION_TECHNIQUE', 'LAYERING_METHOD', 'FAN_CONSTRUCTION', 'EXECUTION_VARIANTS', 'SCHOOL_VARIANTS'],
+  };
+  eyelinerPresetDefinition.compatibility = {
+    geometryIds: [], directionIds: ['direction.eyeliner'], constructionIds: ['construction.root-definition'],
+    curlStrategyIds: [], techniqueIds: [], fanConstructionIds: [], conditions: [], resolution: 'UNRESOLVED_EXCEPT_REQUIRED_ROOT_OUTCOME',
+  };
+  eyelinerPresetDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1g-eyeliner-composite-foundation', type: 'REVIEWED_PROFESSIONAL_COMPOSITE_FOUNDATION',
+      scope: ['COMPOSITE_PRESET_IDENTITY', 'REQUIRED_ROOT_DEFINITION_OUTCOME', 'SEPARATE_PROFESSIONAL_LAYERS', 'EXECUTION_METHOD_UNCERTAINTY'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1G_APPROVED_PROFESSIONAL_BRIEF', scope: 'COMPOSITE_STRUCTURE_AND_ROOT_OUTCOME' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1G_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Only the liner-like root-definition outcome and composite architecture are reviewed; execution and compatibility remain unresolved.'],
+  };
+  eyelinerPresetDefinition.legacyReference = {
+    legacyIds: ['eyeliner'], legacyAliases: ['Arrow Effect'], relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakZone: 3 }, templateMm: [8, 8, 9, 10, 9],
+    topology: { zonePositions: null, plateauShape: 'linear', postPeakShape: 'linear' },
+    applicationTechnique: 'Volume 3D', curl: { base: 'CC', options: ['CC', 'D'] },
+    scoreCoefficients: { base: 40, closeSetBonus: 10, asymmetryThreshold: 0.08, asymmetryBonus: 10, hoodedBonus: 6 },
+    spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
@@ -532,15 +684,17 @@
         legacyRelationship: 'INDEPENDENT_IDENTITY_FROM_LEGACY_COMBINED_LABEL',
       }),
       'construction.jellyfish': identity('construction.jellyfish', 'Jellyfish', 'CONSTRUCTION_RECIPE'),
+      'construction.root-definition': rootDefinitionConstruction,
     },
     directionStrategies: {
       'direction.cat': catDirectionDefinition,
       'direction.fox': foxDirectionDefinition,
+      'direction.eyeliner': eyelinerDirectionDefinition,
     },
     curlStrategies: {},
     fanConstructions: {},
     presets: {
-      'preset.eyeliner': identity('preset.eyeliner', 'Eyeliner', 'COMPOSITE_PRESET', { legacyIds: ['eyeliner'] }),
+      'preset.eyeliner': eyelinerPresetDefinition,
       'preset.american': identity('preset.american', 'American', 'SCHOOL_DEPENDENT_PRESET', {
         status: 'SCHOOL_DEPENDENT', school: 'UNRESOLVED', unresolved: true,
       }),
@@ -563,6 +717,7 @@
     textureConstruction: {
       recipe: 'REFERENCE_TO_CONSTRUCTION_RECIPES_REGISTRY',
       primitives: ['SPIKE', 'RAY', 'TENTACLE', 'CLOSED_FAN', 'LAYER'],
+      outcomeSeparateFromExecutionMethod: true,
     },
     direction: {
       registry: 'REFERENCE_TO_DIRECTION_STRATEGIES_REGISTRY',
@@ -575,6 +730,11 @@
     },
     curlStrategy: 'REFERENCE_TO_CURL_STRATEGIES_REGISTRY',
     volumeFanConstruction: 'REFERENCE_TO_FAN_CONSTRUCTIONS_REGISTRY',
+    compositePreset: {
+      separateLayerReferences: ['MAPPING_GEOMETRY', 'DIRECTION_STRATEGY', 'CURL_STRATEGY', 'CONSTRUCTION_RECIPE', 'APPLICATION_TECHNIQUE', 'FAN_CONSTRUCTION'],
+      invariantSeparateFromExecutionMethod: true,
+      unresolvedSlotsAllowed: true,
+    },
     compatibility: 'IDS_CONDITIONS_AND_CONSTRAINTS',
     variants: 'NAMESPACED_DEFINITION_REFERENCES',
     schoolDependent: 'EXPLICIT_SCHOOL_NAMESPACE_OR_UNRESOLVED',

@@ -7,8 +7,8 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const start = src.indexOf('    const ZONE_NAMES = ');
 const end = src.indexOf('\n    const CATEGORY_LABELS =', start);
 assert.ok(start >= 0 && end > start, 'projection helpers must be extractable');
-const { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, buildProfessionalPhotoLine, buildProfessionalPhotoCrop } = new Function(
-  src.slice(start, end) + '\nreturn { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, buildProfessionalPhotoLine, buildProfessionalPhotoCrop };'
+const { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, buildProfessionalPhotoLine, buildProfessionalPhotoCrop, createManualPhotoAdjustment, applyManualPhotoAdjustment } = new Function(
+  src.slice(start, end) + '\nreturn { expandLashMapSectors, buildProfessionalEyeProjection, selectProfessionalEyeLabels, buildProfessionalPhotoLine, buildProfessionalPhotoCrop, createManualPhotoAdjustment, applyManualPhotoAdjustment };'
 )();
 const catalogStart=src.indexOf('    const DESIGN_CATALOG = '),catalogEnd=src.indexOf('\n\n    function calculateEyeLashMap(',catalogStart);
 const DESIGN_CATALOG=new Function(src.slice(catalogStart,catalogEnd)+'\nreturn DESIGN_CATALOG;')();
@@ -313,6 +313,61 @@ test('both professional eye cards receive independent engine maps',()=>{
   assert.ok(src.includes('side="right" zones={rightZones} peakIdx={rightPeakIdx}'));
   assert.ok(src.includes("const leftZones=activeEye==='left'?zones:otherZones"));
   assert.ok(src.includes("const rightZones=activeEye==='right'?zones:otherZones"));
+});
+
+test('manual PHOTO adjustment has a pixel-identical automatic zero state and deterministic RESET',()=>{
+  const mapped=project(leftEye),automatic=buildProfessionalPhotoLine(leftEye,mapped.points),zero=createManualPhotoAdjustment();
+  assert.deepStrictEqual(applyManualPhotoAdjustment(leftEye,mapped.points,zero,sectors.find(point=>point.isPeak).t),automatic);
+  const changed={...zero,translationX:4,innerDelta:{x:2,y:1},peakDelta:{x:1,y:0},outerDelta:{x:3,y:-1}};
+  assert.notDeepStrictEqual(applyManualPhotoAdjustment(leftEye,mapped.points,changed,.66),automatic);
+  assert.deepStrictEqual(applyManualPhotoAdjustment(leftEye,mapped.points,createManualPhotoAdjustment(),.66),automatic);
+});
+
+test('whole-map translation moves curve, markers, labels, and zone anchors together without changing engine data',()=>{
+  const mapped=project(leftEye),automatic=buildProfessionalPhotoLine(leftEye,mapped.points),adjustment={...createManualPhotoAdjustment(),translationX:3.5,translationY:-2.25},manual=applyManualPhotoAdjustment(leftEye,mapped.points,adjustment,.66);
+  assert.ok(manual.path!==automatic.path);
+  manual.points.forEach((point,index)=>{assert.ok(Math.abs(point.mapX-automatic.points[index].mapX-3.5)<1e-9);assert.ok(Math.abs(point.mapY-automatic.points[index].mapY+2.25)<1e-9);});
+  assert.deepStrictEqual(manual.points.map(({t,len,isPeak,isKey,label})=>({t,len,isPeak,isKey,label})),automatic.points.map(({t,len,isPeak,isKey,label})=>({t,len,isPeak,isKey,label})));
+  const autoLabels=selectProfessionalEyeLabels(automatic.points,mapped.crop),manualLabels=selectProfessionalEyeLabels(manual.points,mapped.crop);
+  manualLabels.forEach((label,index)=>{if(label){assert.ok(Math.abs(label.x-autoLabels[index].x-3.5)<1e-9);assert.ok(Math.abs(label.y-autoLabels[index].y+2.25)<1e-9);}});
+});
+
+test('INNER, PEAK, and OUTER handles deform presentation anchors only and retain every sample',()=>{
+  const mapped=project(leftEye),automatic=buildProfessionalPhotoLine(leftEye,mapped.points),peakIndex=mapped.points.findIndex(point=>point.isPeak),adjustment={...createManualPhotoAdjustment(),innerDelta:{x:-2,y:1},peakDelta:{x:2,y:-1},outerDelta:{x:4,y:2}},manual=applyManualPhotoAdjustment(leftEye,mapped.points,adjustment,.66);
+  assert.deepStrictEqual([manual.points[0].mapX-automatic.points[0].mapX,manual.points[0].mapY-automatic.points[0].mapY],[-2,1]);
+  assert.ok(Math.abs(manual.points[peakIndex].mapX-automatic.points[peakIndex].mapX-2)<1e-9);assert.ok(Math.abs(manual.points[peakIndex].mapY-automatic.points[peakIndex].mapY+1)<1e-9);
+  assert.deepStrictEqual([manual.points.at(-1).mapX-automatic.points.at(-1).mapX,manual.points.at(-1).mapY-automatic.points.at(-1).mapY],[4,2]);
+  assert.strictEqual(manual.points.length,automatic.points.length);
+  assert.deepStrictEqual(manual.points.map(point=>point.len),automatic.points.map(point=>point.len));
+  assert.strictEqual(manual.points.find(point=>point.isPeak).len,automatic.points.find(point=>point.isPeak).len);
+  assert.strictEqual(manual.points.find(point=>point.isPeak).t,automatic.points.find(point=>point.isPeak).t);
+});
+
+test('allowed manual deformation remains finite, smooth, and anatomically ordered for both eye directions',()=>{
+  for(const eye of [leftEye,rightEye]){const mapped=project(eye),manual=applyManualPhotoAdjustment(eye,mapped.points,{...createManualPhotoAdjustment(),innerDelta:{x:1,y:1},peakDelta:{x:(eye[3].x-eye[0].x)*.025,y:-1},outerDelta:{x:-1,y:1}},.66),numbers=manual.path.match(/-?\d+(?:\.\d+)?/g).map(Number);
+    assert.strictEqual(numbers.length,8);assert.ok(numbers.every(Number.isFinite));
+    const direction=Math.sign(manual.points.at(-1).mapX-manual.points[0].mapX);assert.ok(manual.points.slice(1).every((point,index)=>direction*(point.mapX-manual.points[index].mapX)>0));
+  }
+});
+
+test('manual PHOTO state is independent per eye, survives view changes, and never reaches DIAGRAM',()=>{
+  const screen=src.slice(src.indexOf('    function LashMapScreen('),src.indexOf('\n    function ApplicationStepCard(',src.indexOf('    function LashMapScreen('))),diagram=src.slice(src.indexOf('    function LashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LashMapDiagram(')));
+  assert.ok(screen.includes("useState(()=>({left:createManualPhotoAdjustment(),right:createManualPhotoAdjustment()}))"));
+  assert.ok(screen.includes("setManualPhotoAdjustments(current=>({...current,[side]:next}))"));
+  assert.ok(screen.includes("adjustment={manualPhotoAdjustments.left}"));assert.ok(screen.includes("adjustment={manualPhotoAdjustments.right}"));
+  assert.ok(screen.includes("viewMode==='photo'?"));assert.ok(!diagram.includes('manualPhotoAdjustment'));assert.ok(!diagram.includes('applyManualPhotoAdjustment'));
+});
+
+test('mobile editing has large hit targets, pointer capture, constrained PEAK, and one visible PHOTO curve',()=>{
+  assert.ok((professionalEyeMapSource.match(/style=\{\{touchAction:'none'\}\}/g)||[]).length>=2);
+  assert.ok(professionalEyeMapSource.includes('setPointerCapture(event.pointerId)'));
+  assert.ok(professionalEyeMapSource.includes("r={unit*4.2}"));
+  assert.ok(professionalEyeMapSource.includes("Math.max(span*.08,Math.min(span*.92,position))"));
+  assert.ok(professionalEyeMapSource.includes("outerPosition-length*.08"));
+  assert.ok(professionalEyeMapSource.includes("innerPosition+length*.08"));
+  assert.strictEqual((professionalEyeMapSource.match(/<path\b/g)||[]).length,1);
+  assert.strictEqual((professionalEyeMapSource.match(/data-photo-map-line=/g)||[]).length,1);
+  assert.ok(professionalEyeMapSource.includes('<use data-manual-map-drag="true"'));
 });
 
 test('orientation diagnostic reads runtime landmarks and classifies canthi by nose distance',()=>{

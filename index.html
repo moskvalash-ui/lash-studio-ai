@@ -3465,6 +3465,32 @@
       };
     }
 
+    const createManualPhotoAdjustment=()=>({translationX:0,translationY:0,innerDelta:{x:0,y:0},peakDelta:{x:0,y:0},outerDelta:{x:0,y:0}});
+    const isAutomaticPhotoAdjustment=adjustment=>!adjustment||(adjustment.translationX===0&&adjustment.translationY===0&&adjustment.innerDelta.x===0&&adjustment.innerDelta.y===0&&adjustment.peakDelta.x===0&&adjustment.peakDelta.y===0&&adjustment.outerDelta.x===0&&adjustment.outerDelta.y===0);
+
+    // Presentation-only cubic deformation. The three manual anchor deltas
+    // are interpolated by a quadratic displacement field at t=0/PEAK/1.
+    // Adding that field to the automatic cubic remains one finite, smooth
+    // cubic; engine t/length/key/PEAK fields are copied byte-for-byte.
+    function applyManualPhotoAdjustment(eye,points,adjustment,peakT) {
+      const automatic=buildProfessionalPhotoLine(eye,points);
+      if(!automatic||isAutomaticPhotoAdjustment(adjustment))return automatic;
+      const p=Math.max(.08,Math.min(.92,+peakT||.5)),a=adjustment;
+      const controls=automatic.path.match(/-?\d+(?:\.\d+)?/g).map(Number);
+      const base=[{x:controls[0],y:controls[1]},{x:controls[2],y:controls[3]},{x:controls[4],y:controls[5]},{x:controls[6],y:controls[7]}];
+      const baseAt=t=>{const u=1-t;return {x:u*u*u*base[0].x+3*u*u*t*base[1].x+3*u*t*t*base[2].x+t*t*t*base[3].x,y:u*u*u*base[0].y+3*u*u*t*base[1].y+3*u*t*t*base[2].y+t*t*t*base[3].y};};
+      const baseDerivative=t=>{const u=1-t;return {x:3*u*u*(base[1].x-base[0].x)+6*u*t*(base[2].x-base[1].x)+3*t*t*(base[3].x-base[2].x),y:3*u*u*(base[1].y-base[0].y)+6*u*t*(base[2].y-base[1].y)+3*t*t*(base[3].y-base[2].y)};};
+      const deltas=[a.innerDelta,a.peakDelta,a.outerDelta];
+      const displacement=t=>{const weights=[(t-p)*(t-1)/p,t*(t-1)/(p*(p-1)),t*(t-p)/(1-p)];return {x:a.translationX+weights.reduce((sum,w,i)=>sum+w*deltas[i].x,0),y:a.translationY+weights.reduce((sum,w,i)=>sum+w*deltas[i].y,0)};};
+      const displacementDerivative=t=>{const weights=[(2*t-p-1)/p,(2*t-1)/(p*(p-1)),(2*t-p)/(1-p)];return {x:weights.reduce((sum,w,i)=>sum+w*deltas[i].x,0),y:weights.reduce((sum,w,i)=>sum+w*deltas[i].y,0)};};
+      const at=t=>{const b=baseAt(t),d=displacement(t);return {x:b.x+d.x,y:b.y+d.y};};
+      const derivative=t=>{const b=baseDerivative(t),d=displacementDerivative(t);return {x:b.x+d.x,y:b.y+d.y};};
+      const c0=at(0),c3=at(1),d0=derivative(0),d1=derivative(1),c1={x:c0.x+d0.x/3,y:c0.y+d0.y/3},c2={x:c3.x-d1.x/3,y:c3.y-d1.y/3};
+      const adjustedPoints=automatic.points.map(point=>{const mapped=at(point.t);return {...point,mapX:mapped.x,mapY:mapped.y};});
+      if([c0,c1,c2,c3,...adjustedPoints.map(point=>({x:point.mapX,y:point.mapY}))].some(point=>!Number.isFinite(point.x)||!Number.isFinite(point.y)))return automatic;
+      return {offset:automatic.offset,path:`M ${c0.x} ${c0.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${c3.x} ${c3.y}`,points:adjustedPoints,manual:true};
+    }
+
     // PHOTO is rendered in a 16:9 card with `meet`, so its viewBox must
     // share that aspect. Framing the anatomical INNER/OUTER span at 75%
     // removes side letterboxing while retaining the eye and annotations.
@@ -8087,28 +8113,52 @@
     // Artist-facing map over the exact captured eye. SVG image and
     // landmarks share the analysis-image coordinate system, so the
     // responsive crop cannot drift through CSS object-fit behavior.
-    function ProfessionalEyeMap({ result, side, zones, peakIdx, curve, design, curl, technique, texture, active, onActivate, lang }) {
+    function ProfessionalEyeMap({ result, side, zones, peakIdx, curve, design, curl, technique, texture, active, onActivate, lang, editing, adjustment, onAdjustmentChange, onEdit, onReset, onDone }) {
+      const svgRef=useRef(null),dragRef=useRef(null);
       const items = expandLashMapSectors(zones, peakIdx, curve);
       const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
       const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
       if(!projection)return null;
       const {points}=projection;
-      const workingLine=buildProfessionalPhotoLine(normalized,points);
-      if(!workingLine)return null;
-      const photoCrop=buildProfessionalPhotoCrop(normalized,workingLine.points,result.imageWidth,result.imageHeight);
+      const automaticLine=buildProfessionalPhotoLine(normalized,points);
+      if(!automaticLine)return null;
+      const photoCrop=buildProfessionalPhotoCrop(normalized,automaticLine.points,result.imageWidth,result.imageHeight);
       if(!photoCrop)return null;
+      const enginePeak=points.find(point=>point.isPeak),workingLine=applyManualPhotoAdjustment(normalized,points,adjustment,enginePeak?.t);
       const labels=selectProfessionalEyeLabels(workingLine.points,photoCrop);
       const unit=Math.max(photoCrop.width,photoCrop.height)/100;
       const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');
       const peak=points.find(p=>p.isPeak);
       const curlSpec=[curl,...design.curlRec.alternatives.filter(v=>v!==curl)].slice(0,2).join(' / ');
+      const svgPoint=event=>{const svg=svgRef.current,matrix=svg&&svg.getScreenCTM();if(!svg||!matrix)return null;const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;return point.matrixTransform(matrix.inverse());};
+      const beginDrag=(event,kind)=>{if(!editing)return;event.preventDefault();event.stopPropagation();onActivate();const start=svgPoint(event);if(!start)return;svgRef.current.setPointerCapture(event.pointerId);dragRef.current={kind,start,adjustment:{...adjustment,innerDelta:{...adjustment.innerDelta},peakDelta:{...adjustment.peakDelta},outerDelta:{...adjustment.outerDelta}}};};
+      const moveDrag=event=>{const drag=dragRef.current;if(!editing||!drag)return;event.preventDefault();const current=svgPoint(event);if(!current)return;const dx=current.x-drag.start.x,dy=current.y-drag.start.y,start=drag.adjustment,next={...start,innerDelta:{...start.innerDelta},peakDelta:{...start.peakDelta},outerDelta:{...start.outerDelta}},pad=unit*2;
+        if(drag.kind==='map'){
+          const xs=automaticLine.points.map(point=>point.mapX),ys=automaticLine.points.map(point=>point.mapY),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+          next.translationX=Math.max(photoCrop.x+pad-minX,Math.min(photoCrop.x+photoCrop.width-pad-maxX,start.translationX+dx));
+          next.translationY=Math.max(photoCrop.y+pad-minY,Math.min(photoCrop.y+photoCrop.height-pad-maxY,start.translationY+dy));
+        }else if(drag.kind==='inner'||drag.kind==='outer'){
+          const key=drag.kind==='inner'?'innerDelta':'outerDelta',automatic=drag.kind==='inner'?automaticLine.points[0]:automaticLine.points.at(-1),candidate={x:start[key].x+dx,y:start[key].y+dy};
+          next[key]={x:Math.max(photoCrop.x+pad,Math.min(photoCrop.x+photoCrop.width-pad,automatic.mapX+start.translationX+candidate.x))-automatic.mapX-start.translationX,y:Math.max(photoCrop.y+pad,Math.min(photoCrop.y+photoCrop.height-pad,automatic.mapY+start.translationY+candidate.y))-automatic.mapY-start.translationY};
+          const inner=automaticLine.points[0],outer=automaticLine.points.at(-1),vx=outer.mapX-inner.mapX,vy=outer.mapY-inner.mapY,length=Math.max(1,Math.hypot(vx,vy)),ux=vx/length,uy=vy/length,innerPosition=start.innerDelta.x*ux+start.innerDelta.y*uy,outerPosition=length+start.outerDelta.x*ux+start.outerDelta.y*uy,position=(drag.kind==='inner'?next.innerDelta.x*ux+next.innerDelta.y*uy:length+next.outerDelta.x*ux+next.outerDelta.y*uy),limit=drag.kind==='inner'?Math.min(position,outerPosition-length*.08):Math.max(position,innerPosition+length*.08),correction=limit-position;
+          next[key]={x:next[key].x+ux*correction,y:next[key].y+uy*correction};
+        }else if(drag.kind==='peak'){
+          const inner=automaticLine.points[0],outer=automaticLine.points.at(-1),vx=outer.mapX-inner.mapX,vy=outer.mapY-inner.mapY,length=Math.max(1,Math.hypot(vx,vy)),ux=vx/length,uy=vy/length,along=dx*ux+dy*uy,automatic=automaticLine.points.find(point=>point.isPeak),candidate={x:start.peakDelta.x+ux*along,y:start.peakDelta.y+uy*along};
+          const innerAdjusted={x:inner.mapX+start.translationX+start.innerDelta.x,y:inner.mapY+start.translationY+start.innerDelta.y},outerAdjusted={x:outer.mapX+start.translationX+start.outerDelta.x,y:outer.mapY+start.translationY+start.outerDelta.y},spanX=outerAdjusted.x-innerAdjusted.x,spanY=outerAdjusted.y-innerAdjusted.y,span=Math.max(1,Math.hypot(spanX,spanY)),sx=spanX/span,sy=spanY/span,desired={x:automatic.mapX+start.translationX+candidate.x,y:automatic.mapY+start.translationY+candidate.y},position=(desired.x-innerAdjusted.x)*sx+(desired.y-innerAdjusted.y)*sy,clamped=Math.max(span*.08,Math.min(span*.92,position)),correction=clamped-position;
+          next.peakDelta={x:candidate.x+sx*correction,y:candidate.y+sy*correction};
+        }
+        onAdjustmentChange(next);
+      };
+      const endDrag=event=>{if(!dragRef.current)return;event.preventDefault();dragRef.current=null;if(svgRef.current?.hasPointerCapture(event.pointerId))svgRef.current.releasePointerCapture(event.pointerId);};
+      const handlePoints={inner:workingLine.points[0],peak:workingLine.points.find(point=>point.isPeak),outer:workingLine.points.at(-1)};
       return (
         <article className={`overflow-hidden rounded-xl border transition-colors ${active?'border-accent/60 bg-accent/[0.04]':'border-border bg-surface/70'}`}>
           <button type="button" onClick={onActivate} className="relative block w-full aspect-[16/9] overflow-hidden text-left" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
-            <svg className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
+            <svg ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
               <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
               <rect x={photoCrop.x} y={photoCrop.y} width={photoCrop.width} height={photoCrop.height} fill="rgba(2,6,11,.12)" />
-              <path data-photo-map-line="true" d={workingLine.path} fill="none" stroke="rgba(244,247,250,.92)" strokeWidth={unit*.34} strokeLinecap="round" />
+              <path id={`photo-map-line-${side}`} data-photo-map-line="true" d={workingLine.path} fill="none" stroke="rgba(244,247,250,.92)" strokeWidth={unit*.34} strokeLinecap="round" />
+              {editing&&<use data-manual-map-drag="true" onPointerDown={event=>beginDrag(event,'map')} href={`#photo-map-line-${side}`} fill="none" stroke="transparent" strokeWidth={unit*5.5} strokeLinecap="round" style={{touchAction:'none'}} />}
               {workingLine.points.map((point,i)=>{
                 const label=labels[i],r=unit*(point.isPeak?.95:.68),leaderEnd=point.mapY+unit*(point.label==='BODY'?7.2:5.4);
                 return <g key={i} data-map-point={i} data-length={point.len} data-peak={point.isPeak?'true':'false'}>
@@ -8117,13 +8167,17 @@
                   {point.isKey&&<g data-photo-zone={point.label}><line x1={point.mapX} y1={point.mapY+unit*1.7} x2={point.mapX} y2={leaderEnd} stroke={point.isPeak?'#0A8CFF':'rgba(244,247,250,.82)'} strokeWidth={unit*.2}/><text x={point.mapX} y={leaderEnd+unit*2.1} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*.62} fill={point.isPeak?'#53C7FF':'rgba(244,247,250,.86)'} fontSize={unit*1.65} fontWeight={point.isPeak?'700':'600'}>{`${point.label} ${point.len}`}</text></g>}
                 </g>;
               })}
+              {editing&&Object.entries(handlePoints).map(([kind,point])=><g key={kind} data-manual-handle={kind} onPointerDown={event=>beginDrag(event,kind)} style={{touchAction:'none'}}>
+                <circle cx={point.mapX} cy={point.mapY} r={unit*4.2} fill="transparent"/>
+                <circle cx={point.mapX} cy={point.mapY} r={unit*1.35} fill="rgba(10,140,255,.9)" stroke="#D8F3FF" strokeWidth={unit*.28}/>
+              </g>)}
             </svg>
             <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-bg/75 px-2.5 py-1 text-[10px] font-semibold tracking-[.14em] text-white backdrop-blur-sm">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
           </button>
           <div className="border-t border-white/[.07] p-3">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div><p className="text-sm font-semibold text-textPrimary">{design.name}</p><p className="text-[10px] uppercase tracking-widest text-textMuted">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</p></div>
-              <div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{lang==='en'?'Peak':'Пик'}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div>
+              <div className="flex items-center gap-2">{editing?<><button type="button" onClick={onReset} className="rounded border border-white/15 px-2 py-1 text-[9px] font-semibold text-textSecondary">RESET</button><button type="button" onClick={onDone} className="rounded bg-accent px-2 py-1 text-[9px] font-semibold text-white">DONE</button></>:<button type="button" onClick={onEdit} className="rounded border border-accent/35 px-2 py-1 text-[9px] font-semibold text-cyan">EDIT MAP</button>}<div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{editing?'EDITING MAP':lang==='en'?'Peak':'Пик'}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div></div>
             </div>
             <dl className="grid grid-cols-3 gap-2 border-y border-white/[.06] py-2.5">
               <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">Curl</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{curlSpec}</dd></div>
@@ -8160,6 +8214,8 @@
       const design = localizeDesign(designProp, result.eyeProfile, lang);
       const [activeEye, setActiveEye] = useState('left');
       const [viewMode,setViewMode]=useState('photo');
+      const [editingPhotoEye,setEditingPhotoEye]=useState(null);
+      const [manualPhotoAdjustments,setManualPhotoAdjustments]=useState(()=>({left:createManualPhotoAdjustment(),right:createManualPhotoAdjustment()}));
       const [hoveredZone,setHoveredZone]=useState(null);
       const [mode, setMode] = useState('ai');
       const [technique, setTechnique] = useState(design.defaultTechnique);
@@ -8211,6 +8267,8 @@
         const next = [...base]; next[idx] = Math.max(5, Math.min(16, val));
         setter(next);
       };
+      const setPhotoAdjustment=(side,next)=>setManualPhotoAdjustments(current=>({...current,[side]:next}));
+      const resetPhotoAdjustment=side=>setManualPhotoAdjustments(current=>({...current,[side]:createManualPhotoAdjustment()}));
 
       return (
         <div className="h-full flex flex-col fade-in">
@@ -8251,8 +8309,8 @@
                 {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
               </div>
               {viewMode==='photo'?<div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <ProfessionalEyeMap result={result} side="left" zones={leftZones} peakIdx={leftPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='left'} onActivate={()=>setActiveEye('left')} lang={lang}/>
-                <ProfessionalEyeMap result={result} side="right" zones={rightZones} peakIdx={rightPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='right'} onActivate={()=>setActiveEye('right')} lang={lang}/>
+                <ProfessionalEyeMap result={result} side="left" zones={leftZones} peakIdx={leftPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='left'} onActivate={()=>setActiveEye('left')} lang={lang} editing={editingPhotoEye==='left'} adjustment={manualPhotoAdjustments.left} onAdjustmentChange={next=>setPhotoAdjustment('left',next)} onEdit={()=>{setActiveEye('left');setEditingPhotoEye('left');}} onReset={()=>resetPhotoAdjustment('left')} onDone={()=>setEditingPhotoEye(null)}/>
+                <ProfessionalEyeMap result={result} side="right" zones={rightZones} peakIdx={rightPeakIdx} curve={design.curve} design={design} curl={curl} technique={technique} texture={effectiveTexture} active={activeEye==='right'} onActivate={()=>setActiveEye('right')} lang={lang} editing={editingPhotoEye==='right'} adjustment={manualPhotoAdjustments.right} onAdjustmentChange={next=>setPhotoAdjustment('right',next)} onEdit={()=>{setActiveEye('right');setEditingPhotoEye('right');}} onReset={()=>resetPhotoAdjustment('right')} onDone={()=>setEditingPhotoEye(null)}/>
               </div>:<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
                 <LashMapDiagram zones={zones} peakIdx={peakIdx} spikeGeom={spikeGeom} curve={design.curve} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} curl={curl} technique={technique}/>
               </div>}

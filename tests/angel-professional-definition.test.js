@@ -157,7 +157,7 @@ test('production and all legacy Angel consumers remain byte-identical',()=>{
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
-  assert.strictEqual(digest(indexSource),'1f7dca3f5c8060a59e0cfc9e0900064a884ba7db27ded3a4f7c9812fd6d53f01');
+  assert.strictEqual(digest(indexSource),'077ff61600613e90a13f2754e9247b6c489d1ef48105bef5c257637bdc001807');
   assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();

@@ -20,6 +20,8 @@ const previewBlock=indexSource.slice(previewStart,appStart);
 // in prose to document what the preview does NOT do) — used for the
 // "never calls X" checks so a documentation word doesn't read as a call.
 const previewCodeBlock=indexSource.slice(indexSource.indexOf('const PRO_LIBRARY_KIND_LABELS'),appStart);
+const detailBlock=indexSource.slice(indexSource.indexOf('function ProLibraryDetailScreen('),appStart);
+const routerBlock=indexSource.slice(indexSource.indexOf("{screen === 'proLibraryPreview'"),indexSource.indexOf("{/* First-visit consent banner"));
 const catalogStart=indexSource.indexOf('    const DESIGN_CATALOG = ');
 const catalogEnd=indexSource.indexOf('\n\n    function calculateEyeLashMap(',catalogStart);
 const catalogSource=indexSource.slice(catalogStart,catalogEnd);
@@ -63,6 +65,79 @@ test('all 15 canonical identities are available to the preview via targetInvento
   }
 });
 
+test('every canonical identity card is tappable and opens the detail state for its own canonicalId',()=>{
+  assert.ok(previewBlock.includes('onClick={() => onSelect(item.canonicalId)}'));
+  assert.ok(previewBlock.match(/<button[\s\S]*?›/));
+});
+
+test('selecting a canonicalId in App() stores it in debug-only state and switches to the detail screen',()=>{
+  assert.ok(indexSource.includes('const [debugPreviewCanonicalId, setDebugPreviewCanonicalId] = useState(null);'));
+  assert.ok(routerBlock.includes("onSelect={(canonicalId) => { setDebugPreviewCanonicalId(canonicalId); setScreen('proLibraryDetail'); }}"));
+});
+
+test('the detail screen exists and is wired into the screen router',()=>{
+  assert.ok(indexSource.includes('function ProLibraryDetailScreen('));
+  assert.ok(routerBlock.includes("{screen === 'proLibraryDetail' && debugPreviewCanonicalId && <ProLibraryDetailScreen"));
+});
+
+test('back on the detail screen returns to the library list, not home or any production screen',()=>{
+  assert.ok(routerBlock.includes("<ProLibraryDetailScreen canonicalId={debugPreviewCanonicalId} onBack={() => setScreen('proLibraryPreview')} />"));
+});
+
+test('the detail screen reads the identity via ProfessionalLashLibrary.getDefinition(canonicalId), nothing else',()=>{
+  assert.ok(detailBlock.includes('ProfessionalLashLibrary.getDefinition(canonicalId)'));
+  assert.ok(!detailBlock.includes('DESIGN_CATALOG'));
+  assert.ok(!detailBlock.includes('rankDesigns('));
+  assert.ok(!detailBlock.includes('rankDesignsAll('));
+  assert.ok(!detailBlock.includes('calculateEyeLashMap('));
+});
+
+test('no production selectedDesign/result/activeDesign state is read or written by the preview or detail screen',()=>{
+  for(const forbidden of ['setResult(','setActiveDesign(','setNaturalLashProfile(','activeDesign','naturalLashProfile.'])assert.ok(!previewBlock.includes(forbidden),forbidden);
+});
+
+test('MAPPING_GEOMETRY detail rendering exists and has real data to render for at least one identity',()=>{
+  assert.ok(indexSource.includes('MAPPING_GEOMETRY: [')); // section-plan entry present
+  const natural=Library.getDefinition('geometry.natural');
+  const planKeys=['primaryIntent','invariantOutcome','excludedDefiningIntents','maximum','peak','topology','normalizedProfile','innerBehavior','outerBehavior','relationships','densityFinish','personalizationBoundary','variants'];
+  assert.ok(planKeys.some(k=>natural.professionalDefinition[k]!==undefined&&natural.professionalDefinition[k]!==null));
+});
+
+test('APPLICATION_TECHNIQUE detail rendering exists and has real data to render',()=>{
+  assert.ok(indexSource.includes('APPLICATION_TECHNIQUE: ['));
+  const classic=Library.getDefinition('technique.classic-one-to-one');
+  const planKeys=['coreInvariant','outcomeType','excludedDefiningTraits','attachment','fanConstructionBoundary','safetySuitability','geometryRelationship','curl','diameter','densityFinish','direction','schoolDependency'];
+  assert.ok(planKeys.some(k=>classic.professionalDefinition[k]!==undefined&&classic.professionalDefinition[k]!==null));
+});
+
+test('CONSTRUCTION_RECIPE detail rendering exists and has real data to render',()=>{
+  assert.ok(indexSource.includes('CONSTRUCTION_RECIPE: ['));
+  const wet=Library.getDefinition('construction.wet');
+  const planKeys=['outcomeType','invariantOutcome','identityConfidence','outcomeVsExecution','spikeAccentArchitecture','spikeWispArchitecture','spikeWispHierarchy','hierarchy','supportingField','supportingFieldBase','negativeSpace','relationships','rayPrimitiveRelationship','densityFinish'];
+  assert.ok(planKeys.some(k=>wet.professionalDefinition[k]!==undefined&&wet.professionalDefinition[k]!==null));
+});
+
+test('COMPOSITE_PRESET detail rendering exists and has real data to render',()=>{
+  assert.ok(indexSource.includes('COMPOSITE_PRESET: ['));
+  const eyeliner=Library.getDefinition('preset.eyeliner');
+  const planKeys=['invariant','layers','invariantVsExecution','schoolDependency'];
+  assert.ok(planKeys.some(k=>eyeliner.professionalDefinition[k]!==undefined&&eyeliner.professionalDefinition[k]!==null));
+});
+
+test('unresolved fields render as a readable list when present',()=>{
+  assert.ok(detailBlock.includes('pd.unresolved.map'));
+  const wet=Library.getDefinition('construction.wet');
+  assert.ok(Array.isArray(wet.professionalDefinition.unresolved)&&wet.professionalDefinition.unresolved.length>0);
+});
+
+test('validation status, numericClaims, revision, and provenance can render',()=>{
+  assert.ok(detailBlock.includes('title="VALIDATION"'));
+  assert.ok(detailBlock.includes('def.validation.status'));
+  assert.ok(detailBlock.includes('numericClaims'));
+  assert.ok(detailBlock.includes('def.validation.revision'));
+  assert.ok(detailBlock.includes('def.validation.provenance'));
+});
+
 test('the preview never calls rankDesigns, rankDesignsAll, or calculateEyeLashMap',()=>{
   assert.ok(!previewCodeBlock.includes('rankDesigns('));
   assert.ok(!previewCodeBlock.includes('rankDesignsAll('));
@@ -89,11 +164,14 @@ test('all 21 legacy IDs remain unchanged and ClientLashDesign production source 
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
 });
 
-test('no activation/editing UI exists in the preview: no buttons to activate, set active, or write to the library',()=>{
+test('no activation/editing UI exists in the preview or detail screen: every button is plain back/select navigation only',()=>{
   for(const forbidden of ['activeDefinitionIds =','setActive','onActivate','activateDefinition','.push(','localStorage.setItem'])assert.ok(!previewBlock.includes(forbidden),forbidden);
   assert.ok(!previewBlock.includes('<input'));
   assert.ok(!previewBlock.includes('<select'));
-  assert.ok(!previewBlock.includes('<button') || previewBlock.match(/<button/g).length===1);
+  assert.ok(!/activate/i.test(previewBlock));
+  const onClicks=previewBlock.match(/onClick=\{[^}]*\}/g)||[];
+  assert.ok(onClicks.length>0);
+  for(const handler of onClicks)assert.ok(handler==='onClick={onBack}'||handler==='onClick={() => onSelect(item.canonicalId)}',handler);
 });
 
 test('no recommendation behavior changes: HomeScreen and the normal navigation flow are untouched',()=>{

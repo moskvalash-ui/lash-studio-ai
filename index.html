@@ -9331,7 +9331,7 @@
       SCHOOL_DEPENDENT_PRESET: 'School-Dependent Preset',
     };
 
-    function ProLibraryPreviewScreen({ onBack }) {
+    function ProLibraryPreviewScreen({ onBack, onSelect }) {
       const items = ProfessionalLashLibrary.library.targetInventory.map(item => {
         const def = ProfessionalLashLibrary.getDefinition(item.canonicalId);
         return { name: item.name, canonicalId: item.canonicalId, kind: def.kind, status: def.validation.status };
@@ -9352,19 +9352,216 @@
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
             {items.map(item => (
-              <div key={item.canonicalId} className="glass rounded-lg p-4">
+              <button
+                key={item.canonicalId}
+                type="button"
+                onClick={() => onSelect(item.canonicalId)}
+                className="w-full text-left glass rounded-lg p-4 press-scale active:bg-surfaceHover"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-[15px] font-bold text-textPrimary truncate">{item.name}</div>
                     <div className="text-[11px] text-textMuted mt-0.5 truncate">{item.canonicalId}</div>
                   </div>
-                  <span className="shrink-0 text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan whitespace-nowrap">{item.status}</span>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan whitespace-nowrap">{item.status}</span>
+                    <span className="text-textMuted text-lg leading-none">›</span>
+                  </div>
                 </div>
                 <div className="mt-2.5">
                   <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{PRO_LIBRARY_KIND_LABELS[item.kind] || item.kind}</span>
                 </div>
-              </div>
+              </button>
             ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ------------------------------------------------------------
+    // DEBUG-ONLY: read-only detail view for one canonical identity,
+    // opened by tapping a card in ProLibraryPreviewScreen. Pure
+    // presentation over ProfessionalLashLibrary.getDefinition(canonicalId)
+    // — no editing/activation control anywhere, no numeric legacy data,
+    // no recommendation/ranking/scan/camera coupling of any kind. The
+    // section layout below is intentionally generic (it inspects
+    // whichever professionalDefinition keys actually exist for the
+    // given identity) rather than one hand-written renderer per
+    // identity, because the 15 canonical identities do not share a
+    // single field shape — only their `kind` groups a common priority
+    // order for which sections should surface first.
+    // ------------------------------------------------------------
+    function proLibHumanizeKey(key) {
+      return key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase()).trim();
+    }
+    function proLibHumanizeToken(value) {
+      if (typeof value !== 'string') return value;
+      if (/^[A-Z0-9]+(_[A-Z0-9]+)*$/.test(value) && value.length > 1) {
+        return value.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
+      }
+      return value;
+    }
+    function proLibHumanizeValue(value) {
+      if (value === null || value === undefined) return '—';
+      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      if (typeof value === 'number') return String(value);
+      if (typeof value === 'string') return proLibHumanizeToken(value);
+      if (Array.isArray(value)) {
+        if (value.length === 0) return '—';
+        if (value.every(v => v === null || typeof v !== 'object')) return value.map(proLibHumanizeValue).join(', ');
+        return value.map(v => (v && typeof v === 'object')
+          ? Object.entries(v).map(([k, vv]) => `${proLibHumanizeKey(k)}: ${proLibHumanizeValue(vv)}`).join(' · ')
+          : proLibHumanizeValue(v)).join('; ');
+      }
+      return null; // plain object: caller renders nested rows instead of an inline string
+    }
+    function ProLibKVRows({ obj, depth }) {
+      if (!obj || typeof obj !== 'object') return null;
+      const entries = Object.entries(obj).filter(([, v]) => v !== undefined);
+      if (entries.length === 0) return null;
+      return (
+        <div className={depth ? "pl-3 border-l border-border/40 space-y-1.5 mt-1.5" : "space-y-1.5"}>
+          {entries.map(([k, v]) => {
+            const inline = proLibHumanizeValue(v);
+            return (
+              <div key={k}>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[11px] text-textMuted">{proLibHumanizeKey(k)}</span>
+                  {inline !== null && <span className="text-[12px] text-textPrimary text-right">{inline}</span>}
+                </div>
+                {inline === null && <ProLibKVRows obj={v} depth={(depth || 0) + 1} />}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    function ProLibSection({ title, data }) {
+      if (!data || typeof data !== 'object' || Object.keys(data).length === 0) return null;
+      return (
+        <div className="glass rounded-lg p-4 mb-3">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2.5">{title}</div>
+          <ProLibKVRows obj={data} />
+        </div>
+      );
+    }
+    function proLibPickKeys(obj, keys) {
+      if (!obj) return null;
+      const out = {};
+      let any = false;
+      for (const k of keys) {
+        if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) { out[k] = obj[k]; any = true; }
+      }
+      return any ? out : null;
+    }
+    // Domain-aware section priority per `kind` — every entry only ever
+    // renders when at least one of its candidate keys exists on the
+    // identity's professionalDefinition; different reviewed constructions
+    // use different key names for the same concept (e.g. spike/accent
+    // architecture is named `spikeAccentArchitecture` on some reviewed
+    // constructions but `spikeWispArchitecture`/`spikeWispHierarchy` on
+    // others), hence the multiple candidate keys per section below.
+    const PRO_LIB_SECTION_PLAN = {
+      MAPPING_GEOMETRY: [
+        ['CORE IDENTITY', ['primaryIntent', 'invariantOutcome', 'excludedDefiningIntents']],
+        ['MAXIMUM / PEAK REGION', ['maximum', 'peak']],
+        ['TOPOLOGY / PROFILE', ['topology', 'normalizedProfile']],
+        ['INNER / OUTER BEHAVIOR', ['innerBehavior', 'outerBehavior']],
+        ['RELATIONSHIPS', ['relationships', 'densityFinish']],
+        ['PERSONALIZATION', ['personalizationBoundary', 'variants']],
+      ],
+      APPLICATION_TECHNIQUE: [
+        ['CORE IDENTITY', ['coreInvariant', 'outcomeType', 'excludedDefiningTraits']],
+        ['ATTACHMENT', ['attachment']],
+        ['FAN / CONSTRUCTION BOUNDARY', ['fanConstructionBoundary']],
+        ['SAFETY / SUITABILITY', ['safetySuitability']],
+        ['GEOMETRY / CURL / DIAMETER', ['geometryRelationship', 'curl', 'diameter', 'densityFinish']],
+        ['DIRECTION', ['direction']],
+        ['SCHOOL DEPENDENCY', ['schoolDependency']],
+      ],
+      CONSTRUCTION_RECIPE: [
+        ['CORE IDENTITY', ['outcomeType', 'invariantOutcome', 'identityConfidence']],
+        ['OUTCOME VS EXECUTION', ['outcomeVsExecution']],
+        ['ACCENT / SPIKE ARCHITECTURE', ['spikeAccentArchitecture', 'spikeWispArchitecture', 'spikeWispHierarchy']],
+        ['HIERARCHY', ['hierarchy']],
+        ['SUPPORTING FIELD', ['supportingField', 'supportingFieldBase']],
+        ['NEGATIVE SPACE', ['negativeSpace']],
+        ['RELATIONSHIPS', ['relationships']],
+        ['RAY PRIMITIVE', ['rayPrimitiveRelationship']],
+        ['DENSITY / FINISH', ['densityFinish']],
+      ],
+      COMPOSITE_PRESET: [
+        ['CORE IDENTITY', ['invariant']],
+        ['LAYERS', ['layers']],
+        ['INVARIANT VS EXECUTION', ['invariantVsExecution']],
+        ['SCHOOL DEPENDENCY', ['schoolDependency']],
+      ],
+      DIRECTION_STRATEGY: [
+        ['CORE IDENTITY', ['directionalIntent', 'dominantAxis', 'outerOrientation', 'liftVsElongation']],
+        ['DEPENDENCY', ['directionDependency', 'mappingDirectionRelationship']],
+        ['CURL INTERACTION', ['curlInteraction']],
+      ],
+    };
+    const PRO_LIB_CROSS_EFFECT_KEYS = ['crossEffectComparison', 'crossEffectRelationships', 'crossEffectBoundaries', 'visualBoundaryWithWet', 'visualBoundaryWithAngel', 'relationshipWithWispy', 'relationshipWithKimK', 'relationshipWithRays'];
+
+    function ProLibraryDetailScreen({ canonicalId, onBack }) {
+      const def = ProfessionalLashLibrary.getDefinition(canonicalId);
+      if (!def) {
+        return (
+          <div className="h-full flex flex-col bg-bg">
+            <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+              <button onClick={onBack} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+              <h1 className="text-[15px] font-bold text-textPrimary">Not found</h1>
+            </div>
+          </div>
+        );
+      }
+      const pd = def.professionalDefinition;
+      const plan = PRO_LIB_SECTION_PLAN[def.kind] || [];
+      const consumed = new Set(plan.reduce((acc, [, keys]) => acc.concat(keys), []));
+      const crossEffectKeysAvailable = PRO_LIB_CROSS_EFFECT_KEYS.filter(k => !consumed.has(k));
+      const crossEffect = proLibPickKeys(pd, crossEffectKeysAvailable);
+      PRO_LIB_CROSS_EFFECT_KEYS.forEach(k => consumed.add(k));
+      consumed.add('unresolved');
+      const remainingKeys = pd ? Object.keys(pd).filter(k => !consumed.has(k)) : [];
+      const additional = remainingKeys.length ? proLibPickKeys(pd, remainingKeys) : null;
+      const validationData = {
+        status: def.validation.status,
+        numericClaims: def.validation.evidence && def.validation.evidence[0] ? def.validation.evidence[0].numericClaims : undefined,
+        revision: def.validation.revision,
+        provenance: def.validation.provenance && def.validation.provenance[0] ? def.validation.provenance[0].source : undefined,
+      };
+      return (
+        <div className="h-full flex flex-col bg-bg">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+            <button onClick={onBack} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-bold text-textPrimary truncate">{def.displayName}</h1>
+              <p className="text-[11px] text-textMuted truncate">{def.id}</p>
+            </div>
+          </div>
+          <div className="px-4 pt-3 flex gap-2 flex-wrap">
+            <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{PRO_LIBRARY_KIND_LABELS[def.kind] || def.kind}</span>
+            <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan">{def.validation.status}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {!pd && (
+              <div className="glass rounded-lg p-4 mb-3 text-[12px] text-textSecondary">
+                No professional definition has been reviewed for this identity yet.
+              </div>
+            )}
+            {plan.map(([title, keys]) => <ProLibSection key={title} title={title} data={proLibPickKeys(pd, keys)} />)}
+            <ProLibSection title="CROSS-EFFECT BOUNDARIES" data={crossEffect} />
+            <ProLibSection title="ADDITIONAL DETAILS" data={additional} />
+            {pd && Array.isArray(pd.unresolved) && pd.unresolved.length > 0 && (
+              <div className="glass rounded-lg p-4 mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-peak mb-2.5">UNRESOLVED</div>
+                <ul className="space-y-1.5 list-disc pl-4">
+                  {pd.unresolved.map(item => <li key={item} className="text-[12px] text-textSecondary">{proLibHumanizeValue(item)}</li>)}
+                </ul>
+              </div>
+            )}
+            <ProLibSection title="VALIDATION" data={validationData} />
           </div>
         </div>
       );
@@ -9441,6 +9638,12 @@
           return new URLSearchParams(window.location.search).get('debug') === 'library' ? 'proLibraryPreview' : 'home';
         } catch (e) { return 'home'; }
       });
+      // Debug-only: which canonical identity the library preview detail
+      // screen is showing. Completely separate from every production
+      // selection/result piece of state below — never read by, written
+      // by, or fed into recommendation, ranking, scan, camera, Lash Map,
+      // Try-On, or Application Plan logic.
+      const [debugPreviewCanonicalId, setDebugPreviewCanonicalId] = useState(null);
       const [result, setResult] = useState(null);
       const [naturalLashProfile, setNaturalLashProfile] = useState(null);
       const [activeDesign, setActiveDesign] = useState(null);
@@ -9497,7 +9700,8 @@
             {screen === 'details' && result && <DetailsScreen result={result} onBack={() => setScreen('hero')} />}
             {screen === 'lashscan' && <NaturalLashScanScreen onComplete={handleLashScanComplete} onBack={() => setScreen('hero')} modelsLoaded={modelsLoaded} />}
             {screen === 'lashprofile' && naturalLashProfile && <NaturalLashProfileScreen profile={naturalLashProfile} onDone={() => setScreen('hero')} onBack={() => setScreen('hero')} />}
-            {screen === 'proLibraryPreview' && <ProLibraryPreviewScreen onBack={() => setScreen('home')} />}
+            {screen === 'proLibraryPreview' && <ProLibraryPreviewScreen onBack={() => setScreen('home')} onSelect={(canonicalId) => { setDebugPreviewCanonicalId(canonicalId); setScreen('proLibraryDetail'); }} />}
+            {screen === 'proLibraryDetail' && debugPreviewCanonicalId && <ProLibraryDetailScreen canonicalId={debugPreviewCanonicalId} onBack={() => setScreen('proLibraryPreview')} />}
 
             {/* First-visit consent banner: only while undecided, never
                during live-camera screens, and never together with the

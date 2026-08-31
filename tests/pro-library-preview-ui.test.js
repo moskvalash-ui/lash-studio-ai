@@ -20,6 +20,28 @@ const previewBlock=indexSource.slice(previewStart,appStart);
 // in prose to document what the preview does NOT do) — used for the
 // "never calls X" checks so a documentation word doesn't read as a call.
 const previewCodeBlock=indexSource.slice(indexSource.indexOf('const PRO_LIBRARY_KIND_LABELS'),appStart);
+function extractObjectLiteral(name){
+  const start=indexSource.indexOf('const '+name+' = {');
+  const braceStart=indexSource.indexOf('{',start);
+  let depth=0,i=braceStart;
+  for(;i<indexSource.length;i++){
+    if(indexSource[i]==='{')depth++;
+    else if(indexSource[i]==='}'){depth--;if(depth===0)break;}
+  }
+  return new Function('return '+indexSource.slice(braceStart,i+1))();
+}
+function collectRenderedValuesAndKeys(){
+  const seenValues=new Set(),seenKeys=new Set();
+  function walk(obj){
+    if(obj===null||obj===undefined)return;
+    if(Array.isArray(obj)){obj.forEach(walk);return;}
+    if(typeof obj==='object'){Object.entries(obj).forEach(([k,v])=>{seenKeys.add(k);walk(v);});return;}
+    if(typeof obj==='string'&&/^[A-Z0-9]+(_[A-Z0-9]+)*$/.test(obj)&&obj.length>1)seenValues.add(obj);
+  }
+  for(const item of Library.library.targetInventory)walk(Library.getDefinition(item.canonicalId).professionalDefinition);
+  walk(Library.library.schema.textureConstruction.primitiveDefinitions.RAY.professionalDefinition);
+  return {seenValues,seenKeys};
+}
 const detailBlock=indexSource.slice(indexSource.indexOf('function ProLibraryDetailScreen('),appStart);
 const routerBlock=indexSource.slice(indexSource.indexOf("{screen === 'proLibraryPreview'"),indexSource.indexOf("{/* First-visit consent banner"));
 const catalogStart=indexSource.indexOf('    const DESIGN_CATALOG = ');
@@ -192,4 +214,45 @@ test('opening the site with no query param still resolves the initial screen to 
   assert.strictEqual(fn(URLSearchParams,fakeWindow),'home');
   const fakeWindowDebug={location:{search:'?debug=library'}};
   assert.strictEqual(fn(URLSearchParams,fakeWindowDebug),'proLibraryPreview');
+});
+
+test('RU/EN localization bug fix: every enum-style value actually present in any identity has a Russian presentation label',()=>{
+  const valueLabels=extractObjectLiteral('PRO_LIB_VALUE_LABELS_RU');
+  const {seenValues}=collectRenderedValuesAndKeys();
+  assert.ok(seenValues.size>400,'sanity check: the real data should contain hundreds of enum-style values');
+  const missing=[...seenValues].filter(v=>!valueLabels[v]);
+  assert.deepStrictEqual(missing,[],`raw English values with no RU label: ${missing.join(', ')}`);
+  // spot-check the exact values from the reported phone bug
+  for(const reported of ['STRONGER_FELINE_OUTER_ELONGATION','RELATIVE_TO_LASH_LINE','NORMALIZED_LASH_LINE','LATE_OUTER','NUMERIC_RANGE_UNRESOLVED','QUALITATIVE_REGION_ONLY']){
+    assert.ok(typeof valueLabels[reported]==='string'&&/[а-яё]/i.test(valueLabels[reported]),reported);
+  }
+});
+
+test('RU/EN localization bug fix: every object key actually present in any identity has a Russian presentation label',()=>{
+  const keyLabels=extractObjectLiteral('PRO_LIB_KEY_LABELS_RU');
+  const {seenKeys}=collectRenderedValuesAndKeys();
+  assert.ok(seenKeys.size>500,'sanity check: the real data should contain hundreds of distinct keys');
+  const missing=[...seenKeys].filter(k=>!keyLabels[k]);
+  assert.deepStrictEqual(missing,[],`raw English keys with no RU label: ${missing.join(', ')}`);
+});
+
+test('proLibHumanizeToken and proLibHumanizeValue consult the RU dictionaries before falling back to English humanization',()=>{
+  assert.ok(previewCodeBlock.includes('PRO_LIB_VALUE_LABELS_RU[value]'));
+  assert.ok(previewCodeBlock.includes('PRO_LIB_KEY_LABELS_RU[key]'));
+  assert.ok(previewCodeBlock.includes("value ? 'Да' : 'Нет'"));
+});
+
+test('canonicalId itself is never translated and stays visible as technical metadata',()=>{
+  const nameRu=extractObjectLiteral('PRO_LIB_NAME_RU');
+  for(const id of Object.keys(nameRu))assert.ok(!/[а-яё]/i.test(id),`canonicalId key must stay a plain technical string: ${id}`);
+  assert.ok(previewBlock.includes('{item.canonicalId}'));
+  assert.ok(previewBlock.includes('{def.id}'));
+});
+
+test('production is untouched: this fix only expanded RU dictionaries, activation and legacy data remain exactly as before',()=>{
+  assert.strictEqual(Library.library.activation.productionEnabled,false);
+  assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
+  const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
+  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
+  assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
 });

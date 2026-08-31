@@ -1568,7 +1568,8 @@
         numericThreshold: null, mutuallyExclusive: false,
       },
       jellyfish: {
-        constructionId: 'construction.jellyfish', status: 'UNRESOLVED_PENDING_JELLYFISH_REVIEW',
+        constructionId: 'construction.jellyfish', status: 'SCHOOL_DEPENDENT_POSSIBLE_TERMINOLOGY_OVERLAP_WITH_ANIME_MANGA',
+        boundaryResolved: false, universalDistinctionFromAnime: false,
       },
     },
     futureVariantNamespace: {
@@ -1626,6 +1627,183 @@
     spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1P Jellyfish foundation. Unlike every other reviewed construction,
+  // Jellyfish has NO repository production precedent — no legacy ID, no
+  // legacy geometry, curl, technique, texture, or scoring ever existed for
+  // it in this codebase. The candidate identity below rests on a single
+  // detailed external professional source plus inference from adjacent
+  // already-reviewed constructions, not on repository legacy data or
+  // corroborated multi-source consensus, and is recorded as materially
+  // lower-confidence than Wet/Angel/Wispy/Kim K/Anime. Its boundary with
+  // Anime/Manga is explicitly left unresolved — at least one external
+  // source treats the terms as overlapping or synonymous.
+  const jellyfishConstructionDefinition = identity('construction.jellyfish', 'Jellyfish', 'CONSTRUCTION_RECIPE', {
+    status: 'EXPERT_REVIEWED', legacyRelationship: 'NO_CURRENT_PRODUCTION_PRECEDENT',
+  });
+  jellyfishConstructionDefinition.professionalDefinition = {
+    outcomeType: 'JELLYFISH_IRREGULAR_SEPARATED_ACCENT_DEFINITION',
+    identityConfidence: {
+      basis: 'SINGLE_DETAILED_EXTERNAL_SOURCE_PLUS_ADJACENT_CONSTRUCTION_INFERENCE',
+      repositoryProductionPrecedent: false,
+      multiSourceCorroboration: false,
+      resolution: 'LOW_CONFIDENCE_CANDIDATE_IDENTITY_PENDING_BROADER_REVIEW',
+    },
+    invariantOutcome: {
+      accentArchitecture: 'SEPARATED_ELONGATED_DOMINANT_ACCENTS',
+      hierarchy: 'STRONG_LONG_VS_SHORT_VISUAL_HIERARCHY',
+      supportingFieldCharacter: 'COMPARATIVELY_SPARSE_OR_SOFT_SUPPORTING_FIELD',
+      negativeSpace: 'VISIBLE_NEGATIVE_SPACE',
+      composition: 'INTENTIONALLY_IRREGULAR_CONTROLLED_COMPOSITION',
+      visualReference: 'POSSIBLE_TENTACLE_LIKE_PRESENTATION',
+      finish: {
+        role: 'CANDIDATE_VISUAL_DESCRIPTOR', result: 'CONTROLLED_ARTISTIC_IRREGULAR_TEXTURE_OUTCOME',
+        perceivedAppearanceOnly: true, numericClaim: false, literalChaosClaim: false,
+      },
+    },
+    outcomeVsExecution: {
+      invariant: 'SEPARATED_ELONGATED_ACCENTS_OVER_SPARSE_SUPPORTING_FIELD_WITH_VISIBLE_NEGATIVE_SPACE_AND_CONTROLLED_IRREGULAR_COMPOSITION',
+      executionMethodStatus: 'SCHOOL_OR_VARIANT_DEPENDENT',
+      universalMethod: null,
+      differentMethodsMayShareCanonicalIdentity: true,
+      universallyRequiresClosedFans: false,
+      universallyRequiresNarrowFans: false,
+      universallyRequiresRay: false,
+      universallyRequiresSpecificLayering: false,
+      universallyRequiresSpecificFanConstruction: false,
+      universallyRequiresSpecificVolume: false,
+      universallyRequiresSpecificDensity: false,
+      universallyRequiresSpecificApplicationTechnique: false,
+    },
+    spikeAccentArchitecture: {
+      dominantElongatedAccents: 'ESSENTIAL_QUALITATIVE_CANDIDATE',
+      exactSpikeCount: null,
+      exactSpacing: null,
+      exactRegularity: 'UNRESOLVED',
+      exactSpikeWidth: null,
+      exactLengthDelta: null,
+      exactAlternation: 'UNRESOLVED',
+      exactSpikeConstructionMethod: 'SCHOOL_DEPENDENT_UNRESOLVED',
+    },
+    hierarchy: {
+      requirement: 'DOMINANT_ELONGATED_ACCENTS_OVER_SHORTER_SUPPORTING_FIELD',
+      exactTierCount: 'UNRESOLVED',
+      alternationPattern: 'UNRESOLVED',
+      rhythm: 'UNRESOLVED_SCHOOL_DEPENDENT',
+      exactLengthDelta: null,
+    },
+    supportingField: {
+      role: 'CANDIDATE_QUALITATIVE_CONCEPT',
+      candidateTraits: ['SOFT', 'COMPARATIVELY_SPARSE', 'SUBORDINATE_TO_DOMINANT_ACCENTS'],
+      universalBaseConstruction: null,
+      continuousBaseUniversal: false,
+      fanBaseUniversal: false,
+      closedFanBaseUniversal: false,
+      universalLayerCount: null,
+    },
+    negativeSpace: {
+      role: 'PROFESSIONALLY_RELEVANT_CANDIDATE_TRAIT',
+      visibleGapsBetweenAccents: 'QUALITATIVELY_RELEVANT',
+      universalNumericGap: null,
+      exactInterval: null,
+      exactFrequency: null,
+      mandatoryRepeatingPattern: false,
+      exactGapArchitecture: 'UNRESOLVED',
+    },
+    relationships: {
+      geometry: {
+        domain: 'MAPPING_GEOMETRY', role: 'MANDATORY_CARRIER_SLOT',
+        selection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+      },
+      direction: {
+        domain: 'DIRECTION_STRATEGY', role: 'SECONDARY', directionStrategyId: null,
+        numericAngles: null, directionVectors: null, universalDirectionStrategy: null,
+      },
+      curl: {
+        domain: 'CURL_STRATEGY', role: 'NOT_PART_OF_EFFECT', selection: 'VARIANT_DEPENDENT',
+        curlStrategyId: null, exactCurl: null,
+      },
+      applicationTechnique: {
+        domain: 'APPLICATION_TECHNIQUE', role: 'SCHOOL_OR_VARIANT_DEPENDENT', techniqueId: null,
+        defaultsToClassic: false, defaultsToVolume: false, defaultsToWet: false,
+      },
+      fanConstruction: {
+        domain: 'FAN_CONSTRUCTION', role: 'EXECUTION_CONTRIBUTOR', constructionId: null,
+        possibleMethodClasses: ['CLOSED_OR_NARROW_SPIKE_LIKE_FANS', 'MIXED_CONSTRUCTIONS'],
+        possibleMethodClassesAreUniversalRequirements: false,
+        universalFanConstruction: null,
+      },
+      layering: { role: 'SCHOOL_DEPENDENT_OPTIONAL_UNRESOLVED', universalLayeringMethod: null, universalLayerCount: null },
+    },
+    rayPrimitiveRelationship: {
+      primitiveId: 'RAY', role: 'POSSIBLE_NON_UNIVERSAL_EXECUTION_METHOD',
+      required: false, mandatory: false,
+      jellyfishIsCompleteConstruction: true, rayIsReusablePrimitiveOnly: true,
+    },
+    densityFinish: {
+      qualitativeIntent: ['IRREGULAR', 'SPARSE_ACCENTED', 'GRAPHIC', 'NEGATIVE_SPACE_FORWARD'],
+      exactDensity: null, exactDiameter: null, exactVolume: null, exactFanWidth: null,
+      exactLayerCount: null, exactExtensionCount: null, exactMillimeters: null,
+    },
+    crossEffectComparison: {
+      anime: {
+        constructionId: 'construction.anime',
+        status: 'SCHOOL_DEPENDENT_POSSIBLE_TERMINOLOGY_OVERLAP_WITH_ANIME_MANGA',
+        universalDistinctionAsserted: false, possibleSynonymInSomeSources: true, mutuallyExclusive: false,
+      },
+      wispy: {
+        constructionId: 'construction.wispy', status: 'SCHOOL_DEPENDENT_PROVISIONAL',
+        commonDistinguishingPresentation: 'JELLYFISH_COMMONLY_MORE_PRONOUNCED_HIERARCHY_AND_NEGATIVE_SPACE_WHILE_WISPY_IS_SOFTER_AIRY_FEATHERED',
+        universalNumericRegularityDifference: false, mutuallyExclusive: false,
+      },
+      kimK: {
+        constructionId: 'construction.kim-k', status: 'SCHOOL_DEPENDENT_PROVISIONAL',
+        commonDistinguishingPresentation: 'KIM_K_COMMONLY_MORE_STRUCTURED_ACCENT_DISTRIBUTION_WHILE_JELLYFISH_COMMONLY_MORE_IRREGULAR_AND_NEGATIVE_SPACE_FORWARD',
+        universalNumericRegularityDifference: false, mutuallyExclusive: false,
+      },
+      wet: {
+        constructionId: 'construction.wet', status: 'PROVISIONAL_POSSIBLE_EXECUTION_OVERLAP_WITHOUT_IDENTITY_COLLAPSE',
+        possibleSharedExecution: 'CLOSED_OR_NARROW_SPIKE_LIKE_FAN_CONSTRUCTIONS',
+        outcomeDistinction: 'WET_IS_COMPACT_GROUPED_COLUMNAR_TEXTURE_WHILE_JELLYFISH_IS_SPARSER_ACCENT_HIERARCHY_WITH_STRONGER_NEGATIVE_SPACE',
+        identityCollapse: false, mutuallyExclusive: false,
+      },
+    },
+    unresolved: [
+      'JELLYFISH_VS_ANIME_MANGA_TERMINOLOGY_BOUNDARY', 'EXACT_SPIKE_CONSTRUCTION', 'EXACT_HIERARCHY_OR_TIERING',
+      'EXACT_RHYTHM', 'EXACT_SPACING', 'EXACT_REGULARITY', 'SUPPORTING_BASE_CONSTRUCTION', 'LAYERING',
+      'FAN_CONSTRUCTION', 'GEOMETRY_COMPATIBILITY', 'DIRECTION_COMPATIBILITY', 'CURL_SELECTION',
+      'TECHNIQUE_COMPATIBILITY', 'DENSITY', 'DIAMETER', 'VOLUME', 'NEGATIVE_SPACE_ARCHITECTURE',
+      'JELLYFISH_KIM_K_BOUNDARY', 'JELLYFISH_WISPY_BOUNDARY', 'JELLYFISH_WET_BOUNDARY', 'JELLYFISH_ANGEL_RELATIONSHIP_EXISTENCE',
+      'REGIONAL_OR_SCHOOL_TERMINOLOGY', 'CORE_IDENTITY_CONFIDENCE_PENDING_BROADER_SOURCING',
+    ],
+    exactSpikeCount: null, exactSpacing: null, exactRegularity: null, exactSpikeWidth: null,
+    exactLengthDelta: null, exactMillimeters: null, exactDensity: null, exactVolume: null,
+    exactFanWidth: null, exactLayerCount: null, exactDiameter: null, exactExtensionCount: null,
+  };
+  jellyfishConstructionDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], techniqueIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+  };
+  jellyfishConstructionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1p-jellyfish-construction-foundation', type: 'REVIEWED_PROFESSIONAL_CONSTRUCTION_FOUNDATION',
+      scope: ['SEPARATED_ELONGATED_DOMINANT_ACCENTS', 'STRONG_LONG_VS_SHORT_HIERARCHY', 'COMPARATIVELY_SPARSE_SUPPORTING_FIELD', 'VISIBLE_NEGATIVE_SPACE', 'INTENTIONALLY_IRREGULAR_CONTROLLED_COMPOSITION', 'OUTCOME_EXECUTION_SEPARATION'],
+      numericClaims: false,
+      evidenceBasis: 'SINGLE_DETAILED_EXTERNAL_SOURCE_NOT_MULTI_SOURCE_CONSENSUS',
+      repositoryProductionPrecedent: false,
+    }],
+    provenance: [{ source: 'PHASE_1P_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_CONSTRUCTION_OUTCOME_ONLY_LOW_EVIDENCE_BASE' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1P_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: [
+      'Jellyfish has no repository production precedent; every legacy field remains empty/null rather than manufactured.',
+      'The candidate identity rests on a single detailed external source, not corroborated multi-source professional consensus, and must not be treated as equivalent in evidentiary weight to the reviewed Wet/Angel/Wispy/Kim K/Anime foundations.',
+      'The Jellyfish/Anime/Manga terminology boundary is explicitly unresolved: at least one external source treats these as overlapping or synonymous, so Jellyfish must never be asserted as universally distinct from Anime.',
+      'Exact spike construction, hierarchy/tiering, rhythm, spacing, supporting-base construction, layering, fan construction, geometry/direction/curl/technique compatibility, density, and negative-space architecture remain unresolved or school-dependent.',
+    ],
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': naturalDefinition,
@@ -1646,7 +1824,7 @@
         legacyRelationship: 'INDEPENDENT_IDENTITY_DESPITE_LEGACY_KIM_ALIAS',
       }),
       'construction.anime': animeConstructionDefinition,
-      'construction.jellyfish': identity('construction.jellyfish', 'Jellyfish', 'CONSTRUCTION_RECIPE'),
+      'construction.jellyfish': jellyfishConstructionDefinition,
       'construction.root-definition': rootDefinitionConstruction,
     },
     directionStrategies: {

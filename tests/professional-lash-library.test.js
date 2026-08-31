@@ -31,7 +31,7 @@ test('validation states are explicit for reviewed records and the draft Eyeliner
   assert.deepStrictEqual(library.validationStates, ['UNVALIDATED', 'DRAFT', 'EXPERT_REVIEWED', 'VALIDATED', 'SCHOOL_DEPENDENT']);
   for (const definition of allDefinitions()) {
     assert.ok(library.validationStates.includes(definition.validation.status), definition.id);
-    if(['geometry.natural','geometry.squirrel','geometry.doll','geometry.fox','geometry.cat','direction.cat','direction.fox','construction.root-definition','construction.angel','construction.wet','construction.wispy','construction.kim-k','preset.eyeliner','technique.classic-one-to-one','construction.anime'].includes(definition.id)){
+    if(['geometry.natural','geometry.squirrel','geometry.doll','geometry.fox','geometry.cat','direction.cat','direction.fox','construction.root-definition','construction.angel','construction.wet','construction.wispy','construction.kim-k','preset.eyeliner','technique.classic-one-to-one','construction.anime','construction.jellyfish'].includes(definition.id)){
       assert.strictEqual(definition.validation.status,'EXPERT_REVIEWED');
       assert.ok(definition.professionalDefinition);
       assert.strictEqual(definition.validation.evidence[0].numericClaims,false);

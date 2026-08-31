@@ -177,13 +177,15 @@ test('Anime vs Kim K and Anime vs Wispy stay provisional/school-dependent, never
   assert.strictEqual(digest(JSON.stringify(Library.getDefinition('construction.wispy'))),'a4774d2b3aa8cb07214398b29fb571832b5a218d0ed421385fb08c62ef446e86');
 });
 
-test('Anime vs Jellyfish is unresolved pending Jellyfish review, and Jellyfish remains an untouched placeholder',()=>{
+test('Anime vs Jellyfish stays school-dependent and unresolved now that Jellyfish has been reviewed',()=>{
   const jf=professional.crossEffectComparison.jellyfish;
-  assert.strictEqual(jf.status,'UNRESOLVED_PENDING_JELLYFISH_REVIEW');
+  assert.strictEqual(jf.status,'SCHOOL_DEPENDENT_POSSIBLE_TERMINOLOGY_OVERLAP_WITH_ANIME_MANGA');
+  assert.strictEqual(jf.boundaryResolved,false);
+  assert.strictEqual(jf.universalDistinctionFromAnime,false);
   const jellyfish=Library.getDefinition('construction.jellyfish');
-  assert.strictEqual(jellyfish.professionalDefinition,null);
-  assert.notStrictEqual(jellyfish.validation.status,'EXPERT_REVIEWED');
-  assert.strictEqual(digest(JSON.stringify(jellyfish)),'06319851f2cd44d040449e147cbe597a42d4688f8f44f9969016c411519fb089');
+  assert.ok(jellyfish.professionalDefinition);
+  assert.strictEqual(jellyfish.validation.status,'EXPERT_REVIEWED');
+  assert.strictEqual(digest(JSON.stringify(jellyfish)),'a6e2f4998eb5eadcf9c23391c4f5af01e48e86bfa0154b1dfa552962ce19e7c0');
 });
 
 test('legacy manga geometry, curl, technique, texture, category, and scoring remain isolated to legacyReference only',()=>{
@@ -216,7 +218,7 @@ test('protected professional definitions remain byte-identical after populating 
     'construction.angel':'ba6f01a6e7745f4fb17c29af90d5c38e3870da0cb0aef5af9787196c3bbc7dae',
     'construction.wispy':'a4774d2b3aa8cb07214398b29fb571832b5a218d0ed421385fb08c62ef446e86',
     'construction.kim-k':'d81681ffe6eb8c6febed05d4d1a3b5ab0ae01d8dd55ebc1af8209bc75da4d5b3',
-    'construction.jellyfish':'06319851f2cd44d040449e147cbe597a42d4688f8f44f9969016c411519fb089',
+    'construction.jellyfish':'a6e2f4998eb5eadcf9c23391c4f5af01e48e86bfa0154b1dfa552962ce19e7c0',
   };
   for(const [id,hash] of Object.entries(expected))assert.strictEqual(digest(JSON.stringify(Library.getDefinition(id))),hash,id);
   const ray=Library.library.schema.textureConstruction.primitiveDefinitions.RAY;

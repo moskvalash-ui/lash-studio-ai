@@ -764,6 +764,136 @@
     narrativeClaims: ['MINIMAL_ROOT_DENSITY', 'DELIBERATELY_SPARSE', 'FILL_FREQUENCY_CLAIM'],
   };
 
+  // Phase 1I Angel foundation. The reviewed boundary from Wet is visual
+  // intent only; physical fan building remains school- or variant-dependent.
+  const angelConstructionDefinition = identity('construction.angel', 'Angel', 'CONSTRUCTION_RECIPE', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['angel'],
+  });
+  angelConstructionDefinition.professionalDefinition = {
+    outcomeType: 'ANGEL_AIRY_FEATHERED_DEFINITION',
+    invariantOutcome: {
+      definition: 'AIRY_FEATHERED_DEFINITION',
+      texture: 'SOFT_SEPARATED_TEXTURE',
+      movement: 'FLUTTERY_VISUAL_MOVEMENT',
+      finish: {
+        role: 'ESSENTIAL_VISUAL_DESCRIPTOR', result: 'LIGHT_NON_COMPACT_FINISH',
+        perceivedAppearanceOnly: true, technicalWeightClaim: false,
+        numericDensityClaim: false, safetyOrLoadClaim: false,
+      },
+      wispySeparatedMovement: { role: 'ESSENTIAL_VISUAL_OUTCOME' },
+      transparentAppearanceRequired: false,
+      kimStyleDramaticSpikeBaseContrastRequired: false,
+    },
+    visualBoundaryWithWet: {
+      wetConstructionId: 'construction.wet',
+      wetVisualIntent: ['COMPACT_GROUPED_MASCARA_LIKE_DEFINITION', 'VISIBLE_SEPARATED_COLUMNS_OR_GROUPS', 'REDUCED_FLUFFINESS', 'CONTROLLED_GROUPED_REPETITION', 'PERCEIVED_WET_LOOK_FINISH'],
+      angelVisualIntent: ['AIRY_FEATHERED_DEFINITION', 'SOFT_SEPARATED_TEXTURE', 'FLUTTERY_VISUAL_MOVEMENT', 'LIGHT_NON_COMPACT_FINISH'],
+      differentiator: 'VISUAL_OUTCOME_INTENT',
+      exactTechnicalSeparation: 'SCHOOL_DEPENDENT',
+      terminologyOverlap: 'PRESENT_IN_SOME_SCHOOLS',
+      sharedMethodClassesAllowed: ['NARROW_FANS', 'CLOSED_FANS'],
+      universalPhysicalFanDifference: false,
+    },
+    outcomeVsExecution: {
+      invariant: 'AIRY_FEATHERED_SOFT_SEPARATED_FLUTTERY_NON_COMPACT_VISUAL_RESULT',
+      executionMethodStatus: 'SCHOOL_OR_VARIANT_DEPENDENT',
+      universalMethod: null,
+      differentMethodsMayShareCanonicalIdentity: true,
+    },
+    relationships: {
+      fanConstruction: {
+        domain: 'FAN_CONSTRUCTION', role: 'ESSENTIAL_CONTRIBUTOR',
+        selection: 'SCHOOL_OR_VARIANT_DEPENDENT', constructionId: null,
+        recognizedMethodClasses: ['CLOSED_FANS', 'NARROW_OR_NEARLY_CLOSED_FANS', 'OPEN_SUPPORTING_FANS', 'MIXED_OPEN_CLOSED_CONSTRUCTIONS', 'CLASSIC_ASSISTED_CONSTRUCTIONS', 'LAYERED_COMBINATIONS'],
+        recognizedMethodClassesAreUniversalRequirements: false,
+      },
+      spikeWisp: {
+        domain: 'SPIKE_WISP_CONSTRUCTION', role: 'COMMON_CONTRIBUTOR_SCHOOL_DEPENDENT',
+        universalSpikePlan: null, constructionId: null,
+      },
+      layering: { role: 'OPTIONAL_OR_SCHOOL_DEPENDENT', universalLayeringMethod: null },
+      geometry: {
+        domain: 'MAPPING_GEOMETRY', role: 'MANDATORY_CARRIER_SLOT',
+        selection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+      },
+      direction: {
+        domain: 'DIRECTION_STRATEGY', role: 'SECONDARY', strategyId: null,
+        maySupport: ['SEPARATION', 'FEATHERED_MOVEMENT', 'AVOIDANCE_OF_CROSSING', 'GEOMETRY_READABILITY'],
+        numericAngles: null, directionVectors: null, directionalZones: null, universalSweep: null,
+      },
+      curl: {
+        domain: 'CURL_STRATEGY', role: 'SEPARATE_VARIANT_DEPENDENT', strategyId: null, exactCurl: null,
+      },
+      applicationTechnique: {
+        domain: 'APPLICATION_TECHNIQUE', role: 'SCHOOL_OR_VARIANT_DEPENDENT', techniqueId: null,
+      },
+    },
+    densityFinish: {
+      supportedVisualOutcomes: ['AIRY', 'LIGHT', 'SOFT', 'FEATHERED', 'FLUTTERY', 'VISUALLY_SEPARATED'],
+      exactDensity: null, intensity: 'VARIANT_DEPENDENT',
+      rootDarkness: 'UNRESOLVED_OR_SCHOOL_DEPENDENT', transparentMandatory: false,
+    },
+    exactFanCount: null,
+    exactFanWidth: null,
+    exactDiameter: null,
+    exactVolume: null,
+    exactFanClosurePercentage: null,
+    exactLashCount: null,
+    exactSpikeCount: null,
+    exactSpikeFrequency: null,
+    exactSpikeSpacing: null,
+    exactSpikeHierarchy: null,
+    exactLengthDelta: null,
+    exactPlacement: null,
+    exactLayerCount: null,
+    exactMillimeters: null,
+    crossEffectRelationships: {
+      wispy: {
+        family: 'RELATED_WISPY_TEXTURED_CONSTRUCTION_FAMILY',
+        taxonomyBoundary: 'SCHOOL_DEPENDENT_OVERLAP',
+        subtypeInSomeSchools: true,
+        distinctWetRelatedConstructionInOtherSchools: true,
+      },
+      kimK: {
+        comparisonStatus: 'PROVISIONAL_UNTIL_KIM_K_REVIEW',
+        dramaticSpikeBaseContrastRequired: false,
+      },
+    },
+    futureVariantNamespace: {
+      status: 'REQUIRES_SEPARATE_REVIEW',
+      potentialDimensions: ['CLOSED_FAN_ANGEL', 'NARROW_FAN_ANGEL', 'LAYERED_ANGEL', 'CLASSIC_ASSISTED_ANGEL', 'MIXED_FAN_ANGEL', 'SOFT_MINIMAL_ANGEL', 'MORE_DEFINED_ANGEL', 'ANGEL_WET_OVERLAP', 'ANGEL_WISPY_COMPOSITION', 'GEOMETRY_CARRIER_CHOICE'],
+      canonicalVariantIdsCreated: false,
+    },
+    unresolved: ['UNIVERSAL_FAN_METHOD', 'SPIKE_HIERARCHY', 'LAYERING_REQUIREMENT', 'EXACT_DENSITY', 'ROOT_DARKNESS', 'GEOMETRY_COMPATIBILITY', 'TECHNICAL_ANGEL_WET_SEPARATION', 'ANGEL_WISPY_TAXONOMY_BOUNDARY', 'NUMERIC_EXECUTION_PARAMETERS'],
+  };
+  angelConstructionDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], techniqueIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+  };
+  angelConstructionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1i-angel-construction-foundation', type: 'REVIEWED_PROFESSIONAL_CONSTRUCTION_FOUNDATION',
+      scope: ['AIRY_FEATHERED_DEFINITION', 'SOFT_SEPARATED_TEXTURE', 'FLUTTERY_VISUAL_MOVEMENT', 'LIGHT_NON_COMPACT_FINISH', 'VISUAL_BOUNDARY_FROM_WET', 'OUTCOME_EXECUTION_SEPARATION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1I_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_VISUAL_CONSTRUCTION_OUTCOME_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1I_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Fan method, spike hierarchy, layering, density, root darkness, geometry compatibility, technical Angel/Wet separation, Angel/Wispy taxonomy, and numeric execution remain unresolved or school-dependent.'],
+  };
+  angelConstructionDefinition.legacyReference = {
+    legacyIds: ['angel'], legacyAliases: ['Airy Effect', 'Feathered', 'Soft Volume Styling'],
+    relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakZone: 2 }, templateMm: [6, 7, 8, 8, 7],
+    topology: { zonePositions: null, plateauShape: 'linear', postPeakShape: 'linear' },
+    applicationTechnique: 'Light Volume 2D', curl: { base: 'B', options: ['J', 'B', 'C'] },
+    scoreCoefficients: { base: 40, lowConfidenceThreshold: 0.5, lowConfidenceBonus: 10, tiltThresholdDegrees: 3, tiltBonus: 12, asymmetryThreshold: 0.05, asymmetryBonus: 8 },
+    spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
+    narrativeClaims: ['VERY_LIGHT_AIRY_COVERAGE', 'LOW_WEIGHT_LANGUAGE', 'BARELY_THERE_SOFTNESS'],
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
@@ -778,7 +908,7 @@
     constructionRecipes: {
       'construction.wispy': identity('construction.wispy', 'Wispy', 'CONSTRUCTION_RECIPE', { legacyIds: ['wispy'] }),
       'construction.kim-k': identity('construction.kim-k', 'Kim K', 'CONSTRUCTION_RECIPE', { legacyIds: ['kim'], legacyAliases: ['Rays', 'Soft Rays'] }),
-      'construction.angel': identity('construction.angel', 'Angel', 'CONSTRUCTION_RECIPE', { legacyIds: ['angel'] }),
+      'construction.angel': angelConstructionDefinition,
       'construction.wet': wetConstructionDefinition,
       'construction.rays': identity('construction.rays', 'Rays', 'CONSTRUCTION_RECIPE', {
         legacyRelationship: 'INDEPENDENT_IDENTITY_DESPITE_LEGACY_KIM_ALIAS',

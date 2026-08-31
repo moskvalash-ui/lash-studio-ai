@@ -94,12 +94,12 @@ test('curl and technique are separate unresolved relationships without legacy tr
   assert.ok(!professional.relationships.curl.exactCurl);
 });
 
-test('Angel boundary stays unresolved and Wispy or Kim K requirements do not redefine Wet',()=>{
+test('Angel boundary is resolved by the separate Angel review while Wispy or Kim K requirements do not redefine Wet',()=>{
   assert.strictEqual(professional.crossEffectBoundaries.angel,'ANGEL_BOUNDARY_REQUIRES_SEPARATE_REVIEW');
   assert.strictEqual(professional.invariantOutcome.dramaticLengthContrastRequired,false);
   assert.strictEqual(professional.invariantOutcome.kimStyleRaysRequired,false);
   assert.strictEqual(professional.invariantOutcome.wispyAccentStructureRequired,false);
-  assert.strictEqual(Library.getDefinition('construction.angel').professionalDefinition,null);
+  assert.strictEqual(Library.getDefinition('construction.angel').professionalDefinition.visualBoundaryWithWet.wetConstructionId,'construction.wet');
   assert.strictEqual(Library.getDefinition('construction.wispy').professionalDefinition,null);
   assert.strictEqual(Library.getDefinition('construction.kim-k').professionalDefinition,null);
 });

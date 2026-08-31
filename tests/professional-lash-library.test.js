@@ -29,7 +29,7 @@ test('validation states are explicit for reviewed records and the draft Eyeliner
   assert.deepStrictEqual(library.validationStates, ['UNVALIDATED', 'DRAFT', 'EXPERT_REVIEWED', 'VALIDATED', 'SCHOOL_DEPENDENT']);
   for (const definition of allDefinitions()) {
     assert.ok(library.validationStates.includes(definition.validation.status), definition.id);
-    if(['geometry.squirrel','geometry.doll','geometry.fox','geometry.cat','direction.cat','direction.fox','construction.root-definition','preset.eyeliner'].includes(definition.id)){
+    if(['geometry.squirrel','geometry.doll','geometry.fox','geometry.cat','direction.cat','direction.fox','construction.root-definition','construction.wet','preset.eyeliner'].includes(definition.id)){
       assert.strictEqual(definition.validation.status,'EXPERT_REVIEWED');
       assert.ok(definition.professionalDefinition);
       assert.strictEqual(definition.validation.evidence[0].numericClaims,false);
@@ -79,7 +79,7 @@ test('American is school-dependent unresolved identity, not universal validated 
 test('legacyReference is isolated and cannot masquerade as validated professional data', () => {
   const forbiddenNumericFields = ['normalizedGeometry','templateMm','scoreCoefficients','spikeDeltas','textureFrequencies','curlLiftStrength','techniqueDiameters'];
   for (const definition of allDefinitions()) {
-    if(!['geometry.squirrel','geometry.doll','geometry.fox','geometry.cat','preset.eyeliner'].includes(definition.id))for (const field of forbiddenNumericFields) assert.strictEqual(definition.legacyReference[field], null, `${definition.id}/${field}`);
+    if(!['geometry.squirrel','geometry.doll','geometry.fox','geometry.cat','construction.wet','preset.eyeliner'].includes(definition.id))for (const field of forbiddenNumericFields) assert.strictEqual(definition.legacyReference[field], null, `${definition.id}/${field}`);
     assert.notStrictEqual(definition.validation.status,'VALIDATED', definition.id);
   }
   const squirrel=getDefinition('geometry.squirrel');

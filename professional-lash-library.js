@@ -660,6 +660,110 @@
     spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1H Wet foundation. The reviewed identity is the visible grouped
+  // construction outcome. Physical fan building and every numeric execution
+  // choice remain explicitly variant- or school-dependent.
+  const wetConstructionDefinition = identity('construction.wet', 'Wet', 'CONSTRUCTION_RECIPE', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['wet'],
+  });
+  wetConstructionDefinition.professionalDefinition = {
+    outcomeType: 'WET_GROUPED_DEFINITION',
+    invariantOutcome: {
+      grouping: { role: 'ESSENTIAL_QUALITATIVE_OUTCOME', result: 'MASCARA_LIKE_GROUPED_DEFINITION' },
+      visibleStructure: 'VISIBLE_SEPARATED_COLUMNS',
+      openness: 'REDUCED_FLUFFINESS',
+      repetition: 'CONTROLLED_REPETITION_OF_DEFINED_GROUPS',
+      finish: {
+        role: 'ESSENTIAL_VISUAL_DESCRIPTOR', result: 'WET_LOOK_VISUAL_FINISH',
+        perceivedAppearanceOnly: true, literalGlossProduct: false,
+        coatingOrChemicalTreatmentRequired: false, appliedWetSubstanceRequired: false,
+      },
+      dramaticLengthContrastRequired: false,
+      kimStyleRaysRequired: false,
+      wispyAccentStructureRequired: false,
+    },
+    outcomeVsExecution: {
+      invariant: 'GROUPED_DEFINED_MASCARA_LIKE_REDUCED_FLUFFINESS_WET_LOOK',
+      executionMethodStatus: 'SCHOOL_OR_VARIANT_DEPENDENT',
+      universalMethod: null,
+      differentMethodsMayShareCanonicalIdentity: true,
+    },
+    relationships: {
+      fanConstruction: {
+        domain: 'FAN_CONSTRUCTION', role: 'ESSENTIAL_CONTRIBUTOR',
+        selection: 'VARIANT_OR_SCHOOL_DEPENDENT', constructionId: null,
+        allowedMethodClasses: ['CLOSED_FANS', 'NARROW_OR_NEARLY_CLOSED_FANS', 'PARTIALLY_CLOSED_CONSTRUCTIONS', 'GROUPED_BUNDLES_OR_SPIKES'],
+        allowedMethodClassesAreUniversalRequirements: false,
+        wideOpenFluffyFansPartOfCoreInvariant: false,
+      },
+      geometry: {
+        domain: 'MAPPING_GEOMETRY', role: 'MANDATORY_CARRIER_SLOT',
+        selection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+      },
+      direction: {
+        domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_CONTRIBUTOR', strategyId: null,
+        maySupport: ['CLEAN_SEPARATED_COLUMNS', 'VISUAL_RHYTHM', 'AVOIDANCE_OF_CROSSING', 'SELECTED_MAPPING_READABILITY'],
+        numericAngles: null, directionVectors: null, directionalZones: null, universalSweep: null,
+      },
+      curl: {
+        domain: 'CURL_STRATEGY', role: 'SEPARATE_VARIANT_DEPENDENT_UNRESOLVED', strategyId: null, exactCurl: null,
+      },
+      applicationTechnique: {
+        domain: 'APPLICATION_TECHNIQUE', role: 'SCHOOL_OR_VARIANT_DEPENDENT', techniqueId: null,
+      },
+    },
+    densityIntent: 'VARIANT_DEPENDENT',
+    intensity: 'VARIANT_DEPENDENT',
+    exactFanCount: null,
+    exactFanWidth: null,
+    exactDensity: null,
+    exactDiameter: null,
+    exactVolume: null,
+    exactSpacing: null,
+    exactColumnCount: null,
+    exactSpikeFrequency: null,
+    exactLayerCount: null,
+    exactMillimeters: null,
+    crossEffectBoundaries: {
+      angel: 'ANGEL_BOUNDARY_REQUIRES_SEPARATE_REVIEW',
+      wispy: 'COMBINATION_MUST_BE_VARIANT_OR_COMPOSITION',
+      kimK: 'COMBINATION_MUST_BE_VARIANT_OR_COMPOSITION',
+    },
+    futureVariantNamespace: {
+      status: 'REQUIRES_SEPARATE_REVIEW',
+      potentialClasses: ['CLOSED_FAN_WET', 'NARROW_FAN_WET', 'SOFT_WET', 'DARK_DEFINED_WET', 'WISPY_WET', 'HYBRID_GROUPED_WET'],
+      canonicalVariantIdsCreated: false,
+    },
+    unresolved: ['EXACT_FAN_CONSTRUCTION', 'EXECUTION_METHOD', 'GEOMETRY_COMPATIBILITY', 'DIRECTION_EXECUTION', 'CURL_SELECTION', 'APPLICATION_TECHNIQUE', 'DENSITY_INTENT', 'INTENSITY', 'SCHOOL_VARIANTS', 'ANGEL_BOUNDARY'],
+  };
+  wetConstructionDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], techniqueIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+  };
+  wetConstructionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1h-wet-construction-foundation', type: 'REVIEWED_PROFESSIONAL_CONSTRUCTION_FOUNDATION',
+      scope: ['GROUPED_MASCARA_LIKE_DEFINITION', 'VISIBLE_SEPARATED_COLUMNS', 'REDUCED_FLUFFINESS', 'PERCEIVED_WET_LOOK_FINISH', 'OUTCOME_EXECUTION_SEPARATION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1H_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_CONSTRUCTION_OUTCOME_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1H_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Exact fan construction, geometry compatibility, direction, curl, technique, density, intensity, school variants, and the Angel boundary remain unresolved.'],
+  };
+  wetConstructionDefinition.legacyReference = {
+    legacyIds: ['wet'], legacyAliases: ['Soft Wet', 'Mascara Effect', 'Defined Wet', 'Eyeliner Wet'],
+    relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakZone: 3 }, templateMm: [7, 8, 9, 9, 8],
+    topology: { zonePositions: null, plateauShape: 'linear', postPeakShape: 'linear' },
+    applicationTechnique: 'Wet Technique / Wet Set', curl: { base: 'B', options: ['J', 'B', 'C'] },
+    scoreCoefficients: { base: 44, neutralTiltCoefficient: 10, nonNeutralFallback: 2, asymmetryThreshold: 0.06, asymmetryBonus: 6 },
+    spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: ['0.05–0.10 mm'],
+    narrativeClaims: ['MINIMAL_ROOT_DENSITY', 'DELIBERATELY_SPARSE', 'FILL_FREQUENCY_CLAIM'],
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
@@ -675,7 +779,7 @@
       'construction.wispy': identity('construction.wispy', 'Wispy', 'CONSTRUCTION_RECIPE', { legacyIds: ['wispy'] }),
       'construction.kim-k': identity('construction.kim-k', 'Kim K', 'CONSTRUCTION_RECIPE', { legacyIds: ['kim'], legacyAliases: ['Rays', 'Soft Rays'] }),
       'construction.angel': identity('construction.angel', 'Angel', 'CONSTRUCTION_RECIPE', { legacyIds: ['angel'] }),
-      'construction.wet': identity('construction.wet', 'Wet', 'CONSTRUCTION_RECIPE', { legacyIds: ['wet'] }),
+      'construction.wet': wetConstructionDefinition,
       'construction.rays': identity('construction.rays', 'Rays', 'CONSTRUCTION_RECIPE', {
         legacyRelationship: 'INDEPENDENT_IDENTITY_DESPITE_LEGACY_KIM_ALIAS',
       }),

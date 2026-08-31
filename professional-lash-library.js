@@ -1437,6 +1437,195 @@
     textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: ['0.15–0.20 mm'],
   };
 
+  // Phase 1O Anime foundation. The reviewed identity is a complete
+  // texture/construction outcome — pronounced elongated accent spikes held
+  // visibly separate from shorter supporting structure, producing a
+  // deliberately segmented, graphic top-line result. Physical execution,
+  // exact hierarchy, rhythm, spacing, supporting-base construction, and the
+  // boundaries with Kim K, Wispy, and the not-yet-reviewed Jellyfish remain
+  // explicitly unresolved or school-dependent. RAY may participate as a
+  // reusable, non-universal execution primitive; it does not define Anime,
+  // and Anime remains a complete construction, never a primitive.
+  const animeConstructionDefinition = identity('construction.anime', 'Anime', 'CONSTRUCTION_RECIPE', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['manga'], legacyAliases: ['Manga / Anime', 'Doll Anime', 'Spiky Anime'],
+    legacyRelationship: 'INDEPENDENT_IDENTITY_FROM_LEGACY_COMBINED_LABEL',
+  });
+  animeConstructionDefinition.professionalDefinition = {
+    outcomeType: 'ANIME_GRAPHIC_SEPARATED_ACCENT_DEFINITION',
+    invariantOutcome: {
+      accentArchitecture: 'PRONOUNCED_ELONGATED_ACCENT_STRUCTURE',
+      accentToSupportHierarchy: 'VISIBLE_ACCENT_TO_SUPPORT_HIERARCHY',
+      accentSeparation: 'CLEARLY_SEPARATED_ACCENT_PRESENTATION',
+      topLine: 'INTENTIONAL_TOP_LINE_SEGMENTATION',
+      finish: {
+        role: 'ESSENTIAL_VISUAL_DESCRIPTOR', result: 'GRAPHIC_DEFINED_TEXTURE_OUTCOME',
+        perceivedAppearanceOnly: true, numericContrastClaim: false,
+      },
+      contrast: 'CONTROLLED_CONTRAST_BETWEEN_DOMINANT_ACCENTS_AND_SUPPORTING_STRUCTURE',
+      universallyLargestContrastInFamily: false,
+      universalMillimeterDifference: null,
+    },
+    outcomeVsExecution: {
+      invariant: 'PRONOUNCED_SEPARATED_ELONGATED_ACCENTS_OVER_SUPPORTING_STRUCTURE_WITH_SEGMENTED_GRAPHIC_TOP_LINE',
+      executionMethodStatus: 'SCHOOL_OR_VARIANT_DEPENDENT',
+      universalMethod: null,
+      differentMethodsMayShareCanonicalIdentity: true,
+    },
+    spikeAccentArchitecture: {
+      dominantElongatedAccents: 'ESSENTIAL_QUALITATIVE',
+      accentSeparationFromSupport: 'ESSENTIAL_QUALITATIVE',
+      exactSpikeCount: null,
+      exactSpikeFrequency: null,
+      exactSpacing: null,
+      exactRegularity: 'UNRESOLVED',
+      exactAlternation: 'UNRESOLVED',
+      exactAccentWidth: null,
+      exactFanConstruction: null,
+      exactSpikeConstructionMethod: 'SCHOOL_DEPENDENT_UNRESOLVED',
+      everyDivisionPointCarriesAccent: 'UNRESOLVED',
+      primarySecondaryTierArchitecture: 'UNRESOLVED_SCHOOL_DEPENDENT',
+    },
+    hierarchy: {
+      requirement: 'DOMINANT_ELONGATED_ACCENTS_MUST_REMAIN_VISIBLY_DISTINGUISHABLE_FROM_SUPPORTING_STRUCTURE',
+      exactTierCount: 'UNRESOLVED',
+      singleAccentTierUniversal: false,
+      twoTierUniversal: false,
+      secondaryAccentsUniversallyRequired: false,
+      secondaryAccentsUniversallyExcluded: false,
+      detailedTierArchitecture: 'UNRESOLVED_SCHOOL_DEPENDENT',
+    },
+    rhythmSpacing: {
+      regularSpacingUniversal: false,
+      irregularSpacingUniversal: false,
+      exactRhythm: 'UNRESOLVED_SCHOOL_DEPENDENT',
+      exactInterval: null,
+      exactRepetition: null,
+      clustering: 'UNRESOLVED_SCHOOL_DEPENDENT',
+      exactRegularity: 'UNRESOLVED_SCHOOL_DEPENDENT',
+    },
+    supportingField: {
+      role: 'ESSENTIAL_VISUAL_RELATIONSHIP_CONCEPT',
+      universalBaseConstruction: null,
+      continuousBaseUniversal: false,
+      fanBaseUniversal: false,
+      classicBaseUniversal: false,
+      closedFanBaseUniversal: false,
+      volumeBaseUniversal: false,
+      universalLayerCount: null,
+    },
+    negativeSpace: {
+      role: 'PROFESSIONALLY_RELEVANT_TO_GRAPHIC_OUTCOME',
+      visibleSeparationBetweenDominantAccents: 'QUALITATIVELY_RELEVANT',
+      universalNumericGap: null,
+      universalGapPatternRequired: false,
+      exactGapArchitecture: 'UNRESOLVED',
+    },
+    relationships: {
+      geometry: {
+        domain: 'MAPPING_GEOMETRY', role: 'MANDATORY_CARRIER_SLOT',
+        selection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+      },
+      direction: {
+        domain: 'DIRECTION_STRATEGY', role: 'SECONDARY', strategyId: null,
+        maySupport: ['ACCENT_SEPARATION', 'GRAPHIC_PRESENTATION', 'AVOIDANCE_OF_CROSSING', 'GEOMETRY_READABILITY'],
+        numericAngles: null, directionVectors: null, directionalZones: null, universalSweep: null,
+      },
+      curl: {
+        domain: 'CURL_STRATEGY', role: 'NOT_PART_OF_EFFECT', selection: 'VARIANT_DEPENDENT',
+        strategyId: null, exactCurl: null,
+      },
+      applicationTechnique: {
+        domain: 'APPLICATION_TECHNIQUE', role: 'SCHOOL_OR_VARIANT_DEPENDENT', techniqueId: null,
+      },
+      fanConstruction: {
+        domain: 'FAN_CONSTRUCTION', role: 'EXECUTION_CONTRIBUTOR', constructionId: null,
+        recognizedMethodClasses: ['CLOSED_FAN_ACCENTS', 'NARROW_OR_NEARLY_CLOSED_FANS', 'CLASSIC_ASSISTED_ACCENTS', 'LAYERED_SPIKE_OVER_BASE', 'MIXED_CONSTRUCTIONS'],
+        recognizedMethodClassesAreUniversalRequirements: false,
+        universalFanConstruction: null,
+      },
+      layering: { role: 'SCHOOL_DEPENDENT', universalLayeringMethod: null, universalLayerCount: null },
+    },
+    rayPrimitiveRelationship: {
+      primitiveId: 'RAY', role: 'POSSIBLE_NON_UNIVERSAL_EXECUTION_METHOD',
+      required: false, usingRayAutomaticallyCreatesAnime: false, animeUniversallyRequiresRay: false,
+      animeIsCompleteConstruction: true, rayIsReusablePrimitiveOnly: true,
+    },
+    densityFinish: {
+      qualitativeIntent: ['GRAPHIC', 'DEFINED', 'SEGMENTED', 'BOLD_STATEMENT'],
+      exactDensity: null, exactDiameter: null, exactVolume: null, exactFanWidth: null,
+      exactLayerCount: null, exactExtensionCount: null, exactMaximumLength: null,
+      exactBaseLength: null, exactSpikeLength: null,
+    },
+    crossEffectComparison: {
+      kimK: {
+        constructionId: 'construction.kim-k', status: 'SCHOOL_DEPENDENT_PROVISIONAL_UNRESOLVED_BOUNDARY',
+        commonDistinguishingPresentation: 'ANIME_COMMONLY_PRESENTS_STRONGER_GRAPHIC_SPIKE_SEPARATION',
+        universalNumericContrastDifference: false, mutuallyExclusive: false,
+      },
+      wispy: {
+        constructionId: 'construction.wispy', status: 'SCHOOL_DEPENDENT_PROVISIONAL',
+        commonDistinguishingPresentation: 'ANIME_COMMONLY_MORE_GRAPHIC_AND_PRONOUNCED_WHILE_WISPY_IS_SOFTER_AIRY_FEATHERED',
+        numericThreshold: null, mutuallyExclusive: false,
+      },
+      jellyfish: {
+        constructionId: 'construction.jellyfish', status: 'UNRESOLVED_PENDING_JELLYFISH_REVIEW',
+      },
+    },
+    futureVariantNamespace: {
+      status: 'REQUIRES_SEPARATE_REVIEW',
+      potentialDimensions: ['GRAPHIC_ANIME', 'SOFT_ANIME', 'DOLL_ANIME', 'SPIKY_ANIME', 'ANIME_KIM_K_OVERLAP', 'ANIME_WISPY_OVERLAP', 'GEOMETRY_CARRIER_CHOICE'],
+      canonicalVariantIdsCreated: false,
+    },
+    exactSpikeCount: null,
+    exactSpikeFrequency: null,
+    exactSpacing: null,
+    exactAccentWidth: null,
+    exactFanCount: null,
+    exactFanWidth: null,
+    exactDiameter: null,
+    exactVolume: null,
+    exactLayerCount: null,
+    exactExtensionCount: null,
+    exactMillimeters: null,
+    exactLengthDelta: null,
+    unresolved: [
+      'ANIME_VS_MANGA_TERMINOLOGY_BOUNDARY', 'EXACT_SPIKE_CONSTRUCTION', 'EXACT_HIERARCHY_OR_TIERING',
+      'EXACT_RHYTHM', 'EXACT_SPACING', 'EXACT_REGULARITY', 'SUPPORTING_BASE_CONSTRUCTION', 'LAYERING',
+      'FAN_CONSTRUCTION', 'GEOMETRY_COMPATIBILITY', 'DIRECTION_COMPATIBILITY', 'CURL_SELECTION',
+      'TECHNIQUE_COMPATIBILITY', 'DENSITY', 'DIAMETER', 'VOLUME', 'NEGATIVE_SPACE_ARCHITECTURE',
+      'ANIME_KIM_K_BOUNDARY', 'ANIME_WISPY_BOUNDARY', 'ANIME_JELLYFISH_BOUNDARY', 'REGIONAL_OR_SCHOOL_TERMINOLOGY',
+    ],
+  };
+  animeConstructionDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], techniqueIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+  };
+  animeConstructionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1o-anime-construction-foundation', type: 'REVIEWED_PROFESSIONAL_CONSTRUCTION_FOUNDATION',
+      scope: ['PRONOUNCED_ELONGATED_ACCENT_STRUCTURE', 'VISIBLE_ACCENT_TO_SUPPORT_HIERARCHY', 'CLEARLY_SEPARATED_ACCENT_PRESENTATION', 'INTENTIONAL_TOP_LINE_SEGMENTATION', 'GRAPHIC_DEFINED_TEXTURE_OUTCOME', 'OUTCOME_EXECUTION_SEPARATION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1O_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_CONSTRUCTION_OUTCOME_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1O_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Exact spike construction, hierarchy/tiering, rhythm, spacing, supporting-base construction, layering, fan construction, geometry/direction/curl/technique compatibility, density, negative-space architecture, and the Anime/Kim K/Wispy/Jellyfish/Manga terminology boundaries remain unresolved or school-dependent.'],
+  };
+  animeConstructionDefinition.legacyReference = {
+    legacyIds: ['manga'], legacyAliases: ['Manga / Anime', 'Doll Anime', 'Spiky Anime'],
+    relationship: 'INDEPENDENT_IDENTITY_FROM_LEGACY_COMBINED_LABEL',
+    numericDataRelationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakZone: 3 }, templateMm: [6, 9, 7, 12, 7],
+    topology: { zonePositions: null, plateauShape: 'linear', postPeakShape: 'linear' },
+    applicationTechnique: 'Volume 3D', curl: { base: 'D', options: ['CC', 'D', 'L+'] },
+    textureExecution: { pattern: 'manga', frequency: 2, baseToSpikeDiff: 4, alternation: 'ALL_SEGMENTS_ACCENTED', jitter: 'NONE' },
+    category: 'creative',
+    scoreCoefficients: { base: 30, relativeEyeSizeThreshold: 0.36, relativeEyeSizeBonus: 16, confidenceThreshold: 0.5, confidenceBonus: 10 },
+    spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': naturalDefinition,
@@ -1456,10 +1645,7 @@
       'construction.rays': identity('construction.rays', 'Rays', 'CONSTRUCTION_RECIPE', {
         legacyRelationship: 'INDEPENDENT_IDENTITY_DESPITE_LEGACY_KIM_ALIAS',
       }),
-      'construction.anime': identity('construction.anime', 'Anime', 'CONSTRUCTION_RECIPE', {
-        legacyIds: ['manga'], legacyAliases: ['Manga / Anime'],
-        legacyRelationship: 'INDEPENDENT_IDENTITY_FROM_LEGACY_COMBINED_LABEL',
-      }),
+      'construction.anime': animeConstructionDefinition,
       'construction.jellyfish': identity('construction.jellyfish', 'Jellyfish', 'CONSTRUCTION_RECIPE'),
       'construction.root-definition': rootDefinitionConstruction,
     },

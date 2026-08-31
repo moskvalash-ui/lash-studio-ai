@@ -281,7 +281,7 @@ test('I4. the consent UI wiring block in App() never references scan/result stat
   const consentBlock = extractSpan(
     src,
     '      // ------------------------------------------------------------\n      // CONSENT — Phase 1: consent foundation only.',
-    '      const [screen, setScreen] = useState(\'home\');'
+    '      // Debug-only entry point: ?debug=library lands directly on the'
   );
   assert.ok(consentBlock, 'expected to locate the App()-level consent state block');
   const code = stripLineComments(consentBlock);
@@ -302,7 +302,7 @@ test('I6. App() reads/writes consent ONLY through window.ConsentManager — neve
   const consentBlock = extractSpan(
     src,
     '      // ------------------------------------------------------------\n      // CONSENT — Phase 1: consent foundation only.',
-    '      const [screen, setScreen] = useState(\'home\');'
+    '      // Debug-only entry point: ?debug=library lands directly on the'
   );
   assert.ok(consentBlock);
   assert.ok(!consentBlock.includes('localStorage.setItem') && !consentBlock.includes('localStorage.getItem'),

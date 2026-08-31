@@ -124,17 +124,51 @@ test('library is deterministic, JSON-safe, and defensively immutable', () => {
   assert.strictEqual(getDefinition('missing.effect'), null);
 });
 
-test('production is isolated: no loader, import, override, or ClientLashDesign coupling exists', () => {
-  assert.ok(!indexSource.includes('professional-lash-library.js'));
-  assert.ok(!indexSource.includes('ProfessionalLashLibrary'));
+test('production is isolated: the loader exists only for the debug preview, never for DESIGN_CATALOG/ranking/ClientLashDesign', () => {
+  // 1. the script is loaded (debug-only Phase 1Q addition, same plain
+  //    <script src> pattern as lash-scan-core.js/lash-design-domain.js).
+  assert.ok(indexSource.includes('<script src="professional-lash-library.js"></script>'));
+
+  // 2. every JS reference to the ProfessionalLashLibrary global sits
+  //    inside the isolated debug-preview block (PRO_LIBRARY_KIND_LABELS
+  //    + ProLibraryPreviewScreen, placed right before App()) — none
+  //    anywhere between </head> (end of the loader <script> tag/comment)
+  //    and that block, and none after App() begins. That "between"
+  //    span covers DESIGN_CATALOG, rankDesigns/rankDesignsAll,
+  //    calculateEyeLashMap, and every screen component up through
+  //    ReviewScreen, so this proves none of them reference the loader.
+  const count = s => s.split('ProfessionalLashLibrary').length - 1;
+  const headEnd = indexSource.indexOf('</head>');
+  const previewStart = indexSource.indexOf('// DEBUG-ONLY: Professional Lash Library preview');
+  const appStart = indexSource.indexOf('function App() {');
+  assert.ok(headEnd > -1 && previewStart > headEnd && appStart > previewStart);
+  assert.strictEqual(count(indexSource.slice(headEnd, previewStart)), 0);
+  assert.ok(count(indexSource.slice(previewStart, appStart)) > 0);
+  assert.strictEqual(count(indexSource.slice(appStart)), 0);
+
+  // 3-6. DESIGN_CATALOG, rankDesigns, rankDesignsAll, and
+  //    calculateEyeLashMap all live inside that zero-occurrence span
+  //    (well before the debug-preview block), so none of them can
+  //    reference the loader; the whole-file digest test below
+  //    additionally freezes every character of all four unchanged.
+  const catalogStart = indexSource.indexOf('    const DESIGN_CATALOG = ');
+  assert.ok(catalogStart > headEnd && catalogStart < previewStart);
+  assert.ok(indexSource.indexOf('function rankDesigns(') > headEnd && indexSource.indexOf('function rankDesigns(') < previewStart);
+  assert.ok(indexSource.indexOf('function rankDesignsAll(') > headEnd && indexSource.indexOf('function rankDesignsAll(') < previewStart);
+  assert.ok(indexSource.indexOf('function calculateEyeLashMap(') > headEnd && indexSource.indexOf('function calculateEyeLashMap(') < previewStart);
+
+  // 7. lash-design-domain.js (ClientLashDesign's production behavior)
+  //    never references the loader at all.
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
+
+  // 8-9. production isolation flags inside the library itself.
   assert.strictEqual(library.activation.productionEnabled, false);
   assert.deepStrictEqual(library.activation.activeDefinitionIds, []);
 });
 
 test('production source parity protects Recommendation, PHOTO, DIAGRAM, Plan, ranking, primary, and all 21 IDs', () => {
   const digest = value => crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource), '51a6c0871b4113ac5a133381690eaa7b376ea9bbf5b301a8af0fb08104347f39');
+  assert.strictEqual(digest(indexSource), '1f7dca3f5c8060a59e0cfc9e0900064a884ba7db27ded3a4f7c9812fd6d53f01');
   assert.strictEqual(digest(domainSource), '992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
   assert.ok(indexSource.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));

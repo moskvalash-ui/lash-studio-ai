@@ -23,6 +23,8 @@ test('schema/version and every separate professional registry exist', () => {
   assert.strictEqual(library.schema.normalizedGeometry.peakPosition, 'NORMALIZED_RANGE');
   assert.strictEqual(library.schema.templateMm.separateFromNormalizedGeometry, true);
   assert.deepStrictEqual(library.schema.textureConstruction.primitives, ['SPIKE', 'RAY', 'TENTACLE', 'CLOSED_FAN', 'LAYER']);
+  assert.strictEqual(library.schema.textureConstruction.primitiveDefinitions.RAY.kind,'TEXTURE_CONSTRUCTION_PRIMITIVE');
+  assert.strictEqual(library.schema.textureConstruction.primitiveDefinitions.RAY.validation.status,'EXPERT_REVIEWED');
 });
 
 test('validation states are explicit for reviewed records and the draft Eyeliner direction slot', () => {

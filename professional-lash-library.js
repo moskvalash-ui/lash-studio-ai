@@ -1245,6 +1245,124 @@
     },
   };
 
+  // Phase 1L reviewed RAY primitive metadata. This extends the existing
+  // texture-construction primitive layer rather than creating a parallel
+  // registry. It is a reusable building block, never a complete effect.
+  const rayPrimitiveDefinition = {
+    id: 'RAY',
+    kind: 'TEXTURE_CONSTRUCTION_PRIMITIVE',
+    validation: {
+      status: 'EXPERT_REVIEWED',
+      evidence: [{
+        id: 'phase-1l-ray-primitive-foundation', type: 'REVIEWED_QUALITATIVE_TEXTURE_PRIMITIVE',
+        scope: ['VISIBLE_ELONGATED_ACCENT', 'LOCALIZED_TEXTURE', 'ACCENT_SEPARATION', 'TOP_LINE_SEGMENTATION_CONTRIBUTOR', 'REUSABLE_CONSTRUCTION_BUILDING_BLOCK'],
+        numericClaims: false,
+      }],
+      provenance: [{ source: 'PHASE_1L_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_TEXTURE_CONSTRUCTION_PRIMITIVE_ONLY' }],
+      reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1L_APPROVAL' }],
+      reviewedAt: null,
+      revision: 1,
+      notes: ['RAY is a reusable accent primitive; physical construction, repetition, hierarchy, support, layering, compatibility, and all numeric execution remain unresolved or construction-dependent.'],
+    },
+    professionalDefinition: {
+      invariantOutcome: {
+        visibleAccent: 'VISIBLE_ELONGATED_ACCENT',
+        texture: 'LOCALIZED_TEXTURE',
+        separation: 'ACCENT_SEPARATION',
+        topLineRole: 'TOP_LINE_SEGMENTATION_CONTRIBUTOR',
+        architecturalRole: 'REUSABLE_CONSTRUCTION_BUILDING_BLOCK',
+      },
+      primitiveBoundary: {
+        completeEffectIdentity: false,
+        completeConstructionId: 'construction.rays',
+        synonymousWithEveryRaysConstruction: false,
+        definesMappingGeometry: false,
+        definesHierarchy: false,
+        definesRhythm: false,
+        requiresSupportingBase: false,
+        definesCurl: false,
+        definesDensity: false,
+      },
+      reusability: {
+        relationship: 'POSSIBLE_NON_UNIVERSAL_CONSTRUCTION_CONTRIBUTOR',
+        potentialContainingConstructionIds: ['construction.kim-k', 'construction.wispy', 'construction.anime', 'construction.wet', 'preset.american'],
+        otherTexturedConstructionsAllowed: true,
+        universalRequirementForContainingConstructions: false,
+      },
+      hierarchy: {
+        visibleAccent: 'ESSENTIAL', primaryTier: 'OPTIONAL',
+        secondaryTier: 'OPTIONAL_OR_SCHOOL_DEPENDENT',
+        supportingField: 'NOT_INTRINSIC_TO_PRIMITIVE',
+        topLineSegmentationContribution: 'ESSENTIAL_QUALITATIVE',
+        universalHierarchy: null,
+      },
+      rhythmSpacing: {
+        rhythm: 'NOT_INTRINSIC',
+        qualitativeRepetition: 'CONSTRUCTION_DEPENDENT',
+        exactRegularity: 'SCHOOL_DEPENDENT', exactSpacing: null, frequency: null,
+      },
+      supportingFieldRelationships: {
+        requirement: 'NOT_INTRINSIC_TO_PRIMITIVE',
+        potentialConstructionDependentClasses: ['SHORTER_SUPPORTING_FIELD', 'CONTINUOUS_BASE', 'INTEGRATED_MIXED_LENGTHS', 'SPIKE_OVER_BASE_LAYERING', 'RAY_ONLY_OR_SPARSELY_SUPPORTED_COMPOSITION', 'CONTAINING_CONSTRUCTION_SUPPORT_ARCHITECTURE'],
+        universalBaseConstruction: null,
+      },
+      relationships: {
+        geometry: {
+          domain: 'MAPPING_GEOMETRY', role: 'NOT_PART_OF_PRIMITIVE',
+          completeConstructionCarrierSelection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+        },
+        fanConstruction: {
+          domain: 'PHYSICAL_CONSTRUCTION', role: 'SCHOOL_OR_VARIANT_DEPENDENT',
+          closedFanRays: 'COMMON_VARIANT', narrowNearlyClosedFans: 'COMMON_VARIANT',
+          classicSingles: 'COMMON_VARIANT', mixedFans: 'SCHOOL_DEPENDENT',
+          volumeSpikes: 'COMMON_VARIANT', layeredCombinations: 'SCHOOL_DEPENDENT',
+          universalFanMethod: null,
+        },
+        direction: {
+          domain: 'DIRECTION_STRATEGY', role: 'SECONDARY', strategyId: null,
+          maySupport: ['ACCENT_SEPARATION', 'CLEAN_PRESENTATION', 'AVOIDANCE_OF_CROSSING', 'GEOMETRY_COMPATIBILITY', 'ACCENT_SILHOUETTE_PRESERVATION'],
+          numericAngles: null, directionVectors: null, directionalZones: null,
+        },
+        curl: { domain: 'CURL_STRATEGY', role: 'NOT_PART_OF_PRIMITIVE', exactCurl: null },
+      },
+      densityFinish: {
+        essential: ['VISIBLE_ACCENT_SEPARATION', 'LOCALIZED_TEXTURE', 'TOP_LINE_SEGMENTATION_CONTRIBUTION'],
+        dimensional: 'COMMON_OUTCOME', graphic: 'VARIANT_DEPENDENT', airy: 'VARIANT_DEPENDENT',
+        bold: 'VARIANT_DEPENDENT', sparse: 'VARIANT_DEPENDENT', dense: 'VARIANT_DEPENDENT',
+        editorial: 'VARIANT_DEPENDENT', exactDensity: null,
+      },
+      taxonomyRelationships: {
+        kimK: {
+          constructionId: 'construction.kim-k', relationship: 'POSSIBLE_NON_UNIVERSAL_CONTRIBUTOR',
+          primitiveRoleBroaderThanConstruction: true, universallyIdentical: false,
+          raysConstructionRelationship: 'SCHOOL_DEPENDENT_OVERLAP',
+        },
+        wispy: {
+          constructionId: 'construction.wispy', relationship: 'POSSIBLE_ACCENT_ARCHITECTURE',
+          universallyRequired: false, inheritsCompleteInvariant: false,
+          raysConstructionRelationship: 'SCHOOL_DEPENDENT_OVERLAP',
+        },
+        raysConstruction: {
+          constructionId: 'construction.rays', canonicalRole: 'SCHOOL_DEPENDENT_NAMED_CONSTRUCTION_PLACEHOLDER',
+          primitiveDependency: 'RAY', universalFinishedEffectInvariant: 'UNRESOLVED',
+        },
+      },
+      exactRayLength: null,
+      exactRayCount: null,
+      exactSpacing: null,
+      exactFrequency: null,
+      exactMillimeters: null,
+      exactLengthDelta: null,
+      exactFanWidth: null,
+      exactFanCount: null,
+      exactVolume: null,
+      exactDiameter: null,
+      exactLayerCount: null,
+      exactPlacementCoordinates: null,
+      unresolved: ['EXACT_PHYSICAL_RAY_CONSTRUCTION', 'FAN_METHOD', 'RAY_WIDTH', 'RAY_LENGTH', 'SPACING', 'REPETITION', 'HIERARCHY', 'SUPPORTING_FIELD_RELATIONSHIP', 'LAYERING', 'DIRECTION_EXECUTION', 'DENSITY_OR_INTENSITY', 'CONTAINING_EFFECT_COMPATIBILITY_RULES', 'CROSS_SCHOOL_TERMINOLOGY'],
+    },
+  };
+
   const schema = {
     normalizedGeometry: {
       profile: 'RELATIVE_LENGTH_SAMPLES_OR_RANGES',
@@ -1261,6 +1379,7 @@
     textureConstruction: {
       recipe: 'REFERENCE_TO_CONSTRUCTION_RECIPES_REGISTRY',
       primitives: ['SPIKE', 'RAY', 'TENTACLE', 'CLOSED_FAN', 'LAYER'],
+      primitiveDefinitions: { RAY: rayPrimitiveDefinition },
       outcomeSeparateFromExecutionMethod: true,
     },
     direction: {

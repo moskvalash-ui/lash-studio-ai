@@ -1204,9 +1204,137 @@
     spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1M Natural foundation. The reviewed record expresses only a
+  // qualitative mapping silhouette; technique, curl, construction, density,
+  // numeric templates, and all client personalization remain separate.
+  const naturalDefinition = identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['natural', 'naturalRounded', 'naturalElongated'],
+  });
+  naturalDefinition.professionalDefinition = {
+    invariantOutcome: {
+      progression: 'GRADUAL_BALANCED_LENGTH_PROGRESSION',
+      maximum: 'BROAD_MODEST_CENTRAL_TO_NEAR_CENTRAL_MAXIMUM',
+      innerRise: 'SMOOTH_INNER_TO_BODY_RISE',
+      outerFinish: 'CONTROLLED_NON_ABRUPT_OUTER_FINISH',
+      silhouette: 'BALANCED_NON_DRAMATIC_SILHOUETTE',
+      intent: 'PRESERVE_OR_SOFTLY_ENHANCE_NATURAL_EYE_IMPRESSION',
+    },
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE', numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'BELOW_MAXIMUM' },
+        { region: 'TRANSITION', relationship: 'GRADUAL_CONTROLLED_RISE' },
+        { region: 'BODY', relationship: 'APPROACHES_BROAD_MODEST_MAXIMUM' },
+        { region: 'CENTRAL_OR_NEAR_CENTRAL', relationship: 'MAXIMUM_REGION' },
+        { region: 'OUTER', relationship: 'CONTROLLED_REDUCTION_OR_MILD_TAPER' },
+      ],
+    },
+    maximum: {
+      region: 'BROAD_CENTRAL_TO_NEAR_CENTRAL', prominence: 'MODEST',
+      exactPosition: null, anatomyDependent: true, plateauAllowed: 'UNRESOLVED',
+      exactPlateauBoundaries: null,
+    },
+    topology: {
+      rise: 'GRADUAL_ORGANIC', shoulder: 'BROAD_SOFT_MAXIMUM_ALLOWED_PENDING_PLATEAU_REVIEW',
+      postPeak: 'CONTROLLED_NON_ABRUPT_TRANSITION',
+      outerBehavior: 'NON_DRAMATIC_ANATOMY_DEPENDENT_FINISH',
+    },
+    innerBehavior: {
+      relationshipToMaximum: 'BELOW_MAXIMUM', transition: 'GRADUAL_CONTROLLED_RISE',
+      exactLength: null, exactSlope: null, personalization: 'REQUIRED',
+      absoluteShortestRequired: false,
+    },
+    outerBehavior: {
+      relationshipToMaximum: 'CONTROLLED_REDUCTION_OR_MILD_TAPER', tailIntent: 'NON_DRAMATIC',
+      exactDrop: null, exactSlope: null, personalization: 'REQUIRED',
+      anatomyDependentLengthPreservationAllowed: true,
+    },
+    primaryIntent: 'PRESERVE_OR_SOFTLY_ENHANCE_NATURAL_EYE_IMPRESSION',
+    excludedDefiningIntents: ['CENTRAL_OPENING', 'PRE_OUTER_LIFT', 'FELINE_OUTER_LIFT', 'TEMPORAL_HORIZONTAL_ELONGATION'],
+    relationships: {
+      applicationTechnique: { domain: 'APPLICATION_TECHNIQUE', selection: 'SEPARATE_LAYER', techniqueId: null },
+      curl: { domain: 'CURL_STRATEGY', selection: 'SEPARATE_LAYER', curlStrategyId: null },
+      fanConstruction: { domain: 'FAN_CONSTRUCTION', selection: 'SEPARATE_LAYER', fanConstructionId: null },
+      constructionRecipe: { domain: 'CONSTRUCTION_RECIPE', selection: 'SEPARATE_LAYER', constructionId: null },
+      direction: { domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_LAYER', strategyId: null },
+    },
+    densityFinish: { exactDensity: null, exactDiameter: null, exactVolume: null, exactLayerCount: null },
+    crossEffectComparison: {
+      doll: {
+        geometryId: 'geometry.doll', dollIntent: 'EXPLICIT_CENTRAL_OPENING',
+        dollMaximum: 'MORE_PROMINENT_CENTRAL_MAXIMUM_OR_PLATEAU',
+        dollComposition: 'STRONGER_SYMMETRICAL_OPENING',
+        naturalMaximum: 'MODEST_BROAD_CENTRAL_OR_NEAR_CENTRAL',
+        naturalRelationship: 'MORE_ANATOMY_FOLLOWING', naturalCentralOpeningDefining: false,
+        distinctionStatus: 'SUPPORTED', exactBoundary: 'UNRESOLVED', naturalUniversallyForbidsPlateau: 'UNRESOLVED',
+      },
+      squirrel: {
+        geometryId: 'geometry.squirrel', squirrelMaximum: 'PRE_OUTER', squirrelIntent: 'OUTER_LIFT',
+        squirrelOuterBehavior: 'CONTROLLED_DECLINE_TOWARD_PHYSICAL_OUTER',
+        naturalMaximum: 'BROAD_CENTRAL_OR_NEAR_CENTRAL', naturalPreOuterLiftDefining: false,
+        naturalOuterFinish: 'GENTLER_NON_DRAMATIC', exactBoundaryCoordinates: null,
+      },
+      cat: {
+        geometryId: 'geometry.cat', naturalLateOuterMaximumDefining: false,
+        naturalFelineLiftRequired: false, naturalTemporalElongationRequired: false,
+        naturalStrongTailIdentity: false, directionDependency: 'LOWER_THAN_CAT',
+      },
+      fox: {
+        geometryId: 'geometry.fox', naturalLateOuterMaximumDefining: false,
+        naturalFelineLiftRequired: false, naturalTemporalElongationRequired: false,
+        naturalStrongTailIdentity: false, directionDependency: 'LOWER_THAN_FOX',
+      },
+    },
+    variants: {
+      canonicalVariantIdsCreated: false, taxonomyStatus: 'UNRESOLVED',
+      legacyRoles: 'LEGACY_REFERENCE_VARIANT_AND_PERSONALIZATION_EVIDENCE_ONLY',
+      potentialDimensions: ['ROUNDED_NATURAL', 'ELONGATED_NATURAL', 'CENTRAL_SOFT_NATURAL', 'NEAR_CENTRAL_NATURAL', 'OUTER_PRESERVING_NATURAL', 'STRONGER_TAPER_NATURAL', 'ANATOMY_MATCHED_NATURAL'],
+    },
+    personalizationBoundary: {
+      canonicalFields: ['GRADUAL_BALANCED_PROGRESSION', 'MODEST_BROAD_CENTRAL_OR_NEAR_CENTRAL_MAXIMUM', 'SMOOTH_RISE', 'CONTROLLED_OUTER_FINISH', 'NATURAL_EYE_IMPRESSION_INTENT'],
+      clientOwnedFields: ['ROUNDED_OR_ELONGATED_PRESENTATION', 'EXACT_PEAK_SHIFT', 'EXACT_PLATEAU_WIDTH', 'OUTER_TAPER_STRENGTH', 'MAXIMUM_LENGTH', 'INNER_STARTING_LENGTH', 'ASYMMETRY_ADJUSTMENT', 'EYE_SHAPE_ADAPTATION', 'HOODING_VISIBILITY', 'DIRECTION_REFINEMENTS', 'NATURAL_LASH_CONDITION_CONSTRAINTS'],
+    },
+    unresolved: ['EXACT_MAXIMUM_REGION', 'PLATEAU_ALLOWANCE', 'MAXIMUM_PROMINENCE_BOUNDARY_WITH_DOLL', 'NATURAL_SQUIRREL_EXACT_BOUNDARY', 'NATURAL_CAT_FOX_SOFT_BOUNDARY', 'OUTER_TAPER_VS_LENGTH_PRESERVATION', 'INNER_TRANSITION_VARIATION', 'ROUNDED_ELONGATED_VARIANT_TAXONOMY', 'GEOMETRY_CONSTRUCTION_COMPATIBILITY', 'DIRECTION_COMPATIBILITY', 'TECHNIQUE_COMPATIBILITY', 'CURL_SELECTION', 'DENSITY_OR_FINISH', 'NATURAL_LASH_PERSONALIZATION', 'ASYMMETRY_PERSONALIZATION', 'NUMERIC_TEMPLATES', 'CROSS_SCHOOL_TERMINOLOGY_CONSENSUS'],
+  };
+  naturalDefinition.templateMm = {
+    purpose: 'STARTING_TEMPLATE_ONLY', universal: false, values: null,
+    resolution: 'NO_REVIEWED_NUMERIC_TEMPLATE_SUPPLIED',
+  };
+  naturalDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], techniqueIds: [], constructionIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  naturalDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1m-natural-geometry-foundation', type: 'REVIEWED_PROFESSIONAL_GEOMETRY_FOUNDATION',
+      scope: ['GRADUAL_BALANCED_LENGTH_PROGRESSION', 'BROAD_MODEST_CENTRAL_TO_NEAR_CENTRAL_MAXIMUM', 'SMOOTH_INNER_TO_BODY_RISE', 'CONTROLLED_NON_ABRUPT_OUTER_FINISH', 'BALANCED_NON_DRAMATIC_SILHOUETTE', 'PRESERVE_OR_SOFTLY_ENHANCE_NATURAL_EYE_IMPRESSION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1M_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_MAPPING_GEOMETRY_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1M_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Natural is reviewed only as qualitative mapping geometry; maximum precision, variants, compatibility, personalization, and all numeric templates remain unresolved.'],
+  };
+  naturalDefinition.legacyReference = {
+    legacyIds: ['natural', 'naturalRounded', 'naturalElongated'],
+    legacyAliases: ['Natural Correction', 'Classic Natural', 'Rounded Natural', 'Elongated Natural'],
+    relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    records: [
+      { legacyId: 'natural', templateMm: [7, 8, 9, 9, 8], peakZone: 3, applicationTechnique: 'Classic 1:1', curl: { base: 'C', options: ['B', 'C', 'CC'] } },
+      { legacyId: 'naturalRounded', templateMm: [6, 8, 9, 9, 7], peakZone: 2, applicationTechnique: 'Classic 1:1', curl: { base: 'C', options: ['B', 'C', 'CC'] } },
+      { legacyId: 'naturalElongated', templateMm: [7, 8, 9, 10, 9], peakZone: 3, applicationTechnique: 'Classic 1:1', curl: { base: 'C', options: ['B', 'C', 'CC'] } },
+    ],
+    topology: { zonePositions: null, plateauShape: 'linear', postPeakShape: 'linear' },
+    scoring: 'LEGACY_PRODUCTION_ONLY', runtimePersonalization: 'LEGACY_PRODUCTION_ONLY', textureAssignment: 'smooth',
+    normalizedGeometry: null, templateMm: null, scoreCoefficients: null, spikeDeltas: null,
+    textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
-      'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
+      'geometry.natural': naturalDefinition,
       'geometry.doll': dollDefinition,
       'geometry.cat': catDefinition,
       'geometry.fox': foxDefinition,

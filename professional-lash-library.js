@@ -1332,6 +1332,111 @@
     textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1N Classic foundation. The reviewed invariant is a pure application
+  // technique — one single extension applied to one isolated, suitable
+  // natural lash. Classic is not a mapping geometry, fan strategy, preset,
+  // fixed curl, fixed diameter, or fixed density, and it does not require
+  // geometry.natural. Attachment conventions, the manufactured split/Y/forked
+  // product boundary, direction, and every numeric safety limit remain
+  // school-dependent or unresolved.
+  const classicTechniqueDefinition = identity('technique.classic-one-to-one', 'Classic', 'APPLICATION_TECHNIQUE', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['classic'], legacyAliases: ['Classic 1:1'],
+  });
+  classicTechniqueDefinition.professionalDefinition = {
+    outcomeType: 'ONE_TO_ONE_APPLICATION_TECHNIQUE',
+    coreInvariant: {
+      unit: 'ONE_SINGLE_EXTENSION_APPLIED_TO_ONE_ISOLATED_SUITABLE_NATURAL_LASH',
+      extensionsPerNaturalLash: 'EXACTLY_ONE',
+      dependency: 'NOT_SCHOOL_DEPENDENT',
+    },
+    excludedDefiningTraits: {
+      isMappingGeometry: false,
+      isFanStrategy: false,
+      isPreset: false,
+      isNaturalGeometry: false,
+      hasFixedCurl: false,
+      hasFixedDiameter: false,
+      hasFixedDensity: false,
+    },
+    attachment: {
+      isolatedNaturalLashRequired: true,
+      everyNaturalLashMustBeExtended: false,
+      suitabilityAssessmentRequired: true,
+      numericCoverageRequirement: null,
+      coverageTerminology: 'SCHOOL_OR_VARIANT_DEPENDENT_UNRESOLVED',
+    },
+    fanConstructionBoundary: {
+      pureClassicUnit: 'ONE_SINGLE_EXTENSION',
+      fanConstructionId: null,
+      multiExtensionVolumeFansExcludedFromPureUnit: true,
+      classicFanStrategyCreated: false,
+      manufacturedExtensionClassification: 'UNRESOLVED_SPLIT_Y_FORKED_BOUNDARY',
+    },
+    geometryRelationship: {
+      domain: 'MAPPING_GEOMETRY', role: 'SEPARATE_CARRIER_SLOT',
+      geometryId: null, universalCompatibleIds: [], requiresNaturalGeometry: false,
+    },
+    curl: { domain: 'CURL_STRATEGY', role: 'SEPARATE_LAYER', curlStrategyId: null, exactCurl: null },
+    diameter: { role: 'CLIENT_LASH_DEPENDENT', exactValue: null },
+    densityFinish: { exactDensity: null, fullCoverageRequired: false, naturalFinishRequired: false },
+    direction: {
+      domain: 'DIRECTION_STRATEGY', role: 'SEPARATE_SECONDARY_LAYER', strategyId: null,
+      numericAngles: null, directionVectors: null, classicDirectionIdentityCreated: false,
+    },
+    safetySuitability: {
+      automaticSafetyClaim: false,
+      clientSpecificAssessmentRequired: true,
+      universalNumericLimits: null,
+    },
+    crossEffectComparison: {
+      volume: {
+        classicUnit: 'ONE_SINGLE_EXTENSION',
+        volumeUnit: 'MULTIPLE_EXTENSIONS_FORMING_A_FAN',
+        sharedTarget: 'ONE_ISOLATED_SUITABLE_NATURAL_LASH',
+        distinction: 'QUALITATIVE_ONLY',
+        volumeProfessionalDefinitionCreated: false,
+      },
+      hybrid: {
+        status: 'UNRESOLVED',
+        canonicalHybridDomainEstablished: false,
+        ratios: null, patterns: null, density: null,
+      },
+    },
+    schoolDependency: {
+      coreInvariant: 'NOT_SCHOOL_DEPENDENT',
+      detailedExecutionProtocol: 'SCHOOL_DEPENDENT',
+      status: 'PARTIALLY_SCHOOL_DEPENDENT',
+    },
+    unresolved: [
+      'ATTACHMENT_CONVENTIONS', 'SPLIT_Y_FORKED_PRODUCT_BOUNDARY', 'COVERAGE_TERMINOLOGY',
+      'TEXTURED_CLASSIC_TERMINOLOGY', 'SINGLE_BASED_WET_TERMINOLOGY', 'GEOMETRY_COMPATIBILITY',
+      'DIRECTION_CONVENTIONS', 'SUITABILITY_PROTOCOL', 'PRODUCT_MASS_SHAPE_DIAMETER_MATERIAL_EFFECTS',
+      'REGIONAL_TERMINOLOGY', 'HYBRID_CANONICAL_DOMAIN', 'NUMERIC_SAFETY_LIMITS',
+    ],
+  };
+  classicTechniqueDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], constructionIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  classicTechniqueDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1n-classic-technique-foundation', type: 'REVIEWED_PROFESSIONAL_APPLICATION_TECHNIQUE_FOUNDATION',
+      scope: ['ONE_SINGLE_EXTENSION_PER_ISOLATED_SUITABLE_NATURAL_LASH', 'APPLICATION_TECHNIQUE_IDENTITY', 'SEPARATE_FROM_MAPPING_GEOMETRY_FAN_CURL_DIAMETER_DENSITY', 'SUITABILITY_ASSESSMENT_REQUIRED'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1N_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_APPLICATION_TECHNIQUE_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1N_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Classic is reviewed only as a qualitative one-to-one application technique; attachment conventions, the manufactured split/Y/forked product boundary, geometry/direction/curl/diameter/density compatibility, suitability protocol, and the Volume/Hybrid canonical domains remain unresolved or school-dependent.'],
+  };
+  classicTechniqueDefinition.legacyReference = {
+    legacyIds: ['classic'], legacyAliases: ['Classic 1:1'], relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: null, templateMm: null, scoreCoefficients: null, spikeDeltas: null,
+    textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: ['0.15–0.20 mm'],
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': naturalDefinition,
@@ -1341,7 +1446,7 @@
       'geometry.squirrel': squirrelDefinition,
     },
     techniques: {
-      'technique.classic-one-to-one': identity('technique.classic-one-to-one', 'Classic', 'APPLICATION_TECHNIQUE', { legacyAliases: ['Classic 1:1'] }),
+      'technique.classic-one-to-one': classicTechniqueDefinition,
     },
     constructionRecipes: {
       'construction.wispy': wispyConstructionDefinition,

@@ -23,12 +23,12 @@ test('geometry.natural is populated, expert-reviewed, non-numeric, and inactive'
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
 });
 
-test('Natural geometry remains hard-separated from unchanged Classic technique',()=>{
+test('Natural geometry remains hard-separated from the reviewed Classic technique',()=>{
   const classic=Library.getDefinition('technique.classic-one-to-one');
   assert.strictEqual(classic.kind,'APPLICATION_TECHNIQUE');
   assert.notStrictEqual(classic.id,natural.id);
   assert.deepStrictEqual(professional.relationships.applicationTechnique,{domain:'APPLICATION_TECHNIQUE',selection:'SEPARATE_LAYER',techniqueId:null});
-  assert.strictEqual(digest(JSON.stringify(classic)),'67e1654d0bf68e8cd0af516cda168f44a943796eaeeaf3a3dee40d67d311ba25');
+  assert.strictEqual(digest(JSON.stringify(classic)),'09eeff8937f5a5b83d14ac7e8c450f3f2a4be98851fdd4d632d9d0cf76189081');
 });
 
 test('core invariant is gradual, modest, balanced, and natural-impression preserving',()=>{

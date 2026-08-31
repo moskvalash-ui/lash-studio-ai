@@ -9331,6 +9331,152 @@
       SCHOOL_DEPENDENT_PRESET: 'School-Dependent Preset',
     };
 
+    // ------------------------------------------------------------
+    // PRESENTATION-ONLY RU translation layer for the debug preview and
+    // detail screens above. Pure display lookup tables — they never
+    // touch professional-lash-library.js, canonical IDs, validation
+    // data, or any production string. Every lookup falls back to the
+    // original English/enum text when no Russian label exists here, so
+    // nothing ever renders blank; canonicalId itself is deliberately
+    // left untranslated (shown as small technical text under the name).
+    // ------------------------------------------------------------
+    const PRO_LIB_NAME_RU = {
+      'geometry.natural': 'Натуральный',
+      'technique.classic-one-to-one': 'Классика',
+      'construction.angel': 'Ангел',
+      'geometry.doll': 'Кукольный',
+      'geometry.squirrel': 'Беличий',
+      'geometry.cat': 'Кошачий',
+      'geometry.fox': 'Лисий',
+      'preset.eyeliner': 'Эффект стрелки',
+      'construction.wispy': 'Виспи',
+      'construction.kim-k': 'Ким K',
+      'construction.wet': 'Мокрый эффект',
+      'construction.rays': 'Лучики',
+      'construction.anime': 'Аниме',
+      'construction.jellyfish': 'Медуза',
+      'preset.american': 'Американский',
+    };
+    const PRO_LIB_KIND_LABELS_RU = {
+      MAPPING_GEOMETRY: 'Геометрия карты',
+      APPLICATION_TECHNIQUE: 'Техника наращивания',
+      CONSTRUCTION_RECIPE: 'Конструкция эффекта',
+      COMPOSITE_PRESET: 'Составной пресет',
+      DIRECTION_STRATEGY: 'Стратегия направления',
+      SCHOOL_DEPENDENT_PRESET: 'Пресет по школе мастера',
+    };
+    const PRO_LIB_SECTION_TITLES_RU = {
+      'CORE IDENTITY': 'Ключевые признаки',
+      'MAXIMUM / PEAK REGION': 'Пик / максимум длины',
+      'TOPOLOGY / PROFILE': 'Профиль длины',
+      'INNER / OUTER BEHAVIOR': 'Внутренний / внешний край',
+      'RELATIONSHIPS': 'Связанные параметры',
+      'PERSONALIZATION': 'Индивидуализация',
+      'ATTACHMENT': 'Крепление ресницы',
+      'FAN / CONSTRUCTION BOUNDARY': 'Граница пучка / конструкции',
+      'SAFETY / SUITABILITY': 'Безопасность / подбор',
+      'GEOMETRY / CURL / DIAMETER': 'Геометрия / изгиб / диаметр',
+      'DIRECTION': 'Направление',
+      'SCHOOL DEPENDENCY': 'Зависимость от школы мастера',
+      'OUTCOME VS EXECUTION': 'Результат и способ выполнения',
+      'ACCENT / SPIKE ARCHITECTURE': 'Архитектура акцентов',
+      'HIERARCHY': 'Иерархия длин',
+      'SUPPORTING FIELD': 'Поддерживающая структура',
+      'NEGATIVE SPACE': 'Воздушные промежутки',
+      'RAY PRIMITIVE': 'Элемент RAY',
+      'DENSITY / FINISH': 'Плотность / финиш',
+      'LAYERS': 'Слои',
+      'INVARIANT VS EXECUTION': 'Инвариант и исполнение',
+      'DEPENDENCY': 'Зависимость',
+      'CURL INTERACTION': 'Взаимодействие с изгибом',
+      'CROSS-EFFECT BOUNDARIES': 'Отличия от других эффектов',
+      'ADDITIONAL DETAILS': 'Дополнительные детали',
+      'UNRESOLVED': 'Требует дополнительного уточнения',
+      'VALIDATION': 'Проверка эксперта',
+    };
+    const PRO_LIB_KEY_LABELS_RU = {
+      primaryIntent: 'Основная цель',
+      invariantOutcome: 'Неизменный результат',
+      excludedDefiningIntents: 'Что НЕ определяет эффект',
+      excludedDefiningTraits: 'Что НЕ определяет технику',
+      maximum: 'Максимум длины',
+      peak: 'Пик',
+      topology: 'Топология',
+      normalizedProfile: 'Нормализованный профиль',
+      innerBehavior: 'Внутренний край',
+      outerBehavior: 'Внешний край',
+      relationships: 'Связанные параметры',
+      densityFinish: 'Плотность / финиш',
+      personalizationBoundary: 'Граница индивидуализации',
+      variants: 'Варианты',
+      coreInvariant: 'Ключевой инвариант',
+      outcomeType: 'Тип результата',
+      attachment: 'Крепление',
+      fanConstructionBoundary: 'Граница пучка',
+      safetySuitability: 'Безопасность и подбор',
+      geometryRelationship: 'Геометрия',
+      geometry: 'Геометрия',
+      curl: 'Изгиб',
+      diameter: 'Диаметр',
+      direction: 'Направление',
+      schoolDependency: 'Зависимость от школы мастера',
+      outcomeVsExecution: 'Результат / исполнение',
+      spikeAccentArchitecture: 'Архитектура акцентов',
+      spikeWispArchitecture: 'Архитектура акцентов',
+      spikeWispHierarchy: 'Иерархия акцентов',
+      hierarchy: 'Иерархия',
+      supportingField: 'Поддерживающая структура',
+      supportingFieldBase: 'Поддерживающая структура',
+      negativeSpace: 'Воздушные промежутки',
+      rayPrimitiveRelationship: 'Связь с элементом RAY',
+      invariant: 'Инвариант',
+      layers: 'Слои',
+      invariantVsExecution: 'Инвариант / исполнение',
+      directionalIntent: 'Цель направления',
+      dominantAxis: 'Основная ось',
+      outerOrientation: 'Внешняя ориентация',
+      liftVsElongation: 'Подъём / вытяжение',
+      directionDependency: 'Зависимость от направления',
+      mappingDirectionRelationship: 'Связь геометрии и направления',
+      curlInteraction: 'Взаимодействие с изгибом',
+      applicationTechnique: 'Техника наращивания',
+      crossEffectComparison: 'Отличия от других эффектов',
+      crossEffectRelationships: 'Отличия от других эффектов',
+      crossEffectBoundaries: 'Отличия от других эффектов',
+      unresolved: 'Требует дополнительного уточнения',
+      status: 'Статус',
+      numericClaims: 'Числовые данные заявлены',
+      revision: 'Версия записи',
+      provenance: 'Источник проверки',
+    };
+    const PRO_LIB_VALUE_LABELS_RU = {
+      EXPERT_REVIEWED: 'Проверено экспертом',
+      VALIDATED: 'Подтверждено',
+      UNVALIDATED: 'Не проверено',
+      DRAFT: 'Черновик',
+      SCHOOL_DEPENDENT: 'Зависит от школы мастера',
+      SCHOOL_DEPENDENT_UNRESOLVED: 'Зависит от школы мастера, не уточнено',
+      NOT_SCHOOL_DEPENDENT: 'Не зависит от школы мастера',
+      UNRESOLVED: 'Требует дополнительного уточнения',
+      UNRESOLVED_SCHOOL_DEPENDENT: 'Не уточнено, зависит от школы мастера',
+      ESSENTIAL: 'Обязательный признак',
+      ESSENTIAL_QUALITATIVE: 'Обязательный качественный признак',
+      OPTIONAL: 'Необязательно',
+      COMMON_VARIANT: 'Частый вариант',
+      VARIANT_DEPENDENT: 'Зависит от варианта',
+      SCHOOL_OR_VARIANT_DEPENDENT: 'Зависит от школы мастера или варианта',
+      MANDATORY_CARRIER_SLOT: 'Обязательная связка с геометрией',
+      SEPARATE_LAYER: 'Отдельный, независимый параметр',
+      SEPARATE_VARIANT_DEPENDENT: 'Отдельный параметр, зависит от варианта',
+      SECONDARY: 'Второстепенный параметр',
+      POSSIBLE_NON_UNIVERSAL_EXECUTION_METHOD: 'Возможный, но не обязательный способ выполнения',
+      NOT_PART_OF_EFFECT: 'Не входит в определение эффекта',
+      EXECUTION_CONTRIBUTOR: 'Влияет на способ выполнения',
+      CURRENT_PRODUCTION_COMPARISON_ONLY: 'Только для сравнения со старыми данными',
+    };
+    function proLibKindLabel(kind) { return PRO_LIB_KIND_LABELS_RU[kind] || PRO_LIBRARY_KIND_LABELS[kind] || kind; }
+    function proLibNameRu(id, fallbackName) { return PRO_LIB_NAME_RU[id] || fallbackName; }
+
     function ProLibraryPreviewScreen({ onBack, onSelect }) {
       const items = ProfessionalLashLibrary.library.targetInventory.map(item => {
         const def = ProfessionalLashLibrary.getDefinition(item.canonicalId);
@@ -9339,15 +9485,15 @@
       return (
         <div className="h-full flex flex-col bg-bg">
           <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
-            <button onClick={onBack} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+            <button onClick={onBack} aria-label="Назад" className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
             <div className="min-w-0">
-              <h1 className="text-[15px] font-bold uppercase tracking-wide text-textPrimary truncate">Professional Lash Library</h1>
-              <p className="text-xs text-textSecondary">{items.length} canonical identities</p>
+              <h1 className="text-[15px] font-bold uppercase tracking-wide text-textPrimary truncate">Профессиональная библиотека эффектов</h1>
+              <p className="text-xs text-textSecondary">{items.length} профессиональных эффектов</p>
             </div>
           </div>
           <div className="px-4 pt-3">
             <div className="rounded-md border border-peak/30 bg-peak/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-peak text-center">
-              Debug Preview — Does Not Affect Production
+              ПРЕДПРОСМОТР — НЕ ВЛИЯЕТ НА РАБОТУ ПРИЛОЖЕНИЯ
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -9360,16 +9506,16 @@
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-[15px] font-bold text-textPrimary truncate">{item.name}</div>
+                    <div className="text-[15px] font-bold text-textPrimary truncate">{proLibNameRu(item.canonicalId, item.name)}</div>
                     <div className="text-[11px] text-textMuted mt-0.5 truncate">{item.canonicalId}</div>
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
-                    <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan whitespace-nowrap">{item.status}</span>
+                    <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan whitespace-nowrap">{PRO_LIB_VALUE_LABELS_RU[item.status] || item.status}</span>
                     <span className="text-textMuted text-lg leading-none">›</span>
                   </div>
                 </div>
                 <div className="mt-2.5">
-                  <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{PRO_LIBRARY_KIND_LABELS[item.kind] || item.kind}</span>
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{proLibKindLabel(item.kind)}</span>
                 </div>
               </button>
             ))}
@@ -9392,10 +9538,12 @@
     // order for which sections should surface first.
     // ------------------------------------------------------------
     function proLibHumanizeKey(key) {
+      if (PRO_LIB_KEY_LABELS_RU[key]) return PRO_LIB_KEY_LABELS_RU[key];
       return key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase()).trim();
     }
     function proLibHumanizeToken(value) {
       if (typeof value !== 'string') return value;
+      if (PRO_LIB_VALUE_LABELS_RU[value]) return PRO_LIB_VALUE_LABELS_RU[value];
       if (/^[A-Z0-9]+(_[A-Z0-9]+)*$/.test(value) && value.length > 1) {
         return value.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
       }
@@ -9403,7 +9551,7 @@
     }
     function proLibHumanizeValue(value) {
       if (value === null || value === undefined) return '—';
-      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
       if (typeof value === 'number') return String(value);
       if (typeof value === 'string') return proLibHumanizeToken(value);
       if (Array.isArray(value)) {
@@ -9440,7 +9588,7 @@
       if (!data || typeof data !== 'object' || Object.keys(data).length === 0) return null;
       return (
         <div className="glass rounded-lg p-4 mb-3">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2.5">{title}</div>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2.5">{PRO_LIB_SECTION_TITLES_RU[title] || title}</div>
           <ProLibKVRows obj={data} />
         </div>
       );
@@ -9510,8 +9658,8 @@
         return (
           <div className="h-full flex flex-col bg-bg">
             <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
-              <button onClick={onBack} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
-              <h1 className="text-[15px] font-bold text-textPrimary">Not found</h1>
+              <button onClick={onBack} aria-label="Назад" className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+              <h1 className="text-[15px] font-bold text-textPrimary">Не найдено</h1>
             </div>
           </div>
         );
@@ -9534,20 +9682,20 @@
       return (
         <div className="h-full flex flex-col bg-bg">
           <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
-            <button onClick={onBack} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+            <button onClick={onBack} aria-label="Назад" className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
             <div className="min-w-0">
-              <h1 className="text-[15px] font-bold text-textPrimary truncate">{def.displayName}</h1>
+              <h1 className="text-[15px] font-bold text-textPrimary truncate">{proLibNameRu(def.id, def.displayName)}</h1>
               <p className="text-[11px] text-textMuted truncate">{def.id}</p>
             </div>
           </div>
           <div className="px-4 pt-3 flex gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{PRO_LIBRARY_KIND_LABELS[def.kind] || def.kind}</span>
-            <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan">{def.validation.status}</span>
+            <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{proLibKindLabel(def.kind)}</span>
+            <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan">{PRO_LIB_VALUE_LABELS_RU[def.validation.status] || def.validation.status}</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {!pd && (
               <div className="glass rounded-lg p-4 mb-3 text-[12px] text-textSecondary">
-                No professional definition has been reviewed for this identity yet.
+                Профессиональное определение для этого эффекта пока не проверено экспертом.
               </div>
             )}
             {plan.map(([title, keys]) => <ProLibSection key={title} title={title} data={proLibPickKeys(pd, keys)} />)}
@@ -9555,7 +9703,7 @@
             <ProLibSection title="ADDITIONAL DETAILS" data={additional} />
             {pd && Array.isArray(pd.unresolved) && pd.unresolved.length > 0 && (
               <div className="glass rounded-lg p-4 mb-3">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-peak mb-2.5">UNRESOLVED</div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-peak mb-2.5">{PRO_LIB_SECTION_TITLES_RU.UNRESOLVED}</div>
                 <ul className="space-y-1.5 list-disc pl-4">
                   {pd.unresolved.map(item => <li key={item} className="text-[12px] text-textSecondary">{proLibHumanizeValue(item)}</li>)}
                 </ul>

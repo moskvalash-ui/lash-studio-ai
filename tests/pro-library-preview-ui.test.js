@@ -257,3 +257,69 @@ test('production is untouched: activation stays inactive and all legacy producti
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
 });
+
+// ------------------------------------------------------------
+// Group C content fix (Doll / Wispy / Kim K / Angel / Anime / Jellyfish):
+// explicit regression guards for the raw machine phrases the content
+// audit found, plus targeted checks per identity named in the fix.
+// ------------------------------------------------------------
+const PROBLEM_PHRASES=['Подтверждается','Частый вариант','предполагаемое качественное понятие','профессионально значимый предполагаемый признак','только класс физического исполнения'];
+
+test('none of the previously-identified raw machine phrases appear anywhere in the RU methodical output for any of the 15 identities',()=>{
+  assert.ok(composer,'composer failed to load: '+(global.__composerLoadError&&global.__composerLoadError.message));
+  for(const item of Library.library.targetInventory){
+    const def=Library.getDefinition(item.canonicalId);
+    const sections=composer.buildMethodicalSections(def,'ru');
+    for(const s of sections)for(const p of s.paragraphs){
+      for(const phrase of PROBLEM_PHRASES){
+        assert.ok(!p.toLowerCase().includes(phrase.toLowerCase()),`${item.canonicalId}: found "${phrase}" in "${p}"`);
+      }
+    }
+  }
+});
+
+test('Doll: "Не путать с" now shows real distinguishing content instead of repeating Doll\'s own attributes',()=>{
+  const doll=composer.buildMethodicalSections(Library.getDefinition('geometry.doll'),'ru');
+  const notConfuse=doll.find(s=>s.title==='Не путать с');
+  assert.ok(notConfuse,'Doll must have a Не путать с section');
+  const lines=notConfuse.paragraphs;
+  assert.strictEqual(lines.length,4);
+  // the old bug: all four lines were the byte-identical "Центральная зона, открытый взгляд"
+  const uniqueBodies=new Set(lines.map(l=>l.split(' — ')[1]||l));
+  assert.ok(uniqueBodies.size>1,'comparisons must not all repeat the same self-attribute text: '+JSON.stringify(lines));
+});
+
+test('Angel: a Визуальный финиш section exists, uses canonical densityFinish data, and includes the light-is-not-weight clarification',()=>{
+  const angel=composer.buildMethodicalSections(Library.getDefinition('construction.angel'),'ru');
+  const finish=angel.find(s=>s.title==='Визуальный финиш');
+  assert.ok(finish,'Angel must have a Визуальный финиш section');
+  assert.ok(/воздушный|лёгкий|мягкий|перистый/i.test(finish.paragraphs[0]));
+  assert.ok(finish.paragraphs.some(p=>/вес|нагрузку/.test(p)),'must clarify that "light/airy" is visual, not a weight/safety claim');
+  const notConfuse=angel.find(s=>s.title==='Не путать с');
+  const wetLine=notConfuse.paragraphs.find(p=>p.startsWith('Мокрый эффект'));
+  assert.ok(wetLine&&/Ангел —/.test(wetLine),'Angel vs Wet must contrast both sides, not just describe Wet');
+});
+
+test('Anime: "Ритм и воздушные промежутки" is a plain-language methodical sentence, and "Не путать с" uses one shared closing note instead of three repeated ones',()=>{
+  const anime=composer.buildMethodicalSections(Library.getDefinition('construction.anime'),'ru');
+  const rhythm=anime.find(s=>s.title==='Ритм и воздушные промежутки');
+  assert.ok(rhythm,'Anime must have a rhythm/negative-space section');
+  assert.ok(/читаться отдельно|промежутк/i.test(rhythm.paragraphs.join(' ')));
+  const notConfuse=anime.find(s=>s.title==='Не путать с');
+  const repeated=notConfuse.paragraphs.filter(p=>p.includes('Точная граница может зависеть от школы'));
+  assert.strictEqual(repeated.length,0,'the per-entry boundary note must be replaced by one shared note');
+  assert.ok(notConfuse.paragraphs.some(p=>/различаться в разных школах/.test(p)),'must end with one shared cross-school note');
+  const jellyfishLine=notConfuse.paragraphs.find(p=>p.startsWith('Медуза'));
+  assert.ok(jellyfishLine&&!/отличается от/.test(jellyfishLine),'must not assert a hard Anime vs Jellyfish distinction');
+});
+
+test('Jellyfish: uncertainty is communicated as a plain-language artist note, not as epistemic/confidence language',()=>{
+  const jellyfish=composer.buildMethodicalSections(Library.getDefinition('construction.jellyfish'),'ru');
+  const considerations=jellyfish.find(s=>s.title==='Что важно учитывать мастеру');
+  assert.ok(considerations);
+  const honestyLine=considerations.paragraphs.find(p=>/используется мастерами не полностью одинаково/.test(p));
+  assert.ok(honestyLine,'must include the plain-language terminology-consistency caveat');
+  assert.ok(/Медуза/.test(honestyLine));
+  const supportField=jellyfish.find(s=>s.title==='Поддерживающая структура');
+  assert.ok(supportField&&/мягк|разрежен/i.test(supportField.paragraphs.join(' ')));
+});

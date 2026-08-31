@@ -10055,7 +10055,14 @@
     //    appearing as prose content.
     // ------------------------------------------------------------
     function plIsMetaStatus(v) {
-      return typeof v === 'string' && /UNRESOLVED|SCHOOL_DEPENDENT|VARIANT_DEPENDENT|SEPARATE_LAYER|NOT_PART_OF|^SECONDARY$|MANDATORY_CARRIER_SLOT|REQUIRES_SEPARATE_REVIEW|CLIENT_LASH_DEPENDENT|EXPERT_REVIEWED|^VALIDATED$|^UNVALIDATED$|^DRAFT$|CURRENT_PRODUCTION_COMPARISON_ONLY|POSSIBLE_NON_UNIVERSAL|^NOT_UNIVERSAL$|QUALITATIVE_ONLY|NOT_INTRINSIC/.test(v);
+      // Epistemic/status qualifiers — never positive descriptive content.
+      // SUPPORTED/PROVISIONAL/COMMON_*/CANDIDATE* are confirmation- or
+      // confidence-markers on a comparison or claim, not visual traits;
+      // they read as meaningless fragments ("Подтверждается", "Частый
+      // вариант") when shown inline, so they're excluded from prose here
+      // and — where the canonical data justifies it — surfaced instead as
+      // a plain-language note in plConsiderations()/plCrossEffectSection().
+      return typeof v === 'string' && /UNRESOLVED|SCHOOL_DEPENDENT|VARIANT_DEPENDENT|SEPARATE_LAYER|NOT_PART_OF|^SECONDARY$|MANDATORY_CARRIER_SLOT|REQUIRES_SEPARATE_REVIEW|CLIENT_LASH_DEPENDENT|EXPERT_REVIEWED|^VALIDATED$|^UNVALIDATED$|^DRAFT$|CURRENT_PRODUCTION_COMPARISON_ONLY|POSSIBLE_NON_UNIVERSAL|^NOT_UNIVERSAL$|QUALITATIVE_ONLY|NOT_INTRINSIC|^SUPPORTED|PROVISIONAL|^COMMON_|CANDIDATE|PROFESSIONALLY_RELEVANT|QUALITATIVELY_RELEVANT/.test(v);
     }
     function plIsEssentialMarker(v) {
       return typeof v === 'string' && /^ESSENTIAL/.test(v);
@@ -10118,13 +10125,51 @@
         if (!obj || typeof obj !== 'object') return;
         for (const [k, v] of Object.entries(obj)) {
           if (typeof v === 'string' && plIsEssentialMarker(v)) {
-            const bulletKey = (PL_GENERIC_DESCRIPTOR_KEYS.has(k) && parentKey) ? parentKey : k;
-            const label = plKeyLabel(bulletKey, lang);
+            // When the ESSENTIAL marker sits on a generic key (role/...)
+            // and the same object also has a `result` value describing
+            // WHAT that essential thing actually is (e.g.
+            // `finish: { role: 'ESSENTIAL...', result: 'GRAPHIC_DEFINED_TEXTURE_OUTCOME' }`),
+            // use that result's own translated meaning as the bullet —
+            // it is real canonical content, not just the bare word "Finish".
+            let label = null;
+            if (PL_GENERIC_DESCRIPTOR_KEYS.has(k) && k !== 'result' && typeof obj.result === 'string') {
+              label = plLabel(obj.result, lang);
+            }
+            if (!label) {
+              const bulletKey = (PL_GENERIC_DESCRIPTOR_KEYS.has(k) && parentKey) ? parentKey : k;
+              label = plKeyLabel(bulletKey, lang);
+            }
             if (label && !seen.has(label)) { seen.add(label); out.push(label); }
           } else if (v && typeof v === 'object') walk(v, k);
         }
       })(pd, null);
       return out;
+    }
+    // Merges (a) non-meta descriptive VALUES and (b) key-labels for
+    // fields the library itself marks ESSENTIAL* within the SAME object —
+    // used where a construction's hierarchy/accent data is otherwise all
+    // status/meta values (e.g. Kim K's spike hierarchy, whose only
+    // non-essential field was the epistemic COMMON_VARIANT), so the
+    // section still reads as a real description instead of going blank.
+    function plDescribeSection(obj, lang, cap) {
+      if (!obj || typeof obj !== 'object') return [];
+      const essentialKeys = [];
+      (function walk(o) {
+        if (!o || typeof o !== 'object') return;
+        for (const [k, v] of Object.entries(o)) {
+          if (typeof v === 'string' && plIsEssentialMarker(v)) {
+            let label = null;
+            if (PL_GENERIC_DESCRIPTOR_KEYS.has(k) && k !== 'result' && typeof o.result === 'string') label = plLabel(o.result, lang);
+            if (!label) label = plKeyLabel(k, lang);
+            if (label) essentialKeys.push(label.charAt(0).toLowerCase() + label.slice(1));
+          } else if (v && typeof v === 'object') walk(v);
+        }
+      })(obj);
+      const descriptive = plCollectDescriptive(obj, lang);
+      const merged = [];
+      const seen = new Set();
+      for (const p of essentialKeys.concat(descriptive)) { if (!seen.has(p)) { seen.add(p); merged.push(p); } }
+      return plCap(merged, cap);
     }
     function plJoinFragment(parts, lang) {
       if (!parts.length) return '';
@@ -10150,7 +10195,17 @@
       }
       return plKeyLabel(key, lang);
     }
-    function plCrossEffectSection(pd, lang) {
+    // Canonical short-name → own identity, used to recognize and drop
+    // "self-side" fields from a comparison object (e.g. when viewing
+    // Doll's card, Doll's OWN repeated attributes like `dollEmphasis`
+    // must not crowd out the one field that actually differs, such as
+    // `otherIntentClass`).
+    const PL_SELF_PREFIX_MAP = {
+      'geometry.natural': 'natural', 'geometry.doll': 'doll', 'geometry.cat': 'cat', 'geometry.fox': 'fox', 'geometry.squirrel': 'squirrel',
+      'construction.wispy': 'wispy', 'construction.kim-k': 'kimK', 'construction.angel': 'angel', 'construction.wet': 'wet',
+      'construction.anime': 'anime', 'construction.jellyfish': 'jellyfish', 'construction.rays': 'rays',
+    };
+    function plCrossEffectSection(pd, lang, def) {
       const merged = Object.assign({}, pd.crossEffectComparison, pd.crossEffectRelationships, pd.crossEffectBoundaries);
       for (const k of Object.keys(pd)) {
         if (/^visualBoundaryWith/.test(k)) merged[k.replace('visualBoundaryWith', '').replace(/^./, s => s.toLowerCase())] = pd[k];
@@ -10158,6 +10213,7 @@
       }
       const entries = Object.entries(merged);
       if (!entries.length) return null;
+      const selfPrefix = def ? PL_SELF_PREFIX_MAP[def.id] : null;
       const boundaryNote = lang === 'ru'
         ? 'Точная граница может зависеть от школы или терминологии мастера.'
         : 'The exact boundary may depend on the school or terminology in use.';
@@ -10168,25 +10224,60 @@
             ? `${name} — ${boundaryNote.charAt(0).toLowerCase() + boundaryNote.slice(1)}`
             : `${name} — ${plLabel(otherVal, lang)}.`;
         }
-        // Prefer the library's own single-sentence summary field when it
-        // supplies one (`distinction`) — it is already the intended
-        // human-readable takeaway for that specific comparison. Only fall
-        // back to flattening the raw comparison object (capped to 2
-        // fragments, so it reads as a short distinguishing note rather
-        // than a field dump) when no such summary field exists.
         const hasMeta = plObjectHasMeta(otherVal);
         let text;
-        if (typeof otherVal.distinction === 'string') {
-          text = `${name} — ${plLabel(otherVal.distinction, lang)}.`;
+        // 1) Prefer the library's own single-sentence summary field —
+        //    `distinction` or `outcomeDistinction` — it is already the
+        //    intended human-readable takeaway for this specific comparison.
+        const summaryField = otherVal.distinction || otherVal.outcomeDistinction;
+        if (typeof summaryField === 'string') {
+          text = `${name} — ${plLabel(summaryField, lang)}.`;
         } else {
-          const descriptive = plCollectDescriptive(otherVal, lang).slice(0, 2);
-          text = descriptive.length ? `${name} — ${plJoinFragment(descriptive, lang)}.` : `${name}.`;
+          // 2) Some boundaries (e.g. Angel vs Wet) record BOTH sides'
+          //    visual character as parallel `...VisualIntent` arrays —
+          //    show the real two-sided contrast when both exist.
+          const visualIntentKeys = Object.keys(otherVal).filter(k => /VisualIntent$/i.test(k));
+          const otherSideKey = selfPrefix ? visualIntentKeys.find(k => k.toLowerCase().indexOf(selfPrefix.toLowerCase()) !== 0) : visualIntentKeys[0];
+          const selfSideKey = visualIntentKeys.find(k => k !== otherSideKey);
+          const otherTraits = otherSideKey ? plCollectDescriptive(otherVal[otherSideKey], lang).slice(0, 3) : [];
+          const selfTraits = selfSideKey ? plCollectDescriptive(otherVal[selfSideKey], lang).slice(0, 3) : [];
+          if (otherTraits.length && selfTraits.length && def) {
+            const selfName = plIdentityName(def.id, def.displayName, lang);
+            text = `${name} — ${plJoinFragment(otherTraits, lang)}. ${selfName} — ${plJoinFragment(selfTraits, lang)}.`;
+          } else {
+            // 3) Otherwise drop this identity's own repeated attributes
+            //    (self-prefixed fields), then describe whatever remains.
+            let source = otherVal;
+            if (selfPrefix) {
+              const filtered = {};
+              let any = false;
+              for (const [k, v] of Object.entries(otherVal)) {
+                if (new RegExp('^' + selfPrefix, 'i').test(k)) continue;
+                filtered[k] = v; any = true;
+              }
+              if (any) source = filtered;
+            }
+            let descriptive = plCollectDescriptive(source, lang).slice(0, 2);
+            // 4) If everything left is a plain "confirmed" boolean-style
+            //    marker (SUPPORTED), the KEY itself carries the meaning
+            //    (e.g. `strongerSpikeHierarchy: 'SUPPORTED'` really means
+            //    "stronger spike hierarchy — confirmed"), so fall back to
+            //    the confirmed keys' own labels instead of the empty value.
+            if (!descriptive.length) {
+              const confirmed = [];
+              for (const [k, v] of Object.entries(source)) {
+                if (v === 'SUPPORTED') { const l = plKeyLabel(k, lang); if (l) confirmed.push(l.charAt(0).toLowerCase() + l.slice(1)); }
+              }
+              descriptive = plCap(confirmed, 2);
+            }
+            text = descriptive.length ? `${name} — ${plJoinFragment(descriptive, lang)}.` : `${name}.`;
+          }
         }
         if (hasMeta) text += ' ' + boundaryNote;
         return text;
       });
     }
-    function plConsiderations(pd, lang) {
+    function plConsiderations(pd, lang, def) {
       const notes = [];
       const add = (ru, en) => notes.push(lang === 'ru' ? ru : en);
       const peakish = pd.peak || pd.maximum;
@@ -10214,6 +10305,20 @@
           'Lash suitability and safety are assessed individually for each client, not by one universal rule.'
         );
       }
+      const execMethodSrc = pd.spikeAccentArchitecture || pd.spikeWispArchitecture || pd.spikeWispHierarchy;
+      if (execMethodSrc && JSON.stringify(execMethodSrc).indexOf('PHYSICAL_EXECUTION_CLASS_ONLY') > -1) {
+        add(
+          'Способ формирования акцентов может отличаться: конкретная техника зависит от школы и выбранного варианта эффекта.',
+          'The exact way the accents are formed can vary — the specific technique depends on the school and the chosen variant.'
+        );
+      }
+      if (pd.identityConfidence) {
+        const selfName = def ? plIdentityName(def.id, def.displayName, lang) : (lang === 'ru' ? 'Термин' : 'The term');
+        add(
+          `Термин «${selfName}» используется мастерами не полностью одинаково. Конкретное построение и границы с родственными стилями могут отличаться в разных школах.`,
+          `The term "${selfName}" is not used identically by every artist. The exact construction and the boundaries with related styles may differ between schools.`
+        );
+      }
       if (!notes.length && Array.isArray(pd.unresolved) && pd.unresolved.length) {
         add(
           'Ряд деталей (терминология, точные измерения, конкретный способ исполнения) намеренно остаётся открытым и уточняется на уровне школы или мастера.',
@@ -10232,7 +10337,7 @@
       const T = lang === 'ru' ? {
         essence: 'Суть эффекта', essenceTech: 'Суть техники', construction: 'Построение',
         peak: 'Пик / зона максимального акцента', corners: 'Работа с уголками', hierarchy: 'Иерархия и акценты', supportField: 'Поддерживающая структура',
-        negativeSpace: 'Ритм и воздушные промежутки', attachment: 'Крепление', fanBoundary: 'Граница пучка',
+        negativeSpace: 'Ритм и воздушные промежутки', visualFinish: 'Визуальный финиш', attachment: 'Крепление', fanBoundary: 'Граница пучка',
         safety: 'Безопасность и подбор', layers: 'Слои композиции', keyTraits: 'Ключевые признаки',
         considerations: 'Что важно учитывать мастеру', notConfuse: 'Не путать с', takeaway: 'Профессиональный ориентир',
         notReviewed: 'Пока не проверено экспертом', primitiveNote: 'Это переиспользуемый строительный элемент, а не самостоятельный законченный эффект.',
@@ -10240,7 +10345,7 @@
       } : {
         essence: 'What defines this effect', essenceTech: 'What defines this technique', construction: 'How it builds along the lash line',
         peak: 'Peak / main accent zone', corners: 'Inner / outer corner behavior', hierarchy: 'Hierarchy and accents', supportField: 'Supporting field',
-        negativeSpace: 'Rhythm and negative space', attachment: 'Attachment', fanBoundary: 'Fan / construction boundary',
+        negativeSpace: 'Rhythm and negative space', visualFinish: 'Visual finish', attachment: 'Attachment', fanBoundary: 'Fan / construction boundary',
         safety: 'Safety and suitability', layers: 'Composite layers', keyTraits: 'Key identifying traits',
         considerations: 'What the artist should keep in mind', notConfuse: 'Not to be confused with', takeaway: 'Professional takeaway',
         notReviewed: 'Not yet expert-reviewed', primitiveNote: 'This is a reusable construction building block, not a standalone complete effect.',
@@ -10299,10 +10404,45 @@
         if (pd.invariantOutcome) essenceParts.push(...plCap(plCollectDescriptive(pd.invariantOutcome, lang), 3));
         pushIf(T.essence, [plSentence(essenceParts, lang)]);
         const hierarchySrc = pd.spikeAccentArchitecture || pd.spikeWispArchitecture || pd.spikeWispHierarchy || pd.hierarchy;
-        if (hierarchySrc) pushIf(T.hierarchy, [plSentence(plCap(plCollectDescriptive(hierarchySrc, lang), 4), lang)]);
+        // plDescribeSection (not plCollectDescriptive): a hierarchy object
+        // can be entirely status/meta values (e.g. Kim K's spike hierarchy,
+        // whose only non-essential field was the epistemic COMMON_VARIANT)
+        // — merging in the library's own ESSENTIAL-marked key labels keeps
+        // the section meaningful instead of going blank or showing a bare
+        // status word.
+        if (hierarchySrc) pushIf(T.hierarchy, [plSentence(plDescribeSection(hierarchySrc, lang, 4), lang)]);
         const supportSrc = pd.supportingField || pd.supportingFieldBase;
         if (supportSrc) pushIf(T.supportField, [plSentence(plCap(plCollectDescriptive(supportSrc, lang), 3), lang)]);
-        if (pd.negativeSpace) pushIf(T.negativeSpace, [plSentence(plCap(plCollectDescriptive(pd.negativeSpace, lang), 3), lang)]);
+        if (pd.negativeSpace) {
+          // The canonical negativeSpace shape used by Anime/Jellyfish is
+          // entirely epistemic (role/visibility-relevance/resolution
+          // markers, never a positive visual trait), so a data-driven
+          // sentence here always degenerates into raw status language.
+          // Use one honest, fixed methodical sentence instead — it is the
+          // faithful translation of "accents must read separately;
+          // exact rhythm/spacing is unresolved", not an invented claim.
+          const descriptive = plCap(plCollectDescriptive(pd.negativeSpace, lang), 3);
+          if (descriptive.length) {
+            pushIf(T.negativeSpace, [plSentence(descriptive, lang)]);
+          } else {
+            pushIf(T.negativeSpace, [lang === 'ru'
+              ? 'Акценты должны хорошо читаться отдельно друг от друга, а пространство между ними подчёркивает графичный, разреженный характер эффекта.'
+              : 'The accents must read clearly separately from each other, and the space between them reinforces the graphic, open character of the effect.',
+              lang === 'ru'
+              ? 'Конкретный ритм, расстояние и способ построения мастер выбирает в зависимости от варианта эффекта.'
+              : 'The specific rhythm, spacing, and construction method are chosen by the artist depending on the variant.']);
+          }
+        }
+        if (pd.densityFinish) {
+          const finishParts = plCap(plCollectDescriptive(pd.densityFinish, lang), 5);
+          const finishParagraphs = [plSentence(finishParts, lang)];
+          if (def.id === 'construction.angel') {
+            finishParagraphs.push(lang === 'ru'
+              ? '«Лёгкий» и «воздушный» здесь описывают визуальное впечатление, а не вес или нагрузку на натуральную ресницу.'
+              : '"Light" and "airy" describe the visual impression here, not the physical weight or load on the natural lash.');
+          }
+          pushIf(T.visualFinish, finishParagraphs);
+        }
         pushIf(T.keyTraits, plCollectEssentialBullets(pd, lang));
       } else if (def.kind === 'COMPOSITE_PRESET') {
         if (pd.invariant) pushIf(T.essence, [plSentence(plCap(plCollectDescriptive(pd.invariant, lang), 3), lang)]);
@@ -10317,8 +10457,22 @@
         pushIf(T.keyTraits, plCollectEssentialBullets(pd, lang));
       }
 
-      pushIf(T.considerations, plConsiderations(pd, lang));
-      const crossEffect = plCrossEffectSection(pd, lang);
+      pushIf(T.considerations, plConsiderations(pd, lang, def));
+      let crossEffect = plCrossEffectSection(pd, lang, def);
+      if (crossEffect && def.id === 'construction.anime') {
+        // Anime's boundary with Kim K/Wispy/Jellyfish is repeated
+        // per-entry by the generic composer ("...may depend on the
+        // school..." three times). Replace that repetition with one
+        // shared closing note, and never assert a hard Anime/Jellyfish
+        // line — the library itself records a possible terminology
+        // overlap there, not a confirmed distinction.
+        const boundaryNoteRu = 'Точная граница может зависеть от школы или терминологии мастера.';
+        const boundaryNoteEn = 'The exact boundary may depend on the school or terminology in use.';
+        crossEffect = crossEffect.map(line => line.replace(' ' + boundaryNoteRu, '').replace(' ' + boundaryNoteEn, ''));
+        crossEffect.push(lang === 'ru'
+          ? 'Названия и границы Аниме, Kim K, Виспи и Медузы могут различаться в разных школах. Ориентироваться стоит прежде всего на визуальную конструкцию эффекта.'
+          : 'The names and boundaries of Anime, Kim K, Wispy, and Jellyfish may differ between schools. Focus on the visual construction of the effect first.');
+      }
       if (crossEffect) pushIf(T.notConfuse, crossEffect);
 
       const takeawaySource = sections.length ? sections[0].paragraphs[0] : null;

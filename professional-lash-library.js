@@ -1037,6 +1037,173 @@
     textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
   };
 
+  // Phase 1K Kim K foundation. The reviewed identity is the qualitative
+  // structured accent hierarchy; physical execution and its relationship to
+  // Wispy and Rays remain explicitly school- or variant-dependent.
+  const kimKConstructionDefinition = identity('construction.kim-k', 'Kim K', 'CONSTRUCTION_RECIPE', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['kim'], legacyAliases: ['Rays', 'Spikes', 'Soft Rays', 'Textured Effect'],
+  });
+  kimKConstructionDefinition.professionalDefinition = {
+    outcomeType: 'KIM_K_STRUCTURED_ACCENT_HIERARCHY',
+    invariantOutcome: {
+      hierarchy: 'DELIBERATELY_STRUCTURED_ACCENT_HIERARCHY',
+      accentArchitecture: 'REPEATED_VISIBLE_ACCENT_SPIKES_OR_WISPS',
+      supportRelationship: 'ACCENT_TO_SUPPORT_HIERARCHY',
+      topLine: 'SEGMENTED_BROKEN_TOP_LINE',
+      finish: 'DIMENSIONAL_INTENTIONALLY_STYLED_TEXTURE',
+      rhythm: 'READABLE_REPEATED_ACCENT_RHYTHM',
+    },
+    outcomeVsExecution: {
+      invariant: 'STRUCTURED_REPEATED_VISIBLE_ACCENT_HIERARCHY_OVER_SUPPORT_WITH_SEGMENTED_DIMENSIONAL_TOP_LINE',
+      executionMethodStatus: 'SCHOOL_OR_VARIANT_DEPENDENT', universalMethod: null,
+      differentMethodsMayShareCanonicalIdentity: true,
+    },
+    spikeWispHierarchy: {
+      primaryVisibleAccents: 'ESSENTIAL',
+      supportingField: 'ESSENTIAL_CONCEPT',
+      qualitativeAccentHierarchy: 'ESSENTIAL',
+      repeatedPattern: 'ESSENTIAL_QUALITATIVE',
+      secondaryAccentTier: 'OPTIONAL_OR_SCHOOL_DEPENDENT',
+      variableProminence: 'COMMON_VARIANT',
+      exactAlternatingPattern: 'NOT_UNIVERSAL',
+      clustering: 'SCHOOL_DEPENDENT',
+      controlledIrregularity: 'SCHOOL_DEPENDENT',
+      universalHierarchy: null,
+      universalSpikePlan: null,
+    },
+    spacingRhythm: {
+      qualitativeRequirement: 'INTENTIONALLY_PLACED_REPEATED_ACCENTS_MAINTAIN_READABLE_HIERARCHY',
+      exactRhythm: 'SCHOOL_DEPENDENT_UNRESOLVED',
+      equalSpacingRequired: false,
+      semiRegularSpacingRequired: false,
+      organicSpacingRequired: false,
+      clusteringRequired: false,
+      symmetricalIntervalsRequired: false,
+      exactSpacing: null,
+    },
+    supportingFieldBase: {
+      visuallyDistinctSupportingField: 'ESSENTIAL_CONCEPT',
+      shorterBase: 'COMMON_VARIANT',
+      spikeOverBaseConstruction: 'COMMON_SCHOOL_DEPENDENT_METHOD',
+      integratedMixedLengths: 'LEGITIMATE_ALTERNATIVE',
+      separatePhysicalLayers: 'SCHOOL_DEPENDENT',
+      exactBaseDensity: null,
+      universalBaseConstruction: null,
+    },
+    relationships: {
+      geometry: {
+        domain: 'MAPPING_GEOMETRY', role: 'MANDATORY_CARRIER_SLOT',
+        selection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+      },
+      fanConstruction: {
+        domain: 'FAN_CONSTRUCTION', role: 'EXECUTION_CONTRIBUTOR', constructionId: null,
+        closedFanSpikes: 'COMMON_PRIMARY_VARIANT',
+        narrowOrNearlyClosedSpikes: 'COMMON_PRIMARY_VARIANT',
+        openSupportingFans: 'COMMON_VARIANT',
+        classicSingleAccents: 'COMMON_VARIANT',
+        mixedFans: 'COMMON_VARIANT',
+        layeredCombinations: 'COMMON_VARIANT',
+        universalFanConstruction: null,
+      },
+      layering: {
+        role: 'SCHOOL_DEPENDENT',
+        spikeOverBaseLayering: 'COMMON_SCHOOL_DEPENDENT_METHOD',
+        integratedMixedLengthConstruction: 'LEGITIMATE_ALTERNATIVE',
+        universalLayeringMethod: null, universalLayerCount: null,
+      },
+      direction: {
+        domain: 'DIRECTION_STRATEGY', role: 'SECONDARY', strategyId: null,
+        maySupport: ['CLEAN_ACCENT_SEPARATION', 'SPIKE_READABILITY', 'AVOIDANCE_OF_CROSSING', 'DELIBERATE_RHYTHM', 'PRESERVATION_OF_SELECTED_GEOMETRY'],
+        numericAngles: null, directionVectors: null, directionalZones: null, universalSweep: null,
+      },
+      curl: {
+        domain: 'CURL_STRATEGY', role: 'NOT_PART_OF_EFFECT', selection: 'VARIANT_DEPENDENT',
+        strategyId: null, exactCurl: null,
+      },
+      applicationTechnique: {
+        domain: 'APPLICATION_TECHNIQUE', role: 'SCHOOL_OR_VARIANT_DEPENDENT', techniqueId: null,
+        recognizedVariantClasses: ['CLASSIC_ASSISTED', 'HYBRID', 'VOLUME', 'MIXED_EXECUTION'],
+        recognizedVariantClassesAreUniversalRequirements: false,
+      },
+    },
+    relationshipWithWispy: {
+      wispyConstructionId: 'construction.wispy',
+      relationship: 'SCHOOL_DEPENDENT_RELATIONSHIP',
+      strongerSpikeHierarchy: 'SUPPORTED',
+      strongerAccentToSupportContrast: 'SUPPORTED',
+      moreIntentionalAccentPlacement: 'SUPPORTED',
+      moreStructuredRhythm: 'SUPPORTED_WITH_SCHOOL_DEPENDENT_EXACT_REGULARITY',
+      graphicEditorialFinish: 'SCHOOL_DEPENDENT',
+      clearerSpikeOverBaseRelationship: 'SCHOOL_DEPENDENT',
+      predictableAccentRepetition: 'SCHOOL_DEPENDENT',
+      alwaysBolderThanWispy: 'SCHOOL_DEPENDENT',
+      alwaysWispySubtype: 'SEMANTIC_OR_SCHOOL_DEPENDENT',
+      universallySeparateFromWispy: 'UNRESOLVED',
+      mutuallyExclusive: false,
+    },
+    relationshipWithRays: {
+      raysConstructionId: 'construction.rays',
+      relationship: 'SCHOOL_DEPENDENT_OVERLAP',
+      professionallyIdentical: false,
+      possibleTermScopes: ['ACCENT_OR_SPIKE_PRIMITIVE', 'BROADER_NAMED_FAMILY', 'SCHOOL_SPECIFIC_TERMINOLOGY'],
+      exactTaxonomy: 'UNRESOLVED_PENDING_RAYS_SPECIFIC_AUDIT',
+      canonicalAliasRelationship: false,
+    },
+    densityFinish: {
+      essential: ['TEXTURED', 'DIMENSIONAL', 'VISIBLY_ACCENTED', 'SEGMENTED_TOP_LINE'],
+      graphic: 'COMMON_VARIANT', bold: 'COMMON_VARIANT', dramatic: 'COMMON_VARIANT',
+      dense: 'VARIANT_DEPENDENT', airy: 'VARIANT_DEPENDENT', editorial: 'VARIANT_DEPENDENT',
+      exactDensity: null,
+    },
+    futureVariantNamespace: {
+      status: 'REQUIRES_SEPARATE_REVIEW',
+      potentialDimensions: ['SOFT_KIM_K', 'BOLD_GRAPHIC_KIM_K', 'CLASSIC_ASSISTED_KIM_K', 'HYBRID_KIM_K', 'VOLUME_KIM_K', 'OPEN_SUPPORTING_FAN_KIM_K', 'CLOSED_NARROW_SPIKE_KIM_K', 'LAYERED_SPIKE_OVER_BASE_KIM_K', 'INTEGRATED_MIXED_LENGTH_KIM_K', 'REGULAR_RHYTHM', 'ORGANIC_RHYTHM', 'CLUSTERED_ACCENTS', 'WISPY_OVERLAP_INTERPRETATION', 'RAYS_OVERLAP_INTERPRETATION', 'GEOMETRY_CARRIER_SELECTION'],
+      canonicalVariantIdsCreated: false,
+    },
+    exactSpikeCount: null,
+    exactWispCount: null,
+    exactFrequency: null,
+    exactSpacing: null,
+    exactMillimeters: null,
+    exactLengthDelta: null,
+    exactFanCount: null,
+    exactFanWidth: null,
+    exactDiameter: null,
+    exactVolume: null,
+    exactFanClosurePercentage: null,
+    exactLayerCount: null,
+    exactPlacementCoordinates: null,
+    unresolved: ['EXACT_KIM_K_WISPY_TAXONOMY_BOUNDARY', 'EXACT_KIM_K_RAYS_TAXONOMY_BOUNDARY', 'MINIMUM_HIERARCHY_DISTINGUISHING_KIM_K_FROM_GENERAL_WISPY', 'EXACT_RHYTHM_OR_REGULARITY', 'CLUSTERING', 'UNIVERSAL_BASE_CONSTRUCTION', 'UNIVERSAL_LAYERING_METHOD', 'UNIVERSAL_FAN_METHOD', 'EXACT_DENSITY_OR_INTENSITY', 'GEOMETRY_COMPATIBILITY', 'DIRECTION_EXECUTION', 'CURL_SELECTION', 'APPLICATION_TECHNIQUE', 'ALL_NUMERIC_EXECUTION_PARAMETERS', 'CROSS_SCHOOL_TERMINOLOGY_CONSENSUS'],
+  };
+  kimKConstructionDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], techniqueIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+  };
+  kimKConstructionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1k-kim-k-construction-foundation', type: 'REVIEWED_PROFESSIONAL_CONSTRUCTION_FOUNDATION',
+      scope: ['DELIBERATELY_STRUCTURED_ACCENT_HIERARCHY', 'REPEATED_VISIBLE_ACCENT_SPIKES_OR_WISPS', 'ACCENT_TO_SUPPORT_HIERARCHY', 'SEGMENTED_BROKEN_TOP_LINE', 'DIMENSIONAL_INTENTIONALLY_STYLED_TEXTURE', 'READABLE_REPEATED_ACCENT_RHYTHM', 'OUTCOME_EXECUTION_SEPARATION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1K_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_CONSTRUCTION_OUTCOME_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1K_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Kim K remains a separate named identity with school-dependent relationships to Wispy and Rays; all execution methods, compatibility, taxonomy precision, and numeric parameters remain unresolved or school-dependent.'],
+  };
+  kimKConstructionDefinition.legacyReference = {
+    legacyIds: ['kim'], legacyAliases: ['Rays', 'Spikes', 'Soft Rays', 'Textured Effect'],
+    relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    normalizedGeometry: { peakZone: 3 }, templateMm: [6, 10, 7, 11, 8],
+    topology: { zonePositions: null, plateauShape: 'linear', postPeakShape: 'linear' },
+    applicationTechnique: 'Volume 3D', curl: { base: 'C', options: ['C', 'CC', 'D'] },
+    textureExecution: { pattern: 'kim', frequency: 3, baseToSpikeDiff: 3, alternation: 'TALL_SHORT_TALL', shortPieceMultiplier: 0.35, derivedShortDelta: 1.05, generatedPieces: 12, countedTallSpikes: 8, placement: 'QUARTER_INTERVAL', jitter: 'NONE', mainSpikeZone: 'DERIVED', rounding: 'ONE_DECIMAL' },
+    scoreCoefficients: { base: 35, wideSetBonus: 12, confidenceThreshold: 0.55, confidenceBonus: 14, almondCoefficient: 8 },
+    applicationPlanClaims: ['UNIVERSAL_TWO_LAYER_LANGUAGE', 'RUNTIME_DERIVED_EXACT_BASE_SPIKE_RANGES_AND_COUNTS'],
+    spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
@@ -1050,7 +1217,7 @@
     },
     constructionRecipes: {
       'construction.wispy': wispyConstructionDefinition,
-      'construction.kim-k': identity('construction.kim-k', 'Kim K', 'CONSTRUCTION_RECIPE', { legacyIds: ['kim'], legacyAliases: ['Rays', 'Soft Rays'] }),
+      'construction.kim-k': kimKConstructionDefinition,
       'construction.angel': angelConstructionDefinition,
       'construction.wet': wetConstructionDefinition,
       'construction.rays': identity('construction.rays', 'Rays', 'CONSTRUCTION_RECIPE', {

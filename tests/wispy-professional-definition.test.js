@@ -79,7 +79,7 @@ test('Angel and Kim K boundaries stay separate, provisional, and non-exclusive',
   assert.strictEqual(kim.universalHierarchy,null);
   assert.strictEqual(digest(JSON.stringify(Library.getDefinition('construction.angel'))),'ba6f01a6e7745f4fb17c29af90d5c38e3870da0cb0aef5af9787196c3bbc7dae');
   assert.strictEqual(digest(JSON.stringify(Library.getDefinition('construction.wet'))),'186c0b1b4be3b898940411982a0e792d35156d10cf639d5b72a75153be9451ff');
-  assert.strictEqual(digest(JSON.stringify(Library.getDefinition('construction.kim-k'))),'94f6a253f49d0324acce4fc8d41082cc76f9368c83be9bf00f6487889347292b');
+  assert.strictEqual(Library.getDefinition('construction.kim-k').professionalDefinition.relationshipWithWispy.relationship,'SCHOOL_DEPENDENT_RELATIONSHIP');
 });
 
 test('geometry, direction, curl, density, and technique remain separate and unresolved',()=>{

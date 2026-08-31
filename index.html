@@ -9365,35 +9365,6 @@
       DIRECTION_STRATEGY: 'Стратегия направления',
       SCHOOL_DEPENDENT_PRESET: 'Пресет по школе мастера',
     };
-    const PRO_LIB_SECTION_TITLES_RU = {
-      'CORE IDENTITY': 'Ключевые признаки',
-      'MAXIMUM / PEAK REGION': 'Пик / максимум длины',
-      'TOPOLOGY / PROFILE': 'Профиль длины',
-      'INNER / OUTER BEHAVIOR': 'Внутренний / внешний край',
-      'RELATIONSHIPS': 'Связанные параметры',
-      'PERSONALIZATION': 'Индивидуализация',
-      'ATTACHMENT': 'Крепление ресницы',
-      'FAN / CONSTRUCTION BOUNDARY': 'Граница пучка / конструкции',
-      'SAFETY / SUITABILITY': 'Безопасность / подбор',
-      'GEOMETRY / CURL / DIAMETER': 'Геометрия / изгиб / диаметр',
-      'DIRECTION': 'Направление',
-      'SCHOOL DEPENDENCY': 'Зависимость от школы мастера',
-      'OUTCOME VS EXECUTION': 'Результат и способ выполнения',
-      'ACCENT / SPIKE ARCHITECTURE': 'Архитектура акцентов',
-      'HIERARCHY': 'Иерархия длин',
-      'SUPPORTING FIELD': 'Поддерживающая структура',
-      'NEGATIVE SPACE': 'Воздушные промежутки',
-      'RAY PRIMITIVE': 'Элемент RAY',
-      'DENSITY / FINISH': 'Плотность / финиш',
-      'LAYERS': 'Слои',
-      'INVARIANT VS EXECUTION': 'Инвариант и исполнение',
-      'DEPENDENCY': 'Зависимость',
-      'CURL INTERACTION': 'Взаимодействие с изгибом',
-      'CROSS-EFFECT BOUNDARIES': 'Отличия от других эффектов',
-      'ADDITIONAL DETAILS': 'Дополнительные детали',
-      'UNRESOLVED': 'Требует дополнительного уточнения',
-      'VALIDATION': 'Проверка эксперта',
-    };
     const PRO_LIB_KEY_LABELS_RU = {
       primaryIntent: 'Основная цель',
       invariantOutcome: 'Неизменный результат',
@@ -9999,23 +9970,34 @@
     function proLibKindLabel(kind) { return PRO_LIB_KIND_LABELS_RU[kind] || PRO_LIBRARY_KIND_LABELS[kind] || kind; }
     function proLibNameRu(id, fallbackName) { return PRO_LIB_NAME_RU[id] || fallbackName; }
 
+    function plIdentityName(canonicalId, fallbackName, lang) {
+      return lang === 'ru' ? (PRO_LIB_NAME_RU[canonicalId] || fallbackName) : fallbackName;
+    }
+    function plKindLabel(kind, lang) {
+      return lang === 'ru' ? (PRO_LIB_KIND_LABELS_RU[kind] || PRO_LIBRARY_KIND_LABELS[kind] || kind) : (PRO_LIBRARY_KIND_LABELS[kind] || kind);
+    }
+
     function ProLibraryPreviewScreen({ onBack, onSelect }) {
+      const lang = useLang();
       const items = ProfessionalLashLibrary.library.targetInventory.map(item => {
         const def = ProfessionalLashLibrary.getDefinition(item.canonicalId);
         return { name: item.name, canonicalId: item.canonicalId, kind: def.kind, status: def.validation.status };
       });
+      const T = lang === 'ru'
+        ? { title: 'Профессиональная библиотека эффектов', count: `${items.length} профессиональных эффектов`, banner: 'ПРЕДПРОСМОТР — НЕ ВЛИЯЕТ НА РАБОТУ ПРИЛОЖЕНИЯ', back: 'Назад' }
+        : { title: 'Professional Lash Library', count: `${items.length} canonical identities`, banner: 'DEBUG PREVIEW — DOES NOT AFFECT PRODUCTION', back: 'Back' };
       return (
         <div className="h-full flex flex-col bg-bg">
           <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
-            <button onClick={onBack} aria-label="Назад" className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+            <button onClick={onBack} aria-label={T.back} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
             <div className="min-w-0">
-              <h1 className="text-[15px] font-bold uppercase tracking-wide text-textPrimary truncate">Профессиональная библиотека эффектов</h1>
-              <p className="text-xs text-textSecondary">{items.length} профессиональных эффектов</p>
+              <h1 className="text-[15px] font-bold uppercase tracking-wide text-textPrimary truncate">{T.title}</h1>
+              <p className="text-xs text-textSecondary">{T.count}</p>
             </div>
           </div>
           <div className="px-4 pt-3">
             <div className="rounded-md border border-peak/30 bg-peak/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-peak text-center">
-              ПРЕДПРОСМОТР — НЕ ВЛИЯЕТ НА РАБОТУ ПРИЛОЖЕНИЯ
+              {T.banner}
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -10028,16 +10010,16 @@
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-[15px] font-bold text-textPrimary truncate">{proLibNameRu(item.canonicalId, item.name)}</div>
+                    <div className="text-[15px] font-bold text-textPrimary truncate">{plIdentityName(item.canonicalId, item.name, lang)}</div>
                     <div className="text-[11px] text-textMuted mt-0.5 truncate">{item.canonicalId}</div>
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
-                    <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan whitespace-nowrap">{PRO_LIB_VALUE_LABELS_RU[item.status] || item.status}</span>
+                    <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan whitespace-nowrap">{plLabel(item.status, lang)}</span>
                     <span className="text-textMuted text-lg leading-none">›</span>
                   </div>
                 </div>
                 <div className="mt-2.5">
-                  <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{proLibKindLabel(item.kind)}</span>
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{plKindLabel(item.kind, lang)}</span>
                 </div>
               </button>
             ))}
@@ -10047,191 +10029,342 @@
     }
 
     // ------------------------------------------------------------
-    // DEBUG-ONLY: read-only detail view for one canonical identity,
-    // opened by tapping a card in ProLibraryPreviewScreen. Pure
-    // presentation over ProfessionalLashLibrary.getDefinition(canonicalId)
-    // — no editing/activation control anywhere, no numeric legacy data,
-    // no recommendation/ranking/scan/camera coupling of any kind. The
-    // section layout below is intentionally generic (it inspects
-    // whichever professionalDefinition keys actually exist for the
-    // given identity) rather than one hand-written renderer per
-    // identity, because the 15 canonical identities do not share a
-    // single field shape — only their `kind` groups a common priority
-    // order for which sections should surface first.
+    // METHODICAL PRESENTATION LAYER (debug preview Detail screen only).
     // ------------------------------------------------------------
-    function proLibHumanizeKey(key) {
-      if (PRO_LIB_KEY_LABELS_RU[key]) return PRO_LIB_KEY_LABELS_RU[key];
-      return key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase()).trim();
+    // Turns a canonical professionalDefinition into a short, readable
+    // professional explanation — never a recursive field-by-field object
+    // dump. professional-lash-library.js remains the untouched source of
+    // truth: nothing here invents a millimeter, curl, diameter, percentage,
+    // exact peak position, count, interval, or universal rule that the
+    // canonical data doesn't already state. Where the library deliberately
+    // leaves something unresolved/school-dependent/qualitative, that is
+    // explained in plain professional language (see plConsiderations)
+    // instead of being hidden or printed as a raw enum.
+    //
+    // Two building blocks reused throughout:
+    //  - plLabel(value, lang): the exact same RU dictionary already
+    //    reviewed for the flat preview (PRO_LIB_VALUE_LABELS_RU), or for
+    //    English a Title-Case rendering of the (already-English) enum
+    //    token — English never needed a bespoke phrase dictionary because
+    //    the raw values are already English words, just SCREAMING_SNAKE.
+    //  - plCollectDescriptive(...): walks a *specific, section-relevant*
+    //    piece of the canonical object (never the whole tree) and turns
+    //    its meaningful leaf values into a natural sentence, silently
+    //    skipping pure status/meta tokens (UNRESOLVED, SCHOOL_DEPENDENT,
+    //    SEPARATE_LAYER, etc.) — those drive plConsiderations() instead of
+    //    appearing as prose content.
+    // ------------------------------------------------------------
+    function plIsMetaStatus(v) {
+      return typeof v === 'string' && /UNRESOLVED|SCHOOL_DEPENDENT|VARIANT_DEPENDENT|SEPARATE_LAYER|NOT_PART_OF|^SECONDARY$|MANDATORY_CARRIER_SLOT|REQUIRES_SEPARATE_REVIEW|CLIENT_LASH_DEPENDENT|EXPERT_REVIEWED|^VALIDATED$|^UNVALIDATED$|^DRAFT$|CURRENT_PRODUCTION_COMPARISON_ONLY|POSSIBLE_NON_UNIVERSAL|^NOT_UNIVERSAL$|QUALITATIVE_ONLY|NOT_INTRINSIC/.test(v);
     }
-    function proLibHumanizeToken(value) {
-      if (typeof value !== 'string') return value;
-      if (PRO_LIB_VALUE_LABELS_RU[value]) return PRO_LIB_VALUE_LABELS_RU[value];
+    function plIsEssentialMarker(v) {
+      return typeof v === 'string' && /^ESSENTIAL/.test(v);
+    }
+    function plEnLabel(value) {
+      if (typeof value !== 'string') return String(value);
       if (/^[A-Z0-9]+(_[A-Z0-9]+)*$/.test(value) && value.length > 1) {
         return value.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
       }
       return value;
     }
-    function proLibHumanizeValue(value) {
-      if (value === null || value === undefined) return '—';
-      if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
+    function plLabel(value, lang) {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'boolean') return lang === 'ru' ? (value ? 'да' : 'нет') : (value ? 'yes' : 'no');
       if (typeof value === 'number') return String(value);
-      if (typeof value === 'string') return proLibHumanizeToken(value);
-      if (Array.isArray(value)) {
-        if (value.length === 0) return '—';
-        if (value.every(v => v === null || typeof v !== 'object')) return value.map(proLibHumanizeValue).join(', ');
-        return value.map(v => (v && typeof v === 'object')
-          ? Object.entries(v).map(([k, vv]) => `${proLibHumanizeKey(k)}: ${proLibHumanizeValue(vv)}`).join(' · ')
-          : proLibHumanizeValue(v)).join('; ');
-      }
-      return null; // plain object: caller renders nested rows instead of an inline string
+      if (typeof value !== 'string') return null;
+      if (lang === 'ru') return PRO_LIB_VALUE_LABELS_RU[value] || plEnLabel(value);
+      return plEnLabel(value);
     }
-    function ProLibKVRows({ obj, depth }) {
-      if (!obj || typeof obj !== 'object') return null;
-      const entries = Object.entries(obj).filter(([, v]) => v !== undefined);
-      if (entries.length === 0) return null;
-      return (
-        <div className={depth ? "pl-3 border-l border-border/40 space-y-1.5 mt-1.5" : "space-y-1.5"}>
-          {entries.map(([k, v]) => {
-            const inline = proLibHumanizeValue(v);
-            return (
-              <div key={k}>
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-[11px] text-textMuted">{proLibHumanizeKey(k)}</span>
-                  {inline !== null && <span className="text-[12px] text-textPrimary text-right">{inline}</span>}
-                </div>
-                {inline === null && <ProLibKVRows obj={v} depth={(depth || 0) + 1} />}
-              </div>
-            );
-          })}
-        </div>
-      );
+    function plKeyLabel(key, lang) {
+      if (lang === 'ru') return PRO_LIB_KEY_LABELS_RU[key] || key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase()).trim();
+      return key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase()).trim();
     }
-    function ProLibSection({ title, data }) {
-      if (!data || typeof data !== 'object' || Object.keys(data).length === 0) return null;
-      return (
-        <div className="glass rounded-lg p-4 mb-3">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2.5">{PRO_LIB_SECTION_TITLES_RU[title] || title}</div>
-          <ProLibKVRows obj={data} />
-        </div>
-      );
+    function plCollectDescriptive(value, lang, skipKeys) {
+      const out = [];
+      const seen = new Set();
+      (function walk(v, parentKey) {
+        if (v === null || v === undefined) return;
+        if (skipKeys && parentKey && skipKeys.indexOf(parentKey) > -1) return;
+        if (Array.isArray(v)) { v.forEach(item => walk(item, parentKey)); return; }
+        if (typeof v === 'object') { Object.entries(v).forEach(([k, vv]) => walk(vv, k)); return; }
+        if (typeof v === 'string' && /^[A-Z0-9]+(_[A-Z0-9]+)*$/.test(v) && v.length > 1 && !plIsMetaStatus(v) && !plIsEssentialMarker(v)) {
+          const label = plLabel(v, lang);
+          if (label && !seen.has(label)) { seen.add(label); out.push(label); }
+        }
+      })(value, null);
+      return out;
     }
-    function proLibPickKeys(obj, keys) {
-      if (!obj) return null;
-      const out = {};
-      let any = false;
-      for (const k of keys) {
-        if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) { out[k] = obj[k]; any = true; }
-      }
-      return any ? out : null;
+    function plCap(parts, n) { return (parts || []).slice(0, n); }
+    function plObjectHasMeta(value) {
+      let found = false;
+      (function walk(v) {
+        if (found || v === null || v === undefined) return;
+        if (Array.isArray(v)) { v.forEach(walk); return; }
+        if (typeof v === 'object') { Object.values(v).forEach(walk); return; }
+        if (typeof v === 'string' && plIsMetaStatus(v)) found = true;
+      })(value);
+      return found;
     }
-    // Domain-aware section priority per `kind` — every entry only ever
-    // renders when at least one of its candidate keys exists on the
-    // identity's professionalDefinition; different reviewed constructions
-    // use different key names for the same concept (e.g. spike/accent
-    // architecture is named `spikeAccentArchitecture` on some reviewed
-    // constructions but `spikeWispArchitecture`/`spikeWispHierarchy` on
-    // others), hence the multiple candidate keys per section below.
-    const PRO_LIB_SECTION_PLAN = {
-      MAPPING_GEOMETRY: [
-        ['CORE IDENTITY', ['primaryIntent', 'invariantOutcome', 'excludedDefiningIntents']],
-        ['MAXIMUM / PEAK REGION', ['maximum', 'peak']],
-        ['TOPOLOGY / PROFILE', ['topology', 'normalizedProfile']],
-        ['INNER / OUTER BEHAVIOR', ['innerBehavior', 'outerBehavior']],
-        ['RELATIONSHIPS', ['relationships', 'densityFinish']],
-        ['PERSONALIZATION', ['personalizationBoundary', 'variants']],
-      ],
-      APPLICATION_TECHNIQUE: [
-        ['CORE IDENTITY', ['coreInvariant', 'outcomeType', 'excludedDefiningTraits']],
-        ['ATTACHMENT', ['attachment']],
-        ['FAN / CONSTRUCTION BOUNDARY', ['fanConstructionBoundary']],
-        ['SAFETY / SUITABILITY', ['safetySuitability']],
-        ['GEOMETRY / CURL / DIAMETER', ['geometryRelationship', 'curl', 'diameter', 'densityFinish']],
-        ['DIRECTION', ['direction']],
-        ['SCHOOL DEPENDENCY', ['schoolDependency']],
-      ],
-      CONSTRUCTION_RECIPE: [
-        ['CORE IDENTITY', ['outcomeType', 'invariantOutcome', 'identityConfidence']],
-        ['OUTCOME VS EXECUTION', ['outcomeVsExecution']],
-        ['ACCENT / SPIKE ARCHITECTURE', ['spikeAccentArchitecture', 'spikeWispArchitecture', 'spikeWispHierarchy']],
-        ['HIERARCHY', ['hierarchy']],
-        ['SUPPORTING FIELD', ['supportingField', 'supportingFieldBase']],
-        ['NEGATIVE SPACE', ['negativeSpace']],
-        ['RELATIONSHIPS', ['relationships']],
-        ['RAY PRIMITIVE', ['rayPrimitiveRelationship']],
-        ['DENSITY / FINISH', ['densityFinish']],
-      ],
-      COMPOSITE_PRESET: [
-        ['CORE IDENTITY', ['invariant']],
-        ['LAYERS', ['layers']],
-        ['INVARIANT VS EXECUTION', ['invariantVsExecution']],
-        ['SCHOOL DEPENDENCY', ['schoolDependency']],
-      ],
-      DIRECTION_STRATEGY: [
-        ['CORE IDENTITY', ['directionalIntent', 'dominantAxis', 'outerOrientation', 'liftVsElongation']],
-        ['DEPENDENCY', ['directionDependency', 'mappingDirectionRelationship']],
-        ['CURL INTERACTION', ['curlInteraction']],
-      ],
+    // Generic descriptor keys (role/domain/selection/...) don't make a
+    // useful standalone bullet on their own — when the ESSENTIAL marker
+    // sits on one of these, the parent object's own key is the
+    // meaningful bullet (e.g. `grouping.role: 'ESSENTIAL...'` becomes the
+    // bullet "Grouping", not the bullet "Role").
+    const PL_GENERIC_DESCRIPTOR_KEYS = new Set(['role', 'domain', 'selection', 'essential', 'definition', 'result']);
+    function plCollectEssentialBullets(pd, lang) {
+      const out = [];
+      const seen = new Set();
+      (function walk(obj, parentKey) {
+        if (!obj || typeof obj !== 'object') return;
+        for (const [k, v] of Object.entries(obj)) {
+          if (typeof v === 'string' && plIsEssentialMarker(v)) {
+            const bulletKey = (PL_GENERIC_DESCRIPTOR_KEYS.has(k) && parentKey) ? parentKey : k;
+            const label = plKeyLabel(bulletKey, lang);
+            if (label && !seen.has(label)) { seen.add(label); out.push(label); }
+          } else if (v && typeof v === 'object') walk(v, k);
+        }
+      })(pd, null);
+      return out;
+    }
+    function plJoinFragment(parts, lang) {
+      if (!parts.length) return '';
+      const lowered = parts.map((p, i) => i === 0 ? p : p.charAt(0).toLowerCase() + p.slice(1));
+      return lowered.join(', ');
+    }
+    function plSentence(parts, lang) {
+      const joined = plJoinFragment((parts || []).filter(p => p !== null && p !== undefined && p !== ''), lang);
+      if (!joined) return null;
+      const capitalized = joined.charAt(0).toUpperCase() + joined.slice(1);
+      return /[.!?]$/.test(capitalized) ? capitalized : capitalized + '.';
+    }
+    const PL_OTHER_CANONICAL_MAP = {
+      natural: 'geometry.natural', doll: 'geometry.doll', cat: 'geometry.cat', fox: 'geometry.fox', squirrel: 'geometry.squirrel',
+      wispy: 'construction.wispy', kimK: 'construction.kim-k', angel: 'construction.angel', wet: 'construction.wet',
+      anime: 'construction.anime', jellyfish: 'construction.jellyfish', rays: 'construction.rays',
     };
-    const PRO_LIB_CROSS_EFFECT_KEYS = ['crossEffectComparison', 'crossEffectRelationships', 'crossEffectBoundaries', 'visualBoundaryWithWet', 'visualBoundaryWithAngel', 'relationshipWithWispy', 'relationshipWithKimK', 'relationshipWithRays'];
+    function plOtherIdentityName(key, lang) {
+      const canonicalId = PL_OTHER_CANONICAL_MAP[key] || (key.indexOf('.') > -1 ? key : null);
+      if (canonicalId) {
+        const otherDef = ProfessionalLashLibrary.getDefinition(canonicalId);
+        if (otherDef) return plIdentityName(canonicalId, otherDef.displayName, lang);
+      }
+      return plKeyLabel(key, lang);
+    }
+    function plCrossEffectSection(pd, lang) {
+      const merged = Object.assign({}, pd.crossEffectComparison, pd.crossEffectRelationships, pd.crossEffectBoundaries);
+      for (const k of Object.keys(pd)) {
+        if (/^visualBoundaryWith/.test(k)) merged[k.replace('visualBoundaryWith', '').replace(/^./, s => s.toLowerCase())] = pd[k];
+        if (/^relationshipWith/.test(k)) merged[k.replace('relationshipWith', '').replace(/^./, s => s.toLowerCase())] = pd[k];
+      }
+      const entries = Object.entries(merged);
+      if (!entries.length) return null;
+      const boundaryNote = lang === 'ru'
+        ? 'Точная граница может зависеть от школы или терминологии мастера.'
+        : 'The exact boundary may depend on the school or terminology in use.';
+      return entries.map(([otherKey, otherVal]) => {
+        const name = plOtherIdentityName(otherKey, lang);
+        if (typeof otherVal === 'string') {
+          return plIsMetaStatus(otherVal) || /REQUIRES_SEPARATE_REVIEW|MUST_BE_VARIANT/.test(otherVal)
+            ? `${name} — ${boundaryNote.charAt(0).toLowerCase() + boundaryNote.slice(1)}`
+            : `${name} — ${plLabel(otherVal, lang)}.`;
+        }
+        // Prefer the library's own single-sentence summary field when it
+        // supplies one (`distinction`) — it is already the intended
+        // human-readable takeaway for that specific comparison. Only fall
+        // back to flattening the raw comparison object (capped to 2
+        // fragments, so it reads as a short distinguishing note rather
+        // than a field dump) when no such summary field exists.
+        const hasMeta = plObjectHasMeta(otherVal);
+        let text;
+        if (typeof otherVal.distinction === 'string') {
+          text = `${name} — ${plLabel(otherVal.distinction, lang)}.`;
+        } else {
+          const descriptive = plCollectDescriptive(otherVal, lang).slice(0, 2);
+          text = descriptive.length ? `${name} — ${plJoinFragment(descriptive, lang)}.` : `${name}.`;
+        }
+        if (hasMeta) text += ' ' + boundaryNote;
+        return text;
+      });
+    }
+    function plConsiderations(pd, lang) {
+      const notes = [];
+      const add = (ru, en) => notes.push(lang === 'ru' ? ru : en);
+      const peakish = pd.peak || pd.maximum;
+      if (peakish && (JSON.stringify(peakish).indexOf('UNRESOLVED') > -1 || peakish.exactPosition === null)) {
+        add(
+          'Точное положение акцента не закреплено единой цифрой — библиотека сознательно оставляет его подбор мастеру, ориентируясь на анатомию и форму глаза клиента.',
+          'The exact accent position is not fixed to a single number — the library deliberately leaves it for the artist to judge from the client’s eye shape and anatomy.'
+        );
+      }
+      if (pd.schoolDependency || JSON.stringify(pd).indexOf('SCHOOL_DEPENDENT') > -1) {
+        add(
+          'Детали исполнения могут отличаться между школами и мастерами — единого универсального стандарта библиотека не фиксирует.',
+          'Execution details may vary between schools and artists — the library does not fix one single universal standard.'
+        );
+      }
+      if (pd.geometryRelationship || pd.relationships || pd.curl || pd.diameter) {
+        add(
+          'Геометрия карты, изгиб, диаметр и техника нанесения — отдельные решения и не входят в определение самой этой идентичности.',
+          'Mapping geometry, curl, diameter, and application technique are separate decisions and are not part of this identity’s own definition.'
+        );
+      }
+      if (pd.safetySuitability || (pd.attachment && pd.attachment.suitabilityAssessmentRequired)) {
+        add(
+          'Подходящие для наращивания ресницы и безопасность подбираются индивидуально для каждого клиента, а не по единому универсальному правилу.',
+          'Lash suitability and safety are assessed individually for each client, not by one universal rule.'
+        );
+      }
+      if (!notes.length && Array.isArray(pd.unresolved) && pd.unresolved.length) {
+        add(
+          'Ряд деталей (терминология, точные измерения, конкретный способ исполнения) намеренно остаётся открытым и уточняется на уровне школы или мастера.',
+          'A number of details (terminology, exact measurements, the specific execution method) are intentionally left open and are settled at the school or artist level.'
+        );
+      }
+      return notes;
+    }
+    // Domain-aware methodical composer. Different `kind`s read completely
+    // different sections from completely different canonical fields — a
+    // CONSTRUCTION_RECIPE is never forced through the same template as a
+    // MAPPING_GEOMETRY. Every section only appears when the canonical data
+    // actually supports it (pushIf silently drops empty sections).
+    function buildMethodicalSections(def, lang) {
+      const pd = def.professionalDefinition;
+      const T = lang === 'ru' ? {
+        essence: 'Суть эффекта', essenceTech: 'Суть техники', construction: 'Построение',
+        peak: 'Пик / зона максимального акцента', corners: 'Работа с уголками', hierarchy: 'Иерархия и акценты', supportField: 'Поддерживающая структура',
+        negativeSpace: 'Ритм и воздушные промежутки', attachment: 'Крепление', fanBoundary: 'Граница пучка',
+        safety: 'Безопасность и подбор', layers: 'Слои композиции', keyTraits: 'Ключевые признаки',
+        considerations: 'Что важно учитывать мастеру', notConfuse: 'Не путать с', takeaway: 'Профессиональный ориентир',
+        notReviewed: 'Пока не проверено экспертом', primitiveNote: 'Это переиспользуемый строительный элемент, а не самостоятельный законченный эффект.',
+        primitiveGap: 'Полная завершённая конструкция «Лучи» как отдельный эффект пока не прошла собственную профессиональную проверку.',
+      } : {
+        essence: 'What defines this effect', essenceTech: 'What defines this technique', construction: 'How it builds along the lash line',
+        peak: 'Peak / main accent zone', corners: 'Inner / outer corner behavior', hierarchy: 'Hierarchy and accents', supportField: 'Supporting field',
+        negativeSpace: 'Rhythm and negative space', attachment: 'Attachment', fanBoundary: 'Fan / construction boundary',
+        safety: 'Safety and suitability', layers: 'Composite layers', keyTraits: 'Key identifying traits',
+        considerations: 'What the artist should keep in mind', notConfuse: 'Not to be confused with', takeaway: 'Professional takeaway',
+        notReviewed: 'Not yet expert-reviewed', primitiveNote: 'This is a reusable construction building block, not a standalone complete effect.',
+        primitiveGap: 'The complete standalone "Rays" construction has not yet received its own separate professional review.',
+      };
+      const sections = [];
+      const pushIf = (title, paragraphs) => { const p = (paragraphs || []).filter(Boolean); if (p.length) sections.push({ title, paragraphs: p }); };
+
+      if (!pd) {
+        if (def.id === 'construction.rays') {
+          // PRESENTATION GAP, resolved without inventing data: the "Rays"
+          // card has no professionalDefinition of its own, but the reviewed
+          // RAY primitive (a separate, already-reviewed canonical source —
+          // library.schema.textureConstruction.primitiveDefinitions.RAY)
+          // already explains exactly why: Rays is a reusable accent
+          // primitive, not a standalone effect. Reading it here uses an
+          // existing canonical source; it invents nothing.
+          const ray = ProfessionalLashLibrary.library.schema.textureConstruction.primitiveDefinitions.RAY;
+          const rpd = ray.professionalDefinition;
+          pushIf(T.essence, [plSentence(plCap(plCollectDescriptive(rpd.invariantOutcome, lang), 3), lang), T.primitiveNote]);
+          pushIf(T.keyTraits, plCollectEssentialBullets(rpd, lang));
+          pushIf(T.considerations, plConsiderations(rpd, lang).concat([T.primitiveGap]));
+          return sections;
+        }
+        pushIf(T.notReviewed, [lang === 'ru'
+          ? 'Профессиональное определение для этого эффекта пока не проверено экспертом.'
+          : 'A professional definition for this identity has not been expert-reviewed yet.']);
+        return sections;
+      }
+
+      if (def.kind === 'MAPPING_GEOMETRY') {
+        if (pd.invariantOutcome && typeof pd.invariantOutcome === 'object' && pd.invariantOutcome.intent) {
+          pushIf(T.essence, [plSentence([plLabel(pd.invariantOutcome.intent, lang)], lang)]);
+          pushIf(T.construction, [plSentence(plCap(plCollectDescriptive({ progression: pd.invariantOutcome.progression, maximum: pd.invariantOutcome.maximum }, lang), 4), lang)]);
+          pushIf(T.corners, [plSentence(plCap(plCollectDescriptive({ innerRise: pd.invariantOutcome.innerRise }, lang), 2), lang), plSentence(plCap(plCollectDescriptive({ outerFinish: pd.invariantOutcome.outerFinish }, lang), 2), lang)]);
+        } else if (pd.primaryIntent) {
+          pushIf(T.essence, [plSentence([plLabel(pd.primaryIntent, lang)], lang)]);
+          if (pd.topology) pushIf(T.construction, [plSentence(plCap(plCollectDescriptive(pd.topology, lang), 4), lang)]);
+          if (pd.peak) {
+            const region = pd.peak.positionRange && pd.peak.positionRange.region;
+            const zoneLabel = region ? plLabel(region, lang) : null;
+            pushIf(T.peak, [zoneLabel ? (lang === 'ru' ? `Основной акцент располагается в области: ${zoneLabel.toLowerCase()}.` : `The main accent sits in the ${zoneLabel.toLowerCase()} area.`) : null]);
+          }
+        }
+        const geoBullets = plCollectEssentialBullets(pd, lang);
+        pushIf(T.keyTraits, geoBullets.length ? geoBullets : (pd.primaryIntent ? [plLabel(pd.primaryIntent, lang)] : []));
+      } else if (def.kind === 'APPLICATION_TECHNIQUE') {
+        if (pd.coreInvariant) pushIf(T.essenceTech, [plSentence(plCap(plCollectDescriptive(pd.coreInvariant, lang), 3), lang)]);
+        if (pd.attachment) pushIf(T.attachment, [plSentence(plCap(plCollectDescriptive(pd.attachment, lang), 3), lang)]);
+        if (pd.fanConstructionBoundary) pushIf(T.fanBoundary, [plSentence(plCap(plCollectDescriptive(pd.fanConstructionBoundary, lang), 3), lang)]);
+        if (pd.safetySuitability) pushIf(T.safety, [plSentence(plCap(plCollectDescriptive(pd.safetySuitability, lang), 3), lang)]);
+        pushIf(T.keyTraits, plCollectEssentialBullets(pd, lang));
+      } else if (def.kind === 'CONSTRUCTION_RECIPE') {
+        const essenceParts = [];
+        if (pd.outcomeType) essenceParts.push(plLabel(pd.outcomeType, lang));
+        if (pd.invariantOutcome) essenceParts.push(...plCap(plCollectDescriptive(pd.invariantOutcome, lang), 3));
+        pushIf(T.essence, [plSentence(essenceParts, lang)]);
+        const hierarchySrc = pd.spikeAccentArchitecture || pd.spikeWispArchitecture || pd.spikeWispHierarchy || pd.hierarchy;
+        if (hierarchySrc) pushIf(T.hierarchy, [plSentence(plCap(plCollectDescriptive(hierarchySrc, lang), 4), lang)]);
+        const supportSrc = pd.supportingField || pd.supportingFieldBase;
+        if (supportSrc) pushIf(T.supportField, [plSentence(plCap(plCollectDescriptive(supportSrc, lang), 3), lang)]);
+        if (pd.negativeSpace) pushIf(T.negativeSpace, [plSentence(plCap(plCollectDescriptive(pd.negativeSpace, lang), 3), lang)]);
+        pushIf(T.keyTraits, plCollectEssentialBullets(pd, lang));
+      } else if (def.kind === 'COMPOSITE_PRESET') {
+        if (pd.invariant) pushIf(T.essence, [plSentence(plCap(plCollectDescriptive(pd.invariant, lang), 3), lang)]);
+        if (pd.layers) {
+          const layerSentences = Object.entries(pd.layers).map(([layerKey, layerVal]) => {
+            const label = plKeyLabel(layerKey, lang);
+            const desc = plCap(plCollectDescriptive(layerVal, lang, ['domain']), 3);
+            return desc.length ? `${label} — ${plJoinFragment(desc, lang)}.` : null;
+          }).filter(Boolean);
+          pushIf(T.layers, layerSentences);
+        }
+        pushIf(T.keyTraits, plCollectEssentialBullets(pd, lang));
+      }
+
+      pushIf(T.considerations, plConsiderations(pd, lang));
+      const crossEffect = plCrossEffectSection(pd, lang);
+      if (crossEffect) pushIf(T.notConfuse, crossEffect);
+
+      const takeawaySource = sections.length ? sections[0].paragraphs[0] : null;
+      if (takeawaySource) {
+        pushIf(T.takeaway, [(lang === 'ru' ? 'Главное, что стоит запомнить: ' : 'Key takeaway: ') + takeawaySource.charAt(0).toLowerCase() + takeawaySource.slice(1)]);
+      }
+      return sections;
+    }
 
     function ProLibraryDetailScreen({ canonicalId, onBack }) {
+      const lang = useLang();
       const def = ProfessionalLashLibrary.getDefinition(canonicalId);
+      const T = lang === 'ru' ? { back: 'Назад', notFound: 'Не найдено' } : { back: 'Back', notFound: 'Not found' };
       if (!def) {
         return (
           <div className="h-full flex flex-col bg-bg">
             <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
-              <button onClick={onBack} aria-label="Назад" className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
-              <h1 className="text-[15px] font-bold text-textPrimary">Не найдено</h1>
+              <button onClick={onBack} aria-label={T.back} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+              <h1 className="text-[15px] font-bold text-textPrimary">{T.notFound}</h1>
             </div>
           </div>
         );
       }
-      const pd = def.professionalDefinition;
-      const plan = PRO_LIB_SECTION_PLAN[def.kind] || [];
-      const consumed = new Set(plan.reduce((acc, [, keys]) => acc.concat(keys), []));
-      const crossEffectKeysAvailable = PRO_LIB_CROSS_EFFECT_KEYS.filter(k => !consumed.has(k));
-      const crossEffect = proLibPickKeys(pd, crossEffectKeysAvailable);
-      PRO_LIB_CROSS_EFFECT_KEYS.forEach(k => consumed.add(k));
-      consumed.add('unresolved');
-      const remainingKeys = pd ? Object.keys(pd).filter(k => !consumed.has(k)) : [];
-      const additional = remainingKeys.length ? proLibPickKeys(pd, remainingKeys) : null;
-      const validationData = {
-        status: def.validation.status,
-        numericClaims: def.validation.evidence && def.validation.evidence[0] ? def.validation.evidence[0].numericClaims : undefined,
-        revision: def.validation.revision,
-        provenance: def.validation.provenance && def.validation.provenance[0] ? def.validation.provenance[0].source : undefined,
-      };
+      const sections = buildMethodicalSections(def, lang);
       return (
         <div className="h-full flex flex-col bg-bg">
           <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
-            <button onClick={onBack} aria-label="Назад" className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
+            <button onClick={onBack} aria-label={T.back} className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center text-textSecondary press-scale">‹</button>
             <div className="min-w-0">
-              <h1 className="text-[15px] font-bold text-textPrimary truncate">{proLibNameRu(def.id, def.displayName)}</h1>
+              <h1 className="text-[15px] font-bold text-textPrimary truncate">{plIdentityName(def.id, def.displayName, lang)}</h1>
               <p className="text-[11px] text-textMuted truncate">{def.id}</p>
             </div>
           </div>
           <div className="px-4 pt-3 flex gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{proLibKindLabel(def.kind)}</span>
-            <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan">{PRO_LIB_VALUE_LABELS_RU[def.validation.status] || def.validation.status}</span>
+            <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{plKindLabel(def.kind, lang)}</span>
+            <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan">{plLabel(def.validation.status, lang)}</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
-            {!pd && (
-              <div className="glass rounded-lg p-4 mb-3 text-[12px] text-textSecondary">
-                Профессиональное определение для этого эффекта пока не проверено экспертом.
+            {sections.map((s, i) => (
+              <div key={s.title + i} className="glass rounded-lg p-4 mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{s.title}</div>
+                <div className="space-y-1.5">
+                  {s.paragraphs.map((p, j) => <p key={j} className="text-[13px] leading-relaxed text-textPrimary">{p}</p>)}
+                </div>
               </div>
-            )}
-            {plan.map(([title, keys]) => <ProLibSection key={title} title={title} data={proLibPickKeys(pd, keys)} />)}
-            <ProLibSection title="CROSS-EFFECT BOUNDARIES" data={crossEffect} />
-            <ProLibSection title="ADDITIONAL DETAILS" data={additional} />
-            {pd && Array.isArray(pd.unresolved) && pd.unresolved.length > 0 && (
-              <div className="glass rounded-lg p-4 mb-3">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-peak mb-2.5">{PRO_LIB_SECTION_TITLES_RU.UNRESOLVED}</div>
-                <ul className="space-y-1.5 list-disc pl-4">
-                  {pd.unresolved.map(item => <li key={item} className="text-[12px] text-textSecondary">{proLibHumanizeValue(item)}</li>)}
-                </ul>
-              </div>
-            )}
-            <ProLibSection title="VALIDATION" data={validationData} />
+            ))}
           </div>
         </div>
       );

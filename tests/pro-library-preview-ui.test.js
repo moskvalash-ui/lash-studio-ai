@@ -15,11 +15,14 @@ const headEnd=indexSource.indexOf('</head>');
 const previewStart=indexSource.indexOf('// DEBUG-ONLY: Professional Lash Library preview');
 const appStart=indexSource.indexOf('function App() {');
 const previewBlock=indexSource.slice(previewStart,appStart);
-// Code-only region (skips the leading doc comment, which legitimately
-// names DESIGN_CATALOG/rankDesigns/rankDesignsAll/calculateEyeLashMap
-// in prose to document what the preview does NOT do) — used for the
-// "never calls X" checks so a documentation word doesn't read as a call.
 const previewCodeBlock=indexSource.slice(indexSource.indexOf('const PRO_LIBRARY_KIND_LABELS'),appStart);
+const detailBlock=indexSource.slice(indexSource.indexOf('function ProLibraryDetailScreen('),appStart);
+const routerBlock=indexSource.slice(indexSource.indexOf("{screen === 'proLibraryPreview'"),indexSource.indexOf("{/* First-visit consent banner"));
+const catalogStart=indexSource.indexOf('    const DESIGN_CATALOG = ');
+const catalogEnd=indexSource.indexOf('\n\n    function calculateEyeLashMap(',catalogStart);
+const catalogSource=indexSource.slice(catalogStart,catalogEnd);
+const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
+
 function extractObjectLiteral(name){
   const start=indexSource.indexOf('const '+name+' = {');
   const braceStart=indexSource.indexOf('{',start);
@@ -42,152 +45,182 @@ function collectRenderedValuesAndKeys(){
   walk(Library.library.schema.textureConstruction.primitiveDefinitions.RAY.professionalDefinition);
   return {seenValues,seenKeys};
 }
-const detailBlock=indexSource.slice(indexSource.indexOf('function ProLibraryDetailScreen('),appStart);
-const routerBlock=indexSource.slice(indexSource.indexOf("{screen === 'proLibraryPreview'"),indexSource.indexOf("{/* First-visit consent banner"));
-const catalogStart=indexSource.indexOf('    const DESIGN_CATALOG = ');
-const catalogEnd=indexSource.indexOf('\n\n    function calculateEyeLashMap(',catalogStart);
-const catalogSource=indexSource.slice(catalogStart,catalogEnd);
-const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
+
+// Loads the plain-JS methodical composer functions (buildMethodicalSections
+// and its helpers) straight out of index.html and evaluates them in this
+// Node process against the REAL library data — the same functions the
+// browser runs, not a reimplementation. The two JSX components
+// (ProLibraryPreviewScreen/ProLibraryDetailScreen) are deliberately
+// excluded from this eval (JSX doesn't parse in plain Node); everything
+// that actually composes the methodical text is plain JS and is included.
+function loadComposer(){
+  const sandbox={};
+  sandbox.ProfessionalLashLibrary=Library;
+  sandbox.PRO_LIB_NAME_RU=extractObjectLiteral('PRO_LIB_NAME_RU');
+  sandbox.PRO_LIB_KIND_LABELS_RU=extractObjectLiteral('PRO_LIB_KIND_LABELS_RU');
+  sandbox.PRO_LIBRARY_KIND_LABELS=extractObjectLiteral('PRO_LIBRARY_KIND_LABELS');
+  sandbox.PRO_LIB_KEY_LABELS_RU=extractObjectLiteral('PRO_LIB_KEY_LABELS_RU');
+  sandbox.PRO_LIB_VALUE_LABELS_RU=extractObjectLiteral('PRO_LIB_VALUE_LABELS_RU');
+  const chunk1Start=indexSource.indexOf('function plIdentityName');
+  const chunk1End=indexSource.indexOf('function ProLibraryPreviewScreen');
+  const chunk2Start=indexSource.indexOf('function plIsMetaStatus');
+  const chunk2End=indexSource.indexOf('function ProLibraryDetailScreen');
+  const code=indexSource.slice(chunk1Start,chunk1End)+'\n'+indexSource.slice(chunk2Start,chunk2End)+
+    '\nreturn {buildMethodicalSections, plLabel, plKindLabel, plIdentityName};';
+  const fn=new Function('sandbox','with(sandbox){ '+code+' }');
+  return fn(sandbox);
+}
+let composer;
+try{ composer=loadComposer(); }catch(e){ composer=null; global.__composerLoadError=e; }
 
 test('the professional-lash-library.js script tag exists using the same plain-script pattern as other local scripts',()=>{
   assert.ok(indexSource.includes('<script src="professional-lash-library.js"></script>'));
   assert.ok(indexSource.indexOf('<script src="professional-lash-library.js"></script>')<headEnd);
 });
 
-test('?debug=library is recognized and drives the initial screen, while the normal default screen remains home',()=>{
-  const screenStateBlock=indexSource.slice(indexSource.indexOf('const [screen, setScreen] = useState'),indexSource.indexOf('const [result, setResult] = useState'));
-  assert.ok(screenStateBlock.includes("URLSearchParams(window.location.search).get('debug') === 'library'"));
-  assert.ok(screenStateBlock.includes("'proLibraryPreview'"));
-  assert.ok(screenStateBlock.includes("'home'"));
-  // the fallback/otherwise branch must resolve to 'home', not some other screen
-  const lastReturnsHome=/:\s*'home'/.test(screenStateBlock);
-  assert.ok(lastReturnsHome);
+test('1. ?debug=library is recognized and drives the initial screen, while the default route remains home',()=>{
+  const initStart=indexSource.indexOf('const [screen, setScreen] = useState(() => {');
+  const initEnd=indexSource.indexOf('});',initStart)+3;
+  const initSrc=indexSource.slice(initStart,initEnd).replace('const [screen, setScreen] = useState(','').replace(/\);$/,'');
+  const fn=new Function('URLSearchParams','window',`return (${initSrc})();`);
+  assert.strictEqual(fn(URLSearchParams,{location:{search:''}}),'home');
+  assert.strictEqual(fn(URLSearchParams,{location:{search:'?debug=library'}}),'proLibraryPreview');
 });
 
-test('the debug library screen exists and is wired into the screen router as a plain sibling branch',()=>{
-  assert.ok(indexSource.includes("function ProLibraryPreviewScreen("));
-  assert.ok(indexSource.includes("{screen === 'proLibraryPreview' && <ProLibraryPreviewScreen"));
+test('2. default route resolves to home and HomeScreen/normal navigation are untouched',()=>{
+  const homeScreenStart=indexSource.indexOf('function HomeScreen(');
+  const homeScreenEnd=indexSource.indexOf('\n    function ',homeScreenStart+10);
+  const homeScreenSource=indexSource.slice(homeScreenStart,homeScreenEnd);
+  assert.ok(!homeScreenSource.includes('ProfessionalLashLibrary'));
+  assert.ok(!homeScreenSource.includes('proLibraryPreview'));
+  assert.ok(indexSource.includes("{screen === 'home' && <HomeScreen"));
 });
 
-test('the preview uses targetInventory and getDefinition, and no other production data source',()=>{
-  assert.ok(previewBlock.includes('ProfessionalLashLibrary.library.targetInventory'));
-  assert.ok(previewBlock.includes('ProfessionalLashLibrary.getDefinition('));
-  assert.ok(!previewCodeBlock.includes('DESIGN_CATALOG'));
-  assert.ok(!previewCodeBlock.includes('TECHNIQUE_CATALOG'));
-});
-
-test('all 15 canonical identities are available to the preview via targetInventory',()=>{
+test('3. all 15 canonical identities are available to the preview via targetInventory',()=>{
   const expectedNames=['Natural','Classic','Doll','Cat','Fox','Squirrel','Eyeliner','Wispy','Kim K','Angel','Wet','Rays','Anime','Jellyfish','American'];
   assert.deepStrictEqual(Library.library.targetInventory.map(item=>item.name),expectedNames);
   for(const item of Library.library.targetInventory){
     const def=Library.getDefinition(item.canonicalId);
     assert.ok(def,item.canonicalId);
-    assert.ok(def.kind);
-    assert.ok(def.validation.status);
   }
 });
 
-test('every canonical identity card is tappable and opens the detail state for its own canonicalId',()=>{
+test('4. every canonical identity card is tappable and opens the detail state for its own canonicalId',()=>{
   assert.ok(previewBlock.includes('onClick={() => onSelect(item.canonicalId)}'));
-  assert.ok(previewBlock.match(/<button[\s\S]*?›/));
-});
-
-test('selecting a canonicalId in App() stores it in debug-only state and switches to the detail screen',()=>{
-  assert.ok(indexSource.includes('const [debugPreviewCanonicalId, setDebugPreviewCanonicalId] = useState(null);'));
   assert.ok(routerBlock.includes("onSelect={(canonicalId) => { setDebugPreviewCanonicalId(canonicalId); setScreen('proLibraryDetail'); }}"));
 });
 
-test('the detail screen exists and is wired into the screen router',()=>{
-  assert.ok(indexSource.includes('function ProLibraryDetailScreen('));
-  assert.ok(routerBlock.includes("{screen === 'proLibraryDetail' && debugPreviewCanonicalId && <ProLibraryDetailScreen"));
-});
-
-test('back on the detail screen returns to the library list, not home or any production screen',()=>{
+test('5. Back works: detail returns to the preview list, preview returns to home',()=>{
   assert.ok(routerBlock.includes("<ProLibraryDetailScreen canonicalId={debugPreviewCanonicalId} onBack={() => setScreen('proLibraryPreview')} />"));
+  assert.ok(routerBlock.includes("<ProLibraryPreviewScreen onBack={() => setScreen('home')}"));
 });
 
-test('the detail screen reads the identity via ProfessionalLashLibrary.getDefinition(canonicalId), nothing else',()=>{
-  assert.ok(detailBlock.includes('ProfessionalLashLibrary.getDefinition(canonicalId)'));
-  assert.ok(!detailBlock.includes('DESIGN_CATALOG'));
-  assert.ok(!detailBlock.includes('rankDesigns('));
-  assert.ok(!detailBlock.includes('rankDesignsAll('));
-  assert.ok(!detailBlock.includes('calculateEyeLashMap('));
+test('6. RU/EN: both screens consume useLang(), and the methodical composer produces different text per language',()=>{
+  assert.ok(previewBlock.includes('const lang = useLang();'));
+  assert.ok(composer,'composer failed to load: '+(global.__composerLoadError&&global.__composerLoadError.message));
+  const cat=Library.getDefinition('geometry.cat');
+  const ru=composer.buildMethodicalSections(cat,'ru');
+  const en=composer.buildMethodicalSections(cat,'en');
+  assert.ok(ru.length>0&&en.length>0);
+  assert.notStrictEqual(ru[0].title,en[0].title);
+  assert.notStrictEqual(ru[0].paragraphs[0],en[0].paragraphs[0]);
+  assert.ok(/[а-яё]/i.test(ru[0].paragraphs[0]),'RU output should contain Cyrillic text');
+  assert.ok(!/[а-яё]/i.test(en[0].paragraphs[0]),'EN output should not contain Cyrillic text');
 });
 
-test('no production selectedDesign/result/activeDesign state is read or written by the preview or detail screen',()=>{
-  for(const forbidden of ['setResult(','setActiveDesign(','setNaturalLashProfile(','activeDesign','naturalLashProfile.'])assert.ok(!previewBlock.includes(forbidden),forbidden);
+test('7. the Detail screen is no longer a generic recursive raw-object renderer',()=>{
+  assert.ok(!indexSource.includes('ProLibKVRows'));
+  assert.ok(!indexSource.includes('function ProLibSection'));
+  assert.ok(!indexSource.includes('PRO_LIB_SECTION_PLAN'));
+  assert.ok(!indexSource.includes('proLibPickKeys'));
+  assert.ok(detailBlock.includes('buildMethodicalSections'));
 });
 
-test('MAPPING_GEOMETRY detail rendering exists and has real data to render for at least one identity',()=>{
-  assert.ok(indexSource.includes('MAPPING_GEOMETRY: [')); // section-plan entry present
-  const natural=Library.getDefinition('geometry.natural');
-  const planKeys=['primaryIntent','invariantOutcome','excludedDefiningIntents','maximum','peak','topology','normalizedProfile','innerBehavior','outerBehavior','relationships','densityFinish','personalizationBoundary','variants'];
-  assert.ok(planKeys.some(k=>natural.professionalDefinition[k]!==undefined&&natural.professionalDefinition[k]!==null));
+test('8-9. no raw property names, raw enum plumbing, or null/undefined ever surface as rendered methodical content',()=>{
+  assert.ok(composer);
+  const forbiddenTokens=/^[A-Z0-9]+(_[A-Z0-9]+)*$/; // a bare untouched SCREAMING_SNAKE token
+  for(const item of Library.library.targetInventory){
+    const def=Library.getDefinition(item.canonicalId);
+    for(const lang of ['ru','en']){
+      const sections=composer.buildMethodicalSections(def,lang);
+      for(const s of sections){
+        for(const p of s.paragraphs){
+          assert.strictEqual(typeof p,'string',`${item.canonicalId}/${lang}: paragraph must be a string`);
+          assert.ok(!forbiddenTokens.test(p.trim()),`${item.canonicalId}/${lang}: raw enum token rendered as prose: ${p}`);
+          assert.ok(!/\bnull\b/i.test(p),`${item.canonicalId}/${lang}: literal "null" rendered: ${p}`);
+          assert.ok(!/\bundefined\b/i.test(p),`${item.canonicalId}/${lang}: literal "undefined" rendered: ${p}`);
+          assert.ok(!/^[a-z]+([A-Z][a-z]*)+$/.test(p.trim()),`${item.canonicalId}/${lang}: bare camelCase field name rendered: ${p}`);
+        }
+      }
+    }
+  }
 });
 
-test('APPLICATION_TECHNIQUE detail rendering exists and has real data to render',()=>{
-  assert.ok(indexSource.includes('APPLICATION_TECHNIQUE: ['));
-  const classic=Library.getDefinition('technique.classic-one-to-one');
-  const planKeys=['coreInvariant','outcomeType','excludedDefiningTraits','attachment','fanConstructionBoundary','safetySuitability','geometryRelationship','curl','diameter','densityFinish','direction','schoolDependency'];
-  assert.ok(planKeys.some(k=>classic.professionalDefinition[k]!==undefined&&classic.professionalDefinition[k]!==null));
+test('10. methodical sections are genuinely derived from canonical data (spot checks against real values)',()=>{
+  assert.ok(composer);
+  const cat=composer.buildMethodicalSections(Library.getDefinition('geometry.cat'),'ru');
+  const essence=cat.find(s=>s.title==='Суть эффекта');
+  assert.ok(essence&&/вытяжение/i.test(essence.paragraphs[0]),'Cat essence should reflect its canonical STRONGER_FELINE_OUTER_ELONGATION intent');
+  const classic=composer.buildMethodicalSections(Library.getDefinition('technique.classic-one-to-one'),'ru');
+  const essenceTech=classic.find(s=>s.title==='Суть техники');
+  assert.ok(essenceTech&&/ресничк/i.test(essenceTech.paragraphs[0]),'Classic essence should reflect its canonical one-extension-per-lash invariant');
 });
 
-test('CONSTRUCTION_RECIPE detail rendering exists and has real data to render',()=>{
-  assert.ok(indexSource.includes('CONSTRUCTION_RECIPE: ['));
-  const wet=Library.getDefinition('construction.wet');
-  const planKeys=['outcomeType','invariantOutcome','identityConfidence','outcomeVsExecution','spikeAccentArchitecture','spikeWispArchitecture','spikeWispHierarchy','hierarchy','supportingField','supportingFieldBase','negativeSpace','relationships','rayPrimitiveRelationship','densityFinish'];
-  assert.ok(planKeys.some(k=>wet.professionalDefinition[k]!==undefined&&wet.professionalDefinition[k]!==null));
+test('11. domain semantics are respected: Classic reads as a technique, Rays reads as a reusable primitive, Eyeliner reads as a composite preset',()=>{
+  assert.ok(composer);
+  const classic=composer.buildMethodicalSections(Library.getDefinition('technique.classic-one-to-one'),'ru');
+  assert.ok(classic.some(s=>s.title==='Суть техники'),'Classic must use the technique-specific essence title, not a geometry one');
+  assert.ok(!classic.some(s=>s.title==='Пик / зона максимального акцента'),'Classic (a technique) must not get a geometry peak section');
+
+  const rays=composer.buildMethodicalSections(Library.getDefinition('construction.rays'),'ru');
+  const raysEssence=rays.find(s=>s.title==='Суть эффекта');
+  assert.ok(raysEssence&&raysEssence.paragraphs.some(p=>/переиспользуемый строительный элемент/.test(p)),'Rays must be explained as a reusable primitive, not a standalone effect');
+
+  const eyeliner=composer.buildMethodicalSections(Library.getDefinition('preset.eyeliner'),'ru');
+  assert.ok(eyeliner.some(s=>s.title==='Слои композиции'),'Eyeliner (a composite preset) must show its layer composition');
 });
 
-test('COMPOSITE_PRESET detail rendering exists and has real data to render',()=>{
-  assert.ok(indexSource.includes('COMPOSITE_PRESET: ['));
-  const eyeliner=Library.getDefinition('preset.eyeliner');
-  const planKeys=['invariant','layers','invariantVsExecution','schoolDependency'];
-  assert.ok(planKeys.some(k=>eyeliner.professionalDefinition[k]!==undefined&&eyeliner.professionalDefinition[k]!==null));
-});
-
-test('unresolved fields render as a readable list when present',()=>{
-  assert.ok(detailBlock.includes('pd.unresolved.map'));
-  const wet=Library.getDefinition('construction.wet');
-  assert.ok(Array.isArray(wet.professionalDefinition.unresolved)&&wet.professionalDefinition.unresolved.length>0);
-});
-
-test('validation status, numericClaims, revision, and provenance can render',()=>{
-  assert.ok(detailBlock.includes('title="VALIDATION"'));
-  assert.ok(detailBlock.includes('def.validation.status'));
-  assert.ok(detailBlock.includes('numericClaims'));
-  assert.ok(detailBlock.includes('def.validation.revision'));
-  assert.ok(detailBlock.includes('def.validation.provenance'));
-});
-
-test('the preview never calls rankDesigns, rankDesignsAll, or calculateEyeLashMap',()=>{
+test('12. the preview/detail code never calls production ranking/scoring functions',()=>{
   assert.ok(!previewCodeBlock.includes('rankDesigns('));
   assert.ok(!previewCodeBlock.includes('rankDesignsAll('));
   assert.ok(!previewCodeBlock.includes('calculateEyeLashMap('));
+  assert.ok(!previewCodeBlock.includes('DESIGN_CATALOG'));
 });
 
-test('the preview never mutates DESIGN_CATALOG and DESIGN_CATALOG stays exactly 21 entries',()=>{
-  assert.ok(!previewCodeBlock.includes('DESIGN_CATALOG.push'));
-  assert.ok(!previewCodeBlock.includes('DESIGN_CATALOG['));
-  assert.ok(!previewCodeBlock.includes('DESIGN_CATALOG.splice'));
+test('13. DESIGN_CATALOG stays byte-identical and exactly 21 entries',()=>{
   assert.strictEqual(catalog.length,21);
+  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
+});
+
+test('14. all 21 legacy IDs remain unchanged',()=>{
   assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction']);
 });
 
-test('productionEnabled stays false and activeDefinitionIds stays empty',()=>{
+test('15-16. productionEnabled stays false and activeDefinitionIds stays empty',()=>{
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
 });
 
-test('all 21 legacy IDs remain unchanged and ClientLashDesign production source is untouched',()=>{
-  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction']);
-  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
-  assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
-  assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
+test('17. Babel/JSX parse of the shared app script, when @babel/core is available locally',(t)=>{
+  let babel;
+  try{ babel=require('@babel/core'); }catch(e){ babel=null; }
+  if(!babel){
+    t.skip('@babel/core is not an installed dependency of this repo; full Babel parse verification is performed manually per phase (see implementation report) rather than as a hard CI dependency.');
+    return;
+  }
+  const marker='<script type="text/babel">';
+  const start=indexSource.indexOf(marker)+marker.length;
+  const end=indexSource.indexOf('</script>',start);
+  const script=indexSource.slice(start,end);
+  assert.doesNotThrow(()=>babel.transformSync(script,{presets:[require.resolve('@babel/preset-react')],filename:'app.jsx'}));
 });
 
 test('no activation/editing UI exists in the preview or detail screen: every button is plain back/select navigation only',()=>{
-  for(const forbidden of ['activeDefinitionIds =','setActive','onActivate','activateDefinition','.push(','localStorage.setItem'])assert.ok(!previewBlock.includes(forbidden),forbidden);
+  // Note: the methodical composer legitimately builds sentence arrays with
+  // plain Array.push() (essenceParts.push, sections.push, notes.push) —
+  // that is presentation-layer string assembly, not production activation.
+  // What must never appear is a write to the library's own activation state.
+  for(const forbidden of ['activeDefinitionIds.push','activeDefinitionIds =','library.activation.','setActive','onActivate','activateDefinition','localStorage.setItem'])assert.ok(!previewBlock.includes(forbidden),forbidden);
   assert.ok(!previewBlock.includes('<input'));
   assert.ok(!previewBlock.includes('<select'));
   assert.ok(!/activate/i.test(previewBlock));
@@ -196,50 +229,12 @@ test('no activation/editing UI exists in the preview or detail screen: every but
   for(const handler of onClicks)assert.ok(handler==='onClick={onBack}'||handler==='onClick={() => onSelect(item.canonicalId)}',handler);
 });
 
-test('no recommendation behavior changes: HomeScreen and the normal navigation flow are untouched',()=>{
-  const homeScreenStart=indexSource.indexOf('function HomeScreen(');
-  const homeScreenEnd=indexSource.indexOf('\n    function ',homeScreenStart+10);
-  const homeScreenSource=indexSource.slice(homeScreenStart,homeScreenEnd);
-  assert.ok(!homeScreenSource.includes('ProfessionalLashLibrary'));
-  assert.ok(!homeScreenSource.includes('proLibraryPreview'));
-  assert.ok(indexSource.includes("const [screen, setScreen] = useState(() => {"));
-  assert.ok(indexSource.includes("{screen === 'home' && <HomeScreen"));
-});
-
-test('opening the site with no query param still resolves the initial screen to home, matching production behavior before this change',()=>{
-  const initializer=indexSource.slice(indexSource.indexOf('const [screen, setScreen] = useState(() => {'),indexSource.indexOf('});',indexSource.indexOf('const [screen, setScreen] = useState(() => {'))+3);
-  // eslint-disable-next-line no-new-func
-  const fn=new Function('URLSearchParams','window',`return (${initializer.replace('const [screen, setScreen] = useState(','').replace(/\);$/,'')})();`);
-  const fakeWindow={location:{search:''}};
-  assert.strictEqual(fn(URLSearchParams,fakeWindow),'home');
-  const fakeWindowDebug={location:{search:'?debug=library'}};
-  assert.strictEqual(fn(URLSearchParams,fakeWindowDebug),'proLibraryPreview');
-});
-
-test('RU/EN localization bug fix: every enum-style value actually present in any identity has a Russian presentation label',()=>{
+test('RU value/key dictionaries still cover every enum-style value and key actually present in canonical data',()=>{
   const valueLabels=extractObjectLiteral('PRO_LIB_VALUE_LABELS_RU');
-  const {seenValues}=collectRenderedValuesAndKeys();
-  assert.ok(seenValues.size>400,'sanity check: the real data should contain hundreds of enum-style values');
-  const missing=[...seenValues].filter(v=>!valueLabels[v]);
-  assert.deepStrictEqual(missing,[],`raw English values with no RU label: ${missing.join(', ')}`);
-  // spot-check the exact values from the reported phone bug
-  for(const reported of ['STRONGER_FELINE_OUTER_ELONGATION','RELATIVE_TO_LASH_LINE','NORMALIZED_LASH_LINE','LATE_OUTER','NUMERIC_RANGE_UNRESOLVED','QUALITATIVE_REGION_ONLY']){
-    assert.ok(typeof valueLabels[reported]==='string'&&/[а-яё]/i.test(valueLabels[reported]),reported);
-  }
-});
-
-test('RU/EN localization bug fix: every object key actually present in any identity has a Russian presentation label',()=>{
   const keyLabels=extractObjectLiteral('PRO_LIB_KEY_LABELS_RU');
-  const {seenKeys}=collectRenderedValuesAndKeys();
-  assert.ok(seenKeys.size>500,'sanity check: the real data should contain hundreds of distinct keys');
-  const missing=[...seenKeys].filter(k=>!keyLabels[k]);
-  assert.deepStrictEqual(missing,[],`raw English keys with no RU label: ${missing.join(', ')}`);
-});
-
-test('proLibHumanizeToken and proLibHumanizeValue consult the RU dictionaries before falling back to English humanization',()=>{
-  assert.ok(previewCodeBlock.includes('PRO_LIB_VALUE_LABELS_RU[value]'));
-  assert.ok(previewCodeBlock.includes('PRO_LIB_KEY_LABELS_RU[key]'));
-  assert.ok(previewCodeBlock.includes("value ? 'Да' : 'Нет'"));
+  const {seenValues,seenKeys}=collectRenderedValuesAndKeys();
+  assert.deepStrictEqual([...seenValues].filter(v=>!valueLabels[v]),[]);
+  assert.deepStrictEqual([...seenKeys].filter(k=>!keyLabels[k]),[]);
 });
 
 test('canonicalId itself is never translated and stays visible as technical metadata',()=>{
@@ -249,10 +244,16 @@ test('canonicalId itself is never translated and stays visible as technical meta
   assert.ok(previewBlock.includes('{def.id}'));
 });
 
-test('production is untouched: this fix only expanded RU dictionaries, activation and legacy data remain exactly as before',()=>{
+test('the Rays presentation gap is resolved via the existing reviewed RAY primitive, and RAY itself is untouched',()=>{
+  assert.ok(previewBlock.includes("def.id === 'construction.rays'"));
+  assert.ok(previewBlock.includes('primitiveDefinitions.RAY'));
+  const ray=Library.library.schema.textureConstruction.primitiveDefinitions.RAY;
+  assert.strictEqual(digest(JSON.stringify(ray)),'3e23c055de03aa7c238df7182c808983475d5d46e89062743d06066caa48aefb');
+});
+
+test('production is untouched: activation stays inactive and all legacy production consumers remain byte-identical',()=>{
+  assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
+  assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
-  const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
-  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
-  assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
 });

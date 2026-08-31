@@ -100,7 +100,7 @@ test('Angel boundary is resolved by the separate Angel review while Wispy or Kim
   assert.strictEqual(professional.invariantOutcome.kimStyleRaysRequired,false);
   assert.strictEqual(professional.invariantOutcome.wispyAccentStructureRequired,false);
   assert.strictEqual(Library.getDefinition('construction.angel').professionalDefinition.visualBoundaryWithWet.wetConstructionId,'construction.wet');
-  assert.strictEqual(Library.getDefinition('construction.wispy').professionalDefinition,null);
+  assert.strictEqual(Library.getDefinition('construction.wispy').professionalDefinition.invariantOutcome.accentArchitecture,'REPEATED_ACCENT_WISPS');
   assert.strictEqual(Library.getDefinition('construction.kim-k').professionalDefinition,null);
 });
 

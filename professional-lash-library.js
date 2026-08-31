@@ -894,6 +894,149 @@
     narrativeClaims: ['VERY_LIGHT_AIRY_COVERAGE', 'LOW_WEIGHT_LANGUAGE', 'BARELY_THERE_SOFTNESS'],
   };
 
+  // Phase 1J Wispy foundation. The canonical identity is the visible accent-
+  // to-support texture outcome; every physical and numeric execution choice
+  // remains explicitly variant- or school-dependent.
+  const wispyConstructionDefinition = identity('construction.wispy', 'Wispy', 'CONSTRUCTION_RECIPE', {
+    status: 'EXPERT_REVIEWED', legacyIds: ['wispy'],
+  });
+  wispyConstructionDefinition.professionalDefinition = {
+    outcomeType: 'WISPY_ACCENT_TO_SUPPORT_TEXTURE',
+    invariantOutcome: {
+      visibleLengthVariation: 'CONTROLLED_VISIBLE_LENGTH_VARIATION',
+      accentArchitecture: 'REPEATED_ACCENT_WISPS',
+      topLine: 'BROKEN_NON_UNIFORM_TOP_LINE',
+      textureContrast: 'ACCENT_TO_SUPPORT_TEXTURE_CONTRAST',
+      finish: 'DIMENSIONAL_TEXTURED_FINISH',
+    },
+    outcomeVsExecution: {
+      invariant: 'CONTROLLED_REPEATED_ACCENT_WISPS_OVER_SUPPORT_WITH_BROKEN_DIMENSIONAL_TOP_LINE',
+      executionMethodStatus: 'SCHOOL_OR_VARIANT_DEPENDENT', universalMethod: null,
+      differentMethodsMayShareCanonicalIdentity: true,
+    },
+    spikeWispArchitecture: {
+      canonicalTerm: 'ACCENT_WISPS_OR_PIECES',
+      spikeTermScope: 'PHYSICAL_EXECUTION_CLASS_ONLY',
+      accentPieces: 'ESSENTIAL',
+      visibleLengthHierarchy: 'ESSENTIAL_QUALITATIVE',
+      brokenTopLine: 'ESSENTIAL',
+      supportingFieldRelationship: 'ESSENTIAL_CONCEPTUAL',
+      exactHierarchy: null,
+      regularity: 'VARIANT_DEPENDENT',
+      clustering: null,
+      exactSpikeConstruction: 'SCHOOL_DEPENDENT',
+      universalSpikePlan: null,
+    },
+    supportingField: {
+      role: 'ESSENTIAL_CONCEPT',
+      continuousBase: 'NOT_UNIVERSALLY_REQUIRED',
+      baseDensity: 'VARIANT_DEPENDENT',
+      layeredSpikeOverBase: 'COMMON_SCHOOL_DEPENDENT_METHOD',
+      mixedLengthsIntegrated: 'LEGITIMATE_ALTERNATIVE',
+      universalLayerCount: null,
+    },
+    relationships: {
+      fanConstruction: {
+        domain: 'FAN_CONSTRUCTION', role: 'EXECUTION_CONTRIBUTOR',
+        selection: 'SCHOOL_OR_VARIANT_DEPENDENT', constructionId: null,
+        recognizedMethodClasses: ['OPEN_FANS', 'CLOSED_FANS', 'NARROW_FANS', 'MIXED_FANS', 'CLASSIC_CONSTRUCTIONS', 'HYBRID_CONSTRUCTIONS', 'CLOSED_FAN_ACCENTS'],
+        recognizedMethodClassesAreUniversalRequirements: false, universalFanMethod: null,
+      },
+      geometry: {
+        domain: 'MAPPING_GEOMETRY', role: 'MANDATORY_CARRIER_SLOT',
+        selection: 'VARIANT_DEPENDENT', geometryId: null, universalCompatibleIds: [],
+      },
+      layering: {
+        role: 'SCHOOL_DEPENDENT', discreteSpikeOverBase: 'COMMON_NON_UNIVERSAL_METHOD',
+        mixedIntegratedLengths: 'LEGITIMATE_ALTERNATIVE', universalLayeringMethod: null, universalLayerCount: null,
+      },
+      direction: {
+        domain: 'DIRECTION_STRATEGY', role: 'SECONDARY', strategyId: null,
+        maySupport: ['ACCENT_SEPARATION', 'VISUAL_RHYTHM', 'PRESENTATION', 'AVOIDANCE_OF_CROSSING', 'GEOMETRY_READABILITY'],
+        identityDefining: false, numericAngles: null, directionVectors: null, directionalZones: null, universalSweep: null,
+      },
+      curl: {
+        domain: 'CURL_STRATEGY', role: 'NOT_PART_OF_EFFECT', selection: 'VARIANT_DEPENDENT',
+        strategyId: null, exactCurl: null,
+      },
+      applicationTechnique: {
+        domain: 'APPLICATION_TECHNIQUE', role: 'SCHOOL_OR_VARIANT_DEPENDENT', techniqueId: null,
+      },
+    },
+    densityFinish: {
+      qualitativeIntent: ['TEXTURED', 'BROKEN_NON_UNIFORM_TOP_LINE', 'DIMENSIONAL', 'VISIBLE_ACCENT_VARIATION'],
+      variantDimensions: ['AIRY', 'SOFT', 'BOLD', 'FLUFFY', 'SEPARATED', 'DENSE', 'GRAPHIC'],
+      exactDensity: null, lightOrAiryMandatory: false,
+    },
+    visualBoundaryWithAngel: {
+      angelConstructionId: 'construction.angel',
+      strongerVisibleAccentToSupportContrast: 'SUPPORTED',
+      moreExplicitAccentWisps: 'SUPPORTED',
+      moreTopLineArchitecture: 'SUPPORTED',
+      controlledIrregularOrVariableRhythm: 'SUPPORTED',
+      lessUniformlySoft: 'SCHOOL_DEPENDENT',
+      separateBaseAndSpikeLayers: 'SCHOOL_DEPENDENT',
+      angelAsWispySubtype: 'SCHOOL_DEPENDENT_OR_SEMANTIC',
+      taxonomyBoundary: 'SCHOOL_DEPENDENT_OVERLAP', mutuallyExclusive: false,
+    },
+    relationshipWithKimK: {
+      kimKConstructionId: 'construction.kim-k',
+      status: 'PROVISIONAL_SCHOOL_DEPENDENT_RELATIONSHIP',
+      possibleStructuredBoldSubtypeInSomeSchools: true,
+      canonicalSubtypeClaim: false, universalHierarchy: null,
+    },
+    futureVariantNamespace: {
+      status: 'REQUIRES_SEPARATE_REVIEW',
+      potentialDimensions: ['SOFT', 'BOLD', 'CLASSIC', 'HYBRID', 'VOLUME', 'OPEN_FAN', 'CLOSED_FAN_ACCENT', 'LAYERED', 'MIXED_LENGTH', 'ORGANIC_RHYTHM', 'STRUCTURED_RHYTHM', 'ANGEL_OVERLAP', 'KIM_K_RELATIONSHIP', 'GEOMETRY_CARRIER_CHOICE'],
+      canonicalVariantIdsCreated: false,
+    },
+    exactAccentCount: null,
+    exactAccentFrequency: null,
+    exactAccentSpacing: null,
+    exactLengthHierarchy: null,
+    exactLengthDelta: null,
+    exactPlacement: null,
+    exactFanCount: null,
+    exactFanWidth: null,
+    exactDiameter: null,
+    exactVolume: null,
+    exactLayerCount: null,
+    exactMillimeters: null,
+    unresolved: ['EXACT_ACCENT_HIERARCHY', 'EXACT_REGULARITY', 'CLUSTERING', 'UNIVERSAL_SPIKE_CONSTRUCTION', 'UNIVERSAL_FAN_METHOD', 'BASE_LAYER_EXECUTION', 'UNIVERSAL_LAYERING_METHOD', 'EXACT_DENSITY', 'GEOMETRY_COMPATIBILITY', 'ANGEL_WISPY_TAXONOMY_BOUNDARY', 'KIM_K_WISPY_TAXONOMY_BOUNDARY', 'NUMERIC_EXECUTION_PARAMETERS'],
+  };
+  wispyConstructionDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], techniqueIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_VARIANT_OR_SCHOOL_DEPENDENT',
+  };
+  wispyConstructionDefinition.validation = {
+    status: 'EXPERT_REVIEWED',
+    evidence: [{
+      id: 'phase-1j-wispy-construction-foundation', type: 'REVIEWED_PROFESSIONAL_CONSTRUCTION_FOUNDATION',
+      scope: ['CONTROLLED_VISIBLE_LENGTH_VARIATION', 'REPEATED_ACCENT_WISPS', 'BROKEN_NON_UNIFORM_TOP_LINE', 'ACCENT_TO_SUPPORT_TEXTURE_CONTRAST', 'DIMENSIONAL_TEXTURED_FINISH', 'OUTCOME_EXECUTION_SEPARATION'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1J_APPROVED_PROFESSIONAL_BRIEF', scope: 'QUALITATIVE_CONSTRUCTION_OUTCOME_ONLY' }],
+    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1J_APPROVAL' }],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['Accent hierarchy, regularity, clustering, spike and fan construction, base/layer execution, density, geometry compatibility, Angel and Kim K taxonomy boundaries, and all numeric execution remain unresolved or school-dependent.'],
+  };
+  wispyConstructionDefinition.legacyReference = {
+    legacyIds: ['wispy', 'wispycat', 'wispydoll'], legacyAliases: [],
+    relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',
+    records: [
+      { legacyId: 'wispy', templateMm: [7, 8, 9, 10, 8], peakZone: 3, applicationTechnique: 'Light Volume 2D' },
+      { legacyId: 'wispycat', templateMm: [7, 8, 9, 11, 9], peakZone: 3, applicationTechnique: 'Light Volume 2D' },
+      { legacyId: 'wispydoll', templateMm: [7, 9, 10, 10, 8], peakZone: 2, applicationTechnique: 'Volume 3D' },
+    ],
+    topology: { plateauShape: 'linear', postPeakShape: 'linear' },
+    curlOptions: ['B', 'C', 'CC', 'D', 'L'],
+    textureExecution: { pattern: 'uniform', frequency: 2, deltas: [1.5, 2, 1.5], deterministicJitter: true, tallAlternation: true, shortMultiplier: 0.35 },
+    scoring: 'LEGACY_PRODUCTION_ONLY',
+    normalizedGeometry: null, templateMm: null, scoreCoefficients: null, spikeDeltas: null,
+    textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': identity('geometry.natural', 'Natural', 'MAPPING_GEOMETRY', { legacyIds: ['natural'] }),
@@ -906,7 +1049,7 @@
       'technique.classic-one-to-one': identity('technique.classic-one-to-one', 'Classic', 'APPLICATION_TECHNIQUE', { legacyAliases: ['Classic 1:1'] }),
     },
     constructionRecipes: {
-      'construction.wispy': identity('construction.wispy', 'Wispy', 'CONSTRUCTION_RECIPE', { legacyIds: ['wispy'] }),
+      'construction.wispy': wispyConstructionDefinition,
       'construction.kim-k': identity('construction.kim-k', 'Kim K', 'CONSTRUCTION_RECIPE', { legacyIds: ['kim'], legacyAliases: ['Rays', 'Soft Rays'] }),
       'construction.angel': angelConstructionDefinition,
       'construction.wet': wetConstructionDefinition,

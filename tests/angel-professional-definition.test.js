@@ -122,7 +122,7 @@ test('Wispy overlap remains school-dependent and Kim K is not redefined',()=>{
   assert.strictEqual(effects.wispy.distinctWetRelatedConstructionInOtherSchools,true);
   assert.strictEqual(effects.kimK.comparisonStatus,'PROVISIONAL_UNTIL_KIM_K_REVIEW');
   assert.strictEqual(effects.kimK.dramaticSpikeBaseContrastRequired,false);
-  assert.strictEqual(Library.getDefinition('construction.wispy').professionalDefinition,null);
+  assert.strictEqual(Library.getDefinition('construction.wispy').professionalDefinition.visualBoundaryWithAngel.angelConstructionId,'construction.angel');
   assert.strictEqual(Library.getDefinition('construction.kim-k').professionalDefinition,null);
 });
 

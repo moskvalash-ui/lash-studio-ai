@@ -46,6 +46,18 @@
        calculateEyeLashMap, and ClientLashDesign never reference this
        module, and library.activation.productionEnabled stays false. -->
   <script src="professional-lash-library.js"></script>
+  <!-- Client Card / Client History — Phase 1 data layer (Phase 2 wires
+       it into real screens below). Same dual-load pattern as every
+       other plain script here. Exports land on window.ClientStore.
+       Pure data layer: no camera/scan/ranking/recommendation code, no
+       photo/Blob storage yet, versioned + fail-closed schemas. -->
+  <script src="client-store.js"></script>
+  <!-- Client Card consent (Phase 1): a dedicated, separate opt-in gate
+       for storing a CLIENT's personal data on this device — distinct
+       from and never touching lashStudioConsent (analytics-only, see
+       consent-manager.js above). Defaults OFF; exports land on
+       window.ClientDataConsent. -->
+  <script src="client-data-consent.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -504,6 +516,64 @@
       consentChangeLaterNote: {ru:'Вы можете изменить или отозвать согласие в любой момент — нажмите на значок конфиденциальности вверху экрана.', en:'You can change or withdraw your consent at any time — tap the privacy icon at the top of the screen.'},
       consentOpenSettingsAria: {ru:'Настройки конфиденциальности и аналитики', en:'Privacy and analytics settings'},
       consentUpdatedAt: {ru:'Обновлено', en:'Updated'},
+
+      // ------------------------------------------------------------
+      // CLIENT CARD — Phase 2: production Clients section. Copy only —
+      // no technical property names, enums, or internal identifiers
+      // (ClientVisit, dateOfBirth, desiredLook, etc.) ever appear here.
+      // ------------------------------------------------------------
+      clientsNavLabel: {ru:'Клиенты', en:'Clients'},
+      clientsSearchPlaceholder: {ru:'Поиск по имени', en:'Search by name'},
+      clientsNewButton: {ru:'+ Новый клиент', en:'+ New client'},
+      clientsEmptyTitle: {ru:'Пока нет ни одной карточки', en:'No clients yet'},
+      clientsEmptyBody: {ru:'Добавьте первую карточку клиентки, чтобы начать вести историю визитов.', en:'Add your first client card to start keeping a visit history.'},
+      clientsNoResults: {ru:'Никого не найдено', en:'No matches found'},
+      clientLastVisitLabel: {ru:'Последний визит', en:'Last visit'},
+      clientTotalVisitsLabel: {ru:'Визитов', en:'Visits'},
+      clientNoVisitsYet: {ru:'Визитов ещё не было', en:'No visits yet'},
+
+      clientFormNewTitle: {ru:'Новая клиентка', en:'New client'},
+      clientFormEditTitle: {ru:'Редактировать клиентку', en:'Edit client'},
+      clientFieldFullName: {ru:'Имя и фамилия', en:'Full name'},
+      clientFieldDob: {ru:'Дата рождения', en:'Date of birth'},
+      clientFieldAgeComputed: {ru:'Возраст', en:'Age'},
+      clientFieldPhone: {ru:'Телефон / контакт', en:'Phone / contact'},
+      clientFieldDesiredLook: {ru:'Желаемый результат', en:'Desired look'},
+      clientFieldPreferredEffects: {ru:'Любимые эффекты', en:'Preferred effects'},
+      clientFieldPreferredEffectsHint: {ru:'Через запятую, например: Kim K, Wispy', en:'Comma-separated, e.g. Kim K, Wispy'},
+      clientFieldRequestNotes: {ru:'Пожелания клиентки', en:'Client requests'},
+      clientFieldArtistNotes: {ru:'Заметки мастера', en:'Artist notes'},
+      clientFormSave: {ru:'Сохранить', en:'Save'},
+      clientFormCancel: {ru:'Отмена', en:'Cancel'},
+      clientPhotoPlaceholderHint: {ru:'Фото клиентки появится в следующем обновлении', en:'Client photos are coming in a future update'},
+      clientFullNameRequiredError: {ru:'Введите имя клиентки', en:'Enter the client’s name'},
+
+      clientCardFirstVisit: {ru:'Первый визит', en:'First visit'},
+      clientCardLastVisit: {ru:'Последний визит', en:'Last visit'},
+      clientCardTotalVisits: {ru:'Всего визитов', en:'Total visits'},
+      clientCardPreferencesTitle: {ru:'Предпочтения', en:'Preferences'},
+      clientCardDesiredLook: {ru:'Желаемый результат', en:'Desired look'},
+      clientCardPreferredEffects: {ru:'Любимые эффекты', en:'Preferred effects'},
+      clientCardRequestNotes: {ru:'Пожелания клиентки', en:'Client requests'},
+      clientCardArtistNotesTitle: {ru:'Заметки мастера', en:'Artist notes'},
+      clientCardLastVisitTitle: {ru:'Последний визит', en:'Latest visit'},
+      clientCardLastVisitEmpty: {ru:'История визитов появится после сохранения первого визита.', en:'Visit history will appear once the first visit is saved.'},
+      clientCardHistoryTitle: {ru:'История визитов', en:'Visit history'},
+      clientCardHistoryEmpty: {ru:'Пока нет сохранённых визитов.', en:'No saved visits yet.'},
+      clientCardNewVisit: {ru:'Новый визит', en:'New visit'},
+      clientCardNewVisitComingSoon: {ru:'Сохранение визита появится в следующем обновлении.', en:'Saving a visit will be available in a future update.'},
+      clientCardEdit: {ru:'Редактировать', en:'Edit'},
+      clientCardDelete: {ru:'Удалить клиентку', en:'Delete client'},
+      clientCardDeleteConfirmTitle: {ru:'Удалить карточку клиентки?', en:'Delete this client card?'},
+      clientCardDeleteConfirmBody: {ru:'Будут удалены карточка клиентки и вся история визитов. Это действие нельзя отменить.', en:'This will delete the client card and their entire visit history. This cannot be undone.'},
+      clientCardDeleteConfirmYes: {ru:'Удалить', en:'Delete'},
+      clientCardDeleteConfirmNo: {ru:'Отмена', en:'Cancel'},
+      clientCardNotFound: {ru:'Клиентка не найдена', en:'Client not found'},
+
+      clientConsentPromptTitle: {ru:'Хранение данных клиентки', en:'Storing client data'},
+      clientConsentPromptBody: {ru:'Имя, дата рождения, контакты и заметки клиентки будут сохранены локально на этом устройстве — они никуда не отправляются. Вы, как мастер, отвечаете за согласие клиентки на хранение её данных.', en:'The client’s name, date of birth, contact details, and notes will be stored locally on this device only — nothing is sent anywhere. As the artist, you are responsible for your client’s consent to store their data.'},
+      clientConsentPromptAccept: {ru:'Сохранять данные на этом устройстве', en:'Store data on this device'},
+      clientConsentPromptDecline: {ru:'Не сейчас', en:'Not now'},
     };
     function t(key, lang) { const e = STRINGS[key]; if (!e) return key; return e[lang] || e.ru; }
 
@@ -4946,7 +5016,7 @@
       );
     }
 
-    function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry }) {
+    function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients }) {
       const lang = useLang();
       return (
         <div className="h-full flex flex-col p-6 fade-in overflow-y-auto hide-scrollbar">
@@ -4982,6 +5052,10 @@
               </button>
             </div>
           )}
+          <button onClick={onClients} className="w-full py-3.5 rounded-md font-medium text-[14px] press-scale glass flex items-center justify-center gap-2 text-textPrimary mb-4">
+            <ClientsIcon className="w-4 h-4 text-accent" />
+            {t('clientsNavLabel', lang)}
+          </button>
           <div className="glass rounded-lg p-4 mb-1">
             <p className="label-tech mb-2">{t('recentSessions', lang)}</p>
             <p className="text-sm text-textMuted text-center py-4">{t('noSessions', lang)}</p>
@@ -9313,6 +9387,437 @@
       );
     }
 
+    // ============================================================
+    // CLIENT CARD / CLIENT HISTORY — Phase 2: production UI only.
+    // ------------------------------------------------------------
+    // Consumes the Phase 1 data layer (window.ClientStore /
+    // window.ClientDataConsent) exclusively through their public
+    // functions — never reaches into professional-lash-library.js,
+    // DESIGN_CATALOG, rankDesigns/rankDesignsAll, calculateEyeLashMap,
+    // camera/scan code, Natural Lash Scan, or analytics.js. "New
+    // Visit" is visually present on the Client Card but intentionally
+    // NOT wired to any scan/result state yet — that integration is a
+    // later phase. No photo/Blob storage exists yet; the photo slot is
+    // a tasteful placeholder only. Age is never stored — every display
+    // of it calls ClientStore.calculateAge(dateOfBirth) at render time.
+    // ============================================================
+    function ClientsIcon({ className }) {
+      return (
+        <svg className={className} fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 12a4 4 0 100-8 4 4 0 000 8z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 20c0-3.5 3.5-6 8-6s8 2.5 8 6" />
+        </svg>
+      );
+    }
+
+    // Presentational only — never stored. RU uses correct numeral
+    // agreement (год/года/лет); EN uses a compact "N y.o." form.
+    function formatClientAge(age, lang) {
+      if (age === null || age === undefined) return null;
+      if (lang === 'ru') {
+        const mod100 = age % 100, mod10 = age % 10;
+        let suffix = 'лет';
+        if (mod100 < 11 || mod100 > 14) {
+          if (mod10 === 1) suffix = 'год';
+          else if (mod10 >= 2 && mod10 <= 4) suffix = 'года';
+        }
+        return `${age} ${suffix}`;
+      }
+      return `${age} y.o.`;
+    }
+
+    function formatClientDate(iso, lang) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US');
+    }
+
+    const CLIENT_INPUT_CLASS = 'w-full text-[14px] bg-white/[0.03] border border-border rounded-md px-3 py-2.5 text-textPrimary placeholder:text-textMuted focus:outline-none focus:border-borderActive';
+    const CLIENT_LABEL_CLASS = 'text-[12px] font-semibold text-textSecondary mb-1.5 block';
+
+    // Separate from ConsentPanel (analytics-only, consent-manager.js).
+    // Gates only the moment a NEW client record is first persisted —
+    // editing/deleting an already-stored client never re-prompts.
+    function ClientDataConsentPrompt({ lang, onAccept, onDecline }) {
+      return (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 70 }} className="flex items-center justify-center p-4 bg-black/60" onClick={onDecline}>
+          <div className="glass-strong rounded-lg p-4 w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-8 h-8 rounded-md bg-white/[0.03] border border-border flex items-center justify-center flex-shrink-0">
+                <ShieldIcon className="w-4 h-4 text-accent" />
+              </div>
+              <h3 className="text-[14px] font-semibold text-textPrimary">{t('clientConsentPromptTitle', lang)}</h3>
+            </div>
+            <p className="text-[13px] text-textSecondary leading-relaxed mb-4">{t('clientConsentPromptBody', lang)}</p>
+            <div className="flex flex-col gap-2">
+              <button onClick={onAccept} className="w-full py-3 rounded-md bg-accent text-white text-sm font-semibold press-scale">{t('clientConsentPromptAccept', lang)}</button>
+              <button onClick={onDecline} className="w-full py-2 rounded-md text-textMuted text-[13px] font-medium">{t('clientConsentPromptDecline', lang)}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function ClientListCard({ client, stats, lang, onOpen }) {
+      const age = client.dateOfBirth ? ClientStore.calculateAge(client.dateOfBirth) : null;
+      return (
+        <button onClick={() => onOpen(client.id)} className="w-full glass rounded-lg p-3 mb-2.5 flex items-center gap-3 text-left press-scale">
+          <div className="w-12 h-12 rounded-full bg-white/[0.05] border border-border flex items-center justify-center flex-shrink-0">
+            <ClientsIcon className="w-6 h-6 text-textMuted" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-[14px] font-semibold text-textPrimary truncate">{client.fullName}</p>
+              {age !== null && <span className="text-[11px] text-textMuted flex-shrink-0">{formatClientAge(age, lang)}</span>}
+            </div>
+            <p className="text-[12px] text-textSecondary mt-0.5 truncate">
+              {stats.lastVisitDate ? `${t('clientLastVisitLabel', lang)}: ${formatClientDate(stats.lastVisitDate, lang)}` : t('clientNoVisitsYet', lang)}
+              {' · '}{t('clientTotalVisitsLabel', lang)}: {stats.totalVisits}
+            </p>
+          </div>
+          <svg className="w-4 h-4 text-textMuted flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6"/></svg>
+        </button>
+      );
+    }
+
+    function ClientsListScreen({ lang, store, onOpenClient, onNewClient, onBack }) {
+      const [loading, setLoading] = useState(true);
+      const [rows, setRows] = useState([]);
+      const [query, setQuery] = useState('');
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          if (!store) { setLoading(false); return; }
+          const clients = await store.listClients();
+          const withStats = await Promise.all(clients.map(async (c) => {
+            const visits = await store.listVisitsForClient(c.id);
+            return { client: c, stats: ClientStore.deriveClientVisitStats(visits) };
+          }));
+          withStats.sort((a, b) => a.client.fullName.localeCompare(b.client.fullName));
+          if (!cancelled) { setRows(withStats); setLoading(false); }
+        })();
+        return () => { cancelled = true; };
+      }, [store]);
+
+      const filtered = query.trim()
+        ? rows.filter(r => r.client.fullName.toLowerCase().includes(query.trim().toLowerCase()))
+        : rows;
+
+      return (
+        <div className="h-full flex flex-col bg-bg fade-in">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+            <BackButton onBack={onBack} />
+            <h1 className="text-[17px] font-bold text-textPrimary">{t('clientsNavLabel', lang)}</h1>
+          </div>
+          <div className="px-4 pt-4">
+            <input
+              type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('clientsSearchPlaceholder', lang)}
+              className={CLIENT_INPUT_CLASS + ' mb-3'}
+            />
+            <button onClick={onNewClient} className="w-full py-3.5 rounded-md font-semibold text-[14px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-4">
+              {t('clientsNewButton', lang)}
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 pb-4 hide-scrollbar">
+            {loading ? null : rows.length === 0 ? (
+              <div className="glass rounded-lg p-6 text-center">
+                <p className="text-[14px] font-semibold text-textPrimary mb-1">{t('clientsEmptyTitle', lang)}</p>
+                <p className="text-[13px] text-textSecondary leading-relaxed">{t('clientsEmptyBody', lang)}</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <p className="text-[13px] text-textMuted text-center py-6">{t('clientsNoResults', lang)}</p>
+            ) : (
+              filtered.map(({ client, stats }) => (
+                <ClientListCard key={client.id} client={client} stats={stats} lang={lang} onOpen={onOpenClient} />
+              ))
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function ClientFormScreen({ lang, clientId, store, consentGranted, onGrantConsent, onSaved, onCancel }) {
+      const isEdit = !!clientId;
+      const [loading, setLoading] = useState(isEdit);
+      const [fullName, setFullName] = useState('');
+      const [dateOfBirth, setDateOfBirth] = useState('');
+      const [phone, setPhone] = useState('');
+      const [desiredLook, setDesiredLook] = useState('');
+      const [preferredEffects, setPreferredEffects] = useState('');
+      const [requestNotes, setRequestNotes] = useState('');
+      const [artistSensitivityNotes, setArtistSensitivityNotes] = useState('');
+      const [error, setError] = useState(false);
+      const [saving, setSaving] = useState(false);
+      const [consentPromptOpen, setConsentPromptOpen] = useState(false);
+
+      useEffect(() => {
+        let cancelled = false;
+        if (isEdit && store) {
+          store.getClient(clientId).then((c) => {
+            if (cancelled || !c) return;
+            setFullName(c.fullName || '');
+            setDateOfBirth(c.dateOfBirth || '');
+            setPhone(c.phone || '');
+            setDesiredLook(c.preferences.desiredLook || '');
+            setPreferredEffects((c.preferences.preferredEffects || []).join(', '));
+            setRequestNotes(c.preferences.requestNotes || '');
+            setArtistSensitivityNotes(c.preferences.artistSensitivityNotes || '');
+            setLoading(false);
+          });
+        }
+        return () => { cancelled = true; };
+      }, [isEdit, clientId, store]);
+
+      const computedAge = dateOfBirth ? ClientStore.calculateAge(dateOfBirth) : null;
+
+      const persist = async () => {
+        setSaving(true);
+        const payload = {
+          fullName: fullName.trim(),
+          dateOfBirth: dateOfBirth || null,
+          phone: phone.trim() || null,
+          preferences: {
+            desiredLook: desiredLook.trim() || null,
+            preferredEffects: preferredEffects.split(',').map(s => s.trim()).filter(Boolean),
+            requestNotes: requestNotes.trim() || null,
+            artistSensitivityNotes: artistSensitivityNotes.trim() || null,
+          },
+        };
+        try {
+          const record = isEdit ? await store.updateClient(clientId, payload) : await store.createClient(payload);
+          onSaved(record);
+        } finally {
+          setSaving(false);
+        }
+      };
+
+      const handleSave = () => {
+        if (!fullName.trim()) { setError(true); return; }
+        setError(false);
+        if (!isEdit && !consentGranted) { setConsentPromptOpen(true); return; }
+        persist();
+      };
+
+      if (loading) {
+        return <div className="h-full flex items-center justify-center bg-bg"><p className="text-textMuted text-sm">…</p></div>;
+      }
+
+      return (
+        <div className="h-full flex flex-col bg-bg fade-in">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+            <BackButton onBack={onCancel} />
+            <h1 className="text-[17px] font-bold text-textPrimary">{isEdit ? t('clientFormEditTitle', lang) : t('clientFormNewTitle', lang)}</h1>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 hide-scrollbar space-y-4">
+            <div className="flex justify-center mb-1">
+              <div className="w-20 h-20 rounded-full bg-white/[0.05] border border-dashed border-border flex items-center justify-center">
+                <ClientsIcon className="w-9 h-9 text-textMuted" />
+              </div>
+            </div>
+            <p className="text-[11px] text-textMuted text-center -mt-2">{t('clientPhotoPlaceholderHint', lang)}</p>
+
+            <div>
+              <label className={CLIENT_LABEL_CLASS}>{t('clientFieldFullName', lang)} *</label>
+              <input type="text" className={CLIENT_INPUT_CLASS} value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              {error && <p className="text-[12px] text-danger mt-1">{t('clientFullNameRequiredError', lang)}</p>}
+            </div>
+
+            <div>
+              <label className={CLIENT_LABEL_CLASS}>{t('clientFieldDob', lang)}</label>
+              <input type="date" className={CLIENT_INPUT_CLASS} value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+              {computedAge !== null && <p className="text-[12px] text-textSecondary mt-1.5">{t('clientFieldAgeComputed', lang)}: {formatClientAge(computedAge, lang)}</p>}
+            </div>
+
+            <div>
+              <label className={CLIENT_LABEL_CLASS}>{t('clientFieldPhone', lang)}</label>
+              <input type="tel" className={CLIENT_INPUT_CLASS} value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+
+            <div>
+              <label className={CLIENT_LABEL_CLASS}>{t('clientFieldDesiredLook', lang)}</label>
+              <input type="text" className={CLIENT_INPUT_CLASS} value={desiredLook} onChange={(e) => setDesiredLook(e.target.value)} />
+            </div>
+
+            <div>
+              <label className={CLIENT_LABEL_CLASS}>{t('clientFieldPreferredEffects', lang)}</label>
+              <input type="text" className={CLIENT_INPUT_CLASS} value={preferredEffects} onChange={(e) => setPreferredEffects(e.target.value)} placeholder={t('clientFieldPreferredEffectsHint', lang)} />
+            </div>
+
+            <div>
+              <label className={CLIENT_LABEL_CLASS}>{t('clientFieldRequestNotes', lang)}</label>
+              <textarea rows={3} className={CLIENT_INPUT_CLASS} value={requestNotes} onChange={(e) => setRequestNotes(e.target.value)} />
+            </div>
+
+            <div>
+              <label className={CLIENT_LABEL_CLASS}>{t('clientFieldArtistNotes', lang)}</label>
+              <textarea rows={3} className={CLIENT_INPUT_CLASS} value={artistSensitivityNotes} onChange={(e) => setArtistSensitivityNotes(e.target.value)} />
+            </div>
+          </div>
+          <div className="px-4 pb-5 pt-2 flex gap-2 border-t border-border/60">
+            <button onClick={onCancel} className="flex-1 py-3 rounded-md text-textSecondary text-[14px] font-medium bg-white/[0.03] border border-border press-scale">{t('clientFormCancel', lang)}</button>
+            <button onClick={handleSave} disabled={saving} className="flex-1 py-3 rounded-md bg-accent text-white text-[14px] font-semibold press-scale disabled:opacity-60">{t('clientFormSave', lang)}</button>
+          </div>
+          {consentPromptOpen && (
+            <ClientDataConsentPrompt
+              lang={lang}
+              onAccept={() => { onGrantConsent(); setConsentPromptOpen(false); persist(); }}
+              onDecline={() => setConsentPromptOpen(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    function ClientCardScreen({ lang, clientId, store, onBack, onEdit, onDeleted }) {
+      const [client, setClient] = useState(null);
+      const [visits, setVisits] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+      const [deleting, setDeleting] = useState(false);
+      const [newVisitNoteOpen, setNewVisitNoteOpen] = useState(false);
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          if (!store || !clientId) { setLoading(false); return; }
+          const [c, v] = await Promise.all([store.getClient(clientId), store.listVisitsForClient(clientId)]);
+          if (cancelled) return;
+          setClient(c);
+          setVisits(v);
+          setLoading(false);
+        })();
+        return () => { cancelled = true; };
+      }, [clientId, store]);
+
+      const stats = ClientStore.deriveClientVisitStats(visits);
+      const age = client && client.dateOfBirth ? ClientStore.calculateAge(client.dateOfBirth) : null;
+
+      const handleDelete = async () => {
+        setDeleting(true);
+        try { await store.deleteClient(clientId); onDeleted(); } finally { setDeleting(false); }
+      };
+
+      if (loading) {
+        return <div className="h-full flex items-center justify-center bg-bg"><p className="text-textMuted text-sm">…</p></div>;
+      }
+      if (!client) {
+        return (
+          <div className="h-full flex flex-col bg-bg">
+            <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+              <BackButton onBack={onBack} />
+              <h1 className="text-[15px] font-bold text-textPrimary">{t('clientCardNotFound', lang)}</h1>
+            </div>
+          </div>
+        );
+      }
+
+      const hasPreferences = !!(client.preferences.desiredLook || client.preferences.preferredEffects.length || client.preferences.requestNotes);
+
+      return (
+        <div className="h-full flex flex-col bg-bg fade-in">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+            <BackButton onBack={onBack} />
+            <h1 className="text-[15px] font-bold text-textPrimary truncate">{client.fullName}</h1>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 hide-scrollbar">
+            <div className="glass rounded-lg p-4 mb-3 flex gap-3 items-start">
+              <div className="w-16 h-16 rounded-full bg-white/[0.05] border border-border flex items-center justify-center flex-shrink-0">
+                <ClientsIcon className="w-8 h-8 text-textMuted" />
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-[16px] font-bold text-textPrimary truncate">{client.fullName}</p>
+                {age !== null && <p className="text-[12px] text-textSecondary">{formatClientAge(age, lang)} · {formatClientDate(client.dateOfBirth, lang)}</p>}
+                {client.phone && <p className="text-[12px] text-textSecondary">{client.phone}</p>}
+              </div>
+            </div>
+
+            <div className="glass rounded-lg p-4 mb-3 grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-textMuted mb-1">{t('clientCardFirstVisit', lang)}</p>
+                <p className="text-[13px] font-semibold text-textPrimary">{formatClientDate(stats.firstVisitDate, lang)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-textMuted mb-1">{t('clientCardLastVisit', lang)}</p>
+                <p className="text-[13px] font-semibold text-textPrimary">{formatClientDate(stats.lastVisitDate, lang)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-textMuted mb-1">{t('clientCardTotalVisits', lang)}</p>
+                <p className="text-[13px] font-semibold text-textPrimary">{stats.totalVisits}</p>
+              </div>
+            </div>
+
+            {hasPreferences && (
+              <div className="glass rounded-lg p-4 mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('clientCardPreferencesTitle', lang)}</div>
+                <div className="space-y-2">
+                  {client.preferences.desiredLook && (
+                    <div><p className="text-[10px] uppercase text-textMuted mb-0.5">{t('clientCardDesiredLook', lang)}</p><p className="text-[13px] text-textPrimary">{client.preferences.desiredLook}</p></div>
+                  )}
+                  {client.preferences.preferredEffects.length > 0 && (
+                    <div><p className="text-[10px] uppercase text-textMuted mb-0.5">{t('clientCardPreferredEffects', lang)}</p><p className="text-[13px] text-textPrimary">{client.preferences.preferredEffects.join(', ')}</p></div>
+                  )}
+                  {client.preferences.requestNotes && (
+                    <div><p className="text-[10px] uppercase text-textMuted mb-0.5">{t('clientCardRequestNotes', lang)}</p><p className="text-[13px] text-textPrimary leading-relaxed">{client.preferences.requestNotes}</p></div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {client.preferences.artistSensitivityNotes && (
+              <div className="glass rounded-lg p-4 mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('clientCardArtistNotesTitle', lang)}</div>
+                <p className="text-[13px] text-textPrimary leading-relaxed">{client.preferences.artistSensitivityNotes}</p>
+              </div>
+            )}
+
+            <div className="glass rounded-lg p-4 mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('clientCardLastVisitTitle', lang)}</div>
+              <p className="text-[13px] text-textMuted text-center py-3">{t('clientCardLastVisitEmpty', lang)}</p>
+            </div>
+
+            <div className="glass rounded-lg p-4 mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('clientCardHistoryTitle', lang)}</div>
+              <p className="text-[13px] text-textMuted text-center py-3">{t('clientCardHistoryEmpty', lang)}</p>
+            </div>
+          </div>
+          <div className="px-4 pb-5 pt-2 space-y-2 border-t border-border/60">
+            {/* Visually present per spec, deliberately NOT wired to any
+                scan/result state — that integration belongs to a later
+                phase. Disabled + an explicit caption, rather than a
+                dead click, so the artist never wonders "did anything
+                happen?" */}
+            <button
+              disabled
+              onClick={() => setNewVisitNoteOpen(true)}
+              className="w-full py-3.5 rounded-md font-semibold text-[14px] uppercase tracking-wide bg-white/[0.05] text-textMuted border border-border cursor-not-allowed"
+            >
+              {t('clientCardNewVisit', lang)}
+            </button>
+            {newVisitNoteOpen && <p className="text-[11px] text-textMuted text-center -mt-1">{t('clientCardNewVisitComingSoon', lang)}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => onEdit(clientId)} className="flex-1 py-3 rounded-md text-textPrimary text-[13px] font-medium bg-white/[0.03] border border-border press-scale">{t('clientCardEdit', lang)}</button>
+              <button onClick={() => setDeleteConfirmOpen(true)} className="flex-1 py-3 rounded-md text-danger text-[13px] font-medium bg-white/[0.03] border border-danger/30 press-scale">{t('clientCardDelete', lang)}</button>
+            </div>
+          </div>
+          {deleteConfirmOpen && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 70 }} className="flex items-center justify-center p-4 bg-black/60" onClick={() => setDeleteConfirmOpen(false)}>
+              <div className="glass-strong rounded-lg p-4 w-full" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-[14px] font-semibold text-textPrimary mb-2">{t('clientCardDeleteConfirmTitle', lang)}</h3>
+                <p className="text-[13px] text-textSecondary leading-relaxed mb-4">{t('clientCardDeleteConfirmBody', lang)}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setDeleteConfirmOpen(false)} className="flex-1 py-3 rounded-md text-textSecondary text-[13px] font-medium bg-white/[0.03] border border-border press-scale">{t('clientCardDeleteConfirmNo', lang)}</button>
+                  <button onClick={handleDelete} disabled={deleting} className="flex-1 py-3 rounded-md bg-danger text-white text-[13px] font-semibold press-scale disabled:opacity-60">{t('clientCardDeleteConfirmYes', lang)}</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // ------------------------------------------------------------
     // DEBUG-ONLY: Professional Lash Library preview (reachable only via
     // ?debug=library). Purely read-only — it renders
@@ -10909,6 +11414,36 @@
       // by, or fed into recommendation, ranking, scan, camera, Lash Map,
       // Try-On, or Application Plan logic.
       const [debugPreviewCanonicalId, setDebugPreviewCanonicalId] = useState(null);
+
+      // ------------------------------------------------------------
+      // CLIENT CARD — Phase 2. A single long-lived ClientStore instance
+      // for this session (lazily created, same useRef pattern as
+      // consentStorageRef above). activeClientId is the only piece of
+      // navigation state this feature needs: null + screen==='clientForm'
+      // means "creating a new client"; set + screen==='clientForm' means
+      // "editing that client"; set + screen==='clientCard' means "viewing
+      // that client's card". Completely separate from result/
+      // naturalLashProfile/activeDesign — never read by, written by, or
+      // fed into recommendation, ranking, scan, camera, Lash Map, or
+      // Application Plan logic.
+      // ------------------------------------------------------------
+      const clientStoreRef = useRef(null);
+      if (!clientStoreRef.current) {
+        clientStoreRef.current = (typeof ClientStore !== 'undefined') ? ClientStore.createClientStore() : null;
+      }
+      const [activeClientId, setActiveClientId] = useState(null);
+      const [clientDataConsentGranted, setClientDataConsentGranted] = useState(() => {
+        try { return (typeof ClientDataConsent !== 'undefined') ? ClientDataConsent.isClientDataAllowed(ClientDataConsent.defaultStorage()) : false; } catch (e) { return false; }
+      });
+      const grantClientDataConsent = () => {
+        try { if (typeof ClientDataConsent !== 'undefined') ClientDataConsent.setConsent(ClientDataConsent.defaultStorage(), true); } catch (e) { /* best-effort; UI still reflects the grant even if persistence fails */ }
+        setClientDataConsentGranted(true);
+      };
+      const openClientsList = () => setScreen('clients');
+      const openClientCard = (id) => { setActiveClientId(id); setScreen('clientCard'); };
+      const openNewClientForm = () => { setActiveClientId(null); setScreen('clientForm'); };
+      const openEditClientForm = (id) => { setActiveClientId(id); setScreen('clientForm'); };
+
       const [result, setResult] = useState(null);
       const [naturalLashProfile, setNaturalLashProfile] = useState(null);
       const [activeDesign, setActiveDesign] = useState(null);
@@ -10955,7 +11490,10 @@
                 <LangToggle lang={lang} setLang={setLang} />
               </div>
             )}
-            {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} />}
+            {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} />}
+            {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={() => setScreen('home')} />}
+            {screen === 'clientCard' && activeClientId && <ClientCardScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} onBack={() => setScreen('clients')} onEdit={openEditClientForm} onDeleted={() => { setActiveClientId(null); setScreen('clients'); }} />}
+            {screen === 'clientForm' && <ClientFormScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} consentGranted={clientDataConsentGranted} onGrantConsent={grantClientDataConsent} onSaved={(client) => { setActiveClientId(client.id); setScreen('clientCard'); }} onCancel={() => setScreen(activeClientId ? 'clientCard' : 'clients')} />}
             {screen === 'scan' && <LiveScanScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} onSetLang={setLang} />}
             {screen === 'photo' && <PhotoAnalysisScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} />}
             {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} onRescan={() => { if (typeof Analytics !== 'undefined') Analytics.track('rescan_started'); setScreen('home'); }} />}

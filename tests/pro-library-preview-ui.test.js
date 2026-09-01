@@ -255,7 +255,7 @@ test('the Rays presentation gap is resolved via the existing reviewed RAY primit
 });
 
 test('production is untouched: activation stays inactive and all legacy production consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
+  assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);

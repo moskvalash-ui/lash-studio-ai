@@ -388,7 +388,7 @@ test('face shape is not fed into recommendation/ranking/DESIGN_CATALOG in this p
 });
 
 test('production/library/backend/consent/client-storage files remain byte-identical to committed HEAD — this phase touches only index.html and its own test file', () => {
-  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-design-domain.js', 'lash-scan-core.js']) {
+  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-scan-core.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

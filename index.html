@@ -8503,8 +8503,8 @@
     // Secondary technical diagram retained alongside the photo map.
     // It consumes the same derived items and texture geometry, but does
     // not participate in any recommendation or source-zone calculation.
-    function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique }) {
-      const upperY=t=>175-Math.sin(t*Math.PI)*78,lowerY=t=>175+Math.sin(t*Math.PI)*34,xAt=t=>55+t*290;
+    function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side }) {
+      const upperY=t=>175-Math.sin(t*Math.PI)*78,lowerY=t=>175+Math.sin(t*Math.PI)*34,xAt=t=>55+(side==='right'?1-t:t)*290;
       const items = expandLashMapSectors(zones, peakIdx, curve);
       const upper=Array.from({length:21},(_,i)=>`${xAt(i/20)},${upperY(i/20)}`).join(' L ');
       const lower=Array.from({length:21},(_,i)=>`${xAt(1-i/20)},${lowerY(1-i/20)}`).join(' L ');

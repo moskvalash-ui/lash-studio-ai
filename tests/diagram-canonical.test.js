@@ -82,7 +82,7 @@ test('canonical DIAGRAM props equal legacy props for all 21 IDs, LEFT and RIGHT'
       const zones = side === 'left' ? design.leftZones : design.rightZones;
       const peakIdx = side === 'left' ? design.leftPeakZone : design.rightPeakZone;
       const spikeGeom = computeSpikeGeometry(zones, design.texture);
-      const legacy = { zones, peakIdx, spikeGeom, curve: design.curve, curl: design.curlRec.primary, technique: design.defaultTechnique };
+      const legacy = { zones, peakIdx, spikeGeom, curve: design.curve, curl: design.curlRec.primary, technique: design.defaultTechnique, side };
       const canonical = canonicalDiagramProps(design, entry, side, zones, peakIdx, spikeGeom, design.curve, design.curlRec.primary, design.defaultTechnique);
       assert.deepStrictEqual(canonical, legacy, `${entry.id}/${side}`);
       assert.deepStrictEqual(
@@ -113,7 +113,7 @@ test('Custom DIAGRAM runtime selections remain byte-for-byte equivalent', () => 
   const curve = { zonePositions: [0, .18, .43, .71, 1], postPeakShape: 'frontLoaded', plateauShape: 'shoulder' };
   const texture = { pattern: 'manga', frequency: 3, baseToSpikeDiff: 3.5 };
   const spikeGeom = computeSpikeGeometry(zones, texture), curl = 'L+', technique = 'Wet Technique / Wet Set';
-  const legacy = { zones, peakIdx, spikeGeom, curve, curl, technique };
+  const legacy = { zones, peakIdx, spikeGeom, curve, curl, technique, side: 'right' };
   const canonical = canonicalDiagramProps(design, entry, 'right', zones, peakIdx, spikeGeom, curve, curl, technique);
   assert.deepStrictEqual(canonical, legacy);
 });

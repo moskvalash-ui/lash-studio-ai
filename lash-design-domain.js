@@ -308,6 +308,7 @@
       curve: cloneValue(clientDesign.mapping.diagram.topology),
       curl: clientDesign.curl.diagramCurl,
       technique: clientDesign.application.diagramTechnique,
+      side: clientDesign.mapping.diagram.activeSide,
     };
   }
 

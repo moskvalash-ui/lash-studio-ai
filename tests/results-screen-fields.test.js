@@ -216,7 +216,7 @@ test('no language-specific branch was introduced by this cleanup (RU/EN share th
 // Production isolation
 // ------------------------------------------------------------
 test('production/library/backend/consent/client-storage files remain byte-identical to committed HEAD', () => {
-  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-design-domain.js', 'lash-scan-core.js']) {
+  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-scan-core.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

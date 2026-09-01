@@ -382,12 +382,52 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
     "            // FIRST-LAUNCH ZOOM FIX (Phase 1, minimal): request an explicit\n            // preferred capture resolution instead of leaving format\n            // negotiation entirely up to the browser/OS. Unconstrained\n            // getUserMedia here previously let a cold (first-ever\n            // permission grant) camera session settle on a different\n            // native format/zoom than an already-warm session — the video\n            // element's plain object-cover then displayed whatever raw\n            // frame arrived, uncorrected, producing a too-zoomed-in first\n            // launch that self-corrected after reload once the session\n            // was warm. facingMode is unchanged; width/height are `ideal`\n            // hints only, never hard requirements, so this never throws\n            // OverconstrainedError and never changes mirroring (still\n            // keyed on facingMode only) or any dynamic\n            // video.videoWidth/videoHeight read downstream. Deliberately\n            // NOT the full NaturalLashScanScreen CAMERA_ATTEMPTS chain or\n            // effectiveVisibleWidth compensation — those are reserved for\n            // a later phase if real-device validation shows this minimal\n            // constraint alone is insufficient.\n            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });",
     "            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: false });"
   );
-  const normalize = span => omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(span)));
-  assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, and the approved camera-zoom fix must remain byte-identical to HEAD');
+  // Approved Live Scan lifecycle/stability fix (P0 real-device audit —
+  // camera-init cancellation guard, late-getUserMedia-resolution
+  // cleanup, track.onended -> distinct camera-stopped state, and the
+  // tick pipeline's catch block surfacing a distinct scan-error state
+  // instead of silently leaving the UI stuck). Six bounded, disjoint
+  // insertions/edits, each normalized back to its pre-fix HEAD form —
+  // same technique as the three normalizers above — so this guard
+  // still fails loudly on any OTHER, unrelated drift in LiveScanScreen.
+  // Applied FIRST (innermost) in the chain below: it restores the
+  // single-line pre-fix `stream = await getUserMedia(...)` call shape
+  // that omitCameraZoomFix's own literal match expects, so composing
+  // it after omitCameraZoomFix would silently no-op on `cur` instead.
+  const omitLiveScanLifecycleFix = span => span
+    .replace(
+      "        } catch (e) {\n          // LIFECYCLE FIX — a genuine processing/detector failure used\n          // to be silently swallowed here: no state change, no\n          // feedback, the UI stayed frozen wherever it last was\n          // (typically stageSearching) forever, while this tick loop\n          // kept retrying every 200ms and throwing again. Now the loop\n          // is stopped outright — so this can never repeat/spam per\n          // frame — and the failure is surfaced as its own distinct,\n          // recoverable-via-Back state.\n          console.error('[LSA] PIPELINE ERROR', e);\n          if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null; }\n          doneRef.current = true;\n          setStageKey('stageScanError'); setPhase('error'); setHintKey('hintRestartScan');\n        } finally {",
+      "        } catch (e) {\n          console.error('[LSA] PIPELINE ERROR', e);\n        } finally {"
+    )
+    .replace(
+      "      useEffect(() => {\n        let stream;\n        // LIFECYCLE FIX — cancellation guard for this effect run only\n        // (mirrors the `cancelled`-flag pattern already used elsewhere\n        // in this file, e.g. the App-level model-loading effect). Set\n        // to true FIRST in cleanup, before anything else, so a track's\n        // synchronous 'ended' event fired by our own cleanup's\n        // `.stop()` calls below sees cancelled=true and no-ops instead\n        // of treating our own teardown as an unexpected camera loss.\n        let cancelled = false;\n        doneRef.current = false;",
+      "      useEffect(() => {\n        let stream;\n        doneRef.current = false;"
+    )
+    .replace(
+      "        setStageKey('stageSearching'); setPhase('searching'); setProgress(0); setHintKey(null);\n\n        // LIFECYCLE FIX — unexpected camera-track termination (OS\n        // revokes access while backgrounded, another app takes the\n        // camera, hardware disconnect, etc). Distinct from both\n        // stageSearching and stageLost — those mean \"camera is fine,\n        // no face yet\"; this means the camera itself is gone and no\n        // amount of waiting will recover it. `cancelled` guards against\n        // this firing from our OWN cleanup stopping the tracks below.\n        const handleTrackEnded = () => {\n          if (cancelled) return;\n          cancelled = true;\n          if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null; }\n          doneRef.current = true;\n          setStageKey('stageCameraStopped'); setPhase('cameraStopped'); setHintKey('hintRestartScan');\n        };\n\n        const start = async () => {",
+      "        setStageKey('stageSearching'); setPhase('searching'); setProgress(0); setHintKey(null);\n\n        const start = async () => {"
+    )
+    .replace(
+      "            const acquired = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });\n            // LIFECYCLE FIX — Back/navigation (or a facingMode change)\n            // may have unmounted/re-run this effect while getUserMedia\n            // was still pending. A late-arriving stream must never be\n            // attached to the (now stale) video element or resurrect\n            // the scan loop — stop it immediately and walk away.\n            if (cancelled) { acquired.getTracks().forEach(t => t.stop()); return; }\n            stream = acquired;\n            stream.getVideoTracks().forEach(track => { track.onended = handleTrackEnded; });\n            if (videoRef.current) {\n              videoRef.current.srcObject = stream;\n              await videoRef.current.play();\n            }\n            if (cancelled) return;\n          } catch (e) {\n            if (!cancelled) { setStageKey('stageNoCamera'); setHintKey(null); }\n            return;\n          }\n          if (cancelled) return;\n          loopRef.current = setInterval(() => tickImplRef.current(), 200);",
+      "            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });\n            if (videoRef.current) {\n              videoRef.current.srcObject = stream;\n              await videoRef.current.play();\n            }\n          } catch (e) {\n            setStageKey('stageNoCamera'); setHintKey(null);\n            return;\n          }\n          loopRef.current = setInterval(() => tickImplRef.current(), 200);"
+    )
+    .replace(
+      "        return () => {\n          // LIFECYCLE FIX — order matters: cancelled must flip before\n          // we stop tracks below, since `.stop()` can synchronously\n          // fire the 'ended' listener registered above.\n          cancelled = true;\n          if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null; }\n          if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }\n          if (videoRef.current) videoRef.current.srcObject = null;\n        };\n      }, [facingMode]);",
+      "        return () => {\n          if (loopRef.current) clearInterval(loopRef.current);\n          if (stream) stream.getTracks().forEach(t => t.stop());\n        };\n      }, [facingMode]);"
+    )
+    .replace(
+      "      const statusColor = (phase === 'searching' || phase === 'lost' || phase === 'cameraStopped' || phase === 'error') ? 'bg-danger' : phase === 'adjust' ? 'bg-peak' : (phase === 'finalizing' ? 'bg-success' : 'bg-accent');",
+      "      const statusColor = phase === 'searching' ? 'bg-danger' : phase === 'lost' ? 'bg-danger' : phase === 'adjust' ? 'bg-peak' : (phase === 'finalizing' ? 'bg-success' : 'bg-accent');"
+    );
+  const normalize = span => omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(span))));
+  assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
   assert.ok(cur.includes('const faceShapeProfile = classifyFaceShape(best.landmarks, faceShapeHeadPose'),'Face Shape Analysis call must still be present');
   assert.ok(cur.includes('getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })'),'camera-zoom fix constraints must still be present');
+  assert.ok(cur.includes('let cancelled = false;'),'lifecycle fix cancellation flag must still be present');
+  assert.ok(cur.includes('track.onended = handleTrackEnded'),'lifecycle fix track-ended handler must still be wired');
+  assert.ok(cur.includes("setStageKey('stageScanError')"),'lifecycle fix scan-error state must still be present');
 });
 
 // J2 used to demand that the ENTIRE PhotoAnalysisScreen span be

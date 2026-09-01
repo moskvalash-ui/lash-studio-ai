@@ -347,7 +347,16 @@ try {
   HEAD = null;
 }
 
-test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only contextual iris additions', () => {
+// J1 originally demanded LiveScanScreen be byte-identical to git HEAD
+// outside the bounded contextual-iris-debug additions. The later
+// reviewed Face Shape Analysis phase (approved, independent analyzer —
+// see index.html's own "FACE SHAPE ANALYSIS" comment block) added two
+// more bounded, intentional lines right after `const iris =
+// combineIris(...)` and one new sibling field on `rec`. Both additions
+// are explicitly carved out below, by the same normalize-back-to-HEAD
+// technique already used for the iris debug block, so this guard keeps
+// failing loudly on any OTHER, unrelated drift in LiveScanScreen.
+test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only contextual iris additions and the approved Face Shape Analysis addition', () => {
   assert.ok(HEAD, 'expected `git show HEAD:index.html` to succeed inside a git working tree');
   const cur = extractSpan(src, '    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {', '\n    function PhotoAnalysisScreen(');
   const prev = extractSpan(HEAD, '    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {', '\n    function PhotoAnalysisScreen(');
@@ -358,9 +367,17 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       "              debugIrisAuditRef.current = {\n                left: buildIrisColorAudit(ctx, leftEye),\n                right: buildIrisColorAudit(ctx, rightEye),\n              };"
     )
     .replace("\n              contextual: debugIrisAuditRef.current.contextual,", '');
-  assert.strictEqual(omitContextualIrisDebug(cur),omitContextualIrisDebug(prev),'LiveScanScreen outside the two bounded contextual debug additions must remain byte-identical to HEAD');
+  const omitFaceShapeAnalysis = span => span
+    .replace(
+      "          // FACE SHAPE ANALYSIS — independent analyzer, reads the best\n          // frame's own raw landmarks and a freshly computed headPose\n          // for that exact frame. Never derived from finalProfile/\n          // eyeProfile; never fed back into classifyFeatures, stability,\n          // or the eye-analysis pipeline in any way.\n          const faceShapeHeadPose = computeHeadPose(best.landmarks);\n          const faceShapeProfile = classifyFaceShape(best.landmarks, faceShapeHeadPose, { singleFrame: false, imageQuality });\n",
+      ''
+    )
+    .replace("\n            faceShapeProfile,", '');
+  const normalize = span => omitFaceShapeAnalysis(omitContextualIrisDebug(span));
+  assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions and the approved Face Shape Analysis addition must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
+  assert.ok(cur.includes('const faceShapeProfile = classifyFaceShape(best.landmarks, faceShapeHeadPose'),'Face Shape Analysis call must still be present');
 });
 
 // J2 used to demand that the ENTIRE PhotoAnalysisScreen span be
@@ -416,9 +433,22 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
     assert.ok(start !== -1 && end > start, 'the exclusion must resolve only the bounded irisColorAuditForRec debug block');
     return { comparable: tail.slice(0, start) + debugEnd + tail.slice(end + debugEnd.length), block: tail.slice(start, end) };
   };
-  const curGuarded = omitIrisDebugAudit(curTail);
-  const prevGuarded = omitIrisDebugAudit(prevTail);
-  assert.strictEqual(curGuarded.comparable, prevGuarded.comparable, 'everything from the quality-gate call onward outside the bounded iris debug block must remain byte-identical to git HEAD');
+  // Approved Face Shape Analysis addition (see index.html's own "FACE
+  // SHAPE ANALYSIS" comment block) — one bounded call right after the
+  // classifyFeatures/overallConfidence lines, plus one new sibling
+  // field on photoRec. Normalized away before comparison, same
+  // technique as the iris debug block above, so drift anywhere else
+  // in this tail still fails loudly.
+  const omitFaceShapeAnalysis = (tail) => tail
+    .replace(
+      "          // FACE SHAPE ANALYSIS — independent analyzer, reads this\n          // photo's own det.landmarks and the headPose already computed\n          // above. Never derived from `classified`/eyeProfile; never\n          // fed back into classifyFeatures or the quality gate above.\n          const faceShapeProfile = classifyFaceShape(det.landmarks, headPose, { singleFrame: true, imageQuality });\n",
+      ''
+    )
+    .replace("\n            faceShapeProfile,", '');
+  const curGuarded = omitIrisDebugAudit(omitFaceShapeAnalysis(curTail));
+  const prevGuarded = omitIrisDebugAudit(omitFaceShapeAnalysis(prevTail));
+  assert.strictEqual(curGuarded.comparable, prevGuarded.comparable, 'everything from the quality-gate call onward outside the bounded iris debug block and the approved Face Shape Analysis addition must remain byte-identical to git HEAD');
+  assert.ok(curTail.includes('const faceShapeProfile = classifyFaceShape(det.landmarks, headPose'), 'Face Shape Analysis call must still be present');
 
   // The intentionally excluded span is not unguarded: pin its debug gate,
   // native-coordinate mapping, direct source-image read, paired comparison,

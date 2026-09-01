@@ -313,6 +313,26 @@
       spacingLabel: {ru:'Посадка глаз', en:'Eye spacing'},
       symmetryLabel: {ru:'Симметрия', en:'Symmetry'},
       irisLabel: {ru:'Радужка', en:'Iris'},
+      // Results-screen-only label (kept separate from irisLabel above,
+      // which DetailsScreen also uses) so this wording change never
+      // touches any other screen.
+      irisColorLabel: {ru:'Цвет радужки', en:'Iris color'},
+
+      // ------------------------------------------------------------
+      // FACE SHAPE ANALYSIS — Results-screen label + category names.
+      // Intentionally excludes any wording about the brow-to-chin or
+      // forehead-width proxies, ratios, landmarks, thresholds, or
+      // quality flags — those limitations live in code comments and
+      // tests, not in the artist-facing UI.
+      // ------------------------------------------------------------
+      faceShapeLabel: {ru:'Форма лица', en:'Face shape'},
+      faceShape_oval: {ru:'Овальная', en:'Oval'},
+      faceShape_round: {ru:'Круглая', en:'Round'},
+      faceShape_square: {ru:'Квадратная', en:'Square'},
+      faceShape_oblong: {ru:'Вытянутая', en:'Oblong'},
+      faceShape_heart: {ru:'Сердцевидная', en:'Heart'},
+      faceShape_diamond: {ru:'Ромбовидная', en:'Diamond'},
+      faceShape_uncertain: {ru:'Не удалось надёжно определить', en:'Could not determine reliably'},
       eyelidPronounced: {ru:'Выраженное нависание', en:'Pronounced hooding'},
       eyelidModerate: {ru:'Умеренное нависание', en:'Moderate hooding'},
       eyelidMild: {ru:'Лёгкое нависание', en:'Mild hooding'},
@@ -2570,6 +2590,221 @@
       const rescaled = Object.values(f).map(v => 0.35 + v * 0.65);
       const score = clamp01(rescaled.reduce((a, b) => a * b, 1) ** (1 / rescaled.length));
       return { score, bucket: confidenceBucket(score), factors: f };
+    }
+
+    // ============================================================
+    // FACE SHAPE ANALYSIS — independent analyzer (see the Face Shape
+    // Analysis audit). Reads the SAME raw face-api landmarks (68-point
+    // jaw/brow contour) and the SAME computeHeadPose(...) already used
+    // elsewhere in this file, but is a fully separate function and a
+    // fully separate result object. It is NEVER derived from
+    // eyeShapeCategory or any other eyeProfile field, is never called
+    // from inside classifyFeatures, and never mutates anything
+    // classifyFeatures produces. Its own pose gate below is completely
+    // independent of assessFrameQuality — it can only ever make THIS
+    // result 'uncertain'; it never rejects a frame or affects the
+    // existing eye-analysis acceptance decision in any way.
+    //
+    // LANDMARK LIMITATIONS (see the audit report):
+    //  - The 68-point model has NO forehead/hairline landmarks.
+    //    "Face length" here is the brow-line-to-chin distance only —
+    //    it excludes the forehead and is NOT true anatomical face
+    //    length.
+    //  - "Forehead width" is approximated from the outer brow-tip
+    //    span, which normally UNDERESTIMATES true forehead width. It
+    //    is used only as a soft, half-weighted signal, never a
+    //    primary one — see foreheadWeight/foreheadDriven below.
+    //  - "Temple/cheekbone width" uses the widest jaw-outline points
+    //    (near ear/temple height), since no cheekbone-specific
+    //    landmark exists in this model — an approximation, not true
+    //    bizygomatic width.
+    //
+    // THRESHOLDS: every numeric constant in
+    // FACE_SHAPE_PROVISIONAL_THRESHOLDS is a heuristic engineering
+    // placeholder, NOT validated against a labeled dataset or a real-
+    // device study — the same "not yet validated" status this file
+    // already gives eyeSizeCategory/symmetryCategory's boundaries.
+    // Do not present these numbers to an artist, or reuse them
+    // elsewhere, as confirmed anatomical truth.
+    // ============================================================
+    const FACE_SHAPE_PROVISIONAL_THRESHOLDS = Object.freeze({
+      pose: Object.freeze({
+        // Stricter than assessFrameQuality's eye-tuned gate (roll
+        // 18°, |yawProxy| 0.32, pitchProxy in [0.25,1.3]) because
+        // jaw/temple points sit farther from the face's central axis
+        // than eye points and foreshorten more under the same head
+        // rotation.
+        maxRollDeg: 10,
+        maxYawProxy: 0.18,
+        pitchProxyMin: 0.45,
+        pitchProxyMax: 1.05,
+      }),
+      plausibility: Object.freeze({
+        // Every raw distance must sit in this range relative to
+        // interEyeDistance, or the landmark fit is treated as
+        // unreliable rather than measured.
+        minRatioToInterEye: 0.4,
+        maxRatioToInterEye: 6.0,
+      }),
+      // Provisional target ratio profile per shape. None of these are
+      // dataset-validated — see the module note above.
+      shapeTargets: Object.freeze({
+        oval:    Object.freeze({ lengthToWidth: 1.05, jawTaper: 0.83, chinTaper: 0.80, foreheadSoft: 0.85 }),
+        round:   Object.freeze({ lengthToWidth: 0.92, jawTaper: 0.94, chinTaper: 0.92, foreheadSoft: 0.90 }),
+        square:  Object.freeze({ lengthToWidth: 0.95, jawTaper: 0.96, chinTaper: 0.95, foreheadSoft: 0.92 }),
+        oblong:  Object.freeze({ lengthToWidth: 1.25, jawTaper: 0.90, chinTaper: 0.90, foreheadSoft: 0.90 }),
+        heart:   Object.freeze({ lengthToWidth: 1.02, jawTaper: 0.78, chinTaper: 0.65, foreheadSoft: 0.98 }),
+        diamond: Object.freeze({ lengthToWidth: 1.02, jawTaper: 0.80, chinTaper: 0.68, foreheadSoft: 0.68 }),
+      }),
+      tolerance: Object.freeze({ lengthToWidth: 0.18, jawTaper: 0.10, chinTaper: 0.14, foreheadSoft: 0.16 }),
+      foreheadWeight: 0.5,
+      minTopScore: 0.55,
+      minMargin: 0.08,
+      // A stricter margin is required when the winning category is
+      // only ahead because of the weak forehead proxy (see
+      // `foreheadDriven` below) — Heart/Diamond/Oval confusions are
+      // exactly where this matters.
+      minMarginWhenForeheadDriven: 0.16,
+    });
+
+    function faceShapeRatioScore(value, target, tolerance) {
+      if (!(tolerance > 0) || typeof value !== 'number' || !isFinite(value)) return 0;
+      return clamp01(1 - Math.abs(value - target) / tolerance);
+    }
+
+    function scoreFaceShapeCandidate(ratios, target, thresholds) {
+      const wLen = faceShapeRatioScore(ratios.lengthToWidth, target.lengthToWidth, thresholds.tolerance.lengthToWidth);
+      const wJaw = faceShapeRatioScore(ratios.jawTaper, target.jawTaper, thresholds.tolerance.jawTaper);
+      const wChin = faceShapeRatioScore(ratios.chinTaper, target.chinTaper, thresholds.tolerance.chinTaper);
+      const wBrow = faceShapeRatioScore(ratios.foreheadSoft, target.foreheadSoft, thresholds.tolerance.foreheadSoft);
+      const totalWeight = 3 + thresholds.foreheadWeight;
+      return {
+        total: (wLen + wJaw + wChin + wBrow * thresholds.foreheadWeight) / totalWeight,
+        withoutForehead: (wLen + wJaw + wChin) / 3,
+      };
+    }
+
+    // opts.singleFrame mirrors classifyFeatures' own flag (photo-
+    // sourced reads have no temporal stability signal). opts.imageQuality
+    // is the same 0..1 proxy already computed by the caller for
+    // classifyFeatures — reused, not recomputed.
+    function classifyFaceShape(landmarks, headPose, opts) {
+      opts = opts || {};
+      const T = FACE_SHAPE_PROVISIONAL_THRESHOLDS;
+      const qualityFlags = [];
+      const positions = landmarks && landmarks.positions;
+
+      // Raw jaw-outline + inner-brow indices only — see the landmark
+      // map in the audit. Using raw positions[] (not face-api's
+      // left/right-named getters) sidesteps this file's own
+      // documented image-side-vs-physical-side ambiguity entirely,
+      // since these are symmetric width/distance measurements where
+      // anatomical handedness doesn't matter.
+      const REQUIRED_INDICES = [0, 4, 6, 8, 10, 12, 16, 21, 22];
+      const hasAllPoints = Array.isArray(positions) && positions.length >= 68 &&
+        REQUIRED_INDICES.every((i) => positions[i] && typeof positions[i].x === 'number' && typeof positions[i].y === 'number');
+
+      if (!hasAllPoints) {
+        return { category: 'uncertain', confidence: 0, isUncertain: true, measurements: null, qualityFlags: ['missing_landmarks'] };
+      }
+
+      // ---- face-shape-specific pose gate — independent of, and never
+      // affecting, assessFrameQuality/the eye-analysis frame-acceptance
+      // decision. This can only ever make THIS result 'uncertain'. ----
+      const roll = headPose && typeof headPose.roll === 'number' ? headPose.roll : null;
+      const yawProxy = headPose && typeof headPose.yawProxy === 'number' ? headPose.yawProxy : null;
+      const pitchProxy = headPose && typeof headPose.pitchProxy === 'number' ? headPose.pitchProxy : null;
+      if (roll === null || yawProxy === null || pitchProxy === null) qualityFlags.push('missing_head_pose');
+      if (roll !== null && Math.abs(roll) > T.pose.maxRollDeg) qualityFlags.push('excessive_roll');
+      if (yawProxy !== null && Math.abs(yawProxy) > T.pose.maxYawProxy) qualityFlags.push('excessive_yaw');
+      if (pitchProxy !== null && (pitchProxy < T.pose.pitchProxyMin || pitchProxy > T.pose.pitchProxyMax)) qualityFlags.push('excessive_pitch');
+
+      let poseHeadroom = 0;
+      if (roll !== null && yawProxy !== null && pitchProxy !== null) {
+        const rollHeadroom = 1 - Math.abs(roll) / T.pose.maxRollDeg;
+        const yawHeadroom = 1 - Math.abs(yawProxy) / T.pose.maxYawProxy;
+        const pitchMid = (T.pose.pitchProxyMin + T.pose.pitchProxyMax) / 2;
+        const pitchHalfRange = (T.pose.pitchProxyMax - T.pose.pitchProxyMin) / 2;
+        const pitchHeadroom = pitchHalfRange > 0 ? 1 - Math.abs(pitchProxy - pitchMid) / pitchHalfRange : 0;
+        poseHeadroom = clamp01(Math.min(rollHeadroom, yawHeadroom, pitchHeadroom));
+      }
+
+      const p = positions;
+      const templeWidth = dist(p[0], p[16]);
+      const jawWidth = dist(p[4], p[12]);
+      const chinWidth = dist(p[6], p[10]);
+      const browMid = { x: (p[21].x + p[22].x) / 2, y: (p[21].y + p[22].y) / 2 };
+      const lowerFaceLength = dist(browMid, p[8]);
+      const browWidth = dist(p[17], p[26]);
+      const rawDistances = { templeWidth, jawWidth, chinWidth, lowerFaceLength, browWidth };
+
+      const interEyeDistance = headPose && typeof headPose.interEyeDistance === 'number' && headPose.interEyeDistance > 0
+        ? headPose.interEyeDistance : null;
+      let plausible = Object.values(rawDistances).every((d) => typeof d === 'number' && isFinite(d) && d > 0);
+      if (plausible && interEyeDistance) {
+        plausible = Object.values(rawDistances).every((d) => {
+          const r = d / interEyeDistance;
+          return r >= T.plausibility.minRatioToInterEye && r <= T.plausibility.maxRatioToInterEye;
+        });
+      }
+      if (!plausible) qualityFlags.push('implausible_geometry');
+
+      const mustBeUncertain = qualityFlags.some((f) =>
+        f === 'missing_head_pose' || f === 'excessive_roll' || f === 'excessive_yaw' || f === 'excessive_pitch' || f === 'implausible_geometry');
+      if (mustBeUncertain) {
+        return { category: 'uncertain', confidence: 0, isUncertain: true, measurements: { ...rawDistances }, qualityFlags };
+      }
+
+      const ratios = {
+        lengthToWidth: lowerFaceLength / templeWidth,
+        jawTaper: jawWidth / templeWidth,
+        chinTaper: chinWidth / jawWidth,
+        foreheadSoft: browWidth / templeWidth,
+      };
+
+      const shapeNames = Object.keys(T.shapeTargets);
+      const scored = shapeNames.map((name) => {
+        const s = scoreFaceShapeCandidate(ratios, T.shapeTargets[name], T);
+        return { name, score: s.total, scoreWithoutForehead: s.withoutForehead };
+      }).sort((a, b) => b.score - a.score);
+
+      const top = scored[0];
+      const runnerUp = scored[1];
+      const margin = top.score - runnerUp.score;
+
+      // Is the win mainly explained by the weak forehead proxy? If
+      // dropping it would swap the ranking, or would itself leave too
+      // thin a margin, this decision leans too heavily on the
+      // weakest measurement and must clear a stricter bar.
+      const withoutForeheadSorted = scored.slice().sort((a, b) => b.scoreWithoutForehead - a.scoreWithoutForehead);
+      const foreheadDriven = withoutForeheadSorted[0].name !== top.name ||
+        (withoutForeheadSorted[0].scoreWithoutForehead - withoutForeheadSorted[1].scoreWithoutForehead) < T.minMargin;
+      if (foreheadDriven) qualityFlags.push('forehead_proxy_dependent');
+      const requiredMargin = foreheadDriven ? T.minMarginWhenForeheadDriven : T.minMargin;
+
+      const measurements = { ...rawDistances, ratios, scores: scored };
+
+      // ---- confidence, via the SAME shared primitive classifyFeatures
+      // uses (computeConfidence) — not a new confidence math. ----
+      const jawSymmetry = clamp01(1 - Math.abs(dist(p[0], p[8]) - dist(p[16], p[8])) / Math.max(dist(p[0], p[8]), dist(p[16], p[8]), 1));
+      const confidenceResult = computeConfidence({
+        measurementAgreement: top.score,
+        landmarkStability: opts.singleFrame ? 0.35 : 0.6,
+        imageQuality: typeof opts.imageQuality === 'number' ? opts.imageQuality : 0.5,
+        lrAgreement: jawSymmetry,
+        poseQuality: poseHeadroom,
+      });
+
+      if (top.score < T.minTopScore) {
+        qualityFlags.push('low_match_score');
+        return { category: 'uncertain', confidence: confidenceResult.score, isUncertain: true, measurements, qualityFlags };
+      }
+      if (margin < requiredMargin) {
+        qualityFlags.push('ambiguous_margin');
+        return { category: 'uncertain', confidence: confidenceResult.score, isUncertain: true, measurements, qualityFlags };
+      }
+
+      return { category: top.name, confidence: confidenceResult.score, isUncertain: false, measurements, qualityFlags };
     }
 
     // Turns aggregated measurements into independent, labeled
@@ -6648,6 +6883,13 @@
           }
           const best = bestFrameRef.current;
           const iris = combineIris(best.leftIris, best.rightIris);
+          // FACE SHAPE ANALYSIS — independent analyzer, reads the best
+          // frame's own raw landmarks and a freshly computed headPose
+          // for that exact frame. Never derived from finalProfile/
+          // eyeProfile; never fed back into classifyFeatures, stability,
+          // or the eye-analysis pipeline in any way.
+          const faceShapeHeadPose = computeHeadPose(best.landmarks);
+          const faceShapeProfile = classifyFaceShape(best.landmarks, faceShapeHeadPose, { singleFrame: false, imageQuality });
           // IRIS COLOR — DEBUG-ONLY final snapshot. Pure capture of the
           // audit computed alongside the SAME best-frame sample that
           // produced best.leftIris/best.rightIris above, plus the REAL
@@ -6677,6 +6919,7 @@
             originalImage: best.dataURL, landmarks: best.landmarks,
             imageWidth: best.width, imageHeight: best.height,
             confidence: finalProfile.overallConfidence,
+            faceShapeProfile,
           };
           // Debug-only, additive field — absent entirely in normal mode
           // (irisColorAuditForRec stays null when !debugAvailable, so no
@@ -7636,6 +7879,11 @@
           const imageQuality = clamp01(det.detection.score * (1 - Math.min(1, Math.abs(headPose.roll)/30)) * (1 - Math.min(1, Math.abs(headPose.yawProxy)/0.4)));
           const classified = classifyFeatures(aggregated, { singleFrame: true, stability: null, imageQuality });
           classified.overallConfidence = clamp01(classified.overallConfidence * 0.85);
+          // FACE SHAPE ANALYSIS — independent analyzer, reads this
+          // photo's own det.landmarks and the headPose already computed
+          // above. Never derived from `classified`/eyeProfile; never
+          // fed back into classifyFeatures or the quality gate above.
+          const faceShapeProfile = classifyFaceShape(det.landmarks, headPose, { singleFrame: true, imageQuality });
 
           const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);
           const iris = combineIris(leftIris, rightIris);
@@ -7683,6 +7931,7 @@
             source: 'photo', eyeProfile: classified, iris, designs,
             originalImage: canvas.toDataURL('image/jpeg', 0.92), landmarks: det.landmarks,
             imageWidth: canvas.width, imageHeight: canvas.height, confidence: classified.overallConfidence,
+            faceShapeProfile,
           };
           // Debug-only, additive field — absent entirely in normal mode.
           if (irisColorAuditForRec) photoRec.irisColorAudit = irisColorAuditForRec;
@@ -8066,35 +8315,30 @@
             )}
 
             <Section title={t('eyeProfileTitle', lang)} defaultOpen>
-              <EyeProfileRow icon="shape" label={t('shapeLabel', lang)} sublabel={t('shapeSubLabel', lang)} value={labels.shape} confidence={p.eyeShapeCategory === 'uncertain' ? undefined : p.eyeShapeConfidence} />
-              {/* PRODUCT SEMANTICS SPLIT — crease visibility (Signal A,
-                  automatic, proven reliable) and hooding (only ever
-                  confidently known once an artist visually confirms it
-                  in ReviewScreen — see the hooding audit) are two
-                  independent rows now, replacing the old single
-                  ambiguous eyelidType-derived presentation that used
-                  to imply "visible crease == not hooded". */}
-              <EyeProfileRow icon="lid" label={t('creaseStateLabel', lang)} sublabel={t('creaseStateSubLabel', lang)} value={labels.creaseStateLabel} confidence={p.creaseState === 'uncertain' ? undefined : p.eyelidTypeConfidence} />
-              <EyeProfileRow icon="lid" label={t('hoodingStateLabel', lang)} sublabel={t('hoodingStateSubLabel', lang)} value={labels.hoodingStateLabel} confidence={p.hoodingState === 'uncertain' ? undefined : p.hoodedConfidence} />
-              {p.eyelidSignalsConflict && (
-                <div className="pl-11 -mt-1 pb-3">
-                  {/* CONSERVATIVE V1 — the "Most likely: X" raw-guess line
-                      was removed here on purpose: under the per-eye-first
-                      decision tree, eyelidType is already 'uncertain'
-                      whenever eyelidSignalsConflict is true, so there is
-                      no longer a well-defined single anatomical "best
-                      guess" to show (the two eyes, or the two signals,
-                      may point in different directions). Showing one
-                      anyway is exactly the "most likely monolid/hooded"
-                      pattern that undermines an honest uncertain result. */}
-                  <p className="text-[10px] text-textMuted leading-snug">{t('eyelidConflictExplain', lang)}</p>
-                </div>
+              {/* UI DISPLAY SCOPE — Results screen shows only the
+                  professionally useful parameters (shape, spacing, tilt,
+                  symmetry, iris color); crease/hooding/eye-size rows and
+                  every row's secondary gray sub-label caption are hidden
+                  here on purpose. This is a display-only change: nothing
+                  is removed from eyeProfileLabels/classifyFeatures/
+                  ReviewScreen/DetailsScreen — every underlying value
+                  (labels.creaseStateLabel, labels.hoodingStateLabel,
+                  labels.eyeSize, p.eyelidSignalsConflict, all *SubLabel
+                  strings) still exists and is still computed exactly as
+                  before; it's simply not rendered on this screen. */}
+              <EyeProfileRow icon="shape" label={t('shapeLabel', lang)} value={labels.shape} confidence={p.eyeShapeCategory === 'uncertain' ? undefined : p.eyeShapeConfidence} />
+              <EyeProfileRow icon="size" label={t('spacingLabel', lang)} value={labels.spacing} confidence={p.spacingConfidence} />
+              <EyeProfileRow icon="position" label={t('tiltLabel', lang)} value={labels.tilt} confidence={p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? undefined : p.tiltConfidence} />
+              <EyeProfileRow icon="symmetry" label={t('symmetryLabel', lang)} value={labels.symmetry} confidence={p.symmetryCategory === 'uncertain' ? undefined : p.symmetryConfidence} />
+              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={labels.irisName} confidence={result.iris?.confidence} />
+              {result.faceShapeProfile && (
+                <EyeProfileRow
+                  icon="shape"
+                  label={t('faceShapeLabel', lang)}
+                  value={result.faceShapeProfile.isUncertain ? t('faceShape_uncertain', lang) : t('faceShape_' + result.faceShapeProfile.category, lang)}
+                  confidence={result.faceShapeProfile.isUncertain ? undefined : result.faceShapeProfile.confidence}
+                />
               )}
-              <EyeProfileRow icon="size" label={t('spacingLabel', lang)} sublabel={t('spacingSubLabel', lang)} value={labels.spacing} confidence={p.spacingConfidence} />
-              <EyeProfileRow icon="position" label={t('tiltLabel', lang)} sublabel={t('tiltSubLabel', lang)} value={labels.tilt} confidence={p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? undefined : p.tiltConfidence} />
-              <EyeProfileRow icon="size" label={t('eyeSizeLabel', lang)} sublabel={t('eyeSizeSubLabel', lang)} value={labels.eyeSize} confidence={p.eyeSizeConfidence} />
-              <EyeProfileRow icon="symmetry" label={t('symmetryLabel', lang)} sublabel={t('symmetrySubLabel', lang)} value={labels.symmetry} confidence={p.symmetryCategory === 'uncertain' ? undefined : p.symmetryConfidence} />
-              <EyeProfileRow icon="iris" label={t('irisLabel', lang)} sublabel={t('irisSubLabel', lang)} value={labels.irisName} confidence={result.iris?.confidence} />
               <button onClick={onDetails} className="mt-3 text-xs text-accent font-medium uppercase tracking-wide">{t('moreDetails', lang)}</button>
             </Section>
 

@@ -88,7 +88,7 @@ test('all 21 legacy IDs and exact legacy Squirrel inputs remain unchanged',()=>{
 
 test('production Recommendation, PHOTO, DIAGRAM, Application Plan, and domain source remain unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource),'2dff4f9a689701c9e95673ab035fb79c7aa10c0c443eb1907406b47bdd8dcc2d');
+  assert.strictEqual(digest(indexSource),'0fe43a7530922b1fb5029c4e7a21cd39a6d43dfc8e09f776b8c376089bec49a6');
   assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
   assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, i);'));
   assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));

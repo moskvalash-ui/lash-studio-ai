@@ -10327,6 +10327,180 @@
       }
       return notes;
     }
+    // Kim K practical master guide — a presentation/education adapter, not
+    // canonical data. This is fixed instructional copy written from the
+    // dedicated Kim K execution-evidence review (multiple independent lash-
+    // education sources), never from professional-lash-library.js, which
+    // keeps zero numeric execution fields for Kim K. Nothing here is written
+    // back to the library, nothing here is treated as "reviewed truth" —
+    // ranges are explicitly labeled as common working ranges, not rules.
+    // Gated to construction.kim-k only; every other identity keeps using
+    // buildMethodicalSections below, completely unchanged.
+    function buildKimKMasterGuide(lang) {
+      if (lang === 'ru') {
+        return {
+          intro: {
+            lead: 'Kim K — текстурный эффект с выраженными длинными акцентами над более спокойным фоном.',
+            rule: 'Главное визуальное правило: акценты должны хорошо отделяться от фона и повторяться по линии глаза, создавая узнаваемый ритм.',
+          },
+          keyParams: [
+            { label: 'Перепад длины', value: '2–4 мм', note: 'Акценты обычно делают на 2–4 мм длиннее фоновой линии. Частый рабочий диапазон, не обязательный стандарт.' },
+            { label: 'Количество акцентов', value: '≈ 7–15 на глаз', note: 'Это рабочий ориентир, а не обязательное число. Количество меняется в зависимости от ширины глаза и желаемой выраженности эффекта.' },
+            { label: 'Форма акцента', value: 'Закрытый или узкий пучок', note: 'Акцент должен читаться собранным и графичным, а не превращаться в широкий веер.' },
+            { label: 'Расположение', value: 'Не в самом уголке', note: 'Не ставьте выраженный акцент в самой крайней точке внутреннего или внешнего уголка.' },
+          ],
+          composition: {
+            accentTitle: 'Акцент / луч',
+            accentBullets: ['длиннее фоновой линии', 'визуально заметнее', 'чаще закрытый или узкий', 'создаёт рисунок и ритм эффекта'],
+            backgroundTitle: 'Фон',
+            backgroundBullets: ['заполняет пространство между акцентами', 'визуально спокойнее', 'не должен перекрывать акценты', 'объём и раскрытие подбираются под технику и натуральные ресницы клиента'],
+            diffTitle: 'Разница',
+            diffText: 'Акцент должен первым считываться взглядом. Фон поддерживает акцент, а не конкурирует с ним.',
+          },
+          buildMethods: [
+            {
+              title: 'Способ 1 — сначала акценты',
+              steps: ['Сделайте мэппинг.', 'Наметьте расположение акцентов.', 'Поставьте акценты по всей линии.', 'Заполните фон между ними.', 'Проверьте перепад длины и общий ритм.'],
+              note: 'Удобно, когда мастер хочет сначала зафиксировать рисунок эффекта.',
+            },
+            {
+              title: 'Способ 2 — сначала фон',
+              steps: ['Сделайте мэппинг.', 'Заранее отметьте места будущих акцентов.', 'Заполняйте фон, оставляя эти места свободными.', 'В отмеченных местах сформируйте акцентную конструкцию.', 'Проверьте, чтобы каждый акцент хорошо выступал над фоновой линией.'],
+              note: 'Удобно, когда мастер сначала формирует основную линию, а затем усиливает текстуру.',
+            },
+          ],
+          accentHowTo: {
+            rows: [
+              { label: 'Длина относительно фона', value: '+2–4 мм — частый рабочий диапазон.' },
+              { label: 'Количество', value: 'примерно 7–15 на глаз — ориентир, не правило.' },
+              { label: 'Форма', value: 'чаще закрытая или узкая.' },
+              { label: 'Раскрытие', value: 'не задаётся процентом; зависит от техники.' },
+              { label: 'D', value: 'не задаётся фиксированным числом.' },
+              { label: 'Диаметр', value: 'подбирается по состоянию натуральных ресниц и выбранной технике.' },
+            ],
+            spacingNote: 'Распределяйте акценты так, чтобы ритм читался по всей линии. Интервалы не обязаны быть математически одинаковыми.',
+          },
+          background: {
+            lead: 'Фон заполняет пространство между акцентами и формирует основную линию эффекта.',
+            bullets: [
+              'фон должен оставаться визуально спокойнее акцентов',
+              'его объём подбирается индивидуально',
+              'раскрытие зависит от выбранной техники',
+              'фон не должен подниматься настолько высоко, чтобы перепад с акцентами исчез',
+              'ориентируйтесь прежде всего на читаемый контраст между фоновой линией и акцентами',
+            ],
+          },
+          liveCheck: {
+            duringTitle: 'После первых нескольких акцентов остановитесь и посмотрите:',
+            duringItems: ['акценты действительно выступают над фоном', 'между ними остаётся читаемый ритм', 'они не сливаются в одну длинную линию', 'фон не начинает конкурировать с акцентами'],
+            afterTitle: 'После заполнения глаза:',
+            afterItems: ['рисунок читается от внутренней части глаза к внешней', 'крайние уголки не перегружены акцентами', 'левый и правый глаз выглядят сбалансированно', 'перепад длины сохраняется по всей работе'],
+          },
+          masterAdjusts: {
+            lead: 'Под клиента и натуральные ресницы подбираются:',
+            bullets: ['геометрия мэппинга', 'изгиб', 'общий диапазон длин', 'D / объём', 'диаметр', 'точное количество акцентов', 'точное расстояние между ними', 'плотность фона', 'техника формирования пучков'],
+            note: 'Kim K задаёт принцип построения эффекта, а не одну обязательную схему для каждого клиента.',
+          },
+          mistakes: [
+            { title: 'Слишком много акцентов, или они стоят слишком близко.', result: 'Текстура перегружается, и отдельные лучи перестают читаться.' },
+            { title: 'Акценты на двух глазах расположены заметно по-разному.', result: 'Эффект выглядит несбалансированным.' },
+            { title: 'Сильный акцент поставлен в самой крайней точке уголка.', result: 'Уголок может выглядеть перегруженным.' },
+            { title: 'Фон почти сравнялся с акцентами по длине.', result: 'Исчезает главный контраст Kim K.' },
+          ],
+          finalChecklist: {
+            items: ['С первого взгляда видны отдельные акценты.', 'Они заметно длиннее фоновой линии.', 'По глазу читается повторяющийся ритм.', 'Фон остаётся второстепенным.', 'Акценты не сливаются в сплошную верхнюю линию.', 'Два глаза выглядят сбалансированно.'],
+            note: 'Если первым считывается фон, а лучи приходится искать глазами — контраста недостаточно.',
+          },
+          notConfuseWith: [
+            { pair: 'Kim K / Wispy', text: 'Kim K обычно читается более структурно и контрастно; Wispy — мягче и воздушнее.' },
+            { pair: 'Kim K / Anime', text: 'Anime обычно выглядит более графично, с ещё более выраженным разделением акцентов.' },
+            { pair: 'Kim K / Jellyfish', text: 'Jellyfish визуально более нерегулярный и строится с более заметными воздушными промежутками.' },
+            { pair: 'Kim K / Rays', text: 'Луч — это элемент построения. Kim K — законченный эффект, построенный из повторяющихся акцентов и фона.' },
+          ],
+        };
+      }
+      return {
+        intro: {
+          lead: 'Kim K is a textured effect built from long, defined accents sitting above a calmer background.',
+          rule: 'Golden rule: the accents need to stand clearly apart from the background and repeat along the eye, building a rhythm the eye can follow.',
+        },
+        keyParams: [
+          { label: 'Length difference', value: '2–4mm', note: 'Accents are commonly built 2–4mm longer than the background — a typical working range, not a fixed rule.' },
+          { label: 'Accent count', value: '≈7–15 per eye', note: "A working reference, not a required number. It shifts with eye width and how bold you want the effect to read." },
+          { label: 'Accent shape', value: 'Closed or narrow fan', note: 'The accent should read as tight and graphic — not open up into a wide fan.' },
+          { label: 'Placement', value: 'Skip the very corner', note: 'Avoid landing a strong accent right at the innermost or outermost point of the eye.' },
+        ],
+        composition: {
+          accentTitle: 'Accent / ray',
+          accentBullets: ['longer than the background', 'the visually stronger element', 'usually closed or narrow', 'carries the pattern and rhythm of the effect'],
+          backgroundTitle: 'Background',
+          backgroundBullets: ['fills the space between accents', 'reads visually calmer', 'should never cover the accents', "its volume and fan opening follow the technique and the client's natural lashes"],
+          diffTitle: 'The difference',
+          diffText: "The accent should be the first thing the eye catches. The background supports it — it doesn't compete with it.",
+        },
+        buildMethods: [
+          {
+            title: 'Method 1 — accents first',
+            steps: ['Map the eye.', 'Mark where the accents will go.', 'Place the accents along the whole line.', 'Fill the background between them.', 'Check the length difference and the overall rhythm.'],
+            note: 'Useful when you want to lock in the pattern of the effect first.',
+          },
+          {
+            title: 'Method 2 — background first',
+            steps: ['Map the eye.', 'Mark the future accent spots ahead of time.', 'Fill the background, leaving those spots open.', 'Build the accent at each marked spot.', 'Check that every accent clearly rises above the background.'],
+            note: "Useful when you'd rather establish the base line first and add the texture on top.",
+          },
+        ],
+        accentHowTo: {
+          rows: [
+            { label: 'Length vs. background', value: '+2–4mm — a common working range.' },
+            { label: 'Count', value: 'roughly 7–15 per eye — a reference, not a rule.' },
+            { label: 'Shape', value: 'usually closed or narrow.' },
+            { label: 'Fan opening', value: 'not given as a percentage — depends on technique.' },
+            { label: 'D-volume', value: 'not given as a fixed number.' },
+            { label: 'Diameter', value: "chosen based on the client's natural lashes and the technique in use." },
+          ],
+          spacingNote: "Space the accents so the rhythm reads along the whole line. The intervals don't need to be mathematically equal.",
+        },
+        background: {
+          lead: 'The background fills the space between accents and carries the base line of the effect.',
+          bullets: [
+            'it should stay visibly calmer than the accents',
+            'its volume is chosen for the individual client',
+            'fan opening depends on the technique you’re using',
+            "don't let it build up so much height that the contrast with the accents disappears",
+            'keep your eye on one thing above all: a readable contrast between the background line and the accents',
+          ],
+        },
+        liveCheck: {
+          duringTitle: 'After the first few accents, stop and look:',
+          duringItems: ['the accents genuinely rise above the background', 'a readable rhythm remains between them', "they haven't merged into one long line", "the background isn't starting to compete with the accents"],
+          afterTitle: 'Once the eye is filled:',
+          afterItems: ['the pattern reads from the inner to the outer eye', "the outer corners aren't overloaded with accents", 'the two eyes look balanced against each other', 'the length difference holds across the whole set'],
+        },
+        masterAdjusts: {
+          lead: 'Chosen for the client and their natural lashes:',
+          bullets: ['mapping geometry', 'curl', 'overall length range', 'D / volume', 'diameter', 'exact accent count', 'exact spacing between accents', 'background density', 'fan-building technique'],
+          note: 'Kim K defines a building principle, not one fixed formula for every client.',
+        },
+        mistakes: [
+          { title: "Too many accents, or they're placed too close together.", result: 'The texture becomes overloaded and individual rays stop reading.' },
+          { title: 'The accents are noticeably different between the two eyes.', result: 'The effect looks unbalanced.' },
+          { title: 'A strong accent lands right at the very corner.', result: 'That corner can end up looking overloaded.' },
+          { title: 'The background has nearly caught up to the accents in length.', result: "Kim K's main contrast disappears." },
+        ],
+        finalChecklist: {
+          items: ['Individual accents are visible at first glance.', "They're noticeably longer than the background.", 'A repeating rhythm reads along the eye.', 'The background stays secondary.', "The accents haven't merged into one solid top line.", 'The two eyes look balanced.'],
+          note: "If the background is what you notice first, and you have to search for the rays — the contrast isn't strong enough.",
+        },
+        notConfuseWith: [
+          { pair: 'Kim K / Wispy', text: 'Kim K usually reads more structured and contrasted; Wispy is softer and airier.' },
+          { pair: 'Kim K / Anime', text: 'Anime usually looks more graphic, with even sharper accent separation.' },
+          { pair: 'Kim K / Jellyfish', text: 'Jellyfish looks more irregular, built with more noticeable open gaps.' },
+          { pair: 'Kim K / Rays', text: 'A ray is a building element. Kim K is the finished effect, built from repeating accents and background.' },
+        ],
+      };
+    }
+
     // Domain-aware methodical composer. Different `kind`s read completely
     // different sections from completely different canonical fields — a
     // CONSTRUCTION_RECIPE is never forced through the same template as a
@@ -10482,6 +10656,131 @@
       return sections;
     }
 
+    // Renders the Kim K practical master guide built by buildKimKMasterGuide.
+    // Pure presentation: every value it shows was authored above, nothing is
+    // read from professional-lash-library.js here.
+    function KimKMasterGuideBody({ guide }) {
+      const g = guide;
+      return (
+        <>
+          <div className="glass rounded-lg p-4 mb-3">
+            <p className="text-[13px] leading-relaxed text-textPrimary mb-2">{g.intro.lead}</p>
+            <p className="text-[12px] leading-relaxed text-cyan font-semibold">{g.intro.rule}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {g.keyParams.map((p, i) => (
+              <div key={i} className="glass rounded-lg p-3">
+                <div className="text-[10px] uppercase tracking-wide text-textMuted mb-1">{p.label}</div>
+                <div className="text-[16px] font-extrabold text-cyan mb-1">{p.value}</div>
+                <div className="text-[11px] leading-snug text-textSecondary">{p.note}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-1">{g.composition.accentTitle}</div>
+                <ul className="space-y-0.5">
+                  {g.composition.accentBullets.map((b, i) => <li key={i} className="text-[13px] text-textPrimary">• {b}</li>)}
+                </ul>
+              </div>
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-textSecondary mb-1">{g.composition.backgroundTitle}</div>
+                <ul className="space-y-0.5">
+                  {g.composition.backgroundBullets.map((b, i) => <li key={i} className="text-[13px] text-textPrimary">• {b}</li>)}
+                </ul>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-border/60">
+              <div className="text-[10px] uppercase tracking-wide text-textMuted mb-1">{g.composition.diffTitle}</div>
+              <p className="text-[13px] leading-relaxed text-textPrimary">{g.composition.diffText}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 mb-3">
+            {g.buildMethods.map((m, i) => (
+              <div key={i} className="glass rounded-lg p-4">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{m.title}</div>
+                <ol className="space-y-1 list-decimal list-inside">
+                  {m.steps.map((s, j) => <li key={j} className="text-[13px] leading-relaxed text-textPrimary">{s}</li>)}
+                </ol>
+                <p className="text-[11px] text-textMuted italic mt-2">{m.note}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <div className="space-y-1.5">
+              {g.accentHowTo.rows.map((r, i) => (
+                <div key={i} className="flex justify-between gap-3 text-[12px]">
+                  <span className="text-textMuted shrink-0">{r.label}</span>
+                  <span className="text-textPrimary text-right">{r.value}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[12px] leading-relaxed text-textSecondary mt-3 pt-3 border-t border-border/60">{g.accentHowTo.spacingNote}</p>
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <p className="text-[13px] leading-relaxed text-textPrimary mb-2">{g.background.lead}</p>
+            <ul className="space-y-0.5">
+              {g.background.bullets.map((b, i) => <li key={i} className="text-[13px] text-textPrimary">• {b}</li>)}
+            </ul>
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{g.liveCheck.duringTitle}</div>
+            <ul className="space-y-1 mb-3">
+              {g.liveCheck.duringItems.map((it, i) => <li key={i} className="text-[13px] text-textPrimary">☐ {it}</li>)}
+            </ul>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2 pt-2 border-t border-border/60">{g.liveCheck.afterTitle}</div>
+            <ul className="space-y-1">
+              {g.liveCheck.afterItems.map((it, i) => <li key={i} className="text-[13px] text-textPrimary">☐ {it}</li>)}
+            </ul>
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <p className="text-[13px] leading-relaxed text-textPrimary mb-2">{g.masterAdjusts.lead}</p>
+            <ul className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+              {g.masterAdjusts.bullets.map((b, i) => <li key={i} className="text-[12px] text-textPrimary">• {b}</li>)}
+            </ul>
+            <p className="text-[11px] text-textMuted italic mt-3 pt-3 border-t border-border/60">{g.masterAdjusts.note}</p>
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <div className="space-y-2.5">
+              {g.mistakes.map((m, i) => (
+                <div key={i}>
+                  <p className="text-[13px] font-semibold text-textPrimary">{i + 1}. {m.title}</p>
+                  <p className="text-[12px] text-textSecondary pl-3">→ {m.result}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <ul className="space-y-1 mb-3">
+              {g.finalChecklist.items.map((it, i) => <li key={i} className="text-[13px] text-textPrimary">☐ {it}</li>)}
+            </ul>
+            <p className="text-[12px] leading-relaxed text-cyan font-semibold pt-3 border-t border-border/60">{g.finalChecklist.note}</p>
+          </div>
+
+          <div className="glass rounded-lg p-4 mb-3">
+            <div className="space-y-2">
+              {g.notConfuseWith.map((c, i) => (
+                <div key={i}>
+                  <p className="text-[12px] font-bold text-textPrimary">{c.pair}</p>
+                  <p className="text-[12px] text-textSecondary">{c.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      );
+    }
+
     function ProLibraryDetailScreen({ canonicalId, onBack }) {
       const lang = useLang();
       const def = ProfessionalLashLibrary.getDefinition(canonicalId);
@@ -10496,7 +10795,12 @@
           </div>
         );
       }
-      const sections = buildMethodicalSections(def, lang);
+      // construction.kim-k gets the practical master-guide adapter; every
+      // other identity keeps the existing generic methodical composer
+      // completely unchanged.
+      const isKimK = def.id === 'construction.kim-k';
+      const sections = isKimK ? null : buildMethodicalSections(def, lang);
+      const kimKGuide = isKimK ? buildKimKMasterGuide(lang) : null;
       return (
         <div className="h-full flex flex-col bg-bg">
           <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
@@ -10511,14 +10815,18 @@
             <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan">{plLabel(def.validation.status, lang)}</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
-            {sections.map((s, i) => (
-              <div key={s.title + i} className="glass rounded-lg p-4 mb-3">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{s.title}</div>
-                <div className="space-y-1.5">
-                  {s.paragraphs.map((p, j) => <p key={j} className="text-[13px] leading-relaxed text-textPrimary">{p}</p>)}
+            {isKimK ? (
+              <KimKMasterGuideBody guide={kimKGuide} />
+            ) : (
+              sections.map((s, i) => (
+                <div key={s.title + i} className="glass rounded-lg p-4 mb-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{s.title}</div>
+                  <div className="space-y-1.5">
+                    {s.paragraphs.map((p, j) => <p key={j} className="text-[13px] leading-relaxed text-textPrimary">{p}</p>)}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       );

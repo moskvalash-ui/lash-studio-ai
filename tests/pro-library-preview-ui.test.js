@@ -64,9 +64,12 @@ function loadComposer(){
   const chunk1Start=indexSource.indexOf('function plIdentityName');
   const chunk1End=indexSource.indexOf('function ProLibraryPreviewScreen');
   const chunk2Start=indexSource.indexOf('function plIsMetaStatus');
-  const chunk2End=indexSource.indexOf('function ProLibraryDetailScreen');
+  // Stops before KimKMasterGuideBody (JSX, deliberately excluded from this
+  // plain-JS eval, same reasoning as ProLibraryPreviewScreen/DetailScreen)
+  // but still includes the plain-JS buildKimKMasterGuide data function.
+  const chunk2End=indexSource.indexOf('function KimKMasterGuideBody');
   const code=indexSource.slice(chunk1Start,chunk1End)+'\n'+indexSource.slice(chunk2Start,chunk2End)+
-    '\nreturn {buildMethodicalSections, plLabel, plKindLabel, plIdentityName};';
+    '\nreturn {buildMethodicalSections, buildKimKMasterGuide, plLabel, plKindLabel, plIdentityName};';
   const fn=new Function('sandbox','with(sandbox){ '+code+' }');
   return fn(sandbox);
 }
@@ -322,4 +325,115 @@ test('Jellyfish: uncertainty is communicated as a plain-language artist note, no
   assert.ok(/Медуза/.test(honestyLine));
   const supportField=jellyfish.find(s=>s.title==='Поддерживающая структура');
   assert.ok(supportField&&/мягк|разрежен/i.test(supportField.paragraphs.join(' ')));
+});
+
+// ------------------------------------------------------------
+// KIM K PRACTICAL MASTER GUIDE — a presentation/education adapter gated to
+// construction.kim-k only, built from the dedicated execution-evidence
+// review (multiple independent lash-education sources), never written back
+// to professional-lash-library.js. Every research-derived range must be
+// labeled as a working range, never a rule; no numeric D-volume or
+// leg-length may be invented; both build-order variants must be presented
+// as equally valid; and no evidence-review/schema jargon may leak into the
+// RU/EN artist-facing copy.
+// ------------------------------------------------------------
+function collectGuideStrings(guide){
+  const out=[];
+  (function walk(v){
+    if(typeof v==='string')out.push(v);
+    else if(Array.isArray(v))v.forEach(walk);
+    else if(v&&typeof v==='object')Object.values(v).forEach(walk);
+  })(guide);
+  return out;
+}
+
+test('Kim K detail screen is gated to the practical master-guide adapter; every other identity keeps the generic methodical composer unchanged',()=>{
+  assert.ok(indexSource.includes("const isKimK = def.id === 'construction.kim-k';"));
+  assert.ok(indexSource.includes('<KimKMasterGuideBody guide={kimKGuide} />'));
+  assert.ok(indexSource.includes('function buildKimKMasterGuide(lang)'));
+  for(const item of Library.library.targetInventory){
+    if(item.canonicalId==='construction.kim-k')continue;
+    const def=Library.getDefinition(item.canonicalId);
+    const sections=composer.buildMethodicalSections(def,'ru');
+    assert.ok(sections.length>0,`${item.canonicalId} must still render via the generic composer, unaffected by the Kim K adapter`);
+  }
+});
+
+test('Kim K master guide: RU is fully populated and EN is an independent, natural rewrite (not a mechanical translation)',()=>{
+  assert.ok(composer.buildKimKMasterGuide,'buildKimKMasterGuide must be exported by the composer');
+  const ru=composer.buildKimKMasterGuide('ru');
+  const en=composer.buildKimKMasterGuide('en');
+  assert.notStrictEqual(ru.intro.lead,en.intro.lead);
+  assert.ok(/[а-яё]/i.test(ru.intro.lead),'RU intro must contain Cyrillic text');
+  assert.ok(!/[а-яё]/i.test(en.intro.lead),'EN intro must not contain Cyrillic text');
+  assert.strictEqual(ru.buildMethods.length,2);
+  assert.strictEqual(en.buildMethods.length,2);
+});
+
+test('Kim K master guide: default app language remains ru, unaffected by this phase',()=>{
+  assert.ok(indexSource.includes("localStorage.getItem('lashStudioLang') || 'ru'"));
+});
+
+test('Kim K master guide: 2–4mm is labeled a common working range, never a mandatory standard',()=>{
+  const ru=composer.buildKimKMasterGuide('ru');
+  const en=composer.buildKimKMasterGuide('en');
+  const ruDelta=ru.keyParams.find(p=>p.label==='Перепад длины');
+  assert.ok(ruDelta&&ruDelta.value==='2–4 мм');
+  assert.ok(/частый рабочий диапазон/i.test(ruDelta.note),'must be labeled a common working range');
+  assert.ok(/не обязательный стандарт/i.test(ruDelta.note),'must explicitly deny being a mandatory standard');
+  const enDelta=en.keyParams.find(p=>p.label==='Length difference');
+  assert.ok(enDelta&&enDelta.value==='2–4mm');
+  assert.ok(/(common(ly)? .*working range|typical working range)/i.test(enDelta.note));
+  assert.ok(/not a fixed rule/i.test(enDelta.note));
+});
+
+test('Kim K master guide: ≈7–15 accents is labeled an approximate working reference, not a required count',()=>{
+  const ru=composer.buildKimKMasterGuide('ru');
+  const en=composer.buildKimKMasterGuide('en');
+  const ruCount=ru.keyParams.find(p=>p.label==='Количество акцентов');
+  assert.ok(ruCount&&ruCount.value==='≈ 7–15 на глаз');
+  assert.ok(/рабочий ориентир, а не обязательное число/.test(ruCount.note));
+  const enCount=en.keyParams.find(p=>p.label==='Accent count');
+  assert.ok(enCount&&enCount.value==='≈7–15 per eye');
+  assert.ok(/working reference, not a required number/i.test(enCount.note));
+});
+
+test('Kim K master guide: no fixed D-volume is ever presented as a Kim K rule',()=>{
+  for(const guide of [composer.buildKimKMasterGuide('ru'),composer.buildKimKMasterGuide('en')]){
+    for(const s of collectGuideStrings(guide)){
+      assert.ok(!/\b[2-9]D\b/.test(s),`a fixed D-volume number leaked into the Kim K guide: "${s}"`);
+    }
+  }
+});
+
+test('Kim K master guide: no leg-length ("ножка"/leg/base-length) row or number is invented',()=>{
+  const ru=composer.buildKimKMasterGuide('ru');
+  const en=composer.buildKimKMasterGuide('en');
+  assert.ok(!ru.accentHowTo.rows.some(r=>/ножк/i.test(r.label)),'RU accent table must omit the leg-length row entirely');
+  assert.ok(!en.accentHowTo.rows.some(r=>/\bleg\b|base length/i.test(r.label)),'EN accent table must omit the leg-length row entirely');
+});
+
+test('Kim K master guide: two build-order methods exist and neither is presented as correct/preferred over the other',()=>{
+  for(const guide of [composer.buildKimKMasterGuide('ru'),composer.buildKimKMasterGuide('en')]){
+    assert.strictEqual(guide.buildMethods.length,2,'exactly two evidence-backed build-order variants');
+    for(const m of guide.buildMethods){
+      assert.ok(!/правильн|предпочтительн|\bcorrect\b|\bpreferred\b|recommended over/i.test(m.title+' '+m.note),`build method must not be ranked as correct/preferred: ${m.title}`);
+    }
+  }
+});
+
+test('Kim K master guide: no evidence-review/schema jargon leaks into RU or EN artist-facing copy',()=>{
+  const banned=[/требует профессиональной валидации/i,/профессионально подтверждено/i,/уровень доказательности/i,/качественный инвариант/i,/иерархия/i,/носитель геометрии/i,/класс исполнения/i,/каноническая идентичность/i,/неразрешённый параметр/i,/низкая уверенность/i,/\bevidence\b/i,/consensus-like/i,/school-dependent unresolved/i,/UNRESOLVED/,/SCHOOL_DEPENDENT/,/COMMON_VARIANT/,/EXPERT_REVIEWED/];
+  for(const guide of [composer.buildKimKMasterGuide('ru'),composer.buildKimKMasterGuide('en')]){
+    for(const s of collectGuideStrings(guide)){
+      for(const re of banned)assert.ok(!re.test(s),`banned phrase ${re} found in Kim K guide string: "${s}"`);
+    }
+  }
+});
+
+test('Kim K master guide code never touches production ranking/scoring/camera/scan/DESIGN_CATALOG logic',()=>{
+  const guideBlock=indexSource.slice(indexSource.indexOf('function buildKimKMasterGuide'),indexSource.indexOf('function ProLibraryDetailScreen'));
+  for(const forbidden of ['rankDesigns(','rankDesignsAll(','calculateEyeLashMap(','DESIGN_CATALOG','ClientLashDesign','getUserMedia','Application Plan']){
+    assert.ok(!guideBlock.includes(forbidden),`forbidden production reference "${forbidden}" found in the Kim K guide code`);
+  }
 });

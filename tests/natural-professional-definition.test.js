@@ -115,11 +115,11 @@ test('validation includes provenance, review, revision, and explicit uncertainty
 });
 
 test('all 21 legacy outputs and production consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(indexSource),'60277a95ad8346e4fd0671ef7b62fe47f4e41384fd14ad6177b4ca58e1088264');
+  assert.strictEqual(digest(indexSource),'7536f02946d878d619ad723ec904210ef37ba9aba4935ed8a9219e2c6ef4fb95');
   assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end),catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
   assert.strictEqual(catalog.length,21);
   assert.deepStrictEqual(catalog.filter(x=>['natural','naturalRounded','naturalElongated'].includes(x.id)).map(x=>x.baseZones),[[7,8,9,9,8],[6,8,9,9,7],[7,8,9,10,9]]);
-  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
+  assert.strictEqual(digest(catalogSource),'196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf');
   for(const marker of ['function calculateEyeLashMap(','function rankDesignsAll(','<ProfessionalEyeMap clientDesign={photoClientDesign}','<LashMapDiagram clientDesign={diagramClientDesign}','const plan = generateApplicationPlan(planClientDesign, lang);','const d = canonicalRecommendationProps(raw, p, lang, i);','function NaturalLashScanScreen('])assert.ok(indexSource.includes(marker),marker);
 });

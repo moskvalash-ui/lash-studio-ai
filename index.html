@@ -3599,10 +3599,14 @@
     function recommendCurl(c, design, lang) {
       let primary = design.baseCurl;
       let reason = lang==='en' ? 'Matches the base geometry of the selected design.' : 'Соответствует базовой геометрии выбранного дизайна.';
-      if (c.isHooded && c.hoodedConfidence > 0.35) {
-        primary = c.hoodingLevel === 'full' ? 'L+' : 'L';
-        reason = lang==='en' ? 'Lifts lash direction visibly against a hooded lid.' : 'Визуально поднимает направление ресниц при нависающем веке.';
-      } else if (c.tiltTendency === 'downturned' && c.tiltConfidence > 0.35) {
+      // Hooding removed as a recommendation input (product decision:
+      // hooding is no longer a trusted parameter). The isHooded/
+      // hoodedConfidence/hoodingLevel-driven L/L+ override that used to
+      // sit here is deleted, not replaced — no other eyelid parameter
+      // substitutes for it. The downturned-tilt branch below is
+      // unchanged and now simply applies to a broader set of clients
+      // (those previously intercepted by the hooding branch first).
+      if (c.tiltTendency === 'downturned' && c.tiltConfidence > 0.35) {
         primary = 'CC';
         reason = lang==='en' ? 'Compensates a downturned corner with a stronger curve.' : 'Компенсирует опущенный уголок за счёт более сильного изгиба.';
       }
@@ -3884,10 +3888,13 @@
     const DESIGN_CATALOG = [
       { id:'natural', category:'natural', ruName:'Natural', enName:'Natural', aliases:['Natural Correction','Classic Natural'],
         baseZones:[7,8,9,9,8], peakZone:3, baseCurl:'C', curlOptions:['B','C','CC'], defaultTechnique:'Classic 1:1',
-        score: c => clampScore(55 + (c.tiltTendency==='neutral'? c.tiltConfidence*20 : -c.tiltConfidence*8) + c.shapeTendencies.almond*20 - c.compositeAsymmetry*15 + (c.isHooded?-5:5) + (c.overallConfidence<0.45?10:0)),
+        score: c => clampScore(55 + (c.tiltTendency==='neutral'? c.tiltConfidence*20 : -c.tiltConfidence*8) + c.shapeTendencies.almond*20 - c.compositeAsymmetry*15 + (c.overallConfidence<0.45?10:0)),
         why: (c,l) => l==='en' ? 'Preserves natural eye geometry, minimal correction.' : 'Сохраняет естественную геометрию глаза, минимальная коррекция.',
         goal: (c,l) => l==='en' ? 'Emphasize the natural shape without heavy correction.' : 'Подчеркнуть природную форму без выраженной коррекции.',
-        cautions: (c,l) => c.isHooded ? [l==='en'?'Effect will be less visible with pronounced hooding':'При выраженном нависании эффект будет менее заметен'] : [] },
+        // Hooding removed as a recommendation input (product decision:
+        // hooding is no longer a trusted parameter) — this caution used
+        // to read c.isHooded; it is intentionally not replaced.
+        cautions: () => [] },
       { id:'naturalRounded', category:'natural', ruName:'Rounded Natural', enName:'Rounded Natural', aliases:[],
         baseZones:[6,8,9,9,7], peakZone:2, baseCurl:'C', curlOptions:['B','C','CC'], defaultTechnique:'Classic 1:1',
         score: c => clampScore(46 + c.shapeTendencies.round*22 + (c.overallConfidence<0.4?6:0)),
@@ -3909,10 +3916,22 @@
       { id:'doll', category:'opening', ruName:'Doll / Open Eye', enName:'Doll / Open Eye', aliases:['Soft Doll','Central Peak'],
         baseZones:[8,9,10,10,9], peakZone:2, baseCurl:'CC', curlOptions:['CC','D','L'], defaultTechnique:'Volume 3D',
         zonePositions:[0,.24,.46,.60,1], plateauShape:'shoulder', postPeakShape:'gradual',
-        score: c => clampScore(45 + (c.isHooded? c.hoodedConfidence*35 : -10) + (c.isCloseSet?8:0) + c.shapeTendencies.round*6),
-        why: (c,l) => l==='en' ? 'Visually opens the eye against a hooded lid via central volume.' : 'Визуально открывает взгляд при нависшем веке за счёт акцента в центре.',
+        // Hooding removed as a recommendation input — the score no
+        // longer reads c.isHooded/c.hoodedConfidence, and the caution
+        // below (which only ever warned about hooding) is intentionally
+        // not replaced. The `why` text still describes this design's
+        // intended visual effect (central-volume eye-opening) — see
+        // this phase's report for why that descriptive copy was left
+        // untouched rather than rewritten.
+        score: c => clampScore(45 + (c.isCloseSet?8:0) + c.shapeTendencies.round*6),
+        // Hooding removed from this copy too (product decision: hooding
+        // is no longer a trusted/user-facing parameter) — rewritten
+        // neutrally around Doll's actual mechanism (central volume/
+        // plateau), without implying the app detected a hooded lid or
+        // substituting another inferred eyelid condition.
+        why: (c,l) => l==='en' ? 'Visually opens the eye through a central volume accent.' : 'Визуально открывает взгляд за счёт акцента объёма в центральной зоне.',
         goal: (c,l) => l==='en' ? 'Open up the eye, add volume in the central zone.' : 'Визуально открыть взгляд, добавить объём в центральной зоне.',
-        cautions: (c,l) => [l==='en'?'Avoid D curl with pronounced hooding — lashes will press into the lid':'Избегать изгиба D при выраженном нависании — ресницы будут упираться в веко'] },
+        cautions: () => [] },
       { id:'rounded', category:'opening', ruName:'Rounded', enName:'Rounded', aliases:[],
         baseZones:[7,9,10,10,8], peakZone:2, baseCurl:'CC', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
         score: c => clampScore(48 + c.shapeTendencies.elongated*22 - c.shapeTendencies.round*15),
@@ -3935,40 +3954,42 @@
       { id:'cat', category:'elongating', ruName:'Cat Eye', enName:'Cat Eye', aliases:[],
         baseZones:[7,8,10,12,10], peakZone:3, baseCurl:'CC', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
         zonePositions:[0,.22,.48,.78,1], postPeakShape:'frontLoaded',
-        score: c => clampScore(46 + (c.tiltTendency==='upturned'? c.tiltConfidence*22 : (c.tiltTendency==='neutral'?6:-14)) + c.shapeTendencies.almond*12 + (c.isHooded?-4:0)),
+        score: c => clampScore(46 + (c.tiltTendency==='upturned'? c.tiltConfidence*22 : (c.tiltTendency==='neutral'?6:-14)) + c.shapeTendencies.almond*12),
         why: (c,l) => l==='en' ? 'Classic elongation toward the outer corner.' : 'Классическое вытяжение к внешнему уголку.',
         goal: (c,l) => l==='en' ? 'Elongate and lift toward the outer corner.' : 'Вытянуть и приподнять взгляд к внешнему уголку.',
         cautions: () => [] },
       { id:'softcat', category:'elongating', ruName:'Soft Cat', enName:'Soft Cat', aliases:[],
         baseZones:[7,8,9,11,9], peakZone:3, baseCurl:'CC', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
-        score: c => clampScore(50 + (c.tiltTendency==='downturned'? c.tiltConfidence*24 : (c.tiltTendency==='neutral'?6:-12)) + (c.isWideSet?10:0) + (c.isHooded?-6:0)),
+        score: c => clampScore(50 + (c.tiltTendency==='downturned'? c.tiltConfidence*24 : (c.tiltTendency==='neutral'?6:-12)) + (c.isWideSet?10:0)),
         why: (c,l) => l==='en' ? 'Gentle horizontal elongation, visually lifts a downturned corner.' : 'Даёт мягкое горизонтальное вытяжение и визуально приподнимает опущенный уголок.',
         goal: (c,l) => l==='en' ? 'Correct a downturned outer corner.' : 'Скорректировать опущенный внешний уголок глаза.',
-        cautions: (c,l) => c.isHooded ? [l==='en'?'With hooding, keep curl at CC or below':'При нависании — контролировать изгиб, не более CC'] : [] },
+        // Hooding removed as a recommendation input — this caution used
+        // to read c.isHooded; it is intentionally not replaced.
+        cautions: () => [] },
       { id:'fox', category:'elongating', ruName:'Fox', enName:'Fox', aliases:['Fox-inspired'],
         baseZones:[6,7,9,12,11], peakZone:3, baseCurl:'C', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
         zonePositions:[0,.20,.44,.66,1], postPeakShape:'gradual',
-        score: c => clampScore(42 + (c.isWideSet?14:0) + (c.tiltTendency==='upturned'? c.tiltConfidence*22 : -6) + c.shapeTendencies.elongated*10 + (c.isHooded?-8:0) + (c.isCloseSet?-10:0)),
+        score: c => clampScore(42 + (c.isWideSet?14:0) + (c.tiltTendency==='upturned'? c.tiltConfidence*22 : -6) + c.shapeTendencies.elongated*10 + (c.isCloseSet?-10:0)),
         why: (c,l) => l==='en' ? 'Enhances natural upward lift and elongation toward the temple.' : 'Усиливает природную приподнятость и вытяжение к виску.',
         goal: (c,l) => l==='en' ? 'Maximize elongation toward the temple.' : 'Максимально вытянуть форму глаза к виску.',
         cautions: (c,l) => [l==='en'?'Needs confident length control — risk of weighing the gaze down':'Требует уверенного контроля длины — риск утяжелить взгляд'] },
       { id:'softfox', category:'elongating', ruName:'Soft Fox', enName:'Soft Fox', aliases:['Fox-inspired Soft'],
         baseZones:[7,8,10,10,9], peakZone:2, baseCurl:'C', curlOptions:['B','C','CC'], defaultTechnique:'Light Volume 2D',
         zonePositions:[0,.21,.52,.70,1], plateauShape:'shoulder', postPeakShape:'gradual',
-        score: c => clampScore(47 + (c.tiltTendency==='upturned'?c.tiltConfidence*14:4) + c.shapeTendencies.elongated*8 + (c.isHooded?-4:0)),
+        score: c => clampScore(47 + (c.tiltTendency==='upturned'?c.tiltConfidence*14:4) + c.shapeTendencies.elongated*8),
         why: (c,l) => l==='en' ? 'Broad, low-amplitude outer lift with a gentle tail.' : 'Широкий мягкий подъём с плавным снижением к внешнему углу.',
         goal: (c,l) => l==='en' ? 'Add soft elongation without a sharp outer peak.' : 'Мягко вытянуть взгляд без резкого внешнего пика.',
         cautions: () => [] },
       { id:'eyeliner', category:'elongating', ruName:'Eyeliner Effect', enName:'Eyeliner Effect', aliases:['Arrow Effect'],
         baseZones:[8,8,9,10,9], peakZone:3, baseCurl:'CC', curlOptions:['CC','D'], defaultTechnique:'Volume 3D',
-        score: c => clampScore(40 + (c.isCloseSet?10:0) + (c.compositeAsymmetry>0.08?10:0) + (c.isHooded?6:0)),
+        score: c => clampScore(40 + (c.isCloseSet?10:0) + (c.compositeAsymmetry>0.08?10:0)),
         why: (c,l) => l==='en' ? 'Dense root placement creates a liner-like line, visually elongates the eye.' : 'Плотная посадка у корня создаёт эффект подводки и визуально удлиняет линию глаза.',
         goal: (c,l) => l==='en' ? 'Elongate the eyeline, optionally correct asymmetry.' : 'Визуально удлинить линию глаза, при необходимости скорректировать асимметрию.',
         cautions: () => [] },
       { id:'wispy', category:'textured', ruName:'Wispy', enName:'Wispy', aliases:['Wispy Natural'],
         baseZones:[7,8,9,10,8], peakZone:3, baseCurl:'C', curlOptions:['B','C','CC'], defaultTechnique:'Light Volume 2D',
         texture:{ pattern:'uniform', frequency:2, baseToSpikeDiff:1.5 },
-        score: c => clampScore(52 + (c.isHooded? c.hoodedConfidence*12 : 4) + c.shapeTendencies.almond*10 + (c.overallConfidence<0.5?8:0)),
+        score: c => clampScore(52 + c.shapeTendencies.almond*10 + (c.overallConfidence<0.5?8:0)),
         why: (c,l) => l==='en' ? 'Adds texture and volume without visually weighting the lid.' : 'Добавляет текстуру и объём без визуального утяжеления века.',
         goal: (c,l) => l==='en' ? 'Add texture, keep the gaze light.' : 'Добавить текстуру, сохранить лёгкость взгляда.',
         cautions: () => [] },
@@ -3982,7 +4003,7 @@
       { id:'wispydoll', category:'textured', ruName:'Wispy Doll', enName:'Wispy Doll', aliases:[],
         baseZones:[7,9,10,10,8], peakZone:2, baseCurl:'CC', curlOptions:['CC','D','L'], defaultTechnique:'Volume 3D',
         texture:{ pattern:'uniform', frequency:2, baseToSpikeDiff:1.5 },
-        score: c => clampScore(40 + (c.isHooded?c.hoodedConfidence*22:0) + c.shapeTendencies.round*8),
+        score: c => clampScore(40 + c.shapeTendencies.round*8),
         why: (c,l) => l==='en' ? 'Textured spikes with a central opening accent.' : 'Текстурные спайки с открывающим акцентом в центре.',
         goal: (c,l) => l==='en' ? 'Open the eye while keeping visible texture.' : 'Открыть взгляд, сохранив видимую текстуру.',
         cautions: () => [] },
@@ -4314,7 +4335,8 @@
       push(preparation, 'Подготовьте необходимые палетки длин и изгибов.', 'Prepare the required length and curl trays.');
       if (asym) push(preparation, 'Обнаружена асимметрия — перед началом отдельно разметьте peak для левого и правого глаза.', 'Asymmetry detected — mark the peak separately for the left and right eye before starting.');
       if (spikeGeom) push(preparation, 'До начала работы отметьте позиции основных лучей/spikes.', 'Before starting, mark the positions of the main spikes/rays.');
-      if (c.isHooded) push(preparation, 'При нависании века рекомендуется сверить видимость выбранного изгиба на открытом глазу.', 'With hooding, it’s recommended to check the visibility of the selected curl with the eye open.');
+      // Hooding removed as a recommendation input — the isHooded-gated
+      // preparation note that used to sit here is deleted, not replaced.
       push(preparation, 'AI-анализ не заменяет визуальный осмотр состояния ресниц и кожи века мастером — при признаках раздражения или повреждения проконсультируйтесь со специалистом перед процедурой.', 'AI analysis does not replace the artist’s own visual inspection of lash and lid condition — if you notice irritation or damage, refer the client to a specialist before proceeding.');
 
       // -------- APPLICATION STEPS --------
@@ -4361,7 +4383,8 @@
       const artistNotes = [];
       if (c.isCloseSet) push(artistNotes, 'Рекомендуется не перегружать внутренний угол.', 'Recommended: avoid overloading the inner corner.');
       if (c.isWideSet) push(artistNotes, 'AI предлагает распределить длину равномерно по всей линии роста.', 'AI suggests distributing length evenly across the lash line.');
-      if (c.isHooded) push(artistNotes, 'При нависании века рассмотрите видимость выбранного изгиба именно при открытом глазе.', 'With hooding, consider the visibility of the selected curl specifically with the eye open.');
+      // Hooding removed as a recommendation input — the isHooded-gated
+      // artist note that used to sit here is deleted, not replaced.
       if (c.tiltTendency === 'downturned') push(artistNotes, 'При опущенных уголках рекомендуется не делать максимальную длину в крайнем наружном секторе.', 'With downturned corners, it’s recommended to avoid maximum length in the extreme outer sector.');
       if (spikeGeom) push(artistNotes, 'Для данной карты предусмотрена проверка направления лучей перед заполнением базы.', 'For this map, checking spike direction before filling in the base is recommended.');
       if (asym) push(artistNotes, 'При выраженной асимметрии не рекомендуется делать одинаковую коррекцию для LEFT и RIGHT.', 'With pronounced asymmetry, applying identical correction to LEFT and RIGHT is not recommended.');
@@ -8142,28 +8165,12 @@
       };
       let line = (templates[key] || templates.uncertain_neutral)[0];
 
-      // PRODUCT SEMANTICS SPLIT — gated on the authoritative,
-      // manually-confirmed hoodingState (never the automatic
-      // eyelidCategory geometry read, which the hooding audit proved
-      // cannot reliably detect isolated upper-lid skin overhang). When
-      // hoodingState is still 'uncertain' (not yet confirmed, or the
-      // artist picked "unsure"), neither addendum is shown — no
-      // confident automatic hooding assumption is made here either.
-      if (c.hoodingState === 'hooded') {
-        const hoodedAddendums = [
-          en ? ' The eyelid shows less of the crease at rest — the artist can pick a curl that keeps the lash line visible when your eyes are open.'
-             : ' Складка века у вас чуть менее заметна в спокойном состоянии — мастер может подобрать изгиб, который сохранит видимость линии ресниц с открытым глазом.',
-          en ? ' A slightly stronger curl in the center can help keep the lash line visible throughout the day.'
-             : ' Чуть более сильный изгиб в центральной зоне поможет сохранить видимость линии ресниц в течение дня.',
-        ];
-        line += hoodedAddendums[shape === 'round' || shape === 'narrow' ? 1 : 0];
-      } else if (c.hoodingState === 'nonHooded') {
-        const openAddendums = [
-          en ? ' The eyelid stays clearly visible, giving the artist a lot of freedom with curl and length.'
-             : ' Веко хорошо просматривается — это даёт мастеру большую свободу в выборе изгиба и длины.',
-        ];
-        line += openAddendums[0];
-      }
+      // Hooding removed as a recommendation input (product decision:
+      // hooding is no longer a trusted parameter) — the hoodingState-
+      // gated addendum that used to sit here is deleted, not replaced.
+      // eyeSizeCategory below is intentionally UNTOUCHED: eye size stays
+      // hidden from the artist as a raw UI row, but this phase does not
+      // remove it from recommendation/advisory logic.
       if (c.eyeSizeCategory === 'large' && c.eyeSizeConfidence > 0.45) {
         line += en ? ' Their proportion relative to the face is naturally striking.' : ' Их пропорция относительно лица от природы выразительна.';
       } else if (c.eyeSizeCategory === 'small' && c.eyeSizeConfidence > 0.45) {
@@ -9087,45 +9094,12 @@
               </div>
             </div>
 
-            {/* PRODUCT SEMANTICS SPLIT — crease visibility (automatic,
-                proven reliable) and hooding (only ever confidently
-                known once an artist visually confirms it in
-                ReviewScreen) are two independent sections here too,
-                replacing the old single ambiguous eyelidType-derived
-                presentation. See the matching comment in HeroScreen's
-                EyeProfileRow render and the hooding audit. */}
-            <div className="glass rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <ParamIcon name="lid" className="w-4 h-4 text-accent" />
-                <h3 className="label-tech">{t('creaseStateLabel', lang)}</h3>
-              </div>
-              <p className="text-sm text-textPrimary mb-1">
-                {p.creaseState === 'visible' ? t('creaseStateVisible', lang)
-                  : p.creaseState === 'absent' ? t('creaseStateAbsent', lang)
-                  : t('creaseStateUncertain', lang)}
-                {p.creaseState !== 'uncertain' && <> — <span className="text-cyan">{(p.eyelidTypeConfidence*100).toFixed(0)}%</span></>}
-              </p>
-              <p className="text-xs text-textSecondary">{lang==='en'
-                ? 'Based on real pixel analysis of the eyelid skin, looking for an actual fold line — read independently for each eye.'
-                : 'Определено по пиксельному анализу кожи века — поиск реальной линии складки, независимо для каждого глаза.'}</p>
-            </div>
-
-            <div className="glass rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <ParamIcon name="lid" className="w-4 h-4 text-accent" />
-                <h3 className="label-tech">{t('hoodingStateLabel', lang)}</h3>
-              </div>
-              <p className="text-sm text-textPrimary mb-1">
-                {p.hoodingState === 'hooded' ? t('hoodingOptionHooded', lang)
-                  : p.hoodingState === 'nonHooded' ? t('hoodingOptionNonHooded', lang)
-                  : t('hoodingStateUncertain', lang)}
-                {p.hoodingState !== 'uncertain' && <> — <span className="text-cyan">{(p.hoodedConfidence*100).toFixed(0)}%</span></>}
-              </p>
-              <p className="text-xs text-textSecondary">{p.hoodingState === 'uncertain'
-                ? (lang==='en' ? 'Hooding cannot be reliably read from geometry alone — confirmed visually by the artist during review.' : 'Нависание невозможно надёжно определить только по геометрии — подтверждается мастером визуально на экране проверки.')
-                : (lang==='en' ? 'Confirmed visually by the artist during review — the authoritative source for hooding, independent of crease visibility above.' : 'Подтверждено мастером визуально на экране проверки — основной источник данных о нависании, независимо от видимости складки выше.')}</p>
-            </div>
-
+            {/* DISPLAY-ONLY product decision: crease-type and hooding
+                cards removed from this screen. p.creaseState/
+                p.eyelidTypeConfidence/p.hoodingState/p.hoodedConfidence
+                are untouched and still fully computed — see
+                eyeProfileLabels/classifyFeatures and ReviewScreen's
+                confirm() — simply no longer shown to the artist here. */}
             <div className="glass rounded-lg p-5">
               <div className="flex items-center gap-2 mb-4">
                 <ParamIcon name="size" className="w-4 h-4 text-accent" />
@@ -9184,7 +9158,7 @@
               <div className="grid grid-cols-2 gap-y-3 text-sm">
                 <div><span className="text-textSecondary">{t('tiltLabel',lang)}:</span> <span className="font-medium text-textPrimary">{p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? t('tiltUncertain', lang) : p.tiltTendency === 'upturned' ? t('tiltUpturned', lang) : p.tiltTendency === 'downturned' ? t('tiltDownturned', lang) : t('tiltNeutral', lang)} ({(p.tiltConfidence*100).toFixed(0)}%)</span></div>
                 <div><span className="text-textSecondary">{t('spacingLabel',lang)}:</span> <span className="font-medium text-textPrimary">{p.isCloseSet ? (lang==='en'?'Close':'Близкое') : p.isWideSet ? (lang==='en'?'Wide':'Широкое') : (lang==='en'?'Balanced':'Среднее')} ({(p.spacingConfidence*100).toFixed(0)}%)</span></div>
-                <div><span className="text-textSecondary">{lang==='en'?'Rel. eye size':'Отн. размер глаз'}:</span> <span className="font-medium text-textPrimary">{(p.relativeEyeSize*100).toFixed(0)}%</span></div>
+                {/* DISPLAY-ONLY: the relative-eye-size row was removed here — p.relativeEyeSize/p.eyeSizeCategory remain fully computed and available, just not shown to the artist. */}
               </div>
             </div>
 
@@ -9555,17 +9529,34 @@
         eyeSizeCategory: { small: t('eyeSize_small', lang), medium: t('eyeSize_medium', lang), large: t('eyeSize_large', lang) },
         symmetryCategory: { balanced: t('symmetry_balanced', lang), mild: t('symmetry_mild', lang), noticeable: t('symmetry_noticeable', lang), uncertain: t('symmetry_uncertain', lang) },
       };
+      // DISPLAY-ONLY product decision: eyelidType (crease type),
+      // hoodingState (hooding), and eyeSizeCategory (eye size) are
+      // intentionally NOT offered as confirmable rows here — the artist
+      // never sees or edits them on this screen. Their values in
+      // `values`/`confirm()` below are untouched: each still seeds from
+      // initial.X and still round-trips onto the confirmed profile,
+      // kept for diagnostics/backward compatibility only.
+      //
+      // hoodingState specifically: eyelidType and eyeSizeCategory each
+      // have a real automatically-computed fallback value, so removing
+      // their row only removes artist override. hoodingState is
+      // different — initial.hoodingState is ALWAYS 'uncertain' straight
+      // out of the automatic pipeline (hooding cannot be reliably auto-
+      // detected), so this was previously the ONLY mechanism that ever
+      // produced a real value. Product decision: hooding is no longer a
+      // trusted recommendation parameter, so this is now an accepted
+      // consequence rather than a blocker — isHooded/hoodedConfidence/
+      // hoodingLevel below will always compute from an 'uncertain'
+      // hoodingState, but nothing in DESIGN_CATALOG/recommendCurl/
+      // generateEyeHighlight/the Application Plan reads them anymore
+      // (see this phase's report), so this never silently coerces an
+      // unknown hooding read into a false "confirmed non-hooded" signal
+      // that affects any output — it is simply inert, kept for
+      // diagnostics/backward compatibility only.
       const fields = [
         ['eyeShapeCategory', t('shapeLabel', lang), ['uncertain', 'round', 'almond', 'elongatedAlmond', 'narrow']],
-        ['eyelidType', t('eyelidTypeLabel', lang), ['uncertain', 'hooded', 'monolid', 'openCrease']],
-        // Crease visibility (eyelidType, above) and hooding (below) are
-        // independent axes — a client can have a clearly visible crease
-        // AND hooding at the same time. This field is NOT derived from
-        // eyelidType and does not overwrite it.
-        ['hoodingState', t('reviewHoodingLabel', lang), ['uncertain', 'hooded', 'nonHooded']],
         ['eyeSetCategory', t('spacingLabel', lang), ['close', 'balanced', 'wide']],
         ['tiltTendency', t('tiltLabel', lang), ['upturned', 'neutral', 'downturned', 'uncertain']],
-        ['eyeSizeCategory', t('eyeSizeLabel', lang), ['small', 'medium', 'large']],
         ['symmetryCategory', t('symmetryLabel', lang), ['balanced', 'mild', 'noticeable', 'uncertain']],
       ];
       const confirm = () => {

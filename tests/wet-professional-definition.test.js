@@ -130,7 +130,7 @@ test('production and all legacy Wet consumers remain byte-identical',()=>{
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
-  assert.strictEqual(digest(indexSource),'60277a95ad8346e4fd0671ef7b62fe47f4e41384fd14ad6177b4ca58e1088264');
+  assert.strictEqual(digest(indexSource),'7536f02946d878d619ad723ec904210ef37ba9aba4935ed8a9219e2c6ef4fb95');
   assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
@@ -141,7 +141,7 @@ test('production and all legacy Wet consumers remain byte-identical',()=>{
   assert.strictEqual(legacyWet.baseCurl,'B');
   assert.deepStrictEqual(legacyWet.curlOptions,['J','B','C']);
   assert.strictEqual(legacyWet.defaultTechnique,'Wet Technique / Wet Set');
-  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
+  assert.strictEqual(digest(catalogSource),'196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf');
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(indexSource.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));

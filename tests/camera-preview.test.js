@@ -237,8 +237,14 @@ test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisib
     const e = text.indexOf(endMarker, s);
     return e === -1 ? null : text.slice(s, e);
   };
+  // NaturalLashProfileScreen is NOT the function immediately following
+  // NaturalLashScanScreen (PhotoAnalysisScreen is) — using it as the
+  // end marker would silently include PhotoAnalysisScreen, HeroScreen,
+  // and DetailsScreen in this "NaturalLashScanScreen" span too. Bound
+  // to the real next function so this only ever checks
+  // NaturalLashScanScreen's own body.
   const startMarker = '    function NaturalLashScanScreen({ onComplete, onBack, modelsLoaded }) {';
-  const endMarker = '\n    function NaturalLashProfileScreen(';
+  const endMarker = '\n    function PhotoAnalysisScreen(';
   const cur = extractSpan(src, startMarker, endMarker);
   const prev = extractSpan(HEAD_SRC, startMarker, endMarker);
   assert.ok(cur !== null && prev !== null, 'expected to locate NaturalLashScanScreen in both current and HEAD source');

@@ -192,7 +192,7 @@ test('12. the preview/detail code never calls production ranking/scoring functio
 
 test('13. DESIGN_CATALOG stays byte-identical and exactly 21 entries',()=>{
   assert.strictEqual(catalog.length,21);
-  assert.strictEqual(digest(catalogSource),'b0f44de8e19dfaa6ff0f32b067fbabb7fad9cd450ade07cb686f760bad6095f4');
+  assert.strictEqual(digest(catalogSource),'196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf');
 });
 
 test('14. all 21 legacy IDs remain unchanged',()=>{

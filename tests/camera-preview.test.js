@@ -26,6 +26,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -152,6 +153,113 @@ test('source guard: no CSS mirror is applied to either overlay <canvas> (only <v
 test('source guard: both live-scan <video> elements carry the preview-only mirror', () => {
   const videoMirrors = [...src.matchAll(/<video ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
   assert.ok(videoMirrors.length >= 2, `expected 2 mirrored <video> elements (LiveScanScreen conditional + NaturalLashScanScreen unconditional), found ${videoMirrors.length}`);
+});
+
+// ============================================================
+// FIRST-LAUNCH ZOOM FIX (Phase 1, minimal) — regression coverage.
+// ------------------------------------------------------------
+// LiveScanScreen's getUserMedia call previously requested no
+// resolution/aspect-ratio at all ({ video: { facingMode }, audio:
+// false }), leaving the browser/OS free to negotiate whatever native
+// capture format it wanted — on a cold (first-ever permission grant)
+// camera session this could differ from the format returned once the
+// session is warm, producing a too-zoomed-in first launch that
+// self-corrected after reload. The fix adds `ideal` width/height
+// hints to the SAME facingMode-keyed constraints object — `ideal`
+// (not `min`/`exact`) so it can never throw OverconstrainedError and
+// never becomes a hard requirement. See the audit report + the
+// in-code comment directly above the fixed getUserMedia call for the
+// full rationale.
+// ============================================================
+const repoRoot = path.join(__dirname, '..');
+let HEAD_SRC = null;
+try { HEAD_SRC = execSync('git show HEAD:index.html', { cwd: repoRoot }).toString(); } catch (e) { HEAD_SRC = null; }
+
+test('LiveScanScreen requests an explicit ideal width of 1280', () => {
+  assert.ok(
+    src.includes('getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })'),
+    'expected the fixed getUserMedia constraints object with width: { ideal: 1280 } not found'
+  );
+});
+
+test('LiveScanScreen requests an explicit ideal height of 720', () => {
+  const m = src.match(/getUserMedia\(\{ video: \{ facingMode, width: \{ ideal: (\d+) \}, height: \{ ideal: (\d+) \} \}, audio: false \}\)/);
+  assert.ok(m, 'expected the fixed getUserMedia constraints object not found');
+  assert.strictEqual(Number(m[1]), 1280);
+  assert.strictEqual(Number(m[2]), 720);
+});
+
+test('facingMode remains present, unchanged, and width/height stay ideal-only hints', () => {
+  const start = src.indexOf('getUserMedia({ video: { facingMode, width:');
+  assert.ok(start !== -1, 'expected the fixed getUserMedia call, keyed on facingMode first, not found');
+  const call = src.slice(start, src.indexOf('audio: false });', start) + 'audio: false });'.length);
+  assert.ok(call.startsWith('getUserMedia({ video: { facingMode,'), 'facingMode must still be the first key in the video constraints object');
+  // `ideal` (never `min`/`exact`) is what guarantees getUserMedia can
+  // never reject/throw over these hints.
+  assert.ok(!call.includes('min:') && !call.includes('exact:'), 'width/height must stay `ideal` hints, never hard `min`/`exact` requirements');
+});
+
+test('the new width/height hints are ideal-only (no aspectRatio/frameRate added) — smallest safe fix, not the full CAMERA_ATTEMPTS chain', () => {
+  const start = src.indexOf('getUserMedia({ video: { facingMode, width:');
+  assert.ok(start !== -1);
+  const call = src.slice(start, src.indexOf('audio: false });', start) + 'audio: false });'.length);
+  assert.ok(!call.includes('aspectRatio'), 'this minimal fix must not add aspectRatio — that belongs to a later phase if needed');
+  assert.ok(!call.includes('frameRate'), 'this minimal fix must not add frameRate — that belongs to a later phase if needed');
+  assert.ok(!call.includes('CAMERA_ATTEMPTS'), 'LiveScanScreen must not be wired to the NaturalLashScanScreen CAMERA_ATTEMPTS chain in this phase');
+});
+
+test('downstream processing still reads video.videoWidth/video.videoHeight dynamically — no hardcoded 1280/720 assumption introduced', () => {
+  // Scoped to LiveScanScreen's OWN function body only: the module-
+  // level CAMERA_ATTEMPTS constant (consumed by NaturalLashScanScreen,
+  // defined much later) sits textually immediately after
+  // LiveScanScreen and legitimately contains 1280/720 literals of its
+  // own — including it here would be a false positive, not a real
+  // hardcoded assumption in LiveScanScreen's own code.
+  const liveScanStart = src.indexOf('    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {');
+  const liveScanEnd = src.indexOf('\n    const CAMERA_ATTEMPTS', liveScanStart);
+  assert.ok(liveScanEnd > liveScanStart, 'expected the CAMERA_ATTEMPTS boundary marker right after LiveScanScreen');
+  const body = src.slice(liveScanStart, liveScanEnd);
+  assert.ok(body.includes('video.videoWidth') && body.includes('video.videoHeight'), 'LiveScanScreen must still read video.videoWidth/videoHeight dynamically');
+  // The only numeric literal allowed to sit in this body is the pre-
+  // existing 640 downscale cap (unrelated to this fix) and the new
+  // ideal hints inside the getUserMedia call itself (already asserted
+  // above) — no OTHER hardcoded 1280/720 pixel assumption should
+  // appear anywhere else in coordinate/scale math.
+  const withoutGetUserMediaCall = body.replace('getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });', '');
+  assert.ok(!withoutGetUserMediaCall.includes('1280') && !withoutGetUserMediaCall.includes('720'), 'no hardcoded 1280/720 pixel assumption should exist outside the getUserMedia constraints object itself');
+});
+
+test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisibleWidth) is completely untouched by this fix', () => {
+  assert.ok(HEAD_SRC, 'expected `git show HEAD:index.html` to succeed inside a git working tree');
+  const extractSpan = (text, startMarker, endMarker) => {
+    const s = text.indexOf(startMarker);
+    if (s === -1) return null;
+    const e = text.indexOf(endMarker, s);
+    return e === -1 ? null : text.slice(s, e);
+  };
+  const startMarker = '    function NaturalLashScanScreen({ onComplete, onBack, modelsLoaded }) {';
+  const endMarker = '\n    function NaturalLashProfileScreen(';
+  const cur = extractSpan(src, startMarker, endMarker);
+  const prev = extractSpan(HEAD_SRC, startMarker, endMarker);
+  assert.ok(cur !== null && prev !== null, 'expected to locate NaturalLashScanScreen in both current and HEAD source');
+  assert.strictEqual(cur, prev, 'NaturalLashScanScreen must be byte-identical to git HEAD — this fix touches only LiveScanScreen');
+});
+
+test('existing preview-mirror behavior is untouched: still exactly 2 mirrored <video> elements, keyed on facingMode only', () => {
+  const videoMirrors = [...src.matchAll(/<video ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
+  assert.strictEqual(videoMirrors.length, 2, 'expected exactly 2 mirrored <video> elements (LiveScanScreen conditional + NaturalLashScanScreen unconditional), unchanged by the camera-zoom fix');
+  assert.ok(!/getUserMedia\([^)]*scaleX/.test(src), 'the getUserMedia constraints object must never itself reference mirroring');
+});
+
+test('production analysis/recommendation/Client Card/Professional Library code remains isolated from this fix', () => {
+  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-design-domain.js', 'lash-scan-core.js']) {
+    let diff;
+    try { diff = execSync('git diff -- ' + file, { cwd: repoRoot }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
+    assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');
+  }
+  // The fix must not appear anywhere near classifyFeatures, classifyFaceShape,
+  // rankDesigns/rankDesignsAll, or DESIGN_CATALOG.
+  assert.ok(!/getUserMedia\(\{ video: \{ facingMode, width/.test(src.slice(0, src.indexOf('function LiveScanScreen('))), 'the camera-zoom fix must not appear before LiveScanScreen (i.e. not duplicated into shared/earlier code)');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

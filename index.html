@@ -6968,7 +6968,25 @@
 
         const start = async () => {
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: false });
+            // FIRST-LAUNCH ZOOM FIX (Phase 1, minimal): request an explicit
+            // preferred capture resolution instead of leaving format
+            // negotiation entirely up to the browser/OS. Unconstrained
+            // getUserMedia here previously let a cold (first-ever
+            // permission grant) camera session settle on a different
+            // native format/zoom than an already-warm session — the video
+            // element's plain object-cover then displayed whatever raw
+            // frame arrived, uncorrected, producing a too-zoomed-in first
+            // launch that self-corrected after reload once the session
+            // was warm. facingMode is unchanged; width/height are `ideal`
+            // hints only, never hard requirements, so this never throws
+            // OverconstrainedError and never changes mirroring (still
+            // keyed on facingMode only) or any dynamic
+            // video.videoWidth/videoHeight read downstream. Deliberately
+            // NOT the full NaturalLashScanScreen CAMERA_ATTEMPTS chain or
+            // effectiveVisibleWidth compensation — those are reserved for
+            // a later phase if real-device validation shows this minimal
+            // constraint alone is insufficient.
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
             if (videoRef.current) {
               videoRef.current.srcObject = stream;
               await videoRef.current.play();

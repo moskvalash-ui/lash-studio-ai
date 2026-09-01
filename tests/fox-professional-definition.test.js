@@ -90,7 +90,7 @@ test('all 21 legacy IDs and exact legacy Fox production inputs remain unchanged'
 
 test('Recommendation, PHOTO, DIAGRAM, Application Plan, and domain source remain unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource),'7b645842ef2fe5718bacd7ad9ccce74c3a06f22437ae44e83e6a647488bb4987');
+  assert.strictEqual(digest(indexSource),'60277a95ad8346e4fd0671ef7b62fe47f4e41384fd14ad6177b4ca58e1088264');
   assert.strictEqual(digest(domainSource),'992a524132b75c7e8f38e15829461f874cc2af84c567e41f33500f028a03e959');
   assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, i);'));
   assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));

@@ -373,11 +373,21 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       ''
     )
     .replace("\n            faceShapeProfile,", '');
-  const normalize = span => omitFaceShapeAnalysis(omitContextualIrisDebug(span));
-  assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions and the approved Face Shape Analysis addition must remain byte-identical to HEAD');
+  // Approved first-launch camera-zoom fix (Phase 1, minimal): adds an
+  // explicit ideal width/height to the SAME facingMode-keyed
+  // getUserMedia constraints object already used here. Normalized back
+  // to the pre-fix call for comparison, same technique as above, so
+  // this guard still fails loudly on any OTHER, unrelated drift.
+  const omitCameraZoomFix = span => span.replace(
+    "            // FIRST-LAUNCH ZOOM FIX (Phase 1, minimal): request an explicit\n            // preferred capture resolution instead of leaving format\n            // negotiation entirely up to the browser/OS. Unconstrained\n            // getUserMedia here previously let a cold (first-ever\n            // permission grant) camera session settle on a different\n            // native format/zoom than an already-warm session — the video\n            // element's plain object-cover then displayed whatever raw\n            // frame arrived, uncorrected, producing a too-zoomed-in first\n            // launch that self-corrected after reload once the session\n            // was warm. facingMode is unchanged; width/height are `ideal`\n            // hints only, never hard requirements, so this never throws\n            // OverconstrainedError and never changes mirroring (still\n            // keyed on facingMode only) or any dynamic\n            // video.videoWidth/videoHeight read downstream. Deliberately\n            // NOT the full NaturalLashScanScreen CAMERA_ATTEMPTS chain or\n            // effectiveVisibleWidth compensation — those are reserved for\n            // a later phase if real-device validation shows this minimal\n            // constraint alone is insufficient.\n            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });",
+    "            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: false });"
+  );
+  const normalize = span => omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(span)));
+  assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, and the approved camera-zoom fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
   assert.ok(cur.includes('const faceShapeProfile = classifyFaceShape(best.landmarks, faceShapeHeadPose'),'Face Shape Analysis call must still be present');
+  assert.ok(cur.includes('getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })'),'camera-zoom fix constraints must still be present');
 });
 
 // J2 used to demand that the ENTIRE PhotoAnalysisScreen span be

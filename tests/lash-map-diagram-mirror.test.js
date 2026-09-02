@@ -21,7 +21,7 @@ assert.ok(consumerStart >= 0 && consumerEnd > consumerStart, 'LashMapDiagram con
 const consumerSource = src.slice(consumerStart, consumerEnd);
 
 test('LegacyLashMapDiagram accepts a side prop and LashMapDiagram forwards it via diagramProps', () => {
-  assert.ok(rendererSource.includes('function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side }) {'));
+  assert.ok(rendererSource.includes('function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang }) {'));
   assert.ok(consumerSource.includes('const diagramProps=LashDesignDomain.diagramPropsFromClientDesign(clientDesign);'));
   assert.ok(consumerSource.includes('<LegacyLashMapDiagram {...diagramProps}'));
 });

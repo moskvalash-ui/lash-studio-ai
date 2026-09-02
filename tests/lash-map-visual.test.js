@@ -197,7 +197,7 @@ test('PHOTO permanently labels all five source zones while retaining every marke
 
 test('PHOTO zone cues and professional summary share the five source values',()=>{
   assert.ok(professionalEyeMapSource.includes('data-photo-zone={point.label}'));
-  assert.ok(professionalEyeMapSource.includes('`${point.label} ${point.len}`'));
+  assert.ok(professionalEyeMapSource.includes('`${zoneLabel(point.label,lang)} ${point.len}`'));
   assert.ok(professionalEyeMapSource.includes('{zones.map((len,i)=>'));
   assert.ok(professionalEyeMapSource.includes('key={ZONE_NAMES[i]}'));
 });

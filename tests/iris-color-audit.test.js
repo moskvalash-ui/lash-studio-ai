@@ -300,7 +300,7 @@ test('H. a genuine dark-brown iris (h~25, s~0.26, l~0.19) still classifies brown
   const audit = buildIrisColorAudit(ctx, EYE_POINTS);
   assert.strictEqual(audit.selectedCategory, 'brown');
 });
-test('H2. CONTROL — a very dark, near-black genuine iris (l<0.16) still classifies dark, unaffected by this turn (l<0.16 branch untouched)', () => {
+test('H2. CONTROL — a very dark, near-black genuine iris (l<0.16) with real warm-hue evidence still classifies dark (a LATER turn made this branch hue-routed too — see N5d/N5e below — but a genuinely warm-hued very-dark sample must still land on dark)', () => {
   assert.strictEqual(classifyIrisColor(25, 18, 14), 'dark');
 });
 test('H3. CONTROL — a genuine medium-brown iris (h~24, s~0.27, l~0.31 — reliable warm hue, just under the 0.32 gate) still classifies brown', () => {
@@ -480,14 +480,27 @@ test('N5b. classifyIrisColor WAS intentionally changed this turn (Case C fix) �
   assert.ok(!src.includes(oldFallbackGate), 'the old hue-blind low-lightness fallback must no longer be present verbatim — it was replaced by classifyLowLightAmbiguous(h, s)');
 });
 test('N5c. ...and replaced by the new hue-aware low-lightness routing, present verbatim exactly once each', () => {
-  const newGate1 = "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);";
-  const newGate2 = "if (l < 0.35) return classifyLowLightAmbiguous(h, s);";
-  const helperSig = 'function classifyLowLightAmbiguous(h, s) {';
+  // A later turn (green-misread-as-brown follow-up) also routed the
+  // l<0.16 branch through this same helper via a `veryDark` flag — see
+  // N5d/N5e below — so both low-lightness gates now pass `false`
+  // explicitly (the l<0.16 call site passes `true`, checked separately).
+  const newGate1 = "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s, false);";
+  const newGate2 = "if (l < 0.35) return classifyLowLightAmbiguous(h, s, false);";
+  const helperSig = 'function classifyLowLightAmbiguous(h, s, veryDark) {';
   for (const line of [newGate1, newGate2, helperSig]) {
     const first = src.indexOf(line);
     assert.ok(first !== -1, `expected the new production line to be present verbatim: ${line}`);
     assert.strictEqual(src.indexOf(line, first + 1), -1, `expected exactly one occurrence of: ${line}`);
   }
+});
+test('N5d. the l<0.16 gate now also routes by hue (veryDark=true) instead of being hue-blind', () => {
+  const newVeryDarkGate = "if (l < 0.16) return classifyLowLightAmbiguous(h, s, true);";
+  assert.ok(src.includes(newVeryDarkGate), 'expected the l<0.16 branch to route through classifyLowLightAmbiguous(h, s, true)');
+  assert.ok(!src.includes("if (l < 0.16) return 'dark';"), 'the old unconditional hue-blind dark gate must be gone');
+});
+test('N5e. classifyLowLightAmbiguous only returns \'dark\' (never \'brown\') when veryDark is true, and vice versa', () => {
+  assert.strictEqual(classifyIrisColor(60, 45, 35), 'brown', 'sanity: this exact RGB is the H test above, l>=0.16, must stay brown not dark');
+  assert.strictEqual(classifyIrisColor(25, 18, 14), 'dark', 'sanity: this exact RGB is the H2 test above, l<0.16 with warm hue, must stay dark');
 });
 
 // ================================================================
@@ -893,9 +906,9 @@ test('INSTR-2. combineIris and classifyIrisColor/classifyLowLightAmbiguous remai
   // its inconclusive outcome changed because it is not a quality rejection.
   for (const line of [
     "uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'},",
-    'function classifyLowLightAmbiguous(h, s) {',
-    "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);",
-    "if (l < 0.35) return classifyLowLightAmbiguous(h, s);",
+    'function classifyLowLightAmbiguous(h, s, veryDark) {',
+    "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s, false);",
+    "if (l < 0.35) return classifyLowLightAmbiguous(h, s, false);",
     'function combineIris(l, r) {',
   ]) {
     assert.ok(block.includes(line) || src.includes(line), `expected the previously-approved line to still be present verbatim: ${line}`);

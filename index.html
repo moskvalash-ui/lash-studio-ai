@@ -2074,28 +2074,43 @@
     // on at all. Below that bar there is no additional evidence anywhere in
     // this pipeline to resolve dark-brown vs. underexposed-light -- so this
     // reports 'uncertain' rather than guessing either way.
-    function classifyLowLightAmbiguous(h, s) {
+    //
+    // GREEN-MISREAD-AS-BROWN FOLLOW-UP (new real-world report): the
+    // l<0.16 branch below was deliberately left OUT of the fix above --
+    // it returned the hue-blind 'dark' category unconditionally,
+    // labelled "Dark Brown" in the UI (IRIS_NAMES.dark) regardless of
+    // actual hue. That is the exact same "darkness alone implies brown"
+    // failure shape as the bug just fixed, just at a lower lightness
+    // floor -- a genuinely dark GREEN or BLUE iris (very plausible under
+    // ordinary phone-camera lighting) would be branded "Dark Brown" with
+    // zero hue evidence considered. `veryDark` now routes l<0.16 through
+    // this SAME tested hue/saturation logic instead of a separate
+    // hue-blind rule, returning 'dark' (Dark Brown) only when there is
+    // actual warm-hue evidence for it -- 'dark' remains a real, reachable
+    // category for genuinely dark+warm irises, it just now requires the
+    // same positive evidence every other category already requires.
+    function classifyLowLightAmbiguous(h, s, veryDark) {
       if (s < 0.15) return 'uncertain';
       if (h >= 70 && h <= 170) return 'green';
       if (h > 170 && h <= 250) return 'blue';
-      return 'brown'; // remaining warm (red/orange/brown) window, wrapping through 0deg: (250,360] U [0,70)
+      return veryDark ? 'dark' : 'brown'; // remaining warm (red/orange/brown) window, wrapping through 0deg: (250,360] U [0,70)
     }
     function classifyIrisColor(r,g,b) {
       const { h, s, l } = rgbToHsl(r,g,b);
       const chroma = Math.max(r,g,b) - Math.min(r,g,b);
-      if (l < 0.16) return 'dark';
+      if (l < 0.16) return classifyLowLightAmbiguous(h, s, true);
       // Absolute chroma is more stable than HSL saturation for pale colors:
       // the same visible blue channel separation produces a lower HSL S as
       // luminance rises. Chroma <10 is treated as neutral gray; >=10 with a
       // cold hue is measurable blue evidence, not merely "light" evidence.
       if (l >= 0.35 && h >= 175 && h <= 250 && chroma >= 10) return 'blue';
-      if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s);
+      if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s, false);
       if (h >= 20 && h <= 45 && s > 0.25 && l >= 0.25 && l < 0.55) return 'hazel';
       if (h >= 40 && h <= 70 && s > 0.15 && l >= 0.35) return 'amber';
       if (h >= 70 && h <= 170 && s > 0.15) return 'green';
       if (h >= 180 && h <= 250 && s > 0.12) return 'blue';
       if (chroma < 10 && l >= 0.35 && l < 0.7) return 'gray';
-      if (l < 0.35) return classifyLowLightAmbiguous(h, s);
+      if (l < 0.35) return classifyLowLightAmbiguous(h, s, false);
       return 'mixed';
     }
 
@@ -2103,11 +2118,42 @@
       if (!l.rgb && !r.rgb) return { color: null, hex: null, name: null, confidence: 0 };
       if (!l.rgb) return { color: true, hex: r.hex, name: r.confidence > 0 ? r.name : 'uncertain', confidence: r.confidence * 0.7 };
       if (!r.rgb) return { color: true, hex: l.hex, name: l.confidence > 0 ? l.name : 'uncertain', confidence: l.confidence * 0.7 };
-      const rgb = [ (l.rgb[0]+r.rgb[0])/2, (l.rgb[1]+r.rgb[1])/2, (l.rgb[2]+r.rgb[2])/2 ];
+      // Confidence-weighted blend, not a plain 50/50 average: an eye with
+      // enough (>=6) accepted pixels to have a non-null rgb can still be
+      // low-confidence (poor colorConsistency/sectorAgreement -- lid-
+      // shadow contamination, blur, few sectors) while a confident eye's
+      // rgb should not be diluted by it equally. Reduces to the original
+      // plain average whenever both eyes carry equal confidence (the
+      // common case, unchanged); only shifts when one eye's evidence is
+      // markedly weaker than the other's. Falls back to an even 50/50
+      // blend only when neither eye carries any confidence at all.
+      const weightSum = l.confidence + r.confidence;
+      const lWeight = weightSum > 0 ? l.confidence / weightSum : 0.5;
+      const rgb = [
+        l.rgb[0]*lWeight + r.rgb[0]*(1-lWeight),
+        l.rgb[1]*lWeight + r.rgb[1]*(1-lWeight),
+        l.rgb[2]*lWeight + r.rgb[2]*(1-lWeight),
+      ];
       const diff = Math.sqrt((l.rgb[0]-r.rgb[0])**2 + (l.rgb[1]-r.rgb[1])**2 + (l.rgb[2]-r.rgb[2])**2);
       const consistency = Math.max(0, 1 - diff/80);
       const confidence = Math.min(l.confidence, r.confidence) * (0.5 + 0.5*consistency);
-      const name = confidence > 0 && !(l.name === 'uncertain' && r.name === 'uncertain') ? classifyIrisColor(rgb[0],rgb[1],rgb[2]) : 'uncertain';
+      // EVIDENCE-BASED UNCERTAINTY PROPAGATION (product decision: reliability
+      // over forced classification). Previously only BOTH eyes already being
+      // 'uncertain' forced the bilateral name to 'uncertain' -- a single eye
+      // already flagged unreliable by its own real evidence (low sector
+      // agreement, too few populated sectors, or colorimetric ambiguity in
+      // classifyIrisColor itself) could still be silently overridden the
+      // moment its partner eye was confident, since the blended rgb was
+      // simply re-classified from scratch with no memory of that per-eye
+      // verdict. Now EITHER eye's own 'uncertain' verdict is authoritative
+      // and is never overridden by RGB blending/re-classification -- no new
+      // confidence floor or disagreement threshold is introduced; this uses
+      // only the categorical 'uncertain' signal analyzeIrisSample/
+      // classifyIrisColor already compute today. The confident+confident
+      // disagreement case (e.g. green vs brown, both individually reliable)
+      // is deliberately NOT addressed here -- see the report for why.
+      const eitherUncertain = l.name === 'uncertain' || r.name === 'uncertain';
+      const name = !eitherUncertain && confidence > 0 ? classifyIrisColor(rgb[0],rgb[1],rgb[2]) : 'uncertain';
       return { color: true, hex: rgbToHex(rgb[0],rgb[1],rgb[2]), name, confidence };
     }
 

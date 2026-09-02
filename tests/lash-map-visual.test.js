@@ -179,6 +179,64 @@ test('visual point count and labels come directly from canonical derived sectors
   assert.strictEqual((component.match(/expandLashMapSectors\(/g)||[]).length,0);
 });
 
+test('PEAK and OUTER canonical labels always land in different lanes, keyed to their fixed zone identity not incidental array position',()=>{
+  // Real Fox real-device runtime scenario: PEAK (keyZoneIndex 3, odd
+  // array index in this interpolation) and OUTER (keyZoneIndex 4, also
+  // an odd array index here) would coincidentally share a lane under
+  // an index%2 scheme -- proving the fix must key off keyZoneIndex.
+  const fox=DESIGN_CATALOG.find(e=>e.id==='fox');
+  const items=expandLashMapSectors([5,6,8,11,10],3,curveFor(fox));
+  const mapped=buildProfessionalEyeProjection(leftEye,items,500,250);
+  const line=buildProfessionalPhotoLine(leftEye,mapped.points);
+  const crop=buildProfessionalPhotoCrop(leftEye,line.points,500,250);
+  const labels=selectProfessionalEyeLabels(line.points,crop);
+  const peakIndex=line.points.findIndex(p=>p.isPeak),outerIndex=line.points.findIndex(p=>p.label==='OUTER');
+  assert.notStrictEqual(peakIndex,-1);assert.notStrictEqual(outerIndex,-1);
+  // Confirms the scenario actually exercises the bug this test guards against.
+  assert.strictEqual(peakIndex%2,outerIndex%2,'fixture must have PEAK/OUTER at same array-index parity');
+  assert.notStrictEqual(labels[peakIndex].lane,labels[outerIndex].lane,'PEAK and OUTER must use different lanes despite matching array-index parity');
+});
+
+test('canonical label priority follows PEAK > OUTER > INNER/BODY/TRANSITION > interpolation',()=>{
+  const mapped=project(leftEye),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
+  const byKind=kind=>labels.find(label=>label&&label.zone===kind);
+  assert.strictEqual(byKind('PEAK').priority,5);
+  assert.strictEqual(byKind('OUTER').priority,4);
+  assert.strictEqual(byKind('INNER').priority,3);
+  assert.strictEqual(byKind('BODY').priority,3);
+  assert.strictEqual(byKind('TRANSITION').priority,3);
+  const derived=labels.find(label=>label&&label.isDerived);
+  if(derived)assert.strictEqual(derived.priority,1);
+});
+
+test('canonical labels are never placed inside the reserved top band (the fixed edit-button overlay region)',()=>{
+  // Small crop, large profile offset -- forces a canonical label's
+  // natural position above its own reservedTopY floor.
+  const crop={x:0,y:0,width:100,height:60};
+  const points=[
+    {mapX:10,mapY:55,len:5,isKey:true,isPeak:false,label:'INNER',keyZoneIndex:0},
+    {mapX:80,mapY:2,len:11,isKey:true,isPeak:true,label:'PEAK',keyZoneIndex:3},
+    {mapX:95,mapY:50,len:10,isKey:true,isPeak:false,label:'OUTER',keyZoneIndex:4},
+  ];
+  const labels=selectProfessionalEyeLabels(points,crop);
+  const reservedTopY=crop.y+crop.height*.16;
+  for(const label of labels)if(label)assert.ok(label.y>=reservedTopY,`label must not sit above the reserved band: ${JSON.stringify(label)}`);
+});
+
+test('interpolation-only labels are suppressed rather than canonical labels when they would sit under the reserved band',()=>{
+  const crop={x:0,y:0,width:100,height:60};
+  const reservedTopY=crop.y+crop.height*.16;
+  const points=[
+    {mapX:10,mapY:55,len:5,isKey:true,isPeak:false,label:'INNER',keyZoneIndex:0},
+    {mapX:40,mapY:5,len:9,isKey:false,isPeak:false,label:null,keyZoneIndex:null},
+    {mapX:80,mapY:40,len:11,isKey:true,isPeak:true,label:'PEAK',keyZoneIndex:3},
+    {mapX:95,mapY:45,len:10,isKey:true,isPeak:false,label:'OUTER',keyZoneIndex:4},
+  ];
+  const labels=selectProfessionalEyeLabels(points,crop);
+  assert.strictEqual(labels[1],null,'the interpolation sample whose natural position sits under the reserved band must be suppressed');
+  assert.ok(labels[0]&&labels[2]&&labels[3],'all three canonical labels must still be present');
+});
+
 test('PEAK label is mandatory and collision scheduling is deterministic',()=>{
   const mapped=project(leftEye),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,a=selectProfessionalEyeLabels(points,mapped.crop),b=selectProfessionalEyeLabels(points,mapped.crop);
   const peakIndex=mapped.points.findIndex(p=>p.isPeak);

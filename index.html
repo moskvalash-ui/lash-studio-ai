@@ -3829,12 +3829,28 @@
     function selectProfessionalEyeLabels(points, crop) {
       if(!Array.isArray(points)||!crop)return [];
       const result=Array(points.length).fill(null);
+      // Reserved band for the fixed HTML "edit map" button pinned to the
+      // top of the PHOTO card (data-photo-edit-controls). photoCrop
+      // always matches the card's own fixed aspect ratio, so a fraction
+      // of crop height maps consistently onto that same physical region
+      // regardless of eye size, zoom, or side -- geometry-relative, not
+      // a per-effect or per-screenshot pixel constant.
+      const reservedTopY=crop.y+crop.height*.16;
       points.forEach((point,index)=>{
         if(!point.isKey)return;
         const kind=point.isPeak?'PEAK':point.label;
-        const priority=point.isPeak?5:(kind==='INNER'||kind==='OUTER')?4:3;
-        const lane=index%2;
-        result[index]={x:point.mapX,y:point.mapY-crop.height*(.032+lane*.016),priority,kind,zone:kind,isDerived:false,lane};
+        const priority=point.isPeak?5:kind==='OUTER'?4:(kind==='INNER'||kind==='BODY'||kind==='TRANSITION')?3:2;
+        // Lane is keyed to the zone's own fixed identity (keyZoneIndex),
+        // not its incidental position in the interpolated array: PEAK
+        // (index 3) and OUTER (index 4) therefore always land in
+        // different lanes, even though they often sit close together
+        // in the compressed outer-corner region -- without this they
+        // could coincidentally share a lane (and collide) for some
+        // effects while not for others, depending only on how many
+        // interpolation samples happen to fall between them.
+        const lane=point.keyZoneIndex%2;
+        const y=Math.max(reservedTopY,point.mapY-crop.height*(.032+lane*.016));
+        result[index]={x:point.mapX,y,priority,kind,zone:kind,isDerived:false,lane};
       });
       const placed=result.filter(Boolean),minX=crop.width*.038,minY=crop.height*.055;
       let previousVisible=null;
@@ -3842,7 +3858,14 @@
         if(result[index]){previousVisible=point.len;return;}
         if(point.len===previousVisible)return;
         const lane=index%2;
-        const candidate={x:point.mapX,y:point.mapY-crop.height*(.03+lane*.015),priority:1,kind:'DERIVED',zone:null,isDerived:true,lane};
+        const y=point.mapY-crop.height*(.03+lane*.015);
+        // Canonical labels (PEAK/OUTER/INNER/BODY/TRANSITION) always
+        // outrank interpolation-only numeric labels: an interpolation
+        // label is suppressed, never a canonical one, whenever it would
+        // sit under the reserved button band or collide with anything
+        // already placed (canonical labels are placed first, above).
+        if(y<reservedTopY)return;
+        const candidate={x:point.mapX,y,priority:1,kind:'DERIVED',zone:null,isDerived:true,lane};
         if(placed.some(label=>Math.abs(label.x-candidate.x)<minX&&Math.abs(label.y-candidate.y)<minY))return;
         result[index]=candidate;placed.push(candidate);previousVisible=point.len;
       });

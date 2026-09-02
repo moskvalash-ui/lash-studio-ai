@@ -56,9 +56,9 @@ test('display profile height is strictly monotonic with length, using a bounded 
   const samples=[5,7,9,11].map((len,i)=>({len,t:i/3,isPeak:i===3,label:i===0?'INNER':i===3?'OUTER':null}));
   const heights=buildProfessionalEyeProjection(flatEye,samples,120,180).points.map(p=>p.profileHeight);
   assert.ok(heights.every((height,i)=>i===0||height>heights[i-1]));
-  // eyeW=90, localMin=5, localMax=11, localSpan=6, maxProfileAmplitude=eyeW*.6=54,
-  // localAmplitude=54*6/9=36, profileHeight(len)=36*(len-5)/6.
-  assert.deepStrictEqual(heights.map(v=>+v.toFixed(3)),[0,12,24,36]);
+  // eyeW=90, localMin=5, localMax=11, localSpan=6, maxProfileAmplitude=eyeW*.22=19.8,
+  // localAmplitude=19.8*6/9=13.2, profileHeight(len)=13.2*(len-5)/6.
+  assert.deepStrictEqual(heights.map(v=>+v.toFixed(3)),[0,4.4,8.8,13.2]);
 });
 
 test('cubic tangents are normalized and outward normals face away from the eye aperture',()=>{

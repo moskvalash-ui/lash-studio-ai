@@ -3783,13 +3783,12 @@
       // and never claims a physical pixel-to-millimeter calibration.
       const sectorLens=sectors.map(s=>s.len);
       const localMin=Math.min(...sectorLens),localMax=Math.max(...sectorLens),localSpan=localMax-localMin;
-      // The real eyelid curve itself has its own natural rise-and-fall
-      // (it is not flat), so the amplitude cap must comfortably exceed
-      // that curve's own vertical variation to keep the LENGTH signal
-      // visually dominant rather than partly cancelled by anatomy --
-      // there is ample headroom for this (padTop above is already
-      // eyeW*.36 at minimum).
-      const maxProfileAmplitude=eyeW*.6,profileSaturationMm=3;
+      // Capped as a fraction of this eye's own width so the profile
+      // reads as a lash map drawn close to the lash line, not a chart:
+      // comfortably inside the padTop headroom above (eyeW*.36 at
+      // minimum) with real margin, so the crop never has to expand far
+      // to fit it and the eyelid stays the visual anchor.
+      const maxProfileAmplitude=eyeW*.22,profileSaturationMm=3;
       const localProfileAmplitude=localSpan>0?maxProfileAmplitude*localSpan/(localSpan+profileSaturationMm):0;
       const projected=sectors.map(sector=>{
         const baseline=pointAt(Math.max(0,Math.min(1,sector.t)));

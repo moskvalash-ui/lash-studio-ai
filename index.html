@@ -279,9 +279,9 @@
       legendOuter: {ru:'OUTER — внешний угол', en:'OUTER — outer corner'},
       stepMappingTitle: {ru:'ШАГ 1 — РАЗМЕТКА', en:'STEP 1 — MAPPING'},
       stepInnerTitle: {ru:'ШАГ 2 — ВНУТРЕННИЙ УГОЛ', en:'STEP 2 — INNER CORNER'},
-      stepBodyTitle: {ru:'ШАГ 3 — TRANSITION / BODY', en:'STEP 3 — TRANSITION / BODY'},
-      stepPeakTitle: {ru:'ШАГ 4 — PEAK', en:'STEP 4 — PEAK'},
-      stepOuterTitle: {ru:'ШАГ 5 — OUTER', en:'STEP 5 — OUTER'},
+      stepBodyTitle: {ru:'ШАГ 3 — ПЕРЕХОД / ОСНОВНАЯ ЗОНА', en:'STEP 3 — TRANSITION / BODY'},
+      stepPeakTitle: {ru:'ШАГ 4 — ПИК', en:'STEP 4 — PEAK'},
+      stepOuterTitle: {ru:'ШАГ 5 — ВНЕШНЯЯ', en:'STEP 5 — OUTER'},
       stepFinalTitle: {ru:'ШАГ 6 — ФИНАЛЬНАЯ ПРОВЕРКА', en:'STEP 6 — FINAL CHECK'},
       spikeBaseLabel: {ru:'BASE', en:'BASE'},
       spikeSpikesLabel: {ru:'SPIKES', en:'SPIKES'},
@@ -4260,8 +4260,8 @@
           : (lang==='en' ? 'No L/R correction needed — both sides use the same zone lengths.' : 'Коррекция L/R не требуется — обе стороны используют одинаковые длины зон.');
         return {
           id: d.id, name: d.name, score: d.score, suitability: suitabilityLabel(d.score, lang),
-          visualGoal: d.whyItWorks, peakZone: ZONE_NAMES[d.peakZone],
-          lengthDistribution: lang==='en' ? `${ZONE_NAMES[0]} ${d.leftZones[0]}mm → ${ZONE_NAMES[d.peakZone]} ${maxLeft}mm → ${ZONE_NAMES[4]} ${d.leftZones[4]}mm` : `${ZONE_NAMES[0]} ${d.leftZones[0]}мм → ${ZONE_NAMES[d.peakZone]} ${maxLeft}мм → ${ZONE_NAMES[4]} ${d.leftZones[4]}мм`,
+          visualGoal: d.whyItWorks, peakZone: zoneLabel(ZONE_NAMES[d.peakZone], lang),
+          lengthDistribution: lang==='en' ? `${ZONE_NAMES[0]} ${d.leftZones[0]}mm → ${ZONE_NAMES[d.peakZone]} ${maxLeft}mm → ${ZONE_NAMES[4]} ${d.leftZones[4]}mm` : `${zoneLabel(ZONE_NAMES[0],lang)} ${d.leftZones[0]}мм → ${zoneLabel(ZONE_NAMES[d.peakZone],lang)} ${maxLeft}мм → ${zoneLabel(ZONE_NAMES[4],lang)} ${d.leftZones[4]}мм`,
           curls: [d.curlRec.primary, ...d.curlRec.alternatives].filter((v,i,a)=>a.indexOf(v)===i),
           cautions: d.limitations, lrNote,
         };
@@ -4387,7 +4387,7 @@
       push(preparation, 'Очистите ресницы и межресничную зону от косметики и загрязнений.', 'Cleanse the lashes and lash line of makeup and residue.');
       push(preparation, 'Подготовьте рабочую зону и изолируйте нижние ресницы.', 'Prepare the work area and isolate the lower lashes.');
       push(preparation, 'Проверьте положение патчей.', 'Check patch placement.');
-      push(preparation, `Выполните разметку зон: ${ZONE_NAMES.join(' / ')}.`, `Mark the zones: ${ZONE_NAMES.join(' / ')}.`);
+      push(preparation, `Выполните разметку зон: ${ZONE_NAMES.map(z=>zoneLabel(z,lang)).join(' / ')}.`, `Mark the zones: ${ZONE_NAMES.join(' / ')}.`);
       push(preparation, `Сверьте максимальную длину (${Math.max(...zones)} mm) и изгиб (${curl}) с выбранной схемой.`, `Confirm max length (${Math.max(...zones)} mm) and curl (${curl}) against the selected map.`);
       push(preparation, 'Подготовьте необходимые палетки длин и изгибов.', 'Prepare the required length and curl trays.');
       if (asym) push(preparation, 'Обнаружена асимметрия — перед началом отдельно разметьте peak для левого и правого глаза.', 'Asymmetry detected — mark the peak separately for the left and right eye before starting.');
@@ -4401,14 +4401,14 @@
       const steps = [
         { title: t('stepMappingTitle', lang), body: en
           ? `Divide the lash line using the five control zones (${zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}mm`).join(', ')}) and the displayed smooth sequence: ${displaySequence}.`
-          : `Разделите lash line по пяти контрольным зонам (${zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}мм`).join(', ')}) и отображаемой плавной последовательности: ${displaySequence}.` },
+          : `Разделите lash line по пяти контрольным зонам (${zones.map((v,i)=>`${zoneLabel(ZONE_NAMES[i],lang)} ${v}мм`).join(', ')}) и отображаемой плавной последовательности: ${displaySequence}.` },
         { title: t('stepInnerTitle', lang), body: en
           ? `Inner corner: ${innerLen}mm, curl ${curl}. Start the transition gently${c.isCloseSet ? ' — eyes are close-set, avoid adding extra length here' : ''}.`
           : `Внутренний угол: ${innerLen}mm, изгиб ${curl}. Начинайте переход плавно${c.isCloseSet ? ' — глаза близко посажены, не добавляйте здесь длину' : ''}.` },
         { title: t('stepBodyTitle', lang), body: narrative.body },
         { title: t('stepPeakTitle', lang), body: en
           ? `Peak zone: ${ZONE_NAMES[peakIdx]}, ${peakLen}mm. This is where the design's correction goal is concentrated — avoid shifting it further out or in than the mapped position.${design.limitations && design.limitations[0] ? ' Note: ' + design.limitations[0] : ''}`
-          : `Пиковая зона: ${ZONE_NAMES[peakIdx]}, ${peakLen}mm. Здесь сосредоточена коррекционная задача дизайна — не переносите пик дальше отмеченной позиции.${design.limitations && design.limitations[0] ? ' Примечание: ' + design.limitations[0] : ''}` },
+          : `Пиковая зона: ${zoneLabel(ZONE_NAMES[peakIdx],lang)}, ${peakLen}mm. Здесь сосредоточена коррекционная задача дизайна — не переносите пик дальше отмеченной позиции.${design.limitations && design.limitations[0] ? ' Примечание: ' + design.limitations[0] : ''}` },
         { title: t('stepOuterTitle', lang), body: en
           ? `Outer sector: ${outerLen}mm${dropAfterPeak > 0 ? `, a ${dropAfterPeak}mm drop after the peak` : ''}. This sector carries the design's correction goal: ${design.correctionGoal.charAt(0).toLowerCase()+design.correctionGoal.slice(1)}`
           : `Внешний сектор: ${outerLen}mm${dropAfterPeak > 0 ? `, снижение на ${dropAfterPeak}mm после пика` : ''}. Этот сектор выполняет коррекционную задачу дизайна: ${design.correctionGoal.charAt(0).toLowerCase()+design.correctionGoal.slice(1)}` },
@@ -4429,7 +4429,7 @@
           pattern: design.name,
           notes: [],
         };
-        push(spikePlan.notes, `Основной луч рекомендуется располагать в зоне ${spikeGeom.mainSpikeZone}, совпадая с пиком карты.`, `Recommended to place the main spike in the ${spikeGeom.mainSpikeZone} zone, aligned with the map's peak.`);
+        push(spikePlan.notes, `Основной луч рекомендуется располагать в зоне ${zoneLabel(spikeGeom.mainSpikeZone,lang)}, совпадая с пиком карты.`, `Recommended to place the main spike in the ${spikeGeom.mainSpikeZone} zone, aligned with the map's peak.`);
         push(spikePlan.notes, 'Сохраняйте единый ритм чередования базовых и акцентных ресниц по всей линии.', 'Keep a consistent rhythm alternating base and accent lashes across the line.');
         if (spikeGeom.pattern === 'kim') push(spikePlan.notes, 'Проверьте контраст между базой и лучами перед заполнением — он должен оставаться заметным.', 'Check the base-to-spike contrast before filling in — it should stay clearly visible.');
         if (spikeGeom.pattern === 'manga') push(spikePlan.notes, 'Направление лучей — ключевой элемент образа; сверьте его перед заполнением базы.', 'Spike direction is a key part of this look — confirm it before filling in the base.');
@@ -4444,7 +4444,7 @@
       // artist note that used to sit here is deleted, not replaced.
       if (c.tiltTendency === 'downturned') push(artistNotes, 'При опущенных уголках рекомендуется не делать максимальную длину в крайнем наружном секторе.', 'With downturned corners, it’s recommended to avoid maximum length in the extreme outer sector.');
       if (spikeGeom) push(artistNotes, 'Для данной карты предусмотрена проверка направления лучей перед заполнением базы.', 'For this map, checking spike direction before filling in the base is recommended.');
-      if (asym) push(artistNotes, 'При выраженной асимметрии не рекомендуется делать одинаковую коррекцию для LEFT и RIGHT.', 'With pronounced asymmetry, applying identical correction to LEFT and RIGHT is not recommended.');
+      if (asym) push(artistNotes, 'При выраженной асимметрии не рекомендуется делать одинаковую коррекцию для левого и правого глаза.', 'With pronounced asymmetry, applying identical correction to LEFT and RIGHT is not recommended.');
       else push(artistNotes, 'Рекомендуется сохранять лёгкость во внутреннем уголке.', 'Recommended: keep the inner corner light.');
       push(artistNotes, 'Финальное профессиональное решение остаётся за мастером.', 'The final professional decision remains with the artist.');
 

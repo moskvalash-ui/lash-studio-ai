@@ -32,10 +32,15 @@ const { ZONE_NAMES, expandLashMapSectors } = new Function(
 
 const planStart = src.indexOf('    function pseudoJitter(');
 const planEnd = src.indexOf('\n    // ------------------------------------------------------------\n    // Coordinate transform', planStart);
+// zoneLabel is injected the same way `t` already is: a deterministic stub,
+// not the real STRINGS-backed localization (this file only asserts
+// legacy/canonical byte-parity, never real RU/EN text content -- see
+// tests/lash-map-application-plan-localization.test.js for real-text
+// localization coverage of this same function).
 const { computeSpikeGeometry, generateLegacyApplicationPlan, generateApplicationPlan } = new Function(
-  't', 'ZONE_NAMES', 'expandLashMapSectors',
+  't', 'ZONE_NAMES', 'expandLashMapSectors', 'zoneLabel',
   src.slice(planStart, planEnd) + '\nreturn {computeSpikeGeometry,generateLegacyApplicationPlan,generateApplicationPlan};'
-)((key, lang) => `${lang}:${key}`, ZONE_NAMES, expandLashMapSectors);
+)((key, lang) => `${lang}:${key}`, ZONE_NAMES, expandLashMapSectors, (name, lang) => `${lang}:${name}`);
 
 const profile = {
   leftEye: { width: 42, ear: .24, innerTaperDeg: 62, outerTaperDeg: 68, tiltCorrected: -2 },

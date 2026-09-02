@@ -128,9 +128,17 @@ test('custom zone editor in LashMapScreen localizes its per-zone name span', () 
   assert.ok(screenSource.includes('<span className="text-[9px] text-textMuted mb-1 uppercase">{zoneLabel(ZONE_NAMES[i],lang)}</span>'));
 });
 
-test('recommendation/Application Plan text generation is untouched by this localization-only fix', () => {
-  // These strings intentionally embed raw ZONE_NAMES inside already-localized
-  // sentences and are explicitly out of scope for the Lash Map label fix.
-  assert.ok(src.includes('`${ZONE_NAMES[0]} ${d.leftZones[0]}mm → ${ZONE_NAMES[d.peakZone]} ${maxLeft}mm → ${ZONE_NAMES[4]} ${d.leftZones[4]}mm`'));
-  assert.ok(src.includes('`${ZONE_NAMES[0]} ${d.leftZones[0]}мм → ${ZONE_NAMES[d.peakZone]} ${maxLeft}мм → ${ZONE_NAMES[4]} ${d.leftZones[4]}мм`'));
+// A LATER turn (production audit — real deployed page still showed raw
+// English zone words in RU mode inside HeroScreen's "Lash Design
+// Considerations" panel and LashMapScreen's own Application Plan
+// section) found this exclusion was too broad: those two functions are
+// reachable in the same real user flow and were leaking raw ZONE_NAMES
+// into RU text. See tests/lash-map-application-plan-localization.test.js
+// for the full fix/coverage. This test now pins the corrected state:
+// EN stays byte-identical (still raw ZONE_NAMES, unchanged), RU now
+// routes through zoneLabel().
+test('recommendation/Application Plan EN text generation remains byte-identical; RU no longer leaks raw ZONE_NAMES', () => {
+  assert.ok(src.includes('`${ZONE_NAMES[0]} ${d.leftZones[0]}mm → ${ZONE_NAMES[d.peakZone]} ${maxLeft}mm → ${ZONE_NAMES[4]} ${d.leftZones[4]}mm`'), 'EN branch must remain byte-identical');
+  assert.ok(src.includes('`${zoneLabel(ZONE_NAMES[0],lang)} ${d.leftZones[0]}мм → ${zoneLabel(ZONE_NAMES[d.peakZone],lang)} ${maxLeft}мм → ${zoneLabel(ZONE_NAMES[4],lang)} ${d.leftZones[4]}мм`'), 'RU branch must now route through zoneLabel()');
+  assert.ok(!src.includes('`${ZONE_NAMES[0]} ${d.leftZones[0]}мм → ${ZONE_NAMES[d.peakZone]} ${maxLeft}мм → ${ZONE_NAMES[4]} ${d.leftZones[4]}мм`'), 'the old raw-RU embed must be gone');
 });

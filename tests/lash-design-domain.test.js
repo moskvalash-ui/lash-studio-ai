@@ -219,7 +219,7 @@ test('index integration keeps only explicitly migrated consumer boundaries canon
 
 test('professional legacy constants and rules remain untouched by the foundation', () => {
   const byId = Object.fromEntries(DESIGN_CATALOG.map(entry => [entry.id, entry]));
-  assert.deepStrictEqual(byId.fox.zonePositions, [0, .20, .44, .66, 1]);
+  assert.deepStrictEqual(byId.fox.zonePositions, [0, .20, .44, .85, 1]);
   assert.deepStrictEqual(byId.cat.zonePositions, [0, .22, .48, .78, 1]);
   assert.deepStrictEqual(byId.squirrel.zonePositions, [0, .20, .46, .62, 1]);
   assert.deepStrictEqual(byId.angel.baseZones, [6, 7, 8, 8, 7]);

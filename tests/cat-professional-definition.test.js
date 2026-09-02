@@ -95,12 +95,12 @@ test('all 21 legacy IDs and exact legacy Cat production inputs remain unchanged'
   assert.strictEqual(legacyCat.plateauShape,undefined);
   assert.strictEqual(legacyCat.postPeakShape,'frontLoaded');
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(catalogSource),'196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf');
+  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
 });
 
 test('Recommendation, PHOTO, DIAGRAM, Application Plan, and domain source remain unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource),'00b17cc4cfbb52b11dc5936d036cc8e6905a32d80d4ef51ad0fb62be469d74f2');
+  assert.strictEqual(digest(indexSource),'53a9deb8445c19e39d9aae6cb008003bd70278a12291a9076da48c3845b144d3');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, i);'));
   assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));

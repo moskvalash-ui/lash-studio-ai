@@ -3774,12 +3774,26 @@
       const padX=eyeW*.28,padTop=Math.max(eyeH*2.6,eyeW*.36),padBottom=Math.max(eyeH*1.45,eyeW*.12);
       const x=Math.max(0,Math.min(...eyeXs)-padX),y=Math.max(0,Math.min(...eyeYs)-padTop);
       const right=Math.min(imageWidth,Math.max(...eyeXs)+padX),bottom=Math.min(imageHeight,Math.max(...eyeYs)+padBottom);
+      // Display-only height: a bounded ADAPTIVE amount derived from this
+      // design's own local min/max sector length (the same saturating-
+      // span principle approved for the DIAGRAM profile), scaled to this
+      // photo's own eye width so it never depends on a fixed pixel
+      // constant. A flat map (every sector the same length) gets zero
+      // height. Deliberately not an effect rule -- reads only `len`,
+      // and never claims a physical pixel-to-millimeter calibration.
+      const sectorLens=sectors.map(s=>s.len);
+      const localMin=Math.min(...sectorLens),localMax=Math.max(...sectorLens),localSpan=localMax-localMin;
+      // The real eyelid curve itself has its own natural rise-and-fall
+      // (it is not flat), so the amplitude cap must comfortably exceed
+      // that curve's own vertical variation to keep the LENGTH signal
+      // visually dominant rather than partly cancelled by anatomy --
+      // there is ample headroom for this (padTop above is already
+      // eyeW*.36 at minimum).
+      const maxProfileAmplitude=eyeW*.6,profileSaturationMm=3;
+      const localProfileAmplitude=localSpan>0?maxProfileAmplitude*localSpan/(localSpan+profileSaturationMm):0;
       const projected=sectors.map(sector=>{
         const baseline=pointAt(Math.max(0,Math.min(1,sector.t)));
-        // Display-only height: a small fixed visual root plus a linear
-        // length scale. It is deliberately not an effect rule and does
-        // not claim a physical pixel-to-millimeter calibration.
-        const profileHeight=eyeW*(.04+.011*sector.len);
+        const profileHeight=localSpan>0?localProfileAmplitude*(sector.len-localMin)/localSpan:0;
         const tangent=tangentAt(Math.max(0,Math.min(1,sector.t)));
         if(!tangent)return {...sector,...baseline,profileHeight,normal:null};
         const candidates=[{x:-tangent.y,y:tangent.x},{x:tangent.y,y:-tangent.x}];
@@ -4025,7 +4039,7 @@
         cautions: () => [] },
       { id:'fox', category:'elongating', ruName:'Fox', enName:'Fox', aliases:['Fox-inspired'],
         baseZones:[6,7,9,12,11], peakZone:3, baseCurl:'C', curlOptions:['C','CC','D'], defaultTechnique:'Light Volume 2D',
-        zonePositions:[0,.20,.44,.66,1], postPeakShape:'gradual',
+        zonePositions:[0,.20,.44,.85,1], postPeakShape:'gradual',
         score: c => clampScore(42 + (c.isWideSet?14:0) + (c.tiltTendency==='upturned'? c.tiltConfidence*22 : -6) + c.shapeTendencies.elongated*10 + (c.isCloseSet?-10:0)),
         why: (c,l) => l==='en' ? 'Enhances natural upward lift and elongation toward the temple.' : 'Усиливает природную приподнятость и вытяжение к виску.',
         goal: (c,l) => l==='en' ? 'Maximize elongation toward the temple.' : 'Максимально вытянуть форму глаза к виску.',
@@ -4107,7 +4121,10 @@
       // The catalog supplies only design intent. The peak and all five
       // lengths are rebuilt independently from this eye's measurements.
       let peakZone = entry.peakZone;
-      if (physicalTilt > 4 && peakZone > 1) peakZone -= 1;
+      // Domain decision: Fox's professionally authored outer/pre-outer
+      // peak (zonePositions[3] = 0.85) must survive upturned tilt, not
+      // be silently demoted to BODY. This exemption applies to Fox only.
+      if (entry.id !== 'fox' && physicalTilt > 4 && peakZone > 1) peakZone -= 1;
       if (physicalTilt < -4 && peakZone < 3 && entry.category !== 'correction') peakZone += 1;
 
       const avgWidth = Math.max((eye.width + other.width) / 2, 1);
@@ -8615,25 +8632,67 @@
     // Secondary technical diagram retained alongside the photo map.
     // It consumes the same derived items and texture geometry, but does
     // not participate in any recommendation or source-zone calculation.
+    // Bounded adaptive length-to-height amplitude for the DIAGRAM
+    // lash-length profile below. A fixed absolute mm->px scale (the
+    // prior approach) forced every effect to share one global range,
+    // so small-span designs (Doll/Natural, ~2mm) read almost flat while
+    // even Fox's own 6mm span only ever used ~55% of it. This formula
+    // instead derives amplitude from THIS render's own local mm span
+    // (localMax-localMin over the actual `items` being drawn) through a
+    // monotonic, saturating curve: span 0 -> 0px (flat), small spans
+    // get a proportionally larger share of the range so they stay
+    // readable, larger spans keep growing but level off well short of
+    // clipping. One shared formula, no effect id, no per-effect tuning.
+    const LASH_LENGTH_PROFILE_BASELINE_Y = 195;
+    const LASH_LENGTH_PROFILE_MAX_AMPLITUDE_PX = 75;
+    const LASH_LENGTH_PROFILE_SATURATION_MM = 3;
+    const lashLengthProfileAmplitude = spanMm => {
+      if (!(spanMm > 0)) return 0;
+      return LASH_LENGTH_PROFILE_MAX_AMPLITUDE_PX * spanMm / (spanMm + LASH_LENGTH_PROFILE_SATURATION_MM);
+    };
     function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang }) {
       const upperY=t=>175-Math.sin(t*Math.PI)*78,lowerY=t=>175+Math.sin(t*Math.PI)*34,xAt=t=>55+(side==='right'?1-t:t)*290;
       const items = expandLashMapSectors(zones, peakIdx, curve);
       const upper=Array.from({length:21},(_,i)=>`${xAt(i/20)},${upperY(i/20)}`).join(' L ');
       const lower=Array.from({length:21},(_,i)=>`${xAt(1-i/20)},${lowerY(1-i/20)}`).join(' L ');
-      return <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
-        <defs><radialGradient id="diagramEyeBg" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="rgba(10,140,255,.07)"/><stop offset="100%" stopColor="rgba(2,6,11,0)"/></radialGradient></defs>
+      // The visible lash-LENGTH profile: derived per point from the same
+      // engine `items` (t, len) used everywhere else -- no equal spacing,
+      // no i/(n-1), no second zone-position system, no effect branch.
+      // The anatomical eye arch above is now background/reference only;
+      // this is the profile a lash artist actually reads.
+      const localLens=items.map(z=>z.len);
+      const localMin=Math.min(...localLens),localMax=Math.max(...localLens),localSpan=localMax-localMin;
+      const localAmplitude=lashLengthProfileAmplitude(localSpan);
+      // localSpan===0 (every sample the same length, e.g. a flattened
+      // custom map) renders a flat profile at the stable baseline Y --
+      // no division by zero.
+      const profileY=z=>localSpan>0?LASH_LENGTH_PROFILE_BASELINE_Y-localAmplitude*(z.len-localMin)/localSpan:LASH_LENGTH_PROFILE_BASELINE_Y;
+      const profilePoints=items.map(z=>({x:xAt(z.t),y:profileY(z)}));
+      const profileLine=profilePoints.map(p=>`${p.x},${p.y}`).join(' L ');
+      const profileFill=`${profilePoints[0].x},${LASH_LENGTH_PROFILE_BASELINE_Y} L ${profileLine} L ${profilePoints.at(-1).x},${LASH_LENGTH_PROFILE_BASELINE_Y} Z`;
+      return <>
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="diagramEyeBg" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="rgba(10,140,255,.07)"/><stop offset="100%" stopColor="rgba(2,6,11,0)"/></radialGradient>
+          <linearGradient id="diagramLashProfileFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgba(83,199,255,.38)"/><stop offset="100%" stopColor="rgba(83,199,255,.02)"/></linearGradient>
+        </defs>
         <rect width="400" height="300" fill="url(#diagramEyeBg)"/>
-        <path d={`M ${upper} L ${lower} Z`} fill="rgba(83,199,255,.03)" stroke="rgba(83,199,255,.22)" strokeWidth="1.5"/>
-        <circle cx={xAt(.44)} cy={(upperY(.44)+lowerY(.44))/2+4} r="13" fill="rgba(83,199,255,.05)" stroke="rgba(83,199,255,.25)" strokeDasharray="2 3"/>
-        <circle cx={xAt(.44)} cy={(upperY(.44)+lowerY(.44))/2+4} r="5" fill="rgba(83,199,255,.14)"/>
+        {/* Anatomical eye outline: demoted to a faint background/reference guide -- no longer the lash-length profile. */}
+        <path data-diagram-eye-guide="true" d={`M ${upper} L ${lower} Z`} fill="rgba(83,199,255,.015)" stroke="rgba(83,199,255,.14)" strokeWidth="1" strokeDasharray="3 3"/>
+        <circle cx={xAt(.44)} cy={(upperY(.44)+lowerY(.44))/2+4} r="13" fill="rgba(83,199,255,.04)" stroke="rgba(83,199,255,.16)" strokeDasharray="2 3"/>
+        <circle cx={xAt(.44)} cy={(upperY(.44)+lowerY(.44))/2+4} r="5" fill="rgba(83,199,255,.1)"/>
         {(spikeGeom?.spikes||[]).map((sp,i)=>{const x=xAt(sp.t),y=upperY(sp.t),h=(sp.spikeLen-sp.baseLen)*3.2+(sp.tall?8:4);return <polygon key={`s${i}`} points={`${x-(sp.tall?1.3:.8)},${y} ${x+(sp.tall?1.3:.8)},${y} ${x},${y-h}`} fill={sp.tall?'rgba(83,199,255,.8)':'rgba(10,140,255,.34)'}/>;})}
-        {items.map((z,i)=>{const x=xAt(z.t),y=upperY(z.t)-4;return <g key={i} onClick={()=>setHoveredZone(hoveredZone===i?null:i)} className="cursor-pointer">
+        {/* Lash-length profile: filled area + line, one point per engine sample, in t-order. */}
+        <path data-diagram-lash-profile-fill="true" d={`M ${profileFill}`} fill="url(#diagramLashProfileFill)" stroke="none"/>
+        <path data-diagram-lash-profile-line="true" d={`M ${profileLine}`} fill="none" stroke="rgba(83,199,255,.85)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+        {items.map((z,i)=>{const x=xAt(z.t),y=profileY(z);return <g key={i} onClick={()=>setHoveredZone(hoveredZone===i?null:i)} className="cursor-pointer">
           <circle cx={x} cy={y} r={z.isPeak?9:z.isKey?6:4} fill={z.isPeak?'#0A8CFF':z.isKey?'rgba(244,247,250,.22)':'rgba(83,199,255,.28)'} stroke={z.isPeak?'#53C7FF':'none'} strokeWidth="2"/>
-          <text x={x} y={y-16} textAnchor="middle" fill={z.isPeak?'#53C7FF':'#F4F7FA'} fontSize={z.isKey?15:11} fontWeight={z.isPeak?700:400}>{z.len}</text>
+          {z.isKey&&<text x={x} y={y-16} textAnchor="middle" fill={z.isPeak?'#53C7FF':'#F4F7FA'} fontSize={15} fontWeight={z.isPeak?700:400}>{z.len}</text>}
           {z.label&&<text x={x} y={y+20} textAnchor="middle" fill="rgba(142,154,168,.75)" fontSize="7" letterSpacing="1">{zoneLabel(z.label,lang)}</text>}
           {hoveredZone===i&&<g><rect x={x-52} y={y+26} width="104" height="46" rx="10" fill="rgba(6,16,26,.96)" stroke="rgba(35,150,255,.25)"/><text x={x} y={y+44} textAnchor="middle" fill="#F4F7FA" fontSize="11">{z.len} mm · {curl}</text><text x={x} y={y+61} textAnchor="middle" fill="rgba(142,154,168,.85)" fontSize="9">{technique}</text></g>}
         </g>;})}
-      </svg>;
+      </svg>
+      </>;
     }
 
     // Phase 2B consumer boundary: DIAGRAM receives canonical data;
@@ -8654,10 +8713,37 @@
       const {points}=projection;
       const automaticLine=buildProfessionalPhotoLine(normalized,points);
       if(!automaticLine)return null;
-      const photoCrop=buildProfessionalPhotoCrop(normalized,automaticLine.points,result.imageWidth,result.imageHeight);
+      // Data-driven lash-LENGTH profile: displaces each sample straight up
+      // from a SINGLE fixed reference Y (the midpoint between this eye's
+      // own INNER and OUTER baseline Y) by the SAME (now bounded-
+      // adaptive) `profileHeight` already computed generically in
+      // buildProfessionalEyeProjection -- reused verbatim, not
+      // recomputed or effect-specific. Neither the per-point tangent
+      // `normal` (which rotates along the curve) NOR the per-point
+      // baseline Y itself (which also varies along the real eyelid
+      // curve) may be used as the height anchor: either one would let
+      // two equal `len` values render at different heights purely
+      // because of where they sit on the curve -- e.g. Doll/Natural's
+      // BODY=PEAK plateau would visibly split apart. A single fixed
+      // per-eye reference Y is the same fix already applied to
+      // DIAGRAM's baseline, adapted here to a real photographed eye
+      // (which has no fixed global Y, only its own INNER/OUTER). Drag-
+      // handle math, the reference baseline path, and the invisible
+      // drag catcher stay on the original (unshifted) points below;
+      // only the read-only visual profile (crop/labels/dots/leader-
+      // lines) uses the displaced ones.
+      const withProfileOffset=pointsArr=>{
+        const referenceY=(pointsArr[0].mapY+pointsArr.at(-1).mapY)/2;
+        return pointsArr.map(point=>({...point,mapY:referenceY-(point.profileHeight||0)}));
+      };
+      const automaticProfilePoints=withProfileOffset(automaticLine.points);
+      const photoCrop=buildProfessionalPhotoCrop(normalized,automaticProfilePoints,result.imageWidth,result.imageHeight);
       if(!photoCrop)return null;
       const enginePeak=points.find(point=>point.isPeak),workingLine=applyManualPhotoAdjustment(normalized,points,adjustment,enginePeak?.t);
-      const labels=selectProfessionalEyeLabels(workingLine.points,photoCrop);
+      const profilePoints=withProfileOffset(workingLine.points);
+      const labels=selectProfessionalEyeLabels(profilePoints,photoCrop);
+      const profileLinePath=profilePoints.map((p,i)=>`${i?'L':'M'} ${p.mapX} ${p.mapY}`).join(' ');
+      const profileFillPath=`M ${profilePoints.map(p=>`${p.mapX},${p.mapY}`).join(' L ')} L ${[...workingLine.points].reverse().map(p=>`${p.mapX},${p.mapY}`).join(' L ')} Z`;
       const unit=Math.max(photoCrop.width,photoCrop.height)/100;
       const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');
       const peak=points.find(p=>p.isPeak);
@@ -8689,9 +8775,13 @@
             <svg ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
               <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
               <rect x={photoCrop.x} y={photoCrop.y} width={photoCrop.width} height={photoCrop.height} fill="rgba(2,6,11,.12)" />
-              <path id={`photo-map-line-${side}`} data-photo-map-line="true" d={workingLine.path} fill="none" stroke="rgba(244,247,250,.92)" strokeWidth={unit*.34} strokeLinecap="round" />
+              {/* Anatomical eyelid baseline: demoted to a subtle reference -- no longer the lash-length profile. */}
+              <path id={`photo-map-line-${side}`} data-photo-map-line="true" d={workingLine.path} fill="none" stroke="rgba(244,247,250,.32)" strokeWidth={unit*.2} strokeDasharray={`${unit*.5} ${unit*.4}`} strokeLinecap="round" />
               {editing&&<use data-manual-map-drag="true" onPointerDown={event=>beginDrag(event,'map')} href={`#photo-map-line-${side}`} fill="none" stroke="transparent" strokeWidth={unit*5.5} strokeLinecap="round" style={{touchAction:'none'}} />}
-              {workingLine.points.map((point,i)=>{
+              {/* Lash-length profile: the visually dominant, data-driven line + ribbon fill between it and the eyelid baseline. */}
+              <path data-photo-lash-profile-fill="true" d={profileFillPath} fill="rgba(10,140,255,.16)" stroke="none"/>
+              <path data-photo-lash-profile-line="true" d={profileLinePath} fill="none" stroke="rgba(10,140,255,.92)" strokeWidth={unit*.4} strokeLinejoin="round" strokeLinecap="round"/>
+              {profilePoints.map((point,i)=>{
                 const label=labels[i],r=unit*(point.isPeak?.95:.68),leaderEnd=point.mapY+unit*(point.label==='BODY'?7.2:5.4);
                 return <g key={i} data-map-point={i} data-length={point.len} data-peak={point.isPeak?'true':'false'}>
                   <circle data-photo-sample="true" cx={point.mapX} cy={point.mapY} r={r} fill={point.isPeak?'#0A8CFF':'#F4F7FA'} stroke={point.isPeak?'#B9E8FF':'rgba(3,8,14,.88)'} strokeWidth={unit*(point.isPeak?.32:.24)}/>
@@ -10560,6 +10650,9 @@
       classicSingles: 'Одиночные реснички по классике', volumeSpikes: 'Объёмные спайки', dimensional: 'Объёмный', sparse: 'Разреженный',
       raysConstructionRelationship: 'Связь с конструкцией «Лучи»', raysConstruction: 'Конструкция «Лучи»', canonicalRole: 'Каноническая роль',
       exactRegularity: 'Точная регулярность',
+      outerCornerRule: 'Правило внешнего уголка', peakDirectionality: 'Направленность пика',
+      extremeOuterVsPeak: 'Крайний внешний уголок относительно пика', postPeakDecline: 'Снижение после пика',
+      relativeToCurrentProductionPeak: 'Относительно текущего пика в продакшене', relativeToCat: 'Относительно «Кошачий глаз»',
     };
     const PRO_LIB_VALUE_LABELS_RU = {
       EXPERT_REVIEWED: 'Проверено экспертом', VALIDATED: 'Подтверждено', UNVALIDATED: 'Не проверено', DRAFT: 'Черновик',
@@ -10836,6 +10929,11 @@
       WET_IS_COMPACT_GROUPED_COLUMNAR_TEXTURE_WHILE_JELLYFISH_IS_SPARSER_ACCENT_HIERARCHY_WITH_STRONGER_NEGATIVE_SPACE: '«Мокрый эффект» — компактная сгруппированная «колончатая» текстура, а «Медуза» — более разреженная иерархия акцентов с выраженными воздушными промежутками',
       WET_LOOK_VISUAL_FINISH: 'Визуальный «мокрый» финиш', WISPY_ACCENT_TO_SUPPORT_TEXTURE: 'Текстура «Виспи» по принципу «акцент — поддержка»',
       WISPY_OVERLAP_INTERPRETATION: 'Трактовка пересечения с «Виспи»', WISPY_WET: '«Виспи» + «Мокрый эффект»',
+      OUTER_SHIFTED_PRE_OUTER: 'Смещён к внешнему уголку (перед самым краем)',
+      EXTREME_OUTER_LOWER_THAN_PEAK: 'Крайний внешний уголок ниже пика',
+      LATER_THAN_CURRENT_PRODUCTION_FOX_PEAK: 'Позже текущего пика «Лисий» в продакшене',
+      DISTINCT_FROM_CAT_PEAK_REQUIRED: 'Обязательно отличается от пика «Кошачий глаз»',
+      QUALITATIVE_RULE_RESOLVED_NUMERIC_RANGE_STILL_UNRESOLVED: 'Качественное правило уточнено, точный числовой диапазон — ещё нет',
     };
     function proLibKindLabel(kind) { return PRO_LIB_KIND_LABELS_RU[kind] || PRO_LIBRARY_KIND_LABELS[kind] || kind; }
     function proLibNameRu(id, fallbackName) { return PRO_LIB_NAME_RU[id] || fallbackName; }

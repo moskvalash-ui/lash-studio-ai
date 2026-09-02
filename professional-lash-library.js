@@ -273,6 +273,38 @@
       outerBehavior: 'CONTROLLED_TAIL_AFTER_LATE_OUTER_EMPHASIS',
     },
     primaryIntent: 'HORIZONTAL_TEMPORAL_ELONGATION',
+    // PHASE_1Q DOMAIN-AUTHORITY REVISION — resolves the SHAPE of the
+    // outer-corner rule qualitatively, without resolving an exact
+    // numeric position (peak.positionRange/zoneRange/plateauAllowed
+    // above are left completely untouched, still UNRESOLVED, on
+    // purpose). Kept as a SEPARATE block rather than folded into
+    // `peak`/`topology` above so the still-unresolved numeric fields
+    // remain visibly, structurally unresolved rather than silently
+    // padded with new keys.
+    outerCornerRule: {
+      // The maximum must sit in the outer/pre-outer portion of the
+      // map, not centrally — same LATE_OUTER region as `peak.zoneRange`
+      // above, restated explicitly in the domain authority's own
+      // vocabulary for this revision.
+      peakDirectionality: 'OUTER_SHIFTED_PRE_OUTER',
+      // The peak is explicitly NOT the final OUTER control point: the
+      // extreme outer corner must read lower than the peak, i.e. a
+      // real, visible taper/drop is required at the extreme outer
+      // corner, not a plateau and not continued growth to the edge.
+      extremeOuterVsPeak: 'EXTREME_OUTER_LOWER_THAN_PEAK',
+      postPeakDecline: 'REQUIRED',
+      // Comparative, not absolute: the peak must sit later than the
+      // CURRENT production Fox peak (legacyReference.normalizedGeometry
+      // .peakPosition = 0.66) -- a direction, not a number.
+      relativeToCurrentProductionPeak: 'LATER_THAN_CURRENT_PRODUCTION_FOX_PEAK',
+      // Fox and Cat must remain two visually distinguishable effects;
+      // this does not resolve crossEffectComparison['geometry.cat']'s
+      // own relativePeakOrder/relativeSharpness fields below, which
+      // stay UNRESOLVED on purpose -- this only forbids collapsing the
+      // two into the same silhouette.
+      relativeToCat: 'DISTINCT_FROM_CAT_PEAK_REQUIRED',
+      resolution: 'QUALITATIVE_RULE_RESOLVED_NUMERIC_RANGE_STILL_UNRESOLVED',
+    },
     crossEffectComparison: {
       'geometry.cat': {
         foxPeakRegion: 'LATE_OUTER', foxOuterBehavior: 'CONTROLLED_TAIL', foxIntentClass: 'TEMPORAL_ELONGATION',
@@ -305,12 +337,25 @@
       id: 'phase-1d-fox-structure', type: 'REVIEWED_PROFESSIONAL_STRUCTURE',
       scope: ['MAPPING_GEOMETRY_IDENTITY', 'LATE_OUTER_EMPHASIS', 'CONTROLLED_OUTER_TAIL', 'TEMPORAL_ELONGATION_INTENT'],
       numericClaims: false,
+    }, {
+      id: 'phase-1q-fox-outer-corner-rule', type: 'REVIEWED_QUALITATIVE_RULE',
+      scope: ['OUTER_CORNER_PEAK_DIRECTIONALITY', 'POST_PEAK_DECLINE_REQUIREMENT', 'RELATIVE_TO_CURRENT_PRODUCTION_PEAK', 'RELATIVE_TO_CAT'],
+      numericClaims: false,
     }],
-    provenance: [{ source: 'PHASE_1D_APPROVED_PROFESSIONAL_BRIEF', scope: 'STRUCTURAL_ONLY' }],
-    reviewers: [{ role: 'DOMAIN_REVIEW', identifier: 'PHASE_1D_APPROVAL' }],
+    provenance: [
+      { source: 'PHASE_1D_APPROVED_PROFESSIONAL_BRIEF', scope: 'STRUCTURAL_ONLY' },
+      { source: 'PHASE_1Q_DOMAIN_AUTHORITY_OUTER_CORNER_DECISION', scope: 'OUTER_CORNER_RULE_QUALITATIVE_ONLY' },
+    ],
+    reviewers: [
+      { role: 'DOMAIN_REVIEW', identifier: 'PHASE_1D_APPROVAL' },
+      { role: 'DOMAIN_REVIEW', identifier: 'PHASE_1Q_APPROVAL' },
+    ],
     reviewedAt: null,
-    revision: 1,
-    notes: ['Numeric peak range, normalized samples, plateau, tail drop, template mm, compatibility, and variants remain unresolved.'],
+    revision: 2,
+    notes: [
+      'Numeric peak range, normalized samples, plateau, tail drop, template mm, compatibility, and variants remain unresolved.',
+      'PHASE_1Q resolves the outer-corner rule qualitatively (peak is outer-shifted/pre-outer, extreme outer corner reads lower than the peak, a post-peak decline is required, the peak must sit later than the current production Fox peak, and Fox must remain distinct from Cat) without resolving an exact numeric position -- see outerCornerRule.',
+    ],
   };
   foxDefinition.legacyReference = {
     legacyIds: ['fox'], legacyAliases: ['Fox-inspired'], relationship: 'CURRENT_PRODUCTION_COMPARISON_ONLY',

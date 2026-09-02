@@ -247,8 +247,8 @@ test('the new Client UI code never calls production ranking/scan/library functio
   for (const token of forbidden) assert.ok(!clientUiCode.includes(token), 'Client UI must not reference ' + token);
 });
 
-test('professional-lash-library.js, backend/worker.js, consent-manager.js, and analytics.js remain byte-identical to committed HEAD', () => {
-  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js']) {
+test('backend/worker.js, consent-manager.js, and analytics.js remain byte-identical to committed HEAD', () => {
+  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

@@ -51,12 +51,14 @@ test('every derived sample maps once to the physical upper-eye path',()=>{
   assert.strictEqual((mapped.profilePath.match(/[ML]/g)||[]).length,sectors.length);
 });
 
-test('display profile height is strictly monotonic with length for an equal baseline',()=>{
+test('display profile height is strictly monotonic with length, using a bounded amplitude derived from this render\'s own local min/max span',()=>{
   const flatEye=[{x:0,y:100},{x:30,y:100},{x:60,y:100},{x:90,y:100},{x:60,y:110},{x:30,y:110}];
   const samples=[5,7,9,11].map((len,i)=>({len,t:i/3,isPeak:i===3,label:i===0?'INNER':i===3?'OUTER':null}));
   const heights=buildProfessionalEyeProjection(flatEye,samples,120,180).points.map(p=>p.profileHeight);
   assert.ok(heights.every((height,i)=>i===0||height>heights[i-1]));
-  assert.deepStrictEqual(heights.map(v=>+v.toFixed(3)),samples.map(s=>+(90*(.04+.011*s.len)).toFixed(3)));
+  // eyeW=90, localMin=5, localMax=11, localSpan=6, maxProfileAmplitude=eyeW*.6=54,
+  // localAmplitude=54*6/9=36, profileHeight(len)=36*(len-5)/6.
+  assert.deepStrictEqual(heights.map(v=>+v.toFixed(3)),[0,12,24,36]);
 });
 
 test('cubic tangents are normalized and outward normals face away from the eye aperture',()=>{
@@ -171,7 +173,7 @@ test('rendering uses the retained image without presentation mirroring or eye sw
 test('visual point count and labels come directly from canonical derived sectors',()=>{
   const component=professionalEyeMapSource;
   assert.ok(component.includes('function LegacyProfessionalEyeMap({ result, side, zones, peakIdx, items,'));
-  assert.ok(component.includes('points.map((point,i)=>'));
+  assert.ok(component.includes('profilePoints.map((point,i)=>'));
   assert.ok(component.includes('data-length={point.len}'));
   assert.ok(component.includes('data-photo-label={label.kind}'));
   assert.strictEqual((component.match(/expandLashMapSectors\(/g)||[]).length,0);
@@ -190,7 +192,7 @@ test('PEAK label is mandatory and collision scheduling is deterministic',()=>{
 test('PHOTO permanently labels all five source zones while retaining every marker',()=>{
   const mapped=project(leftEye),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
   assert.deepStrictEqual(labels.filter(label=>label&&!label.isDerived).map(label=>label.zone),['INNER','TRANSITION','BODY','PEAK','OUTER']);
-  assert.ok(professionalEyeMapSource.includes('{workingLine.points.map((point,i)=>'));
+  assert.ok(professionalEyeMapSource.includes('{profilePoints.map((point,i)=>'));
   assert.ok(professionalEyeMapSource.includes('data-map-point={i}'));
   assert.ok(professionalEyeMapSource.includes('data-photo-label={label.kind}'));
 });
@@ -202,13 +204,18 @@ test('PHOTO zone cues and professional summary share the five source values',()=
   assert.ok(professionalEyeMapSource.includes('key={ZONE_NAMES[i]}'));
 });
 
-test('PHOTO renders one anatomical mapping line with no elevated contour or stems',()=>{
-  assert.strictEqual((professionalEyeMapSource.match(/<path\b/g)||[]).length,1);
+test('PHOTO renders a demoted anatomical baseline plus a length-driven lash profile (fill + line), never a second/approximate coordinate',()=>{
+  assert.strictEqual((professionalEyeMapSource.match(/<path\b/g)||[]).length,3);
   assert.strictEqual((professionalEyeMapSource.match(/data-photo-map-line=/g)||[]).length,1);
-  assert.ok(!professionalEyeMapSource.includes('profilePath'));
-  assert.ok(!professionalEyeMapSource.includes('profile-stem'));
+  assert.ok(professionalEyeMapSource.includes('data-photo-lash-profile-fill="true"'));
+  assert.ok(professionalEyeMapSource.includes('data-photo-lash-profile-line="true"'));
+  // The profile geometry is the SAME profileHeight already computed by
+  // buildProfessionalEyeProjection -- reused, not recomputed here.
   assert.ok(!professionalEyeMapSource.includes('profileX'));
   assert.ok(!professionalEyeMapSource.includes('profileY'));
+  assert.ok(professionalEyeMapSource.includes('point.profileHeight'));
+  // The baseline path itself is now visually demoted (low opacity, dashed).
+  assert.ok(/data-photo-map-line="true"[^>]*stroke="rgba\(244,247,250,\.32\)"/.test(professionalEyeMapSource));
 });
 
 test('PHOTO uses uniform regular markers and one slightly larger PEAK circle',()=>{
@@ -248,26 +255,40 @@ test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
 });
 
-test('Fox marker topology keeps a late peak and a still-large outer sample',()=>{
+test('Fox marker topology peaks in the pre-outer region (t=0.85), not on the final OUTER point, with a still-large outer sample',()=>{
   const fox=DESIGN_CATALOG.find(e=>e.id==='fox');
   const items=expandLashMapSectors([5,5,8,11,10],3,curveFor(fox));
   const points=buildProfessionalEyeProjection(leftEye,items,500,250).points,peak=points.find(p=>p.isPeak),outer=points.find(p=>p.label==='OUTER'),inner=points.find(p=>p.label==='INNER');
-  assert.ok(peak.t>=.6&&peak.t<=.7);
+  assert.ok(peak.t>=.8&&peak.t<=.9);
+  assert.ok(peak.t<1,'peak must not sit on the final OUTER point');
   assert.ok(inner.len<peak.len);
   assert.ok(outer.len>inner.len);
 });
 
-test('Cat marker topology peaks later and drops more at OUTER than Fox',()=>{
+// PHASE_1Q domain decision (approved): Fox is intentionally MORE
+// outer-shifted than Cat -- its peak now sits later than Cat's own peak,
+// in the pre-outer region, while Cat's own geometry stays exactly as it
+// was. This replaces the old claim that Cat peaked later than Fox, which
+// was true only of the pre-decision production geometry, not of any
+// resolved professional rule.
+test('Fox now peaks later than Cat, in the pre-outer region, while Cat itself is unchanged',()=>{
   const topology=(id,zones)=>{const entry=DESIGN_CATALOG.find(e=>e.id===id),points=buildProfessionalEyeProjection(leftEye,expandLashMapSectors(zones,3,curveFor(entry)),500,250).points,peak=points.find(p=>p.isPeak),outer=points.find(p=>p.label==='OUTER');return {peak,outer,drop:peak.len-outer.len};};
   const cat=topology('cat',[5,5,8,10,8]),fox=topology('fox',[5,5,8,11,10]);
-  assert.ok(cat.peak.t>fox.peak.t);
-  assert.ok(cat.drop>fox.drop);
+  assert.ok(fox.peak.t>cat.peak.t,'Fox must peak later than Cat');
+  assert.ok(fox.peak.t<1,'Fox peak must not sit on the final OUTER point');
+  assert.ok(fox.outer.len<fox.peak.len,'Fox must still decline from PEAK to OUTER');
+  // Cat's own production geometry is untouched by the Fox decision.
+  assert.strictEqual(cat.peak.t,.78);
+  assert.strictEqual(cat.drop,2);
+  // Each effect retains its own distinct post-peak shape.
+  assert.strictEqual(DESIGN_CATALOG.find(e=>e.id==='fox').postPeakShape,'gradual');
+  assert.strictEqual(DESIGN_CATALOG.find(e=>e.id==='cat').postPeakShape,'frontLoaded');
 });
 
 test('Squirrel silhouette contains the existing pre-drop shoulder topology',()=>{
   const entry=DESIGN_CATALOG.find(e=>e.id==='squirrel'),points=buildProfessionalEyeProjection(leftEye,expandLashMapSectors(entry.baseZones,entry.peakZone,curveFor(entry)),500,250).points;
   const max=Math.max(...points.map(p=>p.profileHeight));
-  assert.ok(points.filter(p=>p.t<=points.find(x=>x.isPeak).t&&p.profileHeight>=max-.31).length>=2);
+  assert.ok(points.filter(p=>p.t<=points.find(x=>x.isPeak).t&&p.profileHeight>=max*.9).length>=2);
   assert.ok(points.find(p=>p.label==='OUTER').profileHeight<max);
 });
 
@@ -297,7 +318,12 @@ test('PHOTO crop and offset preserve every engine sample field and add no point 
 });
 
 test('ProfessionalEyeMap has no effect-specific rendering rule',()=>{
-  assert.ok(!/\b(?:fox|cat|squirrel|doll|natural|softfox)\b/i.test(professionalEyeMapSource));
+  // Strip // line comments first -- this component's own source comments
+  // deliberately mention effect names (e.g. "Doll/Natural's BODY=PEAK
+  // plateau") as documentation of the generic guarantee, which would
+  // otherwise false-positive the check below.
+  const codeOnly=professionalEyeMapSource.split('\n').map(line=>line.replace(/\/\/.*$/,'')).join('\n');
+  assert.ok(!/\b(?:fox|cat|squirrel|doll|natural|softfox)\b/i.test(codeOnly));
   assert.strictEqual((professionalEyeMapSource.match(/expandLashMapSectors\(/g)||[]).length,0);
 });
 
@@ -359,14 +385,15 @@ test('manual PHOTO state is independent per eye, survives view changes, and neve
   assert.ok(screen.includes("viewMode==='photo'?"));assert.ok(!diagram.includes('manualPhotoAdjustment'));assert.ok(!diagram.includes('applyManualPhotoAdjustment'));
 });
 
-test('mobile editing has large hit targets, pointer capture, constrained PEAK, and one visible PHOTO curve',()=>{
+test('mobile editing has large hit targets, pointer capture, constrained PEAK, and one demoted baseline plus one length-driven profile path',()=>{
   assert.ok((professionalEyeMapSource.match(/style=\{\{touchAction:'none'\}\}/g)||[]).length>=2);
   assert.ok(professionalEyeMapSource.includes('setPointerCapture(event.pointerId)'));
   assert.ok(professionalEyeMapSource.includes("r={unit*4.2}"));
   assert.ok(professionalEyeMapSource.includes("Math.max(span*.08,Math.min(span*.92,position))"));
   assert.ok(professionalEyeMapSource.includes("outerPosition-length*.08"));
   assert.ok(professionalEyeMapSource.includes("innerPosition+length*.08"));
-  assert.strictEqual((professionalEyeMapSource.match(/<path\b/g)||[]).length,1);
+  // One demoted anatomical baseline path, plus the new profile fill + line.
+  assert.strictEqual((professionalEyeMapSource.match(/<path\b/g)||[]).length,3);
   assert.strictEqual((professionalEyeMapSource.match(/data-photo-map-line=/g)||[]).length,1);
   assert.ok(professionalEyeMapSource.includes('<use data-manual-map-drag="true"'));
 });

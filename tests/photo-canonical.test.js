@@ -110,8 +110,8 @@ test('PHOTO anatomical and mirror contract is explicit at the canonical wrapper 
 
 test('Phase 2C isolation guards keep forbidden consumers and professional sources unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(catalogSource),'196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf','DESIGN_CATALOG changed');
-  assert.strictEqual(digest(mapSource),'e379b5c73bb835d3eb8d846ef6fac714ecb7d7c539249ae10b50771c05095ab1','calculateEyeLashMap/buildEyeZones changed');
+  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181','DESIGN_CATALOG changed');
+  assert.strictEqual(digest(mapSource),'b14f739d8b3854dd4dd57bb1eeaceae159c6c939259bf277906b9cb932aba6eb','calculateEyeLashMap/buildEyeZones changed');
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));

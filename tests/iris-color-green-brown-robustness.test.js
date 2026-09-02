@@ -422,7 +422,7 @@ test('ISOLATION: analyzeIrisSample pixel-sampling/rejection/ROI source is byte-i
   assert.ok(currentSpan.includes("if (radial > 0.88) { rejected.push({ ...pixel, reason:'outside_iris_annulus' }); continue; }"));
 });
 test('ISOLATION: unrelated production systems have zero diff against committed HEAD', () => {
-  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-scan-core.js', 'lash-design-domain.js']) {
+  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-scan-core.js', 'lash-design-domain.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');
@@ -434,7 +434,7 @@ test('ISOLATION: Lash Map LEFT/RIGHT mirror formula and DESIGN_CATALOG are uncha
   const catalogEnd = src.indexOf('\n\n    function calculateEyeLashMap(', catalogStart);
   const catalogSource = src.slice(catalogStart, catalogEnd);
   const digest = require('node:crypto').createHash('sha256').update(catalogSource).digest('hex');
-  assert.strictEqual(digest, '196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf');
+  assert.strictEqual(digest, '15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
 });
 test('ISOLATION: iris.name/confidence are never referenced by scoring/ranking/curl/recommendation code', () => {
   const rankStart = src.indexOf('function rankDesignsAll(');

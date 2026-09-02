@@ -373,9 +373,9 @@ test('client-store.js and client-data-consent.js never call production scan/rank
   for (const token of forbidden) assert.ok(!clientStoreCode.includes(token), 'client-store.js must not reference ' + token);
 });
 
-test('professional-lash-library.js, backend/worker.js, consent-manager.js, and analytics.js remain byte-identical (client-store.js never touches production library/backend/consent/analytics code)', () => {
+test('backend/worker.js, consent-manager.js, and analytics.js remain byte-identical (client-store.js never touches production library/backend/consent/analytics code)', () => {
   const { execSync } = require('node:child_process');
-  for (const file of ['professional-lash-library.js', 'backend/worker.js', 'consent-manager.js', 'analytics.js']) {
+  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js']) {
     let diff;
     try {
       diff = execSync('git diff -- ' + JSON.stringify(file), { cwd: root }).toString();

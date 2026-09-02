@@ -206,7 +206,7 @@ test('protected professional definitions remain byte-identical after populating 
     'geometry.doll':'ff527430e297a4ebcc7f4a8f7820a2ca9623bc2f5f69c873d09c903c900cd64d',
     'geometry.squirrel':'983946b9933f5ae275801fd7b2bdc7d470c31bca010bdce458070f18bdbfe1d6',
     'geometry.cat':'fc9b21fc83afbf00ebb0e41a225a7f5eef06782db3d60b2216be7322b8ee7d58',
-    'geometry.fox':'7cf9298a0331e08843127c74fc4f8f38b9ef5742e6e5a7e3bb13cd7d0a2811c7',
+    'geometry.fox':'b0590b41ad005a284b71353877da28e70af5379e84a3ec38f03ee23baea342ae',
     'direction.cat':'973a81cae098b780ec590bfe08ab3eaa2478a28a8aec66ab1efc5584c48ff0d9',
     'direction.fox':'13ab577bd4a7e9332151e11ad16675ac70525cd3edde82bac0acfb1eeea6a8ed',
     'technique.classic-one-to-one':'09eeff8937f5a5b83d14ac7e8c450f3f2a4be98851fdd4d632d9d0cf76189081',
@@ -223,7 +223,7 @@ test('protected professional definitions remain byte-identical after populating 
 });
 
 test('production is untouched: activation stays inactive and all 21 legacy IDs and consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(indexSource),'00b17cc4cfbb52b11dc5936d036cc8e6905a32d80d4ef51ad0fb62be469d74f2');
+  assert.strictEqual(digest(indexSource),'53a9deb8445c19e39d9aae6cb008003bd70278a12291a9076da48c3845b144d3');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end),catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
   assert.strictEqual(catalog.length,21);

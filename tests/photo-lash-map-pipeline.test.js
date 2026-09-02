@@ -179,6 +179,76 @@ test('mirror-equivalent eyes also produce identical derived professional curves'
   }
 });
 
+// ------------------------------------------------------------
+// DOMAIN FIX: Fox's professionally authored outer/pre-outer peak
+// (zonePositions[3] = 0.85) must survive upturned tilt (physicalTilt
+// > 4), not be silently demoted to BODY (zone 2) by the generic tilt
+// heuristic. The exemption in calculateEyeLashMap is Fox-only; every
+// other effect keeps the original tilt-based peakZone demotion.
+// ------------------------------------------------------------
+test('Fox: peakZone stays 3 / peakT stays 0.85 at physicalTilt <= 4 (unaffected either way)',()=>{
+  const fox=DESIGN_CATALOG.find(e=>e.id==='fox'),curve=curveFor(fox);
+  const shifted={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:4},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:4}};
+  const map=calculateEyeLashMap(fox,shifted,'left');
+  assert.strictEqual(map.peakZone,3);
+  const peak=expandLashMapSectors(map.zones,map.peakZone,curve).find(x=>x.isPeak);
+  assert.strictEqual(peak.t,.85);
+});
+
+test('DOMAIN FIX: Fox peakZone/peakT are exempt from the tilt demotion when physicalTilt > 4',()=>{
+  const fox=DESIGN_CATALOG.find(e=>e.id==='fox'),curve=curveFor(fox);
+  for(const tilt of [4.01,6,10]){
+    const shifted={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:tilt},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:tilt}};
+    const map=calculateEyeLashMap(fox,shifted,'left');
+    assert.strictEqual(map.peakZone,3,`tilt=${tilt}`);
+    const peak=expandLashMapSectors(map.zones,map.peakZone,curve).find(x=>x.isPeak);
+    assert.strictEqual(peak.t,.85,`tilt=${tilt}`);
+  }
+});
+
+test('Fox catalog PEAK stays 12mm and OUTER stays 11mm at t=1, independent of measurement adaptation',()=>{
+  const fox=DESIGN_CATALOG.find(e=>e.id==='fox');
+  assert.strictEqual(fox.baseZones[fox.peakZone],12);
+  assert.strictEqual(fox.baseZones[4],11);
+  assert.strictEqual(fox.zonePositions[4],1);
+});
+
+test('REGRESSION: Fox with upturned tilt (>4) no longer collapses the visible peak to BODY (t=0.44) as it did before the domain fix',()=>{
+  const fox=DESIGN_CATALOG.find(e=>e.id==='fox'),curve=curveFor(fox);
+  const upturned={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:10},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:10}};
+  const map=calculateEyeLashMap(fox,upturned,'left');
+  const peak=expandLashMapSectors(map.zones,map.peakZone,curve).find(x=>x.isPeak);
+  // Before the fix this would have been peakZone 2 / peakT 0.44 (BODY) --
+  // see the Cat/Squirrel regression test below, which still demotes
+  // exactly like this for every non-Fox effect.
+  assert.notStrictEqual(map.peakZone,2);
+  assert.notStrictEqual(peak.t,.44);
+  assert.strictEqual(map.peakZone,3);
+  assert.strictEqual(peak.t,.85);
+});
+
+test('NON-FOX REGRESSION: Cat and Squirrel still demote PEAK to BODY exactly as before when physicalTilt > 4',()=>{
+  for(const id of ['cat','squirrel']){
+    const entry=DESIGN_CATALOG.find(e=>e.id===id),curve=curveFor(entry);
+    const low={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:4},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:4}};
+    const high={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:6},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:6}};
+    const lowMap=calculateEyeLashMap(entry,low,'left'),highMap=calculateEyeLashMap(entry,high,'left');
+    assert.strictEqual(lowMap.peakZone,3,id);
+    assert.strictEqual(highMap.peakZone,2,id);
+    const highPeak=expandLashMapSectors(highMap.zones,highMap.peakZone,curve).find(x=>x.isPeak);
+    assert.strictEqual(highPeak.t,entry.zonePositions[2],id);
+  }
+});
+
+test('Fox LEFT and RIGHT peakZone/peakT remain mirrored and identical for mirror-equivalent measurements, even past the tilt threshold',()=>{
+  const fox=DESIGN_CATALOG.find(e=>e.id==='fox');
+  const upturned={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:10},perEyeTiltDegrees:{left:10,right:10}};
+  const maps=buildEyeZones(fox,upturned);
+  assert.strictEqual(maps.leftPeakZone,3);
+  assert.strictEqual(maps.rightPeakZone,3);
+  assert.deepStrictEqual(maps.left,maps.right);
+});
+
 test('derived topology remains deterministic after per-eye peak movement',()=>{
   const shifted={...neutralProfile,leftEye:{...neutralProfile.leftEye,tiltCorrected:6},perEyeTiltDegrees:{...neutralProfile.perEyeTiltDegrees,left:6}};
   for(const id of ['doll','cat','fox','squirrel','softfox']){

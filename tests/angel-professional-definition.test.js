@@ -157,7 +157,7 @@ test('production and all legacy Angel consumers remain byte-identical',()=>{
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
-  assert.strictEqual(digest(indexSource),'00b17cc4cfbb52b11dc5936d036cc8e6905a32d80d4ef51ad0fb62be469d74f2');
+  assert.strictEqual(digest(indexSource),'53a9deb8445c19e39d9aae6cb008003bd70278a12291a9076da48c3845b144d3');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
@@ -168,7 +168,7 @@ test('production and all legacy Angel consumers remain byte-identical',()=>{
   assert.strictEqual(legacyAngel.baseCurl,'B');
   assert.deepStrictEqual(legacyAngel.curlOptions,['J','B','C']);
   assert.strictEqual(legacyAngel.defaultTechnique,'Light Volume 2D');
-  assert.strictEqual(digest(catalogSource),'196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf');
+  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(indexSource.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));

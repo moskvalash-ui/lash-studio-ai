@@ -168,7 +168,7 @@ test('production is isolated: the loader exists only for the debug preview, neve
 
 test('production source parity protects Recommendation, PHOTO, DIAGRAM, Plan, ranking, primary, and all 21 IDs', () => {
   const digest = value => crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource), '00b17cc4cfbb52b11dc5936d036cc8e6905a32d80d4ef51ad0fb62be469d74f2');
+  assert.strictEqual(digest(indexSource), '53a9deb8445c19e39d9aae6cb008003bd70278a12291a9076da48c3845b144d3');
   assert.strictEqual(digest(domainSource), '11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   assert.ok(indexSource.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));

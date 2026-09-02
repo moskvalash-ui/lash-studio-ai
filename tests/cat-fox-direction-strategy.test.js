@@ -69,15 +69,30 @@ test('mapping geometry, direction strategy, and curl remain separate professiona
 });
 
 test('Cat and Fox geometry definitions and their unresolved questions remain byte-identical',()=>{
+  // PHASE_1Q added a NEW, separate `professionalDefinition.outerCornerRule`
+  // qualitative block to Fox (domain-authority decision resolving peak
+  // directionality/post-peak-decline/relative-to-current-production/
+  // relative-to-Cat qualitatively) -- Cat is untouched, and Fox's own
+  // numeric fields (peak.positionRange.min/max, crossEffectComparison
+  // relativePeakOrder/relativeSharpness) remain exactly as unresolved as
+  // before; only the digest changes to reflect the new block.
   const cat=Library.getDefinition('geometry.cat'),fox=Library.getDefinition('geometry.fox');
   assert.strictEqual(digest(JSON.stringify(cat)),'fc9b21fc83afbf00ebb0e41a225a7f5eef06782db3d60b2216be7322b8ee7d58');
-  assert.strictEqual(digest(JSON.stringify(fox)),'7cf9298a0331e08843127c74fc4f8f38b9ef5742e6e5a7e3bb13cd7d0a2811c7');
+  assert.strictEqual(digest(JSON.stringify(fox)),'b0590b41ad005a284b71353877da28e70af5379e84a3ec38f03ee23baea342ae');
   const comparison=cat.professionalDefinition.crossEffectComparison['geometry.fox'];
   assert.strictEqual(comparison.relativePeakOrder,'UNRESOLVED');
   assert.strictEqual(comparison.relativeSharpness,'UNRESOLVED');
   assert.strictEqual(comparison.tailDeclineOrPlateauDifference,'UNRESOLVED');
   assert.strictEqual(fox.professionalDefinition.peak.positionRange.min,null);
   assert.strictEqual(fox.professionalDefinition.peak.positionRange.max,null);
+  assert.deepStrictEqual(fox.professionalDefinition.outerCornerRule,{
+    peakDirectionality:'OUTER_SHIFTED_PRE_OUTER',
+    extremeOuterVsPeak:'EXTREME_OUTER_LOWER_THAN_PEAK',
+    postPeakDecline:'REQUIRED',
+    relativeToCurrentProductionPeak:'LATER_THAN_CURRENT_PRODUCTION_FOX_PEAK',
+    relativeToCat:'DISTINCT_FROM_CAT_PEAK_REQUIRED',
+    resolution:'QUALITATIVE_RULE_RESOLVED_NUMERIC_RANGE_STILL_UNRESOLVED',
+  });
 });
 
 test('direction dependency is qualitative, non-universal, and comparatively explicit',()=>{
@@ -103,12 +118,12 @@ test('production remains disabled and all production consumers and 21 legacy IDs
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
-  assert.strictEqual(digest(indexSource),'00b17cc4cfbb52b11dc5936d036cc8e6905a32d80d4ef51ad0fb62be469d74f2');
+  assert.strictEqual(digest(indexSource),'53a9deb8445c19e39d9aae6cb008003bd70278a12291a9076da48c3845b144d3');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
   assert.strictEqual(catalog.length,21);
-  assert.strictEqual(digest(catalogSource),'196a163932c70e131a7f5d8a0c5b919d052503b1960031d0588da645942478cf');
+  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(indexSource.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));

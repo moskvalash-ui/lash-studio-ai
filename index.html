@@ -2029,10 +2029,52 @@
       const sectorAgreement = sectorNames.length ? sectorNames.filter(v => v === name).length / sectorNames.length : 0;
       const coverage = Math.min(1, trimmed.length/20);
       const confidence = coverage * (0.55*colorConsistency + 0.45*sectorAgreement);
+      // RADIAL OUTER-BAND CORROBORATION (additive to the angular sectors
+      // above -- never replaces them). A real iris can genuinely have a
+      // different color at the outer/limbal band than at the pupil-
+      // adjacent inner band (e.g. a warm inner ring with a cooler-hued
+      // outer ring). The flat annulus-wide median above and the angular
+      // quadrants both blend every radius together, which can dilute real
+      // outer-band evidence down into 'uncertain'. Only trusted as a
+      // genuine radial split (not noise) when: the outer band alone has
+      // enough pixels and enough internal color agreement to stand on its
+      // own, its color differs from the flat median's, and the inner band
+      // still independently confirms the ORIGINAL flat-median category --
+      // proving a real inner/outer split exists rather than uniformly
+      // scattered noise. Symmetric across every color: nothing here
+      // references green, brown, or any other specific hue.
+      const radialBandWidth = (0.88 - 0.30) / 3;
+      const radialGroups = [[], [], []];
+      for (const s of trimmed) {
+        const sx = s.x - cx, sy = s.y - cy;
+        const nx = sx / Math.max(radius, 1), ny = sy / Math.max(radius * 0.82, 1);
+        const radial = Math.sqrt(nx*nx + ny*ny);
+        const band = radial < 0.30 + radialBandWidth ? 0 : radial < 0.30 + 2*radialBandWidth ? 1 : 2;
+        radialGroups[band].push(s);
+      }
+      const [innerGroup, , outerGroup] = radialGroups;
+      const innerName = innerGroup.length >= 3 ? classifyIrisColor(med(innerGroup.map(p=>p.r)), med(innerGroup.map(p=>p.g)), med(innerGroup.map(p=>p.b))) : null;
+      let outerName = null, outerRgb = null, outerConsistency = 0;
+      if (outerGroup.length >= 3) {
+        outerRgb = [med(outerGroup.map(p=>p.r)), med(outerGroup.map(p=>p.g)), med(outerGroup.map(p=>p.b))];
+        outerName = classifyIrisColor(...outerRgb);
+        const outerMedianDistance = med(outerGroup.map(p => Math.sqrt((p.r-outerRgb[0])**2 + (p.g-outerRgb[1])**2 + (p.b-outerRgb[2])**2)));
+        outerConsistency = Math.max(0, Math.min(1, 1 - outerMedianDistance/45));
+      }
+      const OUTER_MIN_PIXELS = 20, OUTER_MIN_CONSISTENCY = 0.55;
+      const outerCorroborated = outerGroup.length >= OUTER_MIN_PIXELS && outerConsistency >= OUTER_MIN_CONSISTENCY &&
+        outerName && outerName !== 'uncertain' && outerName !== 'mixed' && outerName !== name && innerName === name;
+      const radialEvidence = { innerCount: innerGroup.length, innerName, outerCount: outerGroup.length, outerName, outerConsistency, outerCorroborated, source: outerCorroborated ? 'outer_radial' : 'global' };
       // A spatially split mixture is genuinely ambiguous even if its global
-      // median happens to land in one category.
-      const selectedName = sectorNames.length < 3 || sectorAgreement < 0.6 ? 'uncertain' : name;
-      return { valid: true, roi, rgb:[rMed,gMed,bMed], name:selectedName, confidence, samples:trimmed.length, candidates, accepted:trimmed, rejected, medianDistance, colorConsistency, sectorAgreement, sectorNames };
+      // median happens to land in one category -- UNLESS the radial
+      // corroboration above proves it's a real inner/outer split rather
+      // than angularly-scattered noise, in which case the outer band's own
+      // color is trusted instead of falling back to 'uncertain'.
+      const selectedName = sectorNames.length < 3 || sectorAgreement < 0.6
+        ? (outerCorroborated ? outerName : 'uncertain')
+        : name;
+      const selectedRgb = outerCorroborated ? outerRgb : [rMed, gMed, bMed];
+      return { valid: true, roi, rgb:selectedRgb, name:selectedName, confidence, samples:trimmed.length, candidates, accepted:trimmed, rejected, medianDistance, colorConsistency, sectorAgreement, sectorNames, radialEvidence };
     }
 
     function sampleIrisColor(ctx, eyePoints) {
@@ -2473,6 +2515,7 @@
         classifierInput:a.rgb ? {r:a.rgb[0],g:a.rgb[1],b:a.rgb[2],h:trace.h,s:trace.s,l:trace.l} : null,
         classifierTrace:trace ? trace.evaluatedRules : null,
         selectedCategory:a.name, confidence:a.confidence,
+        radialEvidence:a.radialEvidence,
         acceptedPixels:accepted.map(p=>({x:p.x,y:p.y,r:p.r,g:p.g,b:p.b})),
         rejectedPixels:a.rejected,
         exposure:{candidateMeanLightness:mean(a.candidates.map(p=>p.lightness)),candidateMedianLightness:med(a.candidates.map(p=>p.lightness))},

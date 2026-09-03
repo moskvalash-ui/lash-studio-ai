@@ -30,9 +30,21 @@ Exit code is non-zero if any test fails.
 - `tests/*.test.js` (repo root's `tests/`): fast, dependency-free, extracts real production functions out of `index.html` and exercises them directly in Node. Owns classifier thresholds, geometry formulas, localization strings, catalog/scoring parity — anything that doesn't require an actual rendered browser.
 - `tests/e2e/`: slower, real-browser integration checks that a unit test structurally cannot perform — real UI navigation, real file upload, real face-api.js inference, real rendered layout. Keep this layer small and focused on wiring/integration, not on re-asserting logic the unit suite already owns.
 
-## Current scope (Phase A)
+## Current scope
 
-Infrastructure only: one smoke test (`smoke.spec.js`) proving the app boots and its root UI renders over real HTTP. No product behavior (Photo Analysis, Iris Color, Lash Map, recommendations) is tested here yet — those are later phases, each adding its own `*.spec.js` file on top of this same config/server foundation.
+**Phase A** — infrastructure only: `smoke.spec.js` proves the app boots and its root UI renders over real HTTP.
+
+**Phase B** — `photo-analysis.spec.js`: one real happy-path Photo Analysis flow (upload → real face-api detection → real quality gate → real analysis pipeline → real post-analysis Results screen, `ReviewScreen`). Deliberately asserts only that Results was reached, not any specific Iris/face-shape/recommendation content — that's the job of `tests/*.test.js` or a future, more targeted E2E phase. Does not touch Iris Color, Lash Map, Natural Lash Scan, or recommendation logic.
+
+Lash Map, Iris Color-specific, and further product-behavior E2E are later phases, each adding its own `*.spec.js` file on top of this same config/server foundation.
+
+## Fixture provenance (`fixtures/happy-path-face.png`)
+
+This image is a copy of one file (`тестик7.png`) from a batch of AI-generated frontal face images the project's user created earlier in this same working session, explicitly as disposable pipeline test fixtures (used across several rounds of Iris Color validation, documented in the session's own history and reflected in `tests/fixtures/real-capture-noregression-testik7-*.json`). It is **not a photograph of a real, identifiable person**: it shares the same repeating studio background/lighting/pose template as the rest of that generated batch, with only eye color varying between files — a generation-batch signature, not a real photo series. The user's own in-session messages described this batch as "generated," never as photographs of themselves, a client, or any other real individual.
+
+Verified through the real production path before being kept as a fixture: quality gate passes, exactly one face is detected, real face-api landmarks are obtained, and the real analysis pipeline reaches `ReviewScreen` — confirmed across the 3 consecutive Phase B runs in the implementation report (all pass, `retries: 0`).
+
+Do not replace this fixture with, or add alongside it, any real client/user/friend photograph, or any of the files this project's `CLAUDE.md` and prior sessions have already identified as real photographs (e.g. `глаза 33.jpeg`, `глаза 333.jpeg`, `blue-eyes-source.jpg`) — those must never be committed to this repository.
 
 ## Failure artifacts
 

@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@8.0.4/babel.min.js"></script>
   <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <!-- NLS-1: Natural Lash Scan core detection/aggregation/observation
        logic, extracted to its own plain script so it can be required
@@ -209,6 +209,12 @@
       heroSubtext: {ru:'Анализируем особенности глаз и лица, чтобы предложить профессиональные варианты наращивания.', en:'Analyze eye and facial features to generate professional lash extension recommendations.'},
       liveScanBtn: {ru:'Начать Live Scan', en:'Start Live Scan'},
       photoBtn: {ru:'Анализ по фото', en:'Photo Analysis'},
+      // SECURITY-1 privacy disclosure: describes CURRENT, audited data
+      // flow only (photo/camera analysis is on-device; only software
+      // libraries/models are fetched from external CDNs — never the
+      // user's photos/frames/results). Do not strengthen this wording
+      // without re-verifying it against actual current behavior first.
+      onDeviceAnalysisDisclosure: {ru:'Фото и видео с камеры обрабатываются на вашем устройстве и не отправляются на наши серверы. Для работы анализа приложение загружает программные библиотеки и модели с внешних CDN, но ваши фото, кадры камеры и результаты анализа им не передаются.', en:'Photos and camera video are processed on your device and are not sent to our servers. The app loads software libraries and analysis models from external CDNs, but your photos, camera frames, and analysis results are not sent to them.'},
       recentSessions: {ru:'Недавние сеансы', en:'Recent sessions'},
       noSessions: {ru:'Сеансов пока нет', en:'No sessions yet'},
       modelsLoading: {ru:'Загрузка AI-моделей...', en:'Loading AI models...'},
@@ -5449,6 +5455,7 @@
               </button>
             </div>
           )}
+          <p className="text-[11px] text-textMuted text-center leading-relaxed mb-4">{t('onDeviceAnalysisDisclosure', lang)}</p>
           <button onClick={onClients} className="w-full py-3.5 rounded-md font-medium text-[14px] press-scale glass flex items-center justify-center gap-2 text-textPrimary mb-4">
             <ClientsIcon className="w-4 h-4 text-accent" />
             {t('clientsNavLabel', lang)}

@@ -26,20 +26,34 @@ test('real Photo Analysis happy path: upload -> real face-api -> real analysis -
 
   await page.goto('/index.html');
 
-  // 1) Wait for the real user-facing entry control to become available --
+  // 1) Dismiss the real analytics-consent banner if it appears (a fresh
+  // browser context has no stored consent decision, so it always does).
+  // Discovered by this test's own first real run: the banner is
+  // top-anchored with `max-h-[60vh]` and can genuinely overlap the
+  // Photo Analysis button depending on exact content/viewport height at
+  // click time -- a real user would dismiss it too before proceeding, so
+  // doing the same here reflects the real flow rather than papering over
+  // a race with a longer timeout. Reject (not Accept) so this test's
+  // behavior never depends on -- or exercises -- the separate analytics
+  // consent/tracking path.
+  const rejectConsent = page.getByRole('button', { name: 'Отказаться', exact: true });
+  await rejectConsent.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+  if (await rejectConsent.isVisible().catch(() => false)) await rejectConsent.click();
+
+  // 2) Wait for the real user-facing entry control to become available --
   // same production readiness signal already proven in Phase A (models
   // loaded), not a fixed sleep.
   const photoBtn = page.getByRole('button', { name: 'Анализ по фото', exact: true });
   await expect(photoBtn, 'Photo Analysis entry control must become enabled once models load').toBeEnabled({ timeout: 20_000 });
 
-  // 2) Enter Photo Analysis through the real control.
+  // 3) Enter Photo Analysis through the real control.
   await photoBtn.click();
 
-  // 3) Upload the fixture through the real, production file input.
+  // 4) Upload the fixture through the real, production file input.
   const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles(FIXTURE);
 
-  // 4) Wait for the REAL end state of analyze() (index.html:7990-8167):
+  // 5) Wait for the REAL end state of analyze() (index.html:7990-8167):
   // either the real post-analysis ReviewScreen (success) or the real
   // quality-gate/no-face error screen (failure) -- whichever the
   // production pipeline actually reaches. Racing both real signals
@@ -53,12 +67,12 @@ test('real Photo Analysis happy path: upload -> real face-api -> real analysis -
     errorRetryBtn.waitFor({ state: 'visible', timeout: 45_000 }),
   ]);
 
-  // 5) The real pipeline must have reached Results (ReviewScreen), not
+  // 6) The real pipeline must have reached Results (ReviewScreen), not
   // the error path -- this fixture is expected to be a reliable pass.
   await expect(errorRetryBtn, 'production quality gate / face detection must not reject this fixture').not.toBeVisible();
   await expect(reviewTitle, 'real analysis must complete and reach the real post-analysis Results screen (ReviewScreen)').toBeVisible();
 
-  // 6) At least one stable, result-level, production-rendered element
+  // 7) At least one stable, result-level, production-rendered element
   // proving analysis genuinely completed with real data -- the client
   // photo preview the real pipeline itself produced (result.originalImage,
   // index.html ReviewScreen), not a placeholder.
@@ -66,6 +80,6 @@ test('real Photo Analysis happy path: upload -> real face-api -> real analysis -
   await expect(clientPhoto, 'the real analyzed photo must be rendered on the Results screen').toBeVisible();
   await expect(clientPhoto).toHaveAttribute('src', /^data:image\//);
 
-  // 7) No uncaught page error during the whole real flow.
+  // 8) No uncaught page error during the whole real flow.
   expect(pageErrors, `no fatal page errors during the real analysis flow: ${JSON.stringify(pageErrors)}`).toEqual([]);
 });

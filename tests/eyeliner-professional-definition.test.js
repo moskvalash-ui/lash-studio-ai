@@ -110,7 +110,7 @@ test('production remains disabled and legacy Eyeliner plus all production consum
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
-  assert.strictEqual(digest(indexSource),'ec53e4cd2af073c4d733cbbb0c4d8d60a20006dee38d502246905b5bb2c25e18');
+  assert.strictEqual(digest(indexSource),'b8ee241aad23231f699f9b84896ccbb2f6e7f4e66944ca3c1ebf051aee08c7cd');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();

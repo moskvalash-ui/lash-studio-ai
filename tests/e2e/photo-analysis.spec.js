@@ -23,6 +23,15 @@ test('real Photo Analysis happy path: upload -> real face-api -> real analysis -
 
   const pageErrors = [];
   page.on('pageerror', (err) => pageErrors.push(err.message));
+  // SECURITY-2A: this run never sets ?debug=1, so it exercises the app's
+  // real NORMAL production mode -- capture every console message so we
+  // can prove, dynamically (not just by reading source), that no
+  // user-derived facial/eye/iris diagnostic payload reaches the console
+  // outside debug mode. Only message prefixes are recorded, never full
+  // payload contents, to keep this test itself from printing sensitive
+  // data on failure.
+  const consoleMessagePrefixes = [];
+  page.on('console', (msg) => consoleMessagePrefixes.push(msg.text().slice(0, 40)));
 
   await page.goto('/index.html');
 
@@ -82,4 +91,15 @@ test('real Photo Analysis happy path: upload -> real face-api -> real analysis -
 
   // 8) No uncaught page error during the whole real flow.
   expect(pageErrors, `no fatal page errors during the real analysis flow: ${JSON.stringify(pageErrors)}`).toEqual([]);
+
+  // 9) SECURITY-2A: dynamic proof that this real, normal-mode (no
+  // ?debug=1) run never wrote the sensitive Photo Analysis diagnostic
+  // markers to console -- both were already debug-gated before this
+  // task, so this is a regression guard against future accidental
+  // un-gating, not evidence of a new fix in this file.
+  const sensitivePhotoMarkers = ['[Photo] IRIS COLOR AUDIT', '[Photo] EYELID CREASE V2'];
+  for (const marker of sensitivePhotoMarkers) {
+    const hit = consoleMessagePrefixes.find((p) => marker.startsWith(p) || p.startsWith(marker));
+    expect(hit, `sensitive diagnostic marker must not appear in normal-mode console output: ${marker}`).toBeUndefined();
+  }
 });

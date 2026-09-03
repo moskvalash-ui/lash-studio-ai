@@ -419,7 +419,77 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       "      const statusColor = (phase === 'searching' || phase === 'lost' || phase === 'cameraStopped' || phase === 'error') ? 'bg-danger' : phase === 'adjust' ? 'bg-peak' : (phase === 'finalizing' ? 'bg-success' : 'bg-accent');",
       "      const statusColor = phase === 'searching' ? 'bg-danger' : phase === 'lost' ? 'bg-danger' : phase === 'adjust' ? 'bg-peak' : (phase === 'finalizing' ? 'bg-success' : 'bg-accent');"
     );
-  const normalize = span => omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(span))));
+  // Approved SECURITY-2A fix: four pre-existing, previously-unconditional
+  // console.log call sites (FACE DETECTED score/box, EYE METRICS head-
+  // pose/EAR/brightness/sharpness, EYELID CONSENSUS derived classification,
+  // RESULT GENERATED full diagnostics) are now gated behind the same
+  // debugAvailable flag this screen already uses for its other debug-only
+  // output. Each is a bounded, additive, comment+gate-only change,
+  // normalized back to its pre-fix HEAD form — same technique as the four
+  // normalizers above — so this guard still fails loudly on any OTHER,
+  // unrelated drift in LiveScanScreen.
+  const omitSecurity2AConsoleGates = span => span
+    .replace(
+      "          // SECURITY-2A: face detection score/box is derived, per-frame,\n" +
+      "          // user-specific measurement data -- gated behind the existing\n" +
+      "          // debugAvailable flag (same isDebugModeEnabled() this screen\n" +
+      "          // already uses for its other debug-only output), not logged\n" +
+      "          // unconditionally in normal production use.\n" +
+      "          if (debugAvailable) console.log('[LSA] FACE DETECTED', { score: det.detection.score.toFixed(3), box: det.detection.box });",
+      "          console.log('[LSA] FACE DETECTED', { score: det.detection.score.toFixed(3), box: det.detection.box });"
+    )
+    .replace(
+      "          // SECURITY-2A: real per-frame derived head-pose/eye-aperture/\n" +
+      "          // exposure measurements -- debug-gated, same reasoning as\n" +
+      "          // FACE DETECTED above. hasNaN alone (used by the NaN-rejection\n" +
+      "          // branch just below) never needed the measurement values\n" +
+      "          // themselves to be logged.\n" +
+      "          if (debugAvailable) {\n" +
+      "            console.log('[LSA] EYE METRICS', {\n" +
+      "              roll: headPose.roll.toFixed(1), yaw: headPose.yawProxy.toFixed(3), pitch: headPose.pitchProxy.toFixed(3),\n" +
+      "              leftEAR: leftMetrics.ear.toFixed(3), rightEAR: rightMetrics.ear.toFixed(3),\n" +
+      "              brightness: brightness.toFixed(1), sharpness: sharpness.toFixed(1), hasNaN: metricsNaN,\n" +
+      "            });\n" +
+      "          }",
+      "          console.log('[LSA] EYE METRICS', {\n" +
+      "            roll: headPose.roll.toFixed(1), yaw: headPose.yawProxy.toFixed(3), pitch: headPose.pitchProxy.toFixed(3),\n" +
+      "            leftEAR: leftMetrics.ear.toFixed(3), rightEAR: rightMetrics.ear.toFixed(3),\n" +
+      "            brightness: brightness.toFixed(1), sharpness: sharpness.toFixed(1), hasNaN: metricsNaN,\n" +
+      "          });"
+    )
+    .replace(
+      "          // SECURITY-2A: eyelidConsensus.type / classified.eyelidType are\n" +
+      "          // real derived classification results for this specific user --\n" +
+      "          // debug-gated, same reasoning as EYE METRICS above.\n" +
+      "          if (debugAvailable) console.log('[LSA] EYELID CONSENSUS', eyelidConsensus.type, `(${eyelidConsensus.reliableCount}/${eyelidConsensus.totalCount} reliable, conflict=${eyelidConsensus.conflict})`, 'aggregate said', classified.eyelidType);",
+      "          console.log('[LSA] EYELID CONSENSUS', eyelidConsensus.type, `(${eyelidConsensus.reliableCount}/${eyelidConsensus.totalCount} reliable, conflict=${eyelidConsensus.conflict})`, 'aggregate said', classified.eyelidType);"
+    )
+    .replace(
+      "          // SECURITY-2A: rec.diagnostics carries the real scan's full\n" +
+      "          // aggregated head-pose/eye-geometry metrics AND the computed\n" +
+      "          // iris color result -- the richest console payload in this\n" +
+      "          // screen. `rec.diagnostics` itself is left completely\n" +
+      "          // unchanged (still attached to the result exactly as before;\n" +
+      "          // that data-flow question is out of this fix's scope) -- only\n" +
+      "          // this console.log is debug-gated.\n" +
+      "          if (debugAvailable) console.log('[LSA] RESULT GENERATED', rec.diagnostics);",
+      "          console.log('[LSA] RESULT GENERATED', rec.diagnostics);"
+    )
+    // This span's end marker is `PhotoAnalysisScreen`, so it also spans
+    // NaturalLashScanScreen (which sits between LiveScanScreen and
+    // PhotoAnalysisScreen) — that function's own SECURITY-2A change
+    // (the '[NLS DIAG]' console.log) must be normalized here too, same
+    // as camera-preview.test.js's dedicated NaturalLashScanScreen check.
+    .replace(
+      "          // SECURITY-2A: diagSnapshot carries real camera/ROI/eye-width\n" +
+      "          // measurements for this scan -- both the log and the existing\n" +
+      "          // debug-panel state update now share the same debugAvailable\n" +
+      "          // gate (the state update was already gated; only the\n" +
+      "          // console.log was not).\n" +
+      "          if (debugAvailable) { console.log('[NLS DIAG]', diagSnapshot); setDiag(diagSnapshot); }",
+      "          console.log('[NLS DIAG]', diagSnapshot);\n          if (debugAvailable) setDiag(diagSnapshot);"
+    );
+  const normalize = span => omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(span)))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');

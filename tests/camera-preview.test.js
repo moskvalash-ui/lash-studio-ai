@@ -248,7 +248,24 @@ test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisib
   const cur = extractSpan(src, startMarker, endMarker);
   const prev = extractSpan(HEAD_SRC, startMarker, endMarker);
   assert.ok(cur !== null && prev !== null, 'expected to locate NaturalLashScanScreen in both current and HEAD source');
-  assert.strictEqual(cur, prev, 'NaturalLashScanScreen must be byte-identical to git HEAD — this fix touches only LiveScanScreen');
+  // Approved SECURITY-2A fix: the pre-existing `console.log('[NLS DIAG]', ...)`
+  // (previously unconditional) is now gated behind the same debugAvailable
+  // flag that already gated the sibling setDiag(diagSnapshot) call right
+  // next to it — a single bounded, additive change, normalized back to its
+  // pre-fix HEAD form so this guard still fails loudly on any OTHER,
+  // unrelated drift in NaturalLashScanScreen (including its own
+  // CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation, which SECURITY-2A
+  // does not touch).
+  const omitSecurity2ADiagGate = span => span.replace(
+    "          // SECURITY-2A: diagSnapshot carries real camera/ROI/eye-width\n" +
+    "          // measurements for this scan -- both the log and the existing\n" +
+    "          // debug-panel state update now share the same debugAvailable\n" +
+    "          // gate (the state update was already gated; only the\n" +
+    "          // console.log was not).\n" +
+    "          if (debugAvailable) { console.log('[NLS DIAG]', diagSnapshot); setDiag(diagSnapshot); }",
+    "          console.log('[NLS DIAG]', diagSnapshot);\n          if (debugAvailable) setDiag(diagSnapshot);"
+  );
+  assert.strictEqual(omitSecurity2ADiagGate(cur), prev, 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
 });
 
 test('existing preview-mirror behavior is untouched: still exactly 2 mirrored <video> elements, keyed on facingMode only', () => {

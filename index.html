@@ -6766,7 +6766,12 @@
             nose: det.landmarks.getNose().map(p => ({ x: p.x/scale, y: p.y/scale })),
             mouth: det.landmarks.getMouth().slice(0, 12).map(p => ({ x: p.x/scale, y: p.y/scale })),
           };
-          console.log('[LSA] FACE DETECTED', { score: det.detection.score.toFixed(3), box: det.detection.box });
+          // SECURITY-2A: face detection score/box is derived, per-frame,
+          // user-specific measurement data -- gated behind the existing
+          // debugAvailable flag (same isDebugModeEnabled() this screen
+          // already uses for its other debug-only output), not logged
+          // unconditionally in normal production use.
+          if (debugAvailable) console.log('[LSA] FACE DETECTED', { score: det.detection.score.toFixed(3), box: det.detection.box });
           console.log('[LSA] LANDMARKS DETECTED', det.landmarks ? det.landmarks.positions.length + ' points' : 'MISSING');
 
           const headPose = computeHeadPose(det.landmarks);
@@ -6777,11 +6782,18 @@
           const sharpness = estimateSharpness(ctx, det.detection.box);
 
           const metricsNaN = [headPose.roll, headPose.yawProxy, headPose.pitchProxy, leftMetrics.ear, rightMetrics.ear, leftMetrics.widthRatio, rightMetrics.widthRatio, brightness, sharpness].some(v => Number.isNaN(v));
-          console.log('[LSA] EYE METRICS', {
-            roll: headPose.roll.toFixed(1), yaw: headPose.yawProxy.toFixed(3), pitch: headPose.pitchProxy.toFixed(3),
-            leftEAR: leftMetrics.ear.toFixed(3), rightEAR: rightMetrics.ear.toFixed(3),
-            brightness: brightness.toFixed(1), sharpness: sharpness.toFixed(1), hasNaN: metricsNaN,
-          });
+          // SECURITY-2A: real per-frame derived head-pose/eye-aperture/
+          // exposure measurements -- debug-gated, same reasoning as
+          // FACE DETECTED above. hasNaN alone (used by the NaN-rejection
+          // branch just below) never needed the measurement values
+          // themselves to be logged.
+          if (debugAvailable) {
+            console.log('[LSA] EYE METRICS', {
+              roll: headPose.roll.toFixed(1), yaw: headPose.yawProxy.toFixed(3), pitch: headPose.pitchProxy.toFixed(3),
+              leftEAR: leftMetrics.ear.toFixed(3), rightEAR: rightMetrics.ear.toFixed(3),
+              brightness: brightness.toFixed(1), sharpness: sharpness.toFixed(1), hasNaN: metricsNaN,
+            });
+          }
           if (metricsNaN) {
             console.log('[LSA] FRAME REJECTED: NaN in metrics');
             setPhase('adjust'); setStageKey(hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected'); setHintKey('hintBlurry');
@@ -7031,7 +7043,10 @@
           // (including all Eye Geometry) passes through unchanged.
           const eyelidConsensus = resolveReliableFrameConsensus(bufferRef.current);
           const finalProfile = applyReliableFrameConsensus(classified, eyelidConsensus);
-          console.log('[LSA] EYELID CONSENSUS', eyelidConsensus.type, `(${eyelidConsensus.reliableCount}/${eyelidConsensus.totalCount} reliable, conflict=${eyelidConsensus.conflict})`, 'aggregate said', classified.eyelidType);
+          // SECURITY-2A: eyelidConsensus.type / classified.eyelidType are
+          // real derived classification results for this specific user --
+          // debug-gated, same reasoning as EYE METRICS above.
+          if (debugAvailable) console.log('[LSA] EYELID CONSENSUS', eyelidConsensus.type, `(${eyelidConsensus.reliableCount}/${eyelidConsensus.totalCount} reliable, conflict=${eyelidConsensus.conflict})`, 'aggregate said', classified.eyelidType);
 
           // REAL EYELID FRAME TRACE — DEBUG-ONLY final snapshot. Pure
           // capture of the values JUST computed above (aggregated,
@@ -7102,7 +7117,14 @@
             headPose: aggregated.headPose, leftEyeMetrics: aggregated.left, rightEyeMetrics: aggregated.right,
             iris, topDesigns: designs.slice(0,3).map(d => ({ name: d.name, score: d.score })),
           };
-          console.log('[LSA] RESULT GENERATED', rec.diagnostics);
+          // SECURITY-2A: rec.diagnostics carries the real scan's full
+          // aggregated head-pose/eye-geometry metrics AND the computed
+          // iris color result -- the richest console payload in this
+          // screen. `rec.diagnostics` itself is left completely
+          // unchanged (still attached to the result exactly as before;
+          // that data-flow question is out of this fix's scope) -- only
+          // this console.log is debug-gated.
+          if (debugAvailable) console.log('[LSA] RESULT GENERATED', rec.diagnostics);
 
           setStageKey('stageComplete');
           setTimeout(() => onCompleteRef.current(rec), 1000);
@@ -7686,8 +7708,12 @@
               usingFallbackPath,
             },
           };
-          console.log('[NLS DIAG]', diagSnapshot);
-          if (debugAvailable) setDiag(diagSnapshot);
+          // SECURITY-2A: diagSnapshot carries real camera/ROI/eye-width
+          // measurements for this scan -- both the log and the existing
+          // debug-panel state update now share the same debugAvailable
+          // gate (the state update was already gated; only the
+          // console.log was not).
+          if (debugAvailable) { console.log('[NLS DIAG]', diagSnapshot); setDiag(diagSnapshot); }
 
           const lashLineLocal = effectiveRoi ? detectLashLine(effectiveRoi.eyeLocal) : null;
           // roiIsNative: effectiveRoi's (x0,y0)/eyeLocal are already in

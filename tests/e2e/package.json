@@ -1,0 +1,11 @@
+{
+  "name": "lash-studio-ai-e2e",
+  "private": true,
+  "description": "Playwright E2E infrastructure for LASH STUDIO AI. Scoped to this directory so the dependency and its node_modules never touch the rest of the repo, which otherwise has zero build tooling by design (see ../../CLAUDE.md).",
+  "scripts": {
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.40.0"
+  }
+}

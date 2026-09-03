@@ -1,0 +1,6 @@
+# E2E (Playwright) generated output -- see tests/e2e/README.md.
+# Scoped narrowly on purpose: this repo has no build step and nothing
+# else in it currently needs ignoring.
+tests/e2e/node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/

@@ -251,11 +251,18 @@ test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisib
   // Approved SECURITY-2A fix: the pre-existing `console.log('[NLS DIAG]', ...)`
   // (previously unconditional) is now gated behind the same debugAvailable
   // flag that already gated the sibling setDiag(diagSnapshot) call right
-  // next to it — a single bounded, additive change, normalized back to its
-  // pre-fix HEAD form so this guard still fails loudly on any OTHER,
-  // unrelated drift in NaturalLashScanScreen (including its own
-  // CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation, which SECURITY-2A
-  // does not touch).
+  // next to it — a single bounded, additive change. SECURITY-2A has since
+  // been committed to git HEAD itself, so both `cur` (working tree) and
+  // `prev` (HEAD) now contain this gate — normalizing only `cur` back to
+  // the pre-fix shape (as an earlier version of this test did, when HEAD
+  // still predated the SECURITY-2A commit) would permanently and
+  // incorrectly desync from `prev`, which no longer needs normalizing.
+  // Applying the SAME normalizer to BOTH sides keeps the comparison
+  // symmetric regardless of which side (if either) still has the gate:
+  // on a clean tree both sides collapse to the identical ungated form and
+  // compare equal; any OTHER, unrelated drift in either `cur` or `prev`
+  // (including CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation, which
+  // SECURITY-2A does not touch) still makes them diverge and fail loudly.
   const omitSecurity2ADiagGate = span => span.replace(
     "          // SECURITY-2A: diagSnapshot carries real camera/ROI/eye-width\n" +
     "          // measurements for this scan -- both the log and the existing\n" +
@@ -265,7 +272,7 @@ test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisib
     "          if (debugAvailable) { console.log('[NLS DIAG]', diagSnapshot); setDiag(diagSnapshot); }",
     "          console.log('[NLS DIAG]', diagSnapshot);\n          if (debugAvailable) setDiag(diagSnapshot);"
   );
-  assert.strictEqual(omitSecurity2ADiagGate(cur), prev, 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
+  assert.strictEqual(omitSecurity2ADiagGate(cur), omitSecurity2ADiagGate(prev), 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
 });
 
 test('existing preview-mirror behavior is untouched: still exactly 2 mirrored <video> elements, keyed on facingMode only', () => {

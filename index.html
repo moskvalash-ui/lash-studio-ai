@@ -4,11 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>LASH STUDIO AI</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone@8.0.4/babel.min.js"></script>
-  <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <!-- SECURITY-2C: pinned to the exact version already being served
+       (verified byte-identical to the prior unversioned redirect target
+       at pinning time). Tailwind's CDN response carries no
+       Access-Control-Allow-Origin header, so crossorigin/integrity
+       cannot be added here without breaking the load (SRI requires a
+       CORS-mode fetch) -- see CLAUDE.md / SECURITY-2C audit notes. -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"></script>
+  <script src="https://unpkg.com/@babel/standalone@8.0.4/babel.min.js" crossorigin="anonymous" integrity="sha384-bdF7m0Y1IFKt9Q6xC8X9qkXn0OBriQWKyWwZKYsN05zF6P/g9OakjjL0G2Sd4pB4"></script>
+  <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js" crossorigin="anonymous" integrity="sha384-gzn2n++arkvyhdNLmUf1s6F5NZ8iAbZ7FhIt+Zw7Jlf1n/vNTmZ3+cYr7S4ogyco"></script>
   <!-- NLS-1: Natural Lash Scan core detection/aggregation/observation
        logic, extracted to its own plain script so it can be required
        directly by Node tests (tests/lash-scan-core.test.js) with zero

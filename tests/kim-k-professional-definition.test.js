@@ -134,7 +134,7 @@ test('validation includes provenance, review, revision, and explicit uncertainty
 });
 
 test('all 21 legacy outputs and production consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(indexSource),'b8ee241aad23231f699f9b84896ccbb2f6e7f4e66944ca3c1ebf051aee08c7cd');
+  assert.strictEqual(digest(indexSource),'901ee8ce6417eb97931479bde0fca61670b80f533c6bc26e6457bb1101ee26da');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();

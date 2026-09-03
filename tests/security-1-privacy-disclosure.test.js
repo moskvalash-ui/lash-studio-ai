@@ -16,9 +16,15 @@ function test(name, fn) { try { fn(); pass++; console.log(`  ok  - ${name}`); } 
 // A. Babel pin
 // ------------------------------------------------------------
 test('A. @babel/standalone is loaded from an exact-version URL, not an unversioned "latest" URL', () => {
+  // SECURITY-2C (later, approved) added crossorigin/integrity attributes
+  // to this same tag -- this assertion checks the pinned URL itself
+  // (this test's actual concern), not the full tag string, so it stays
+  // correct across that legitimate addition. See
+  // tests/security-2c-cdn-pinning-sri.test.js for the SRI/crossorigin
+  // assertions themselves.
   assert.ok(
-    src.includes('<script src="https://unpkg.com/@babel/standalone@8.0.4/babel.min.js"></script>'),
-    'expected the exact pinned tag to be present'
+    src.includes('<script src="https://unpkg.com/@babel/standalone@8.0.4/babel.min.js"'),
+    'expected the exact pinned Babel URL to be present'
   );
   assert.ok(
     !/unpkg\.com\/@babel\/standalone\/babel\.min\.js/.test(src),

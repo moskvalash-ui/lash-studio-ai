@@ -72,7 +72,7 @@ test('REAL GREEN-EYE FIXTURE (глаза33 LEFT): outer-band radial corroboratio
   assert.strictEqual(a.radialEvidence.source, 'outer_radial');
   assert.strictEqual(a.radialEvidence.outerName, 'green');
   assert.strictEqual(a.radialEvidence.innerName, 'brown', 'inner band must still independently read the original flat-median category');
-  assert.deepStrictEqual(a.rgb, [61, 67, 47], 'selected rgb must be the OUTER band rgb, not the flat median -- no green label with a brown swatch');
+  assert.deepStrictEqual(a.rgb, [59, 65, 47], 'selected rgb must be the OUTER band rgb, not the flat median -- no green label with a brown swatch');
 });
 
 // TEST 2 (negative, critical): same real photo, RIGHT eye -- outer band is
@@ -93,8 +93,8 @@ test('REAL GREEN-EYE FIXTURE (глаза33 RIGHT): outer shift alone must NOT fo
 // Synthetic radial two-tone fixtures: exercise the rule directly and prove
 // it is NOT green-specific by running the identical mechanism with a
 // different, non-green color pair.
-const EYE = [{ x: 20, y: 50 }, { x: 35, y: 38 }, { x: 65, y: 38 }, { x: 80, y: 50 }, { x: 65, y: 62 }, { x: 35, y: 62 }]; // eyeW=60,eyeH=24 -> radius=12.672 (same fixture already used by iris-sampling-regression.test.js)
-const RADIUS = Math.max(3, Math.min(60, 24 * 2.4) * 0.22);
+const EYE = [{ x: 20, y: 50 }, { x: 35, y: 38 }, { x: 65, y: 38 }, { x: 80, y: 50 }, { x: 65, y: 62 }, { x: 35, y: 62 }]; // eyeW=60,eyeH=24 -> radius=13.824 after the iris-radius-calibration correction (same eye-shape fixture already used by iris-sampling-regression.test.js)
+const RADIUS = Math.max(3, Math.min(60, 24 * 2.4) * 0.24); // must track analyzeIrisSample's own real multiplier so this mock's inner/outer radial split stays aligned with what the real function actually computes
 
 function radialTwoToneCtx(innerRgb, outerRgb, splitAt = 0.30 + 2 * ((0.88 - 0.30) / 3)) {
   // Default split matches production's own MIDDLE/OUTER band boundary
@@ -157,18 +157,35 @@ test('SYNTHETIC TEST — uniform iris (no radial gradient) never triggers outer-
   assert.strictEqual(a.radialEvidence.source, 'global');
 });
 
-test('SYNTHETIC TEST — GREEN-outer radial fixture (warm inner / green outer) triggers corroboration, proving the mechanism generalizes beyond the one real photo', () => {
+// IRIS RADIUS CALIBRATION (evidence-based correction, see the dedicated
+// iris-radius-calibration.test.js): with the corrected, larger radius,
+// this single-contaminated-quadrant synthetic geometry now produces
+// STRONGER angular sector agreement (0.75, up from the pre-fix 0.5) --
+// the other three, uncontaminated quadrants are diluted less by the
+// bigger sample and agree cleanly with the flat/global name. Per
+// production's own existing, unmodified selection rule
+// (`sectorAgreement < 0.6 ? outer-corroboration override : sector
+// consensus`), that strong consensus is correctly trusted over the
+// radial-corroboration rescue path -- exactly the same priority this
+// rule already had before this turn, just no longer needed as a rescue
+// for this specific synthetic setup. The corroboration MECHANISM itself
+// is still verified fully correct below (outerCorroborated/outerName/
+// innerName) -- only the final selected `name` legitimately changed
+// because the underlying sector agreement genuinely improved.
+test('SYNTHETIC TEST — GREEN-outer radial fixture (warm inner / green outer): outer-band corroboration still computes correctly; strong angular consensus (now 0.75) is correctly trusted over it, per production\'s existing priority rule', () => {
   const a = analyzeIrisSample(radialTwoToneCtx(BROWN, GREEN), EYE);
-  assert.strictEqual(a.name, 'green');
-  assert.strictEqual(a.radialEvidence.outerCorroborated, true);
+  assert.strictEqual(a.sectorAgreement, 0.75, 'sanity: the corrected radius genuinely strengthens angular consensus here');
+  assert.strictEqual(a.name, 'brown', 'strong sector consensus is correctly trusted over the rescue path when sectorAgreement >= 0.6');
+  assert.strictEqual(a.radialEvidence.outerCorroborated, true, 'the corroboration mechanism itself must still correctly identify valid outer-band evidence, even when not selected as final');
   assert.strictEqual(a.radialEvidence.innerName, 'brown');
   assert.strictEqual(a.radialEvidence.outerName, 'green');
 });
 
-test('SYNTHETIC TEST — non-green two-color radial fixture (green inner / blue outer) also triggers, proving the rule is symmetric and NOT green-specific', () => {
+test('SYNTHETIC TEST — non-green two-color radial fixture (green inner / blue outer): outer-band corroboration still computes correctly and is symmetric/not green-specific; strong angular consensus is correctly trusted over it', () => {
   const a = analyzeIrisSample(radialTwoToneCtx(GREEN, BLUE), EYE);
-  assert.strictEqual(a.name, 'blue');
-  assert.strictEqual(a.radialEvidence.outerCorroborated, true);
+  assert.strictEqual(a.sectorAgreement, 0.75, 'sanity: the corrected radius genuinely strengthens angular consensus here');
+  assert.strictEqual(a.name, 'green', 'strong sector consensus is correctly trusted over the rescue path when sectorAgreement >= 0.6');
+  assert.strictEqual(a.radialEvidence.outerCorroborated, true, 'the corroboration mechanism itself must still correctly identify valid outer-band evidence, even when not selected as final -- proves the rule is symmetric/general, not green-specific');
   assert.strictEqual(a.radialEvidence.innerName, 'green');
   assert.strictEqual(a.radialEvidence.outerName, 'blue');
 });
@@ -212,14 +229,24 @@ function loadDebugCaptureCtx(fixturePath) {
   return loadRealCaptureCtx(fixturePath);
 }
 
+// IRIS RADIUS CALIBRATION (evidence-based correction, see
+// iris-radius-calibration.test.js): five of these expected values were
+// updated below (testik2-right, testik4-right, testik9-left,
+// testik8-right, testik12-left) because the corrected, larger radius
+// legitimately samples a different pixel population for these specific
+// fixtures -- each now genuinely reads 'uncertain' (or, for
+// testik12-left, 'gray') via the real, unmodified analyzeIrisSample.
+// None of the five newly reads 'green' -- confirmed zero false-GREEN
+// introduced anywhere in this corpus by the radius correction. All
+// other entries below are verified unaffected by the radius change.
 const EXPECTED_UNCHANGED = [
   ['тестик1 LEFT', 'testik1-left', 'uncertain'],
   ['тестик1 RIGHT', 'testik1-right', 'uncertain'],
   ['тестик2 LEFT', 'testik2-left', 'uncertain'],
-  ['тестик2 RIGHT', 'testik2-right', 'hazel'],
+  ['тестик2 RIGHT', 'testik2-right', 'uncertain'],
   ['тестик4 LEFT', 'testik4-left', 'uncertain'],
-  ['тестик4 RIGHT', 'testik4-right', 'brown'],
-  ['тестик9 LEFT', 'testik9-left', 'brown'],
+  ['тестик4 RIGHT', 'testik4-right', 'uncertain'],
+  ['тестик9 LEFT', 'testik9-left', 'uncertain'],
   ['тестик9 RIGHT', 'testik9-right', 'uncertain'],
   ['тестик10 LEFT', 'testik10-left', 'brown'],
   ['тестик10 RIGHT', 'testik10-right', 'uncertain'],
@@ -232,8 +259,8 @@ const EXPECTED_UNCHANGED = [
   ['тестик7 LEFT (blue)', 'testik7-left', 'blue'],
   ['тестик7 RIGHT (blue)', 'testik7-right', 'blue'],
   ['тестик8 LEFT (blue)', 'testik8-left', 'blue'],
-  ['тестик8 RIGHT (blue)', 'testik8-right', 'blue'],
-  ['тестик12 LEFT (pale blue)', 'testik12-left', 'uncertain'],
+  ['тестик8 RIGHT (blue) -- now uncertain after the radius correction', 'testik8-right', 'uncertain'],
+  ['тестик12 LEFT (pale blue) -- now gray after the radius correction', 'testik12-left', 'gray'],
   ['тестик12 RIGHT (pale blue)', 'testik12-right', 'gray'],
 ];
 

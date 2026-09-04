@@ -465,7 +465,7 @@ test('N4. physical L/R normalization span is untouched by this turn', () => {
   assert.ok(!/[Ii]risColorAudit|debugIris/.test(span), 'physical L/R normalization must have zero coupling to the iris audit layer');
 });
 test('N5. iris sampling uses the annular mask and narrow catchlight gate', () => {
-  const radiusLine = 'const radius = Math.max(3, Math.min(eyeW, eyeH * 2.4) * 0.22);';
+  const radiusLine = 'const radius = Math.max(3, Math.min(eyeW, eyeH * 2.4) * 0.24);';
   const brightRejectLine = "if (lightness > 235 && sat < 0.12) { rejected.push({ ...pixel, reason:'bright_specular' }); continue; }";
   const darkRejectLine = "if (lightness < 25) { rejected.push({ ...pixel, reason:'dark_pupil_or_lash' }); continue; }";
   const grayGate = "if (chroma < 10 && l >= 0.35 && l < 0.7) return 'gray';";

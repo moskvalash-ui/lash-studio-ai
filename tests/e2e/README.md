@@ -36,7 +36,9 @@ Exit code is non-zero if any test fails.
 
 **Phase B** — `photo-analysis.spec.js`: one real happy-path Photo Analysis flow (upload → real face-api detection → real quality gate → real analysis pipeline → real post-analysis Results screen, `ReviewScreen`). Deliberately asserts only that Results was reached, not any specific Iris/face-shape/recommendation content — that's the job of `tests/*.test.js` or a future, more targeted E2E phase. Does not touch Iris Color, Lash Map, Natural Lash Scan, or recommendation logic.
 
-Lash Map, Iris Color-specific, and further product-behavior E2E are later phases, each adding its own `*.spec.js` file on top of this same config/server foundation.
+**Phase C** — `iris-color.spec.js`: extends Phase B one step further, through the real "confirm" transition into `HeroScreen`, and asserts the actual, user-visible Iris Color result (RU label "Цвет радужки" → value "Голубые"/Blue) for `fixtures/happy-path-face.png`. This is the *only* Iris category currently covered end to end: it is the only full-face image fixture in the repository (every other Iris fixture under `../fixtures/*.json` is derived pixel/audit data by design — see `../../CLAUDE.md`'s Privacy section — not an uploadable photo). BLUE was confirmed, not assumed: both eyes independently classify blue with real sampled-pixel evidence (left: 3/4 sectors blue; right: 4/4 sectors blue), and bilateral `combineIris` also resolves to blue rather than uncertain (see the Phase C implementation report for the full diagnostic trace). GREEN/BROWN/GRAY/UNCERTAIN are not covered — each would need its own privacy-safe full-face fixture, which does not currently exist in this repository and was explicitly out of scope to fabricate in that task. Iris Color logic itself (thresholds, radial corroboration, bilateral combination, uncertainty propagation) remains owned by `tests/iris-*.test.js`; this file only proves the real UI wiring end to end.
+
+Lash Map and further product-behavior E2E are later phases, each adding its own `*.spec.js` file on top of this same config/server foundation.
 
 ## Fixture provenance (`fixtures/happy-path-face.png`)
 

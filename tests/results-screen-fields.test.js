@@ -166,7 +166,11 @@ test('eyeProfileLabels still computes creaseStateLabel, hoodingStateLabel, eyeli
   for (const field of ['creaseStateLabel', 'hoodingStateLabel', 'eyeSize', 'eyelidTypeLabel', 'hooding']) {
     assert.ok(fnBody.includes(field), `eyeProfileLabels must still compute ${field} — this task is display-only`);
   }
-  assert.ok(fnBody.includes('return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, creaseStateLabel, hoodingStateLabel, spacing, eyeSize, symmetry, irisName };'), 'the full labels object must still be returned unchanged');
+  // Phase C3d legitimately extended this return statement with two new,
+  // additive display fields (irisCompositionLabel, irisCompositionBreakdown)
+  // -- irisName itself, and every field this test's own loop above
+  // checks, are unchanged.
+  assert.ok(fnBody.includes('return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, creaseStateLabel, hoodingStateLabel, spacing, eyeSize, symmetry, irisName, irisCompositionLabel, irisCompositionBreakdown };'), 'the full labels object must still be returned, now including the Phase C3d additive composition fields');
 });
 
 test('classifyFeatures itself is untouched: creaseState/hoodingState/eyeSizeCategory/eyelidType/eyelidCategory computation is unchanged', () => {

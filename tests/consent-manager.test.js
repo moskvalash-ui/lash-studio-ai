@@ -489,7 +489,22 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       "          if (debugAvailable) { console.log('[NLS DIAG]', diagSnapshot); setDiag(diagSnapshot); }",
       "          console.log('[NLS DIAG]', diagSnapshot);\n          if (debugAvailable) setDiag(diagSnapshot);"
     );
-  const normalize = span => omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(span)))));
+  // Approved Phase C3d addition: the real per-eye colorComposition
+  // sampleIrisColor already computed is combined bilaterally right after
+  // the existing, untouched combineIris(...) call -- combineIris's own
+  // name/confidence/hex fields and every quality gate upstream are
+  // unmodified. Normalized back to its pre-fix HEAD form so this guard
+  // still fails loudly on any OTHER, unrelated drift in LiveScanScreen.
+  const omitPhaseC3dComposition = span => span.replace(
+    "          // Phase C3d: additive bilateral composition, computed from the\n" +
+    "          // SAME per-eye colorComposition sampleIrisColor already\n" +
+    "          // produced above -- combineIris's own name/confidence/hex are\n" +
+    "          // untouched.\n" +
+    "          iris.colorComposition = combineIrisColorComposition(best.leftIris.colorComposition, best.leftIris.confidence, best.rightIris.colorComposition, best.rightIris.confidence);\n" +
+    "          iris.compositionLabel = deriveIrisColorCompositionLabel(iris.colorComposition, iris.name);\n",
+    ""
+  );
+  const normalize = span => omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(span))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
@@ -565,8 +580,19 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
       ''
     )
     .replace("\n            faceShapeProfile,", '');
-  const curGuarded = omitIrisDebugAudit(omitFaceShapeAnalysis(curTail));
-  const prevGuarded = omitIrisDebugAudit(omitFaceShapeAnalysis(prevTail));
+  // Approved Phase C3d addition (see the LiveScanScreen J1 test's
+  // identical normalizer/comment above) — same bounded, additive
+  // colorComposition/compositionLabel assignment right after this
+  // screen's own combineIris(...) call.
+  const omitPhaseC3dComposition = (tail) => tail.replace(
+    "          // Phase C3d: additive bilateral composition (see the LiveScan\n" +
+    "          // call site's identical comment above).\n" +
+    "          iris.colorComposition = combineIrisColorComposition(leftIris.colorComposition, leftIris.confidence, rightIris.colorComposition, rightIris.confidence);\n" +
+    "          iris.compositionLabel = deriveIrisColorCompositionLabel(iris.colorComposition, iris.name);\n",
+    ""
+  );
+  const curGuarded = omitIrisDebugAudit(omitPhaseC3dComposition(omitFaceShapeAnalysis(curTail)));
+  const prevGuarded = omitIrisDebugAudit(omitPhaseC3dComposition(omitFaceShapeAnalysis(prevTail)));
   assert.strictEqual(curGuarded.comparable, prevGuarded.comparable, 'everything from the quality-gate call onward outside the bounded iris debug block and the approved Face Shape Analysis addition must remain byte-identical to git HEAD');
   assert.ok(curTail.includes('const faceShapeProfile = classifyFaceShape(det.landmarks, headPose'), 'Face Shape Analysis call must still be present');
 

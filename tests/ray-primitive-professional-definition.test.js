@@ -112,7 +112,7 @@ test('validation records provenance and every required unresolved dimension',()=
 test('production activation, all 21 legacy IDs, aliases, and consumers remain unchanged',()=>{
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
-  assert.strictEqual(digest(indexSource),'5b374de248210f14d7606f6ea877dc6573309077bba3dbd469bcb3692b506ba2');
+  assert.strictEqual(digest(indexSource),'9e20ac494a4b9f125cc4189f791bd896343b11aa48a8c9bcea0f74909e997277');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end),catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
   assert.strictEqual(catalog.length,21);

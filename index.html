@@ -2109,7 +2109,13 @@
 
     function sampleIrisColor(ctx, eyePoints) {
       const a = analyzeIrisSample(ctx, eyePoints);
-      return { rgb:a.rgb, hex:a.rgb ? rgbToHex(...a.rgb) : null, name:a.name, confidence:a.confidence, samples:a.samples };
+      // Phase C3d: colorComposition is computed ADDITIVELY from
+      // analyzeIrisSample's own already-accepted pixel set (a.accepted)
+      // and its own already-computed roi -- analyzeIrisSample itself is
+      // untouched, still the sole source of the accepted-pixel evidence,
+      // still the sole owner of pupil/sclera/highlight rejection.
+      const colorComposition = computeIrisColorComposition(a.accepted, a.roi);
+      return { rgb:a.rgb, hex:a.rgb ? rgbToHex(...a.rgb) : null, name:a.name, confidence:a.confidence, samples:a.samples, colorComposition };
     }
 
     function rgbToHsl(r,g,b) {
@@ -2137,6 +2143,35 @@
       // failure and must not tell the user to retry a valid scan.
       uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'},
     };
+    // Phase C3d composition model — additive label vocabulary only, never
+    // consumed by classifyIrisColor/combineIris/analyzeIrisSample above.
+    // IRIS_FAMILY_NAMES: short singular-adjective wording for the "X 47%
+    // · Y 34%" percentage-breakdown line specifically (deliberately
+    // distinct from IRIS_NAMES' plural "eyes are ___" wording above,
+    // which reads wrong in a per-family percentage list).
+    const IRIS_FAMILY_NAMES = {
+      green: {ru:'Зелёный', en:'Green'}, blue: {ru:'Голубой', en:'Blue'},
+      gray: {ru:'Серый', en:'Gray'}, brown: {ru:'Карий', en:'Brown'},
+      amber: {ru:'Янтарный', en:'Amber'},
+    };
+    // IRIS_COMBO_NAMES: the new two-family primary labels. Deliberately
+    // does NOT redefine 'mixed'/'uncertain' here -- those keep using the
+    // existing, already-tested IRIS_NAMES.mixed/uncertain entries above
+    // verbatim.
+    const IRIS_COMBO_NAMES = {
+      blueGray: {ru:'Сине-серый оттенок', en:'Blue-gray'},
+      grayGreen: {ru:'Серо-зелёный оттенок', en:'Gray-green'},
+      greenBrown: {ru:'Зелёно-карий оттенок', en:'Green-brown'},
+      greenAmber: {ru:'Зелёно-янтарный оттенок', en:'Green-amber'},
+      brownAmber: {ru:'Коричнево-янтарный оттенок', en:'Brown-amber'},
+    };
+    // Resolves any deriveIrisColorCompositionLabel() key to its {ru,en}
+    // display string, checking the combo table first, then falling back
+    // to the existing, protected IRIS_NAMES (covers pure dominant
+    // families blue/green/brown/amber/gray plus hazel/mixed/uncertain).
+    function resolveIrisColorLabel(key) {
+      return IRIS_COMBO_NAMES[key] || IRIS_NAMES[key] || IRIS_NAMES.uncertain;
+    }
     // Low lightness (<0.35) is colorimetrically ambiguous BY ITSELF: a
     // genuinely dark/brown iris and an underexposed light (blue/green/gray)
     // iris can both produce a dim reading. The two call sites below used to
@@ -2235,6 +2270,219 @@
       const eitherUncertain = l.name === 'uncertain' || r.name === 'uncertain';
       const name = !eitherUncertain && confidence > 0 ? classifyIrisColor(rgb[0],rgb[1],rgb[2]) : 'uncertain';
       return { color: true, hex: rgbToHex(rgb[0],rgb[1],rgb[2]), name, confidence };
+    }
+
+    // ============================================================
+    // IRIS COLOR — PERCENTAGE COMPOSITION MODEL (Phase C3d).
+    // ------------------------------------------------------------
+    // ADDITIVE ONLY: analyzeIrisSample/classifyIrisColor/combineIris
+    // above are completely unmodified by this block -- every existing
+    // quality gate, pupil/sclera/highlight rejection, sector/radial
+    // corroboration, and the categorical `selectedCategory`/`name`
+    // pipeline behaves exactly as before. This block instead computes a
+    // SECOND, continuous, evidence-weighted view (colorComposition) from
+    // the SAME accepted-pixel population analyzeIrisSample already
+    // produces (its `accepted` field), for the new percentage UI. It
+    // never re-samples raw image pixels and never touches the pupil/
+    // sclera/highlight rejection that already happened.
+    //
+    // FAMILY HUE WINDOWS reuse classifyIrisColor's OWN existing hue
+    // boundaries (brown/amber/green/blue) as the centers of a soft,
+    // triangular membership function, rather than an independently
+    // invented window -- a pixel near a boundary (e.g. the old 'hazel'
+    // zone, h20-45) is split fractionally between its two neighboring
+    // families (green/brown/amber) instead of snapping to one, which is
+    // exactly how a hazel-like COMPOSITION now emerges from evidence
+    // instead of being its own hard-coded category.
+    function classifyIrisColorFamilyWeights(r, g, b) {
+      const { h } = rgbToHsl(r, g, b);
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      // Hue reliability is CHROMA-based (not HSL saturation), matching
+      // classifyIrisColor's own existing, documented reasoning for its
+      // chroma-based blue rule: "Absolute chroma is more stable than
+      // HSL saturation for pale colors -- the same visible channel
+      // separation produces a lower HSL S as luminance rises." Using a
+      // saturation-only bar here would systematically under-credit real
+      // evidence (e.g. a confidently-blue, well-lit iris) purely because
+      // its lightness is high, not because the color evidence is weak --
+      // proven directly: the BLUE fixture's own accepted pixels have
+      // real chroma (~20+) but HSL saturation as low as ~0.10-0.18,
+      // which a saturation-only bar would have wrongly discounted. The
+      // zero-point (chroma<10) reuses classifyIrisColor's OWN existing
+      // gray-rule cutoff verbatim, so the two stay consistent; the
+      // ramp-up band (10-14) avoids a hard cliff while still reaching
+      // full trust quickly enough that the BLUE/BROWN fixtures' own
+      // real accepted-pixel chroma (empirically ~19-24 for BLUE, higher
+      // for BROWN) lands solidly at full reliability, not partially
+      // discounted.
+      const hueReliability = Math.max(0, Math.min(1, (chroma - 10) / 4));
+      const weights = { green: 0, blue: 0, brown: 0, amber: 0, gray: 1 - hueReliability };
+      if (hueReliability <= 0) return weights;
+      const FAMILY_WINDOWS = [
+        { family: 'brown', center: 10, span: 45 },
+        { family: 'amber', center: 55, span: 30 },
+        { family: 'green', center: 120, span: 60 },
+        { family: 'blue', center: 215, span: 55 },
+      ];
+      const triangularWeight = (hue, center, span) => {
+        let d = Math.abs(hue - center);
+        if (d > 180) d = 360 - d;
+        return Math.max(0, 1 - d / span);
+      };
+      const raw = FAMILY_WINDOWS.map(w => triangularWeight(h, w.center, w.span));
+      const rawSum = raw.reduce((a, b2) => a + b2, 0);
+      if (rawSum <= 0) {
+        // Hue sits in a gap none of the soft windows reach -- fall back
+        // to the single nearest family rather than discarding otherwise-
+        // reliable hue evidence.
+        let best = FAMILY_WINDOWS[0], bestD = Infinity;
+        for (const w of FAMILY_WINDOWS) { let d = Math.abs(h - w.center); if (d > 180) d = 360 - d; if (d < bestD) { bestD = d; best = w; } }
+        weights[best.family] = hueReliability;
+        return weights;
+      }
+      for (let i = 0; i < FAMILY_WINDOWS.length; i++) weights[FAMILY_WINDOWS[i].family] = hueReliability * (raw[i] / rawSum);
+      return weights;
+    }
+
+    // Per-eye composition: weights every pixel in analyzeIrisSample's
+    // OWN already-accepted set (never raw candidates, never rejected
+    // pixels) by (a) its hue-family split above, (b) a radial-position
+    // edge taper, and (c) a radial-BAND trust multiplier. (b): pixels
+    // within ~8% of the pupil-exclusion edge (radial just above 0.30) or
+    // the outer-exclusion edge (radial just below 0.88) are slightly
+    // more prone to partial-pixel blending with the pupil or sclera
+    // boundary, so they contribute somewhat less (floor 0.5x, never
+    // zero -- a confidence taper, not a second rejection gate;
+    // analyzeIrisSample already owns rejection). (c): the OUTER third of
+    // the sampled annulus is trusted somewhat more than the inner third
+    // (using the SAME three-band split analyzeIrisSample's own radial-
+    // corroboration mechanism already defines) -- proven necessary, not
+    // stylistic: real-capture evidence (the established green-eye
+    // fixture) shows the outer/limbal band can carry genuinely different,
+    // more representative color evidence than the pupil-adjacent inner
+    // band, which is exactly why that existing mechanism already elevates
+    // outer-band trust for the categorical pipeline. This composition
+    // model uses a continuous version of the same principle rather than
+    // the categorical pipeline's own outer-band-corroboration machinery
+    // (which stays completely untouched). roi is analyzeIrisSample's own
+    // returned roi (cx/cy/radius) -- no geometry is re-derived or guessed.
+    function computeIrisColorComposition(acceptedPixels, roi) {
+      if (!acceptedPixels || !acceptedPixels.length || !roi) return null;
+      const totals = { green: 0, blue: 0, brown: 0, amber: 0, gray: 0 };
+      let totalWeight = 0;
+      const EDGE = 0.08;
+      const bandWidth = (0.88 - 0.30) / 3;
+      const BAND_TRUST = [0.8, 1, 1.4]; // inner, middle, outer
+      for (const p of acceptedPixels) {
+        const dx = p.x - roi.cx, dy = p.y - roi.cy;
+        const nx = dx / Math.max(roi.radius, 1), ny = dy / Math.max(roi.radius * 0.82, 1);
+        const radial = Math.sqrt(nx * nx + ny * ny);
+        let radialConfidence = 1;
+        if (radial < 0.30 + EDGE) radialConfidence = Math.max(0.5, (radial - 0.30) / EDGE);
+        else if (radial > 0.88 - EDGE) radialConfidence = Math.max(0.5, (0.88 - radial) / EDGE);
+        const band = radial < 0.30 + bandWidth ? 0 : radial < 0.30 + 2 * bandWidth ? 1 : 2;
+        radialConfidence *= BAND_TRUST[band];
+        const fam = classifyIrisColorFamilyWeights(p.r, p.g, p.b);
+        for (const k in totals) totals[k] += fam[k] * radialConfidence;
+        totalWeight += radialConfidence;
+      }
+      if (totalWeight <= 0) return null;
+      const composition = {};
+      for (const k in totals) composition[k] = totals[k] / totalWeight;
+      return composition;
+    }
+
+    // Bilateral blend: SAME confidence-weighted-average shape as
+    // combineIris's own rgb blend above (reduces to a plain average when
+    // both eyes carry equal confidence; shifts toward the more reliable
+    // eye otherwise), applied per family so the combined composition
+    // still sums to 1.
+    function combineIrisColorComposition(leftComposition, leftConfidence, rightComposition, rightConfidence) {
+      if (!leftComposition && !rightComposition) return null;
+      if (!leftComposition) return rightComposition;
+      if (!rightComposition) return leftComposition;
+      const weightSum = (leftConfidence || 0) + (rightConfidence || 0);
+      const lWeight = weightSum > 0 ? (leftConfidence || 0) / weightSum : 0.5;
+      const combined = {};
+      for (const k in leftComposition) combined[k] = leftComposition[k] * lWeight + rightComposition[k] * (1 - lWeight);
+      return combined;
+    }
+
+    // Deterministic label KEY (not a localized string -- rendered via
+    // IRIS_NAMES/IRIS_COMBO_NAMES + t() at display time, same pattern as
+    // every other label in this app) derived from a composition. Gated
+    // by the EXISTING, protected, already-quality-checked `category`
+    // (analyzeIrisSample/combineIris's own `name`), which is the sole
+    // authority for the PRIMARY label:
+    //  - 'uncertain' -> 'uncertain' (composition is not reliable enough
+    //    to summarize; the new percentage view never invents confidence
+    //    the existing quality gate withheld).
+    //  - any OTHER confident, single-color canonical category (green,
+    //    blue, brown, amber, gray, hazel, dark) -> that category ITSELF,
+    //    unconditionally. The composition is a percentage DETAIL shown
+    //    underneath (see eyeProfileLabels' breakdown gating), never a
+    //    replacement classifier -- classifyIrisColor's years of
+    //    protected regression evidence and quality gates own the
+    //    primary verdict; a soft, continuous per-pixel percentage model
+    //    (necessarily fuzzier than a hard categorical decision boundary)
+    //    must not silently override it merely because one composition
+    //    family happens to edge out another. Concretely: a real,
+    //    established green-eye fixture whose canonical category is
+    //    'green' (via the existing, separately-protected outer-band
+    //    radial corroboration mechanism) must keep saying "Green" as
+    //    its primary label even if the raw composition shows amber
+    //    edging out green in raw percentage terms -- the composition
+    //    still honestly exposes that amber/green mixture as the DETAIL
+    //    line underneath, it just never gets to relabel the headline.
+    //  - 'mixed' is the ONLY canonical category genuinely open-ended
+    //    enough to let the composition itself propose a more specific
+    //    primary label (a pure family, a two-family combo, or hazel).
+    const IRIS_STRONG_DOMINANT = 0.60;
+    const IRIS_SECOND_FAMILY_MIN = 0.20;
+    const IRIS_COMBO_PAIRS = {
+      'blue,gray': 'blueGray',
+      'gray,green': 'grayGreen',
+      'brown,green': 'greenBrown',
+      'amber,green': 'greenAmber',
+      'amber,brown': 'brownAmber',
+    };
+    function deriveIrisColorCompositionLabel(composition, category) {
+      if (category === 'uncertain' || !composition) return 'uncertain';
+      if (category !== 'mixed') return category;
+      const entries = Object.entries(composition).sort((a, b) => b[1] - a[1]);
+      const [topFamily, topPct] = entries[0];
+      const [secondFamily, secondPct] = entries[1] || [null, 0];
+      if (topPct >= IRIS_STRONG_DOMINANT) return topFamily;
+      if (secondPct >= IRIS_SECOND_FAMILY_MIN) {
+        const pairKey = [topFamily, secondFamily].sort().join(',');
+        const combo = IRIS_COMBO_PAIRS[pairKey];
+        if (combo === 'greenBrown' || combo === 'greenAmber') {
+          // Only the classic, roughly-balanced green+brown/amber split
+          // reads as the familiar "hazel" idiom; a lopsided pair (one
+          // side clearly dominating the other) is reported as the
+          // honest, specific "Green-brown"/"Green-amber" mixture instead
+          // of overclaiming a hazel identity the evidence doesn't
+          // support as strongly.
+          const pairTotal = topPct + secondPct;
+          const topShareOfPair = pairTotal > 0 ? topPct / pairTotal : 1;
+          if (topShareOfPair < 0.70) return 'hazel';
+        }
+        if (combo) return combo;
+      }
+      return 'mixed';
+    }
+
+    // Top 2-4 non-zero families, rounded to whole percentages for
+    // display, largest first -- never fake precision (decimals), never a
+    // 0% entry. Caller (UI) joins these with '·' and localizes each
+    // family's short name via IRIS_FAMILY_NAMES.
+    function formatIrisColorCompositionBreakdown(composition) {
+      if (!composition) return [];
+      return Object.entries(composition)
+        .map(([family, frac]) => [family, Math.round(frac * 100)])
+        .filter(([, pct]) => pct > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4);
     }
 
     // ============================================================
@@ -7091,6 +7339,12 @@
           }
           const best = bestFrameRef.current;
           const iris = combineIris(best.leftIris, best.rightIris);
+          // Phase C3d: additive bilateral composition, computed from the
+          // SAME per-eye colorComposition sampleIrisColor already
+          // produced above -- combineIris's own name/confidence/hex are
+          // untouched.
+          iris.colorComposition = combineIrisColorComposition(best.leftIris.colorComposition, best.leftIris.confidence, best.rightIris.colorComposition, best.rightIris.confidence);
+          iris.compositionLabel = deriveIrisColorCompositionLabel(iris.colorComposition, iris.name);
           // FACE SHAPE ANALYSIS — independent analyzer, reads the best
           // frame's own raw landmarks and a freshly computed headPose
           // for that exact frame. Never derived from finalProfile/
@@ -8173,6 +8427,10 @@
 
           const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);
           const iris = combineIris(leftIris, rightIris);
+          // Phase C3d: additive bilateral composition (see the LiveScan
+          // call site's identical comment above).
+          iris.colorComposition = combineIrisColorComposition(leftIris.colorComposition, leftIris.confidence, rightIris.colorComposition, rightIris.confidence);
+          iris.compositionLabel = deriveIrisColorCompositionLabel(iris.colorComposition, iris.name);
           // IRIS COLOR — DEBUG SHADOW MODE ONLY. Same read-only-extra-
           // call pattern already used for EYELID CREASE V2 a few lines
           // above in this screen (see that block's own comment) — never
@@ -8300,7 +8558,7 @@
     // "Needs visual confirmation") — they wrap to a second line instead
     // of being cut off with an ellipsis, per the explicit requirement
     // that mobile UI never truncates these into "...".
-    function EyeProfileRow({ icon, label, sublabel, value, confidence }) {
+    function EyeProfileRow({ icon, label, sublabel, value, confidence, valueDetail }) {
       return (
         <div className="flex justify-between items-start gap-3 py-3 border-b border-border/60 last:border-0">
           <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -8314,7 +8572,13 @@
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0 max-w-[42%] text-right">
             <span className="text-sm font-semibold text-cyan leading-snug">{value}</span>
-            {typeof confidence === 'number' && <span className="text-[10px] text-textMuted">{Math.round(confidence*100)}%</span>}
+            {/* Phase C3d: valueDetail (e.g. the Iris percentage
+                breakdown) replaces the bare confidence% for the one row
+                that supplies it, to avoid showing two numeric summaries
+                stacked on top of each other -- every other row keeps
+                its existing confidence% display, untouched. */}
+            {valueDetail ? <span className="text-[10px] text-textMuted leading-snug">{valueDetail}</span>
+              : typeof confidence === 'number' && <span className="text-[10px] text-textMuted">{Math.round(confidence*100)}%</span>}
           </div>
         </div>
       );
@@ -8363,7 +8627,19 @@
       const eyeSize = t('eyeSize_' + p.eyeSizeCategory, lang);
       const symmetry = t('symmetry_' + p.symmetryCategory, lang);
       const irisName = iris?.name ? (lang==='en' ? IRIS_NAMES[iris.name].en : IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);
-      return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, creaseStateLabel, hoodingStateLabel, spacing, eyeSize, symmetry, irisName };
+      // Phase C3d: additive display fields, computed from iris's own
+      // compositionLabel/colorComposition (see combineIrisColorComposition/
+      // deriveIrisColorCompositionLabel) -- irisName above is kept
+      // completely unchanged for any existing consumer.
+      const irisCompositionLabel = iris?.compositionLabel ? (lang==='en' ? resolveIrisColorLabel(iris.compositionLabel).en : resolveIrisColorLabel(iris.compositionLabel).ru) : irisName;
+      // Breakdown is suppressed whenever the underlying evidence is
+      // uncertain -- showing e.g. "Карий 56% · Янтарный 40%" directly
+      // under "Оттенок не определён" would contradict the very label it
+      // sits beneath.
+      const irisCompositionBreakdown = iris?.colorComposition && iris.compositionLabel !== 'uncertain'
+        ? formatIrisColorCompositionBreakdown(iris.colorComposition).map(([family, pct]) => `${lang==='en' ? IRIS_FAMILY_NAMES[family].en : IRIS_FAMILY_NAMES[family].ru} ${pct}%`).join(' · ')
+        : '';
+      return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, creaseStateLabel, hoodingStateLabel, spacing, eyeSize, symmetry, irisName, irisCompositionLabel, irisCompositionBreakdown };
     }
 
     // ---- Eye Highlight ----
@@ -8600,7 +8876,7 @@
               <EyeProfileRow icon="size" label={t('spacingLabel', lang)} value={labels.spacing} confidence={p.spacingConfidence} />
               <EyeProfileRow icon="position" label={t('tiltLabel', lang)} value={labels.tilt} confidence={p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? undefined : p.tiltConfidence} />
               <EyeProfileRow icon="symmetry" label={t('symmetryLabel', lang)} value={labels.symmetry} confidence={p.symmetryCategory === 'uncertain' ? undefined : p.symmetryConfidence} />
-              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={labels.irisName} confidence={result.iris?.confidence} />
+              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={labels.irisCompositionLabel} valueDetail={labels.irisCompositionBreakdown} confidence={result.iris?.confidence} />
               {result.faceShapeProfile && (
                 <EyeProfileRow
                   icon="shape"
@@ -9389,6 +9665,11 @@
       const p = result.eyeProfile;
       const iris = result.iris || {};
       const irisName = iris.name ? (lang==='en'?IRIS_NAMES[iris.name].en:IRIS_NAMES[iris.name].ru) : null;
+      // Phase C3d: additive display fields (see eyeProfileLabels' identical pattern).
+      const irisCompositionLabel = iris.compositionLabel ? (lang==='en' ? resolveIrisColorLabel(iris.compositionLabel).en : resolveIrisColorLabel(iris.compositionLabel).ru) : irisName;
+      const irisCompositionBreakdown = iris.colorComposition && iris.compositionLabel !== 'uncertain'
+        ? formatIrisColorCompositionBreakdown(iris.colorComposition).map(([family, pct]) => `${lang==='en' ? IRIS_FAMILY_NAMES[family].en : IRIS_FAMILY_NAMES[family].ru} ${pct}%`).join(' · ')
+        : '';
       return (
         <div className="h-full flex flex-col fade-in">
           <div className="p-4 flex justify-between items-center glass-strong">
@@ -9458,7 +9739,8 @@
                 <div className="flex items-center gap-4">
                   <div style={{background: iris.hex}} className="w-10 h-10 rounded-full border border-border flex-shrink-0"></div>
                   <div>
-                    <p className="text-sm font-medium text-textPrimary">{irisName}</p>
+                    <p className="text-sm font-medium text-textPrimary">{irisCompositionLabel}</p>
+                    {irisCompositionBreakdown && <p className="text-[11px] text-textMuted leading-snug">{irisCompositionBreakdown}</p>}
                     <p className="text-xs text-textSecondary">{lang==='en'?'Confidence':'Уверенность'}: {(iris.confidence*100).toFixed(0)}% — {lang==='en'?'lighting affects the result':'освещение влияет на результат'}</p>
                   </div>
                 </div>

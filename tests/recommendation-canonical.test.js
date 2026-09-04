@@ -61,7 +61,7 @@ test('selected canonical recommendation hands the identical legacy ID and Lash M
 test('Phase 2D isolation guards protect ranking and forbidden consumers',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
   assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
-  assert.strictEqual(digest(mapSource),'b14f739d8b3854dd4dd57bb1eeaceae159c6c939259bf277906b9cb932aba6eb');
+  assert.strictEqual(digest(mapSource),'8f3124becb3cf6e4b811b6f96e1414a5f0c840b352aa34324d8b3881841245ca');
   assert.ok(src.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));

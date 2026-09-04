@@ -4487,6 +4487,23 @@
       const other = side === 'left' ? c.rightEye : c.leftEye;
       const physicalTilt = c.perEyeTiltDegrees?.[side]
         ?? (side === 'left' ? eye.tiltCorrected : mirrorReflectDeg(eye.tiltCorrected));
+      // PAIR HARMONIZATION (Phase 1T audit — see
+      // tests/pair-eye-harmonization.test.js). c.tiltDegrees is the SAME
+      // pair-level, L/R-agreement-checked composite tilt already computed
+      // once per client (the tiltTendency/tiltConfidence aggregation) and
+      // already used to drive the SHARED curl recommendation
+      // (recommendCurl) — not a new signal. Reusing it here for the
+      // categorical PEAK-zone decision makes that decision a genuine
+      // shared pair-design choice instead of two independent per-eye
+      // reads of a raw, sub-degree-noisy angle.
+      //
+      // PROVEN BUG this fixes (coordinate-level, see the test file): a
+      // 0.2deg per-eye tilt difference straddling the existing +/-4deg
+      // boundary (e.g. LEFT=3.9, RIGHT=4.1 — well inside plausible
+      // landmark-measurement noise) previously put PEAK in a different
+      // NAMED zone on each eye for Natural/Doll/Cat/Squirrel (Fox was
+      // already exempt from this specific branch).
+      const sharedTilt = Number.isFinite(c.tiltDegrees) ? c.tiltDegrees : physicalTilt;
 
       // The catalog supplies only design intent. The peak and all five
       // lengths are rebuilt independently from this eye's measurements.
@@ -4494,8 +4511,23 @@
       // Domain decision: Fox's professionally authored outer/pre-outer
       // peak (zonePositions[3] = 0.85) must survive upturned tilt, not
       // be silently demoted to BODY. This exemption applies to Fox only.
-      if (entry.id !== 'fox' && physicalTilt > 4 && peakZone > 1) peakZone -= 1;
-      if (physicalTilt < -4 && peakZone < 3 && entry.category !== 'correction') peakZone += 1;
+      // Shared pair-design baseline: both eyes start from the SAME
+      // tilt-driven decision.
+      if (entry.id !== 'fox' && sharedTilt > 4 && peakZone > 1) peakZone -= 1;
+      if (sharedTilt < -4 && peakZone < 3 && entry.category !== 'correction') peakZone += 1;
+      // Bounded per-eye PEAK correction: fires only when (a) this eye's
+      // own measured tilt independently crosses the same +/-4deg boundary
+      // the shared pair signal above did not already cross, AND (b) the
+      // already-existing pair-level compositeAsymmetry evidence (reused
+      // verbatim from the correctionMm gate below — not a new threshold)
+      // confirms this is real, measured, cross-checked anatomical
+      // asymmetry rather than single-eye noise. This preserves genuine
+      // corrective asymmetry (one eye measurably more downturned) without
+      // letting noise alone move PEAK to a different named zone.
+      if (c.compositeAsymmetry > 0.07) {
+        if (entry.id !== 'fox' && physicalTilt > 4 && sharedTilt <= 4 && peakZone > 1) peakZone -= 1;
+        if (physicalTilt < -4 && sharedTilt >= -4 && peakZone < 3 && entry.category !== 'correction') peakZone += 1;
+      }
 
       const avgWidth = Math.max((eye.width + other.width) / 2, 1);
       const widthScale = clamp01(0.5 + eye.width / avgWidth / 2);
@@ -4521,7 +4553,17 @@
         return sampleTemplate(templatePeak+(4-templatePeak)*(i-peakZone)/Math.max(4-peakZone,1));
       });
       const innerAdjustment=(c.isCloseSet?1:0)+(eye.innerTaperDeg<55?1:0);
-      const outerAdjustment=(physicalTilt>4?1:0)+(eye.outerTaperDeg>80?1:0);
+      // Same pair-harmonization reasoning as the PEAK-zone decision above,
+      // applied to this length-only (max +/-1mm across the profile, not a
+      // named-zone identity change) tilt term: shared pair signal first,
+      // then the identical asymmetry-gated per-eye override. innerTaperDeg/
+      // outerTaperDeg below are untouched — they are per-eye eyelid-corner
+      // angle measurements with no existing pair-level composite in this
+      // codebase to reuse (unlike tilt, which already has one), so
+      // introducing a dead-band for them would require a new, unevidenced
+      // threshold — see the phase report's unresolved-threshold section.
+      const outerTiltAdjustment = (sharedTilt > 4 || (c.compositeAsymmetry > 0.07 && physicalTilt > 4)) ? 1 : 0;
+      const outerAdjustment=outerTiltAdjustment+(eye.outerTaperDeg>80?1:0);
       const zones=warpedTemplate.map((v,i)=>{
         const profileLength=profilePeakLength+(v-templatePeakLength);
         const innerPenalty=i<peakZone?innerAdjustment*(peakZone-i)/Math.max(peakZone,1):0;

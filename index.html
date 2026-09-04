@@ -491,6 +491,26 @@
       zoneBody: {ru:'ОСНОВНАЯ ЗОНА', en:'BODY'},
       zonePeak: {ru:'ПИК', en:'PEAK'},
       zoneOuter: {ru:'ВНЕШНЯЯ', en:'OUTER'},
+      // Phase 1S: additional physical-zone labels used only by the
+      // Professional Lash Map Library renderer adapter (referenceTemplate
+      // zone/position tokens with 6+ zones) -- never read by any existing
+      // 5-zone DESIGN_CATALOG design.
+      zoneInnerBody: {ru:'ВНУТРЕННЯЯ-ОСНОВНАЯ', en:'INNER-BODY'},
+      zonePrePeak: {ru:'ПРЕДПИК', en:'PRE-PEAK'},
+      zonePreOuter: {ru:'ПРЕДВНЕШНЯЯ', en:'PRE-OUTER'},
+      zoneOuterTransition: {ru:'ВНЕШНИЙ ПЕРЕХОД', en:'OUTER TRANSITION'},
+      zoneOuterTip: {ru:'ВНЕШНИЙ КОНЧИК', en:'OUTER TIP'},
+      // Label-readability fix: short display-only forms for the four
+      // Phase 1S tokens long enough to collide at tight zone spacing (6-7
+      // zone referenceTemplates). Semantic position tokens in
+      // referenceTemplate/ZONE_LABEL_KEYS are untouched -- these are pure
+      // presentation strings, consumed only by zoneLabelCompact() inside
+      // LegacyLashMapDiagram, never by zoneLabel() itself (PHOTO/
+      // Application Plan text keep using the full words, unaffected).
+      zoneInnerBodyCompact: {ru:'ВН-ОСН', en:'IN-BODY'},
+      zonePreOuterCompact: {ru:'ПРЕДВНЕШ', en:'PRE-OUT'},
+      zoneOuterTransitionCompact: {ru:'ВНЕШ.ПЕРЕХ', en:'OUT.TRANS'},
+      zoneOuterTipCompact: {ru:'ВН.КОНЧИК', en:'OUT.TIP'},
       lashMapCurl: {ru:'ИЗГИБ', en:'Curl'},
       lashMapLength: {ru:'ДЛИНА', en:'Length'},
       lashMapTexture: {ru:'ТЕКСТУРА', en:'Texture'},
@@ -4021,9 +4041,16 @@
     // sectors fill each transition in <= 1 mm steps. The source map is
     // never mutated, so AI L/R correction and Custom editing still own
     // the same five values as before.
-    function expandLashMapSectors(zones, peakIdx, curve={}) {
+    // `zoneNames` is an optional 4th parameter (Phase 1S) defaulting to the
+    // module-level ZONE_NAMES, so every existing call site (all 21
+    // DESIGN_CATALOG designs, always exactly 5 zones) is byte-for-byte
+    // unaffected. It exists only so the Professional Lash Map Library
+    // renderer adapter can supply a referenceTemplate's own physical
+    // position labels for zone counts other than 5 -- see
+    // professionalReferenceTemplateToDiagramProps below.
+    function expandLashMapSectors(zones, peakIdx, curve={}, zoneNames=ZONE_NAMES) {
       if (!Array.isArray(zones) || zones.length === 0) return [];
-      if (zones.length === 1) return [{ len: zones[0], t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 }];
+      if (zones.length === 1) return [{ len: zones[0], t: 0, keyZoneIndex: 0, label: zoneNames[0], isKey: true, isPeak: peakIdx === 0 }];
       const positions=Array.isArray(curve.zonePositions)&&curve.zonePositions.length===zones.length
         ? curve.zonePositions : zones.map((_,i)=>i/(zones.length-1));
       const intervalShape=i=>i===peakIdx?curve.postPeakShape:i===peakIdx-1?curve.plateauShape:null;
@@ -4047,7 +4074,7 @@
       for (let i = 0; i < zones.length - 1; i++) {
         const start = zones[i], end = zones[i + 1];
         const steps = desiredSteps[i];
-        if (i === 0) sectors.push({ len: start, t: 0, keyZoneIndex: 0, label: ZONE_NAMES[0], isKey: true, isPeak: peakIdx === 0 });
+        if (i === 0) sectors.push({ len: start, t: 0, keyZoneIndex: 0, label: zoneNames[0], isKey: true, isPeak: peakIdx === 0 });
         for (let step = 1; step <= steps; step++) {
           const frac = step / steps;
           const isKey = step === steps;
@@ -4057,7 +4084,7 @@
             len: isKey?end:Math.round((start+(end-start)*shapedFrac)*10)/10,
             t: isKey?positions[i+1]:positions[i]+(positions[i+1]-positions[i])*frac,
             keyZoneIndex: isKey ? i + 1 : null,
-            label: isKey ? ZONE_NAMES[i + 1] : null,
+            label: isKey ? zoneNames[i + 1] : null,
             isKey,
             isPeak: isKey && i + 1 === peakIdx,
           });
@@ -9024,8 +9051,26 @@
     // Display-only localization for the five canonical ZONE_NAMES values.
     // ZONE_NAMES itself stays English — it is used as comparison/lookup
     // keys throughout the engine — only this render-time label flips per lang.
-    const ZONE_LABEL_KEYS = { INNER: 'zoneInner', TRANSITION: 'zoneTransition', BODY: 'zoneBody', PEAK: 'zonePeak', OUTER: 'zoneOuter' };
+    // Phase 1S: object kept on one line deliberately -- several existing
+    // tests extract this const via `src.indexOf('\n', ...)`, i.e. they
+    // assume it never wraps. The extra INNER_BODY/PRE_PEAK/PRE_OUTER/
+    // OUTER_TRANSITION/OUTER_TIP/PHYSICAL_INNER/PHYSICAL_OUTER keys are
+    // referenceTemplate-only physical-position tokens (Professional Lash
+    // Map Library adapter) -- DESIGN_CATALOG's fixed 5-zone ZONE_NAMES
+    // never produces them, so no existing design's zoneLabel() output is
+    // affected by this addition.
+    const ZONE_LABEL_KEYS = { INNER: 'zoneInner', TRANSITION: 'zoneTransition', BODY: 'zoneBody', PEAK: 'zonePeak', OUTER: 'zoneOuter', INNER_BODY: 'zoneInnerBody', PRE_PEAK: 'zonePrePeak', PRE_OUTER: 'zonePreOuter', OUTER_TRANSITION: 'zoneOuterTransition', OUTER_TIP: 'zoneOuterTip', PHYSICAL_INNER: 'zoneInner', PHYSICAL_OUTER: 'zoneOuter' };
     function zoneLabel(name, lang) { return t(ZONE_LABEL_KEYS[name] || name, lang); }
+    // Label-readability fix: a DIAGRAM-only compact form for the handful of
+    // Phase 1S tokens whose full word(s) are long enough to collide at
+    // tight (6-7 zone) spacing. Every token not listed here (the original
+    // five, plus PRE_PEAK/PHYSICAL_INNER/PHYSICAL_OUTER which already
+    // alias short forms) falls through to the exact same zoneLabel() text
+    // as before -- only used inside LegacyLashMapDiagram's own anatomical
+    // label render, never by zoneLabel() itself or any other consumer
+    // (PHOTO, Application Plan text).
+    const ZONE_LABEL_COMPACT_KEYS = { INNER_BODY: 'zoneInnerBodyCompact', PRE_OUTER: 'zonePreOuterCompact', OUTER_TRANSITION: 'zoneOuterTransitionCompact', OUTER_TIP: 'zoneOuterTipCompact' };
+    function zoneLabelCompact(name, lang) { return ZONE_LABEL_COMPACT_KEYS[name] ? t(ZONE_LABEL_COMPACT_KEYS[name], lang) : zoneLabel(name, lang); }
 
     // Secondary technical diagram retained alongside the photo map.
     // It consumes the same derived items and texture geometry, but does
@@ -9048,9 +9093,51 @@
       if (!(spanMm > 0)) return 0;
       return LASH_LENGTH_PROFILE_MAX_AMPLITUDE_PX * spanMm / (spanMm + LASH_LENGTH_PROFILE_SATURATION_MM);
     };
-    function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang }) {
+    // `zoneNames`/`curlByZone`/`lengthRangeByZone` are optional Phase 1S
+    // additions for the Professional Lash Map Library renderer adapter
+    // (professionalReferenceTemplateToDiagramProps below). All three
+    // default to undefined/null, which reproduces the exact prior output
+    // for every one of the 21 existing DESIGN_CATALOG designs -- none of
+    // them ever pass these props.
+    function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang, zoneNames, curlByZone, lengthRangeByZone }) {
       const upperY=t=>175-Math.sin(t*Math.PI)*78,lowerY=t=>175+Math.sin(t*Math.PI)*34,xAt=t=>55+(side==='right'?1-t:t)*290;
-      const items = expandLashMapSectors(zones, peakIdx, curve);
+      const items = expandLashMapSectors(zones, peakIdx, curve, zoneNames);
+      // Per-key-zone display helpers -- both are no-ops (return the plain
+      // z.len / null) when their optional array isn't supplied.
+      const zoneDisplayLen=z=>{
+        const range=lengthRangeByZone&&z.keyZoneIndex!=null?lengthRangeByZone[z.keyZoneIndex]:null;
+        return range?`${range[0]}–${range[1]}`:z.len;
+      };
+      const zoneCurl=z=>curlByZone&&z.keyZoneIndex!=null?curlByZone[z.keyZoneIndex]:null;
+      // Label-readability fix: deterministic vertical-level collision
+      // avoidance for the small anatomical zone labels (z.label text, NOT
+      // the length/curl text above it -- that stays untouched and always
+      // at its original position/level). Zone POINTS/anchors never move;
+      // only which vertical LEVEL a label's text renders at can change.
+      //
+      // Walked in `items` array order, i.e. physical INNER->OUTER order,
+      // and the collision test uses each key zone's `t` (0..1) times the
+      // FIXED 290px canvas span -- never `xAt`/`side` -- so the exact same
+      // levels are chosen for LEFT and RIGHT; only xAt's existing mirror
+      // then places those (identical) levels at mirrored screen x, which
+      // is what "LEFT/RIGHT use equivalent mirrored layout logic" means
+      // here: one physical-order algorithm, two mirrored placements.
+      const keyZoneItems = items.filter(z => z.isKey);
+      const estimateLabelWidthPx = text => text.length * 4.3; // fontSize 7, Cyrillic-safe estimate
+      const LABEL_LEVEL_STEP_Y = 13, LABEL_GAP_PX = 4;
+      const labelLevelByKeyIndex = new Map();
+      let prevT = null, prevHalfWidth = 0, prevLevel = 0;
+      for (const z of keyZoneItems) {
+        const text = zoneLabelCompact(z.label, lang);
+        const halfWidth = estimateLabelWidthPx(text) / 2;
+        let level = 0;
+        if (prevT !== null) {
+          const gapPx = Math.abs(z.t - prevT) * 290;
+          if (gapPx < halfWidth + prevHalfWidth + LABEL_GAP_PX) level = prevLevel === 0 ? 1 : 0;
+        }
+        labelLevelByKeyIndex.set(z.keyZoneIndex, level);
+        prevT = z.t; prevHalfWidth = halfWidth; prevLevel = level;
+      }
       const upper=Array.from({length:21},(_,i)=>`${xAt(i/20)},${upperY(i/20)}`).join(' L ');
       const lower=Array.from({length:21},(_,i)=>`${xAt(1-i/20)},${lowerY(1-i/20)}`).join(' L ');
       // The visible lash-LENGTH profile: derived per point from the same
@@ -9085,9 +9172,16 @@
         <path data-diagram-lash-profile-line="true" d={`M ${profileLine}`} fill="none" stroke="rgba(83,199,255,.85)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
         {items.map((z,i)=>{const x=xAt(z.t),y=profileY(z);return <g key={i} onClick={()=>setHoveredZone(hoveredZone===i?null:i)} className="cursor-pointer">
           <circle cx={x} cy={y} r={z.isPeak?9:z.isKey?6:4} fill={z.isPeak?'#0A8CFF':z.isKey?'rgba(244,247,250,.22)':'rgba(83,199,255,.28)'} stroke={z.isPeak?'#53C7FF':'none'} strokeWidth="2"/>
-          {z.isKey&&<text x={x} y={y-16} textAnchor="middle" fill={z.isPeak?'#53C7FF':'#F4F7FA'} fontSize={15} fontWeight={z.isPeak?700:400}>{z.len}</text>}
-          {z.label&&<text x={x} y={y+20} textAnchor="middle" fill="rgba(142,154,168,.75)" fontSize="7" letterSpacing="1">{zoneLabel(z.label,lang)}</text>}
-          {hoveredZone===i&&<g><rect x={x-52} y={y+26} width="104" height="46" rx="10" fill="rgba(6,16,26,.96)" stroke="rgba(35,150,255,.25)"/><text x={x} y={y+44} textAnchor="middle" fill="#F4F7FA" fontSize="11">{z.len} mm · {curl}</text><text x={x} y={y+61} textAnchor="middle" fill="rgba(142,154,168,.85)" fontSize="9">{technique}</text></g>}
+          {z.isKey&&<text x={x} y={y-16} textAnchor="middle" fill={z.isPeak?'#53C7FF':'#F4F7FA'} fontSize={15} fontWeight={z.isPeak?700:400}>{zoneCurl(z)?`${zoneDisplayLen(z)} ${zoneCurl(z)}`:zoneDisplayLen(z)}</text>}
+          {z.label&&(()=>{
+            const level=labelLevelByKeyIndex.get(z.keyZoneIndex)||0;
+            const labelY=Math.min(y+20+level*LABEL_LEVEL_STEP_Y,290);
+            return <>
+              {level>0&&<line x1={x} y1={y+9} x2={x} y2={labelY-6} stroke="rgba(142,154,168,.4)" strokeWidth="1" strokeDasharray="1.5 1.5"/>}
+              <text x={x} y={labelY} textAnchor="middle" fill="rgba(142,154,168,.75)" fontSize="7" letterSpacing="1">{zoneLabelCompact(z.label,lang)}</text>
+            </>;
+          })()}
+          {hoveredZone===i&&<g><rect x={x-52} y={y+26} width="104" height="46" rx="10" fill="rgba(6,16,26,.96)" stroke="rgba(35,150,255,.25)"/><text x={x} y={y+44} textAnchor="middle" fill="#F4F7FA" fontSize="11">{zoneDisplayLen(z)} mm{zoneCurl(z)||curl?` · ${zoneCurl(z)||curl}`:''}</text><text x={x} y={y+61} textAnchor="middle" fill="rgba(142,154,168,.85)" fontSize="9">{technique}</text></g>}
         </g>;})}
       </svg>
       </>;
@@ -11349,12 +11443,127 @@
       return lang === 'ru' ? (PRO_LIB_KIND_LABELS_RU[kind] || PRO_LIBRARY_KIND_LABELS[kind] || kind) : (PRO_LIBRARY_KIND_LABELS[kind] || kind);
     }
 
+    // ------------------------------------------------------------
+    // Phase 1S — DEBUG-ONLY adapter: renders a Professional Lash Map
+    // Library referenceTemplate (DRAFT, professional-lash-library.js only)
+    // through the EXISTING, unmodified LegacyLashMapDiagram SVG renderer.
+    // This is the "smallest compatibility adapter", not a second engine:
+    // it converts referenceTemplate's own shape into exactly the
+    // {zones, peakIdx, curve, curl, spikeGeom, ...} shape
+    // LegacyLashMapDiagram already consumes for every one of the 21
+    // production designs, via lash-design-domain.js's diagramProps
+    // path. It never touches the production catalog, calculateEyeLashMap,
+    // ClientLashDesign, or lash-design-domain.js -- those remain the
+    // only path for the 21 existing designs. Kept inside this DEBUG-ONLY
+    // block (references ProfessionalLashLibrary directly), reachable only
+    // via ?debug=library, same as everything else in this block.
+    //
+    // Mirror safety (Protected Contract H): `side` is passed straight
+    // through to LegacyLashMapDiagram's own unmodified `xAt` mirroring
+    // formula and is NEVER used to reorder, reverse, or otherwise branch
+    // on any zone/spike DATA below -- the same physical-order arrays are
+    // used for both 'left' and 'right'. Physical INNER is always
+    // index/order 0 and physical OUTER is always the last index,
+    // regardless of `side`.
+    function plResolveMm(zone) {
+      if (typeof zone.lengthMm === 'number') return zone.lengthMm;
+      if (Array.isArray(zone.lengthMmRange)) return (zone.lengthMmRange[0] + zone.lengthMmRange[1]) / 2;
+      return 0;
+    }
+    // Linear interpolation of a physical-order layer (already sorted by
+    // `order`) at an arbitrary normalized t in [0,1] along THAT layer's
+    // own INNER(0)->OUTER(1) span -- used to find the base-layer length
+    // directly "under" a spike/ray that may sit at a different zone count
+    // than the base (e.g. Wet Look: 4 base points, 5 ray points).
+    function plInterpolateAt(layer, t) {
+      const n = layer.length;
+      if (n === 1) return plResolveMm(layer[0]);
+      const clamped = Math.max(0, Math.min(1, t));
+      for (let i = 0; i < n - 1; i++) {
+        const t0 = i / (n - 1), t1 = (i + 1) / (n - 1);
+        if (clamped >= t0 && clamped <= t1) {
+          const frac = (clamped - t0) / Math.max(1e-9, t1 - t0);
+          return plResolveMm(layer[i]) + (plResolveMm(layer[i + 1]) - plResolveMm(layer[i])) * frac;
+        }
+      }
+      return plResolveMm(layer[n - 1]);
+    }
+    // Builds a spikeGeom object in the EXACT shape computeSpikeGeometry()
+    // already produces for kim/manga/wispy -- so LegacyLashMapDiagram's
+    // existing, unmodified spike-triangle rendering (`spikeGeom?.spikes`)
+    // renders it with zero renderer changes. Unlike computeSpikeGeometry
+    // (a frequency+delta GENERATOR), this reads EXPLICIT absolute
+    // baseProfile/spikes positions -- the two layers are not forced into
+    // 1:1 index alignment; each is positioned along its own physical
+    // order/(length-1) span, exactly as documented on each referenceTemplate.
+    function spikeGeomFromReferenceLayers(baseProfile, spikeLayer) {
+      if (!Array.isArray(baseProfile) || !baseProfile.length || !Array.isArray(spikeLayer) || !spikeLayer.length) return null;
+      const baseLens = baseProfile.map(plResolveMm);
+      const spikes = spikeLayer.map((sp, i) => {
+        const t = spikeLayer.length === 1 ? 0 : i / (spikeLayer.length - 1);
+        const baseLen = Math.round(plInterpolateAt(baseProfile, t) * 10) / 10;
+        const spikeLen = Math.round(plResolveMm(sp) * 10) / 10;
+        const zoneIdx = Math.max(0, Math.min(baseProfile.length - 2, Math.round(t * (baseProfile.length - 1)) - (t >= 1 ? 1 : 0)));
+        return { t, zoneIdx, tall: true, baseLen, spikeLen, diff: Math.round((spikeLen - baseLen) * 10) / 10 };
+      });
+      const spikeLens = spikes.map(sp => sp.spikeLen);
+      const mainSpike = spikes.reduce((best, sp) => (!best || sp.spikeLen > best.spikeLen ? sp : best), null);
+      return {
+        spikes, count: spikes.length,
+        baseMin: Math.min(...baseLens), baseMax: Math.max(...baseLens),
+        spikeMin: Math.min(...spikeLens), spikeMax: Math.max(...spikeLens),
+        diff: mainSpike ? mainSpike.diff : 0, pattern: 'referenceTemplate',
+        mainSpikeZone: (baseProfile[Math.min(mainSpike ? mainSpike.zoneIdx + 1 : 0, baseProfile.length - 1)] || {}).position || 'PEAK',
+      };
+    }
+    // The adapter itself. Returns null for any identity without a
+    // referenceTemplate (every identity outside the 9 Phase 1R/1S ones) --
+    // callers must fall back to the existing methodical-text-only detail
+    // view in that case, exactly as before this phase.
+    function professionalReferenceTemplateToDiagramProps(canonicalId, side) {
+      const def = ProfessionalLashLibrary.getDefinition(canonicalId);
+      if (!def) return null;
+      const rt = ProfessionalLashLibrary.library.referenceTemplates[canonicalId] || def.referenceTemplate || null;
+      if (!rt) return null;
+      const layered = Array.isArray(rt.baseProfile) && Array.isArray(rt.spikes);
+      const sourceZones = layered ? rt.baseProfile : rt.zones;
+      if (!Array.isArray(sourceZones) || !sourceZones.length) return null;
+      const ordered = [...sourceZones].sort((a, b) => a.order - b.order);
+      const zones = ordered.map(plResolveMm);
+      const zoneNames = ordered.map(z => z.position);
+      const curlByZone = ordered.some(z => z.curl) ? ordered.map(z => z.curl || null) : null;
+      const lengthRangeByZone = ordered.some(z => z.lengthMmRange) ? ordered.map(z => z.lengthMmRange || null) : null;
+      const peakIdx = zones.indexOf(Math.max(...zones));
+      const curve = {
+        zonePositions: ordered.map((_, i) => (ordered.length === 1 ? 0 : i / (ordered.length - 1))),
+        postPeakShape: 'linear', plateauShape: 'linear',
+      };
+      const orderedSpikes = layered ? [...rt.spikes].sort((a, b) => a.order - b.order) : null;
+      const spikeGeom = layered ? spikeGeomFromReferenceLayers(ordered, orderedSpikes) : null;
+      return {
+        zones, zoneNames, peakIdx, curve, curlByZone, lengthRangeByZone, spikeGeom,
+        curl: curlByZone ? (curlByZone[peakIdx] || curlByZone.find(Boolean) || '') : '',
+        technique: def.displayName, side, lang: undefined,
+      };
+    }
+
+
     function ProLibraryPreviewScreen({ onBack, onSelect }) {
       const lang = useLang();
       const items = ProfessionalLashLibrary.library.targetInventory.map(item => {
         const def = ProfessionalLashLibrary.getDefinition(item.canonicalId);
         return { name: item.name, canonicalId: item.canonicalId, kind: def.kind, status: def.validation.status };
       });
+      // Phase 1S: candidate identities added after the original Phase
+      // 1A-1P targetInventory checklist was closed (see professional-lash-
+      // library.js) -- derived generically (any registries.geometries
+      // entry not already in targetInventory), not hardcoded, so this
+      // list never needs a manual update when the library gains more.
+      // targetInventory itself is deliberately left untouched (a separate,
+      // already-pinned test asserts its exact original 15-name list).
+      const candidateItems = Object.values(ProfessionalLashLibrary.library.registries.geometries)
+        .filter(def => !ProfessionalLashLibrary.library.targetInventory.some(t => t.canonicalId === def.id))
+        .map(def => ({ name: def.displayName, canonicalId: def.id, kind: def.kind, status: def.validation.status }));
       const T = lang === 'ru'
         ? { title: 'Профессиональная библиотека эффектов', count: `${items.length} профессиональных эффектов`, banner: 'ПРЕДПРОСМОТР — НЕ ВЛИЯЕТ НА РАБОТУ ПРИЛОЖЕНИЯ', back: 'Назад' }
         : { title: 'Professional Lash Library', count: `${items.length} canonical identities`, banner: 'DEBUG PREVIEW — DOES NOT AFFECT PRODUCTION', back: 'Back' };
@@ -11377,6 +11586,7 @@
               <button
                 key={item.canonicalId}
                 type="button"
+                data-pl-identity-id={item.canonicalId}
                 onClick={() => onSelect(item.canonicalId)}
                 className="w-full text-left glass rounded-lg p-4 press-scale active:bg-surfaceHover"
               >
@@ -11395,6 +11605,38 @@
                 </div>
               </button>
             ))}
+            {candidateItems.length > 0 && (
+              <div data-pl-candidate-templates="true" className="pt-2">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-textMuted mb-2">
+                  {lang === 'en' ? `Candidate reference templates (DRAFT, ${candidateItems.length})` : `Референсные карты-кандидаты (DRAFT, ${candidateItems.length})`}
+                </div>
+                <div className="space-y-3">
+                  {candidateItems.map(item => (
+                    <button
+                      key={item.canonicalId}
+                      type="button"
+                      data-pl-candidate-id={item.canonicalId}
+                      onClick={() => onSelect(item.canonicalId)}
+                      className="w-full text-left glass rounded-lg p-4 press-scale active:bg-surfaceHover border border-dashed border-peak/30"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[15px] font-bold text-textPrimary truncate">{plIdentityName(item.canonicalId, item.name, lang)}</div>
+                          <div className="text-[11px] text-textMuted mt-0.5 truncate">{item.canonicalId}</div>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-peak/40 text-peak whitespace-nowrap">{plLabel(item.status, lang)}</span>
+                          <span className="text-textMuted text-lg leading-none">›</span>
+                        </div>
+                      </div>
+                      <div className="mt-2.5">
+                        <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border border-border text-textSecondary">{plKindLabel(item.kind, lang)}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -12153,6 +12395,45 @@
       );
     }
 
+
+    // One diagram (LEFT or RIGHT) for a referenceTemplate. Purely a thin
+    // wrapper adding local hoveredZone state around the unmodified
+    // LegacyLashMapDiagram, exactly like LashMapDiagram already does for
+    // production designs.
+    function ProLibraryReferenceTemplateSide({ canonicalId, side, lang }) {
+      const [hoveredZone, setHoveredZone] = useState(null);
+      const diagramProps = professionalReferenceTemplateToDiagramProps(canonicalId, side);
+      if (!diagramProps) return null;
+      return (
+        <div data-pl-reference-map-side={side} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border/60 bg-surface/60">
+          <LegacyLashMapDiagram {...diagramProps} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} lang={lang} />
+          <span className="absolute top-2 left-2 text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-border/70 bg-bg/80 text-textSecondary">
+            {side === 'left' ? t('leftEye', lang) : t('rightEye', lang)}
+          </span>
+        </div>
+      );
+    }
+    // Both eyes for one candidate identity's referenceTemplate, side by
+    // side. Renders nothing (null) for any identity without one -- every
+    // pre-Phase-1R/1S identity keeps the exact same detail screen as
+    // before this phase.
+    function ProLibraryReferenceTemplateMap({ canonicalId, lang }) {
+      const hasTemplate = !!professionalReferenceTemplateToDiagramProps(canonicalId, 'left');
+      if (!hasTemplate) return null;
+      return (
+        <div data-pl-reference-map="true" className="glass rounded-lg p-4 mb-3">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{lang === 'en' ? 'Reference Map (candidate, not production)' : 'Референсная карта (кандидат, не продакшн)'}</div>
+          <div className="grid grid-cols-2 gap-2">
+            <ProLibraryReferenceTemplateSide canonicalId={canonicalId} side="left" lang={lang} />
+            <ProLibraryReferenceTemplateSide canonicalId={canonicalId} side="right" lang={lang} />
+          </div>
+          <p className="mt-2 text-[10px] text-textMuted leading-relaxed">{lang === 'en'
+            ? 'Rendered from an unreviewed DRAFT referenceTemplate for visual inspection only. Not connected to the production catalog, recommendation, or any client-facing screen.'
+            : 'Отрисовано из непроверенного черновика (DRAFT) референсной карты только для визуальной проверки. Не связано с производственным каталогом, рекомендациями или экраном клиента.'}</p>
+        </div>
+      );
+    }
+
     function ProLibraryDetailScreen({ canonicalId, onBack }) {
       const lang = useLang();
       const def = ProfessionalLashLibrary.getDefinition(canonicalId);
@@ -12187,6 +12468,7 @@
             <span className="text-[9px] uppercase tracking-wider px-2 py-1 rounded-full border border-cyan/25 text-cyan">{plLabel(def.validation.status, lang)}</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
+            <ProLibraryReferenceTemplateMap canonicalId={def.id} lang={lang} />
             {isKimK ? (
               <KimKMasterGuideBody guide={kimKGuide} />
             ) : (

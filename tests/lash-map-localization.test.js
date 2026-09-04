@@ -96,8 +96,8 @@ const screenEnd = src.indexOf('\n    function ApplicationStepCard(', screenStart
 const screenSource = src.slice(screenStart, screenEnd);
 
 test('LegacyLashMapDiagram renders localized zone labels and keeps its mirroring geometry untouched', () => {
-  assert.ok(diagramSource.includes("function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang }) {"));
-  assert.ok(diagramSource.includes('{zoneLabel(z.label,lang)}'));
+  assert.ok(diagramSource.includes("function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang, zoneNames, curlByZone, lengthRangeByZone }) {"));
+  assert.ok(diagramSource.includes('{zoneLabelCompact(z.label,lang)}'), 'the anatomical label must go through zoneLabelCompact (which itself falls through to zoneLabel for every non-compact token), never raw z.label');
   assert.ok(diagramSource.includes("xAt=t=>55+(side==='right'?1-t:t)*290"), 'LEFT/RIGHT mirror formula must be unchanged by this localization-only fix');
   assert.ok(!diagramSource.includes('{z.label}</text>'), 'raw unlocalized zone label must no longer be rendered directly');
 });

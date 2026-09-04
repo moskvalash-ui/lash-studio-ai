@@ -81,7 +81,7 @@ test('Custom map remains five editable controls and expansion does not mutate it
 });
 
 test('diagram and written plan share the same expanded sectors', () => {
-  assert.ok(src.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
+  assert.ok(src.includes('const items = expandLashMapSectors(zones, peakIdx, curve, zoneNames);'));
   assert.ok(src.includes('const displaySectors = expandLashMapSectors(zones, peakIdx, curve);'));
   assert.ok(src.includes('plan.displaySectors.map((sector,i) =>'));
 });

@@ -309,7 +309,7 @@ test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{
   assert.ok(src.includes("const [viewMode,setViewMode]=useState('photo')"));
   assert.ok(src.includes("viewMode==='photo'?"));
   const diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
-  assert.ok(diagram.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
+  assert.ok(diagram.includes('const items = expandLashMapSectors(zones, peakIdx, curve, zoneNames);'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
 });
 

@@ -225,5 +225,5 @@ test('4b. this fix does not alter any numeric zone length/peak index — RU and 
 });
 test('4c. Lash Map DIAGRAM/PHOTO renderer and LEFT/RIGHT mirror formula are unchanged by this text-generation-only fix', () => {
   assert.ok(src.includes("xAt=t=>55+(side==='right'?1-t:t)*290"));
-  assert.ok(src.includes("function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang }) {"));
+  assert.ok(src.includes("function LegacyLashMapDiagram({ zones, peakIdx, spikeGeom, curve, hoveredZone, setHoveredZone, curl, technique, side, lang, zoneNames, curlByZone, lengthRangeByZone }) {"));
 });

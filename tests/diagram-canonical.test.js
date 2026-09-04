@@ -136,9 +136,9 @@ test('canonical wrapper feeds the unchanged legacy SVG renderer and no other con
   const wrapperStart = src.indexOf('    function LashMapDiagram(', legacyStart);
   const photoStart = src.indexOf('    function LegacyProfessionalEyeMap(', wrapperStart);
   const legacyRenderer = src.slice(legacyStart, wrapperStart), wrapper = src.slice(wrapperStart, photoStart);
-  assert.ok(legacyRenderer.includes('const items = expandLashMapSectors(zones, peakIdx, curve);'));
+  assert.ok(legacyRenderer.includes('const items = expandLashMapSectors(zones, peakIdx, curve, zoneNames);'));
   assert.ok(legacyRenderer.includes('(spikeGeom?.spikes||[]).map'));
-  assert.ok(legacyRenderer.includes('{z.len} mm · {curl}'));
+  assert.ok(legacyRenderer.includes('{zoneDisplayLen(z)} mm{zoneCurl(z)||curl?` · ${zoneCurl(z)||curl}`:\'\'}'));
   assert.ok(legacyRenderer.includes('{technique}</text>'));
   assert.ok(wrapper.includes('diagramPropsFromClientDesign(clientDesign)'));
   assert.ok(wrapper.includes('<LegacyLashMapDiagram {...diagramProps}'));

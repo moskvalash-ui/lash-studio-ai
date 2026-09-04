@@ -80,6 +80,15 @@
       curlLiftStrength: null,
       techniqueDiameters: null,
     },
+    // Deliberately NOT defaulted here (unlike legacyReference above): most
+    // existing identities never carry one, and giving every identity an
+    // explicit `referenceTemplate: null` would change the JSON shape (and
+    // therefore the whole-definition byte-identity hash guards) of every
+    // untouched pre-existing definition in this file for no functional
+    // reason. Only the specific identities that actually need one (see
+    // schema.referenceTemplate below) get it assigned after construction,
+    // exactly like legacyReference is already overridden ad hoc per
+    // definition elsewhere in this file.
   });
 
   // Phase 1B reviewed structure only. The supplied review establishes the
@@ -808,6 +817,37 @@
     spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: ['0.05–0.10 mm'],
     narrativeClaims: ['MINIMAL_ROOT_DENSITY', 'DELIBERATELY_SPARSE', 'FILL_FREQUENCY_CLAIM'],
   };
+  // Phase 1R candidate reference template only (see the Anime template below
+  // for the full disclaimer -- identical status here). "Wet Look": compact
+  // base, prominent rays/spikes, exactly as transcribed by the requester.
+  // Deliberately kept OFF wetConstructionDefinition itself (assigned into
+  // the separate library.referenceTemplates map below instead) so every
+  // pre-existing byte-identity guard on the reviewed Wet definition's exact
+  // shape stays untouched -- see the map's own comment for why.
+  const wetReferenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    baseProfile: [
+      { order: 0, position: 'INNER', lengthMm: 7 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 8 },
+      { order: 2, position: 'BODY', lengthMm: 9 },
+      { order: 3, position: 'OUTER', lengthMm: 10 },
+    ],
+    spikes: [
+      { order: 0, position: 'INNER', lengthMm: 8 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 10 },
+      { order: 2, position: 'BODY', lengthMm: 10 },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 12 },
+      { order: 4, position: 'OUTER', lengthMmRange: [13, 14] },
+    ],
+    correctionGoal: null,
+    notes: [
+      'Compact base 7-10mm, prominent rays ~8/10/10/12/13-14mm, per the requester\'s transcription.',
+      'The base has fewer points than the spike/ray layer (4 vs 5) exactly as given; spikes are not forced into a 1:1 index alignment with baseProfile here because the source gave them as separately-counted layers -- do not silently pad one array to match the other\'s length.',
+    ],
+  };
 
   // Phase 1I Angel foundation. The reviewed boundary from Wet is visual
   // intent only; physical fan building remains school- or variant-dependent.
@@ -1080,6 +1120,40 @@
     scoring: 'LEGACY_PRODUCTION_ONLY',
     normalizedGeometry: null, templateMm: null, scoreCoefficients: null, spikeDeltas: null,
     textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
+  };
+  // Phase 1R candidate reference template only (see the Anime template below
+  // for the full disclaimer -- identical status here). Wispy: an explicit
+  // full 6-point base layer plus a full 6-point peak/spike layer, 1:1
+  // positionally aligned, exactly as transcribed by the requester.
+  // Deliberately kept OFF wispyConstructionDefinition itself (see the Wet
+  // template above for why -- same reasoning, same library.referenceTemplates
+  // destination).
+  const wispyReferenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    baseProfile: [
+      { order: 0, position: 'INNER', lengthMm: 7 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 8 },
+      { order: 2, position: 'BODY', lengthMm: 8 },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 9 },
+      { order: 4, position: 'PEAK', lengthMm: 10 },
+      { order: 5, position: 'OUTER', lengthMm: 12 },
+    ],
+    spikes: [
+      { order: 0, position: 'INNER', lengthMm: 10 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 11 },
+      { order: 2, position: 'BODY', lengthMm: 11 },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 12 },
+      { order: 4, position: 'PEAK', lengthMm: 13 },
+      { order: 5, position: 'OUTER', lengthMm: 15 },
+    ],
+    correctionGoal: null,
+    notes: [
+      'Base 7→8→8→9→10→12, separate peaks 10→11→11→12→13→15, per the requester\'s transcription -- two explicit, equal-length, positionally-aligned layers.',
+      'Unlike the pre-existing legacyReference.textureExecution delta-generator above (uniform deltas applied to a single flat templateMm array), this template stores the base and peak layers as two independent explicit arrays -- the data-model gap the audit for this phase specifically identified.',
+    ],
   };
 
   // Phase 1K Kim K foundation. The reviewed identity is the qualitative
@@ -1671,6 +1745,55 @@
     scoreCoefficients: { base: 30, relativeEyeSizeThreshold: 0.36, relativeEyeSizeBonus: 16, confidenceThreshold: 0.5, confidenceBonus: 10 },
     spikeDeltas: null, textureFrequencies: null, curlLiftStrength: null, techniqueDiameters: null,
   };
+  // Phase 1R candidate reference template only -- NOT a domain-reviewed
+  // numeric claim (animeConstructionDefinition.professionalDefinition and
+  // its EXPERT_REVIEWED status above are completely untouched by this
+  // addition). Captures an explicit base-layer + spike-layer numeric split
+  // from a single user-supplied visual reference: base is a continuous
+  // shorter supporting curve, spikes are discrete accents positionally
+  // aligned to the base at/above its length. Sequence taken exactly as
+  // transcribed by the requester and assumed already expressed physical
+  // INNER-to-OUTER (order ascending) -- this assumption is NOT independently
+  // verified against the source image and should be confirmed before any
+  // production use.
+  //
+  // Kept OFF animeConstructionDefinition itself, and off wetConstruction-
+  // Definition/wispyConstructionDefinition above, on purpose: those three
+  // objects are exactly what several pre-existing tests (Angel/Classic/
+  // Jellyfish/Kim K/RAY/Wispy's own cross-effect tests) hash or
+  // deepStrictEqual as proof that an unrelated phase left them byte-
+  // identical. Mutating them in place would force a mechanical hash update
+  // across every one of those files -- legitimate in principle (CLAUDE.md's
+  // established process for exactly this), but avoidable entirely by
+  // storing this phase's candidate numbers in a separate, parallel
+  // `library.referenceTemplates` map instead (defined right after
+  // `registries` below) keyed by the same canonical id, rather than
+  // mutating the reviewed identity objects those guards already protect.
+  const animeReferenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    baseProfile: [
+      { order: 0, position: 'INNER', lengthMm: 8 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 9 },
+      { order: 2, position: 'BODY', lengthMm: 10 },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 11 },
+      { order: 4, position: 'OUTER', lengthMm: 12 },
+    ],
+    spikes: [
+      { order: 0, position: 'INNER', lengthMm: 9 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 10 },
+      { order: 2, position: 'BODY', lengthMm: 12 },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 13 },
+      { order: 4, position: 'OUTER', lengthMm: 14 },
+    ],
+    correctionGoal: null,
+    notes: [
+      'Base ~8-12mm, distinct spikes at ~9/10/12/13/14mm, per the requester\'s transcription.',
+      'Spikes are indexed 1:1 to baseProfile by `order`/`position`, matching the already-reviewed spikeAccentArchitecture relationship above (accent-to-support hierarchy) -- this template only adds numbers to that already-EXPERT_REVIEWED qualitative shape.',
+    ],
+  };
 
   // Phase 1P Jellyfish foundation. Unlike every other reviewed construction,
   // Jellyfish has NO repository production precedent — no legacy ID, no
@@ -1849,6 +1972,574 @@
     ],
   };
 
+  // ============================================================
+  // Phase 1R — six brand-new candidate mapping geometries, added while
+  // expanding the professional Lash Map library with additional strategies
+  // referenced from a user-supplied visual reference set. Unlike Phases
+  // 1A-1P, no domain-authority review event produced these; each rests
+  // solely on the requester's own transcription of a reference image and
+  // (for Mega Volume / Long Curved Fox / Multi-Curl Volume Fox / Hybrid Cat
+  // Eye) comparison against the already-EXPERT_REVIEWED Fox/Cat structural
+  // foundations above. All six are therefore explicitly DRAFT, not
+  // EXPERT_REVIEWED -- lower confidence even than Jellyfish (Phase 1P),
+  // which at least had one detailed external written source. Every zone
+  // number lives only in referenceTemplate (isolated from
+  // professionalDefinition exactly like legacyReference is -- see
+  // schema.referenceTemplate). professionalDefinition itself stays strictly
+  // qualitative, matching every other reviewed geometry in this file.
+  //
+  // Per CLAUDE.md: these definitions must never encode SWANIYA branding,
+  // imagery, or copyrighted design -- only the underlying length/curl/
+  // layering *concepts*, expressed in this library's own existing
+  // vocabulary and structure.
+  //
+  // referenceTemplate.zones sequences are taken exactly as transcribed by
+  // the requester and are ASSUMED to already be given in physical
+  // INNER-to-OUTER order (order ascending, order:0 = physical INNER,
+  // order:last = physical OUTER) -- this assumption is NOT independently
+  // verifiable from a text transcription alone and has not been checked
+  // against the source images. See the final report's data-model section.
+  // ============================================================
+
+  // Phase 1R-1: Dense Full / Mega Volume. Distinguished from Fox not by a
+  // different peak *region* but by a fuller, denser body -- Fox's defining
+  // trait (per its own outerCornerRule above) is a late-outer peak with a
+  // required post-peak decline; Mega Volume instead keeps building density
+  // and length through the body with no post-peak decline at all.
+  const megaVolumeDenseDefinition = identity('geometry.mega-volume-dense', 'Dense Full / Mega Volume', 'MAPPING_GEOMETRY', {
+    status: 'DRAFT', unresolved: true, legacyRelationship: 'NO_CURRENT_PRODUCTION_PRECEDENT',
+  });
+  megaVolumeDenseDefinition.professionalDefinition = {
+    invariantOutcome: {
+      progression: 'CONTINUOUS_BUILD_WITH_NO_POST_PEAK_DECLINE',
+      bodyCharacter: 'FULLER_DENSER_CENTRAL_TO_BODY_COVERAGE_THAN_TAPERED_ELONGATION_FAMILIES',
+      silhouette: 'MAXIMUM_DENSE_ELONGATION',
+      intent: 'DRAMATIC_FULL_COVERAGE_LENGTH_AND_DENSITY',
+    },
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE', numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'BELOW_BODY' },
+        { region: 'BODY', relationship: 'FULLER_DENSER_THAN_TAPERED_FAMILIES_CONTINUES_BUILDING' },
+        { region: 'OUTER', relationship: 'MAXIMUM_REGION_NO_REQUIRED_DECLINE' },
+      ],
+    },
+    topology: {
+      rise: 'CONTINUOUS_BUILD_TOWARD_OUTER', shoulder: 'UNRESOLVED',
+      postPeak: 'NOT_APPLICABLE_NO_DECLINE_REQUIRED', outerBehavior: 'MAXIMUM_REGION',
+    },
+    primaryIntent: 'DRAMATIC_FULL_COVERAGE_LENGTH_AND_DENSITY',
+    excludedDefiningIntents: ['LATE_OUTER_TAIL_DECLINE', 'PRE_OUTER_LIFT_WITH_CONTROLLED_DECREASE'],
+    relationships: {
+      applicationTechnique: { domain: 'APPLICATION_TECHNIQUE', selection: 'SEPARATE_LAYER', techniqueId: null },
+      curl: { domain: 'CURL_STRATEGY', selection: 'SEPARATE_LAYER', curlStrategyId: null },
+      constructionRecipe: { domain: 'CONSTRUCTION_RECIPE', selection: 'SEPARATE_LAYER', constructionId: null },
+      direction: { domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_LAYER', strategyId: null },
+    },
+    densityFinish: {
+      qualitativeIntent: ['DENSE', 'FULL', 'MAXIMUM_COVERAGE'],
+      bodyDensity: 'FULLER_THAN_FOX_OR_SQUIRREL_BODY', exactDensity: null, exactDiameter: null, exactVolume: null,
+    },
+    crossEffectComparison: {
+      'geometry.fox': {
+        megaVolumeDistinction: 'NO_REQUIRED_POST_PEAK_DECLINE_AND_FULLER_BODY_DENSITY',
+        foxOuterCornerRule: 'REQUIRED_POST_PEAK_DECLINE_PER_OUTER_CORNER_RULE',
+        mutuallyExclusive: false, notSimplyFox: true,
+      },
+    },
+    unresolved: [
+      'EXACT_DENSITY_OR_DIAMETER', 'GEOMETRY_CONSTRUCTION_COMPATIBILITY', 'DIRECTION_COMPATIBILITY',
+      'CURL_SELECTION', 'NUMERIC_TEMPLATES', 'CROSS_SCHOOL_TERMINOLOGY_CONSENSUS',
+    ],
+  };
+  megaVolumeDenseDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], constructionIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  megaVolumeDenseDefinition.validation = {
+    status: 'DRAFT',
+    evidence: [{
+      id: 'phase-1r-mega-volume-dense-candidate', type: 'CANDIDATE_STRUCTURE_FROM_UNREVIEWED_REFERENCE_SOURCE',
+      scope: ['CONTINUOUS_BUILD_NO_POST_PEAK_DECLINE', 'FULLER_DENSER_BODY_THAN_TAPERED_FAMILIES', 'DRAMATIC_FULL_COVERAGE_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1R_USER_SUPPLIED_REFERENCE_MATERIAL', scope: 'CANDIDATE_STRUCTURE_AND_REFERENCE_TEMPLATE_ONLY_NOT_DOMAIN_REVIEWED' }],
+    reviewers: [],
+    reviewedAt: null,
+    revision: 1,
+    notes: [
+      'No domain-authority review has occurred for this identity; it rests solely on the requester\'s own transcription of a reference image, unlike Phases 1A-1P.',
+      'Numeric zone data lives only in referenceTemplate, never in professionalDefinition, matching the isolation discipline already established for legacyReference elsewhere in this file.',
+    ],
+  };
+  megaVolumeDenseDefinition.referenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    zones: [
+      { order: 0, position: 'INNER', lengthMmRange: [7, 8] },
+      { order: 1, position: 'INNER_BODY', lengthMm: 8 },
+      { order: 2, position: 'BODY', lengthMm: 9 },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 10 },
+      { order: 4, position: 'PRE_OUTER', lengthMm: 12 },
+      { order: 5, position: 'OUTER', lengthMm: 14 },
+    ],
+    baseProfile: null, spikes: null, correctionGoal: null,
+    notes: [
+      '7-8 → 8 → 9 → 10 → 12 → 14, per the requester\'s transcription.',
+      'The requester\'s "fuller central body, not simply Fox" note is modeled as a densityFinish/topology distinction (no required post-peak decline, denser body coverage), not as a different length sequence -- the zone lengths alone are, in fact, monotonically increasing like several other families; the distinguishing trait is the absence of Fox\'s required post-peak decline plus the fuller body density claim.',
+    ],
+  };
+
+  // Phase 1R-2: Long Curved Fox. A Fox-family variant elaborated with
+  // explicit per-zone curl (J at the inner root, escalating through C to a
+  // dramatic L toward the outer tail) -- data the reviewed geometry.fox
+  // definition above deliberately never encodes (curl is a separate layer
+  // there, never resolved to an exact value). This is the first identity in
+  // this file to carry an explicit curl-per-zone value at all.
+  const longCurvedFoxDefinition = identity('geometry.long-curved-fox', 'Long Curved Fox', 'MAPPING_GEOMETRY', {
+    status: 'DRAFT', unresolved: true, legacyRelationship: 'NO_CURRENT_PRODUCTION_PRECEDENT',
+  });
+  longCurvedFoxDefinition.professionalDefinition = {
+    invariantOutcome: {
+      progression: 'GRADUAL_BUILD_WITH_ESCALATING_CURL_TOWARD_OUTER',
+      curlCharacter: 'PER_ZONE_CURL_ESCALATION_FLATTER_INNER_TO_DRAMATIC_OUTER',
+      silhouette: 'ELONGATED_OUTER_SWEEP_WITH_VISIBLE_CURL_TRANSITION',
+      intent: 'HORIZONTAL_ELONGATION_WITH_DRAMATIC_OUTER_CURL_LIFT',
+    },
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE', numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'BELOW_BODY_FLATTEST_CURL' },
+        { region: 'BODY', relationship: 'BUILDS_TOWARD_OUTER_CURL_BEGINS_ESCALATING' },
+        { region: 'OUTER', relationship: 'MAXIMUM_LENGTH_AND_MOST_DRAMATIC_CURL' },
+      ],
+    },
+    topology: {
+      rise: 'GRADUAL', shoulder: 'UNRESOLVED', postPeak: 'NOT_APPLICABLE_MAXIMUM_AT_OUTER',
+      outerBehavior: 'MAXIMUM_LENGTH_AND_CURL_AT_PHYSICAL_OUTER',
+    },
+    curlTopology: {
+      rule: 'CURL_ESCALATES_BY_ZONE_TOWARD_PHYSICAL_OUTER',
+      innerCurl: 'FLATTEST', outerCurl: 'MOST_DRAMATIC',
+      requiresPerZoneCurlRepresentation: true,
+      distinctFromSingleBaseCurlModel: true,
+    },
+    primaryIntent: 'HORIZONTAL_ELONGATION_WITH_DRAMATIC_OUTER_CURL_LIFT',
+    relationships: {
+      applicationTechnique: { domain: 'APPLICATION_TECHNIQUE', selection: 'SEPARATE_LAYER', techniqueId: null },
+      curl: { domain: 'CURL_STRATEGY', selection: 'PER_ZONE_NOT_SINGLE_VALUE', curlStrategyId: null },
+      direction: { domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_LAYER', strategyId: 'direction.fox' },
+    },
+    densityFinish: { qualitativeIntent: ['ELONGATED', 'DRAMATIC_OUTER_CURL'], exactDensity: null, exactDiameter: null },
+    crossEffectComparison: {
+      'geometry.fox': {
+        longCurvedFoxDistinction: 'EXPLICIT_PER_ZONE_CURL_ESCALATION_NOT_PRESENT_IN_REVIEWED_FOX_DEFINITION',
+        sharedTrait: 'LATE_OUTER_TEMPORAL_ELONGATION_FAMILY', mutuallyExclusive: false,
+        relationship: 'FOX_FAMILY_VARIANT_WITH_ADDED_CURL_DATA_NOT_A_REPLACEMENT_FOR_GEOMETRY_FOX',
+      },
+    },
+    unresolved: [
+      'EXACT_CURL_LETTER_SYSTEM_CROSS_CHECK', 'GEOMETRY_CONSTRUCTION_COMPATIBILITY', 'DIRECTION_COMPATIBILITY',
+      'NUMERIC_TEMPLATES', 'CROSS_SCHOOL_TERMINOLOGY_CONSENSUS',
+    ],
+  };
+  longCurvedFoxDefinition.compatibility = {
+    geometryIds: ['geometry.fox'], directionIds: ['direction.fox'], curlStrategyIds: [], constructionIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  longCurvedFoxDefinition.validation = {
+    status: 'DRAFT',
+    evidence: [{
+      id: 'phase-1r-long-curved-fox-candidate', type: 'CANDIDATE_STRUCTURE_FROM_UNREVIEWED_REFERENCE_SOURCE',
+      scope: ['PER_ZONE_CURL_ESCALATION', 'FOX_FAMILY_ELONGATION', 'DRAMATIC_OUTER_CURL_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1R_USER_SUPPLIED_REFERENCE_MATERIAL', scope: 'CANDIDATE_STRUCTURE_AND_REFERENCE_TEMPLATE_ONLY_NOT_DOMAIN_REVIEWED' }],
+    reviewers: [],
+    reviewedAt: null,
+    revision: 1,
+    notes: [
+      'No domain-authority review has occurred for this identity.',
+      'This is the first identity in this file needing an explicit per-zone curl value; the existing curl.exactCurl-per-definition schema (a single value per identity) is not sufficient -- see referenceTemplate.zones[].curl and the final report\'s data-model section.',
+    ],
+  };
+  longCurvedFoxDefinition.referenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    zones: [
+      { order: 0, position: 'INNER', lengthMm: 6, curl: 'J' },
+      { order: 1, position: 'INNER_BODY', lengthMmRange: [6, 8], curl: 'C' },
+      { order: 2, position: 'BODY', lengthMm: 10, curl: 'C' },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 11, curl: 'L' },
+      { order: 4, position: 'PEAK', lengthMm: 12, curl: 'L' },
+      { order: 5, position: 'OUTER', lengthMm: 13, curl: 'L' },
+    ],
+    baseProfile: null, spikes: null, correctionGoal: null,
+    notes: [
+      '6J, 6-8C, 10C, 11L, 12L, 13L, per the requester\'s transcription -- curl letters preserved exactly as given, not cross-checked against a specific curl-letter standard.',
+      'Curl transitions BY ZONE from J (flattest, inner) through C (body) to L (most dramatic, outer) -- the data model change this identity specifically requires is a per-zone curl field, not a single design-wide curl.',
+    ],
+  };
+
+  // Phase 1R-3: Soft Volume Gradient. Distinct topology from every other
+  // geometry in this file: a smooth monotonic build with NO plateau,
+  // NO late-outer peak-and-decline, and explicitly no spike architecture --
+  // every other reviewed geometry here (natural/doll/squirrel/cat/fox) has
+  // some form of maximum region followed by a controlled reduction or tail;
+  // this one simply keeps building to the physical outer with none.
+  const softVolumeGradientDefinition = identity('geometry.soft-volume-gradient', 'Soft Volume Gradient', 'MAPPING_GEOMETRY', {
+    status: 'DRAFT', unresolved: true, legacyRelationship: 'NO_CURRENT_PRODUCTION_PRECEDENT',
+  });
+  softVolumeGradientDefinition.professionalDefinition = {
+    invariantOutcome: {
+      progression: 'SMOOTH_CONTINUOUS_GRADIENT_NO_PLATEAU_NO_DECLINE',
+      spikeArchitecture: 'NONE',
+      silhouette: 'EVEN_UNBROKEN_GRADIENT',
+      intent: 'SOFT_PROGRESSIVE_VOLUME_BUILD_WITHOUT_A_DEFINED_PEAK_REGION',
+    },
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE', numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'SHORTEST_STARTING_POINT' },
+        { region: 'BODY', relationship: 'SMOOTH_CONTINUOUS_INCREASE_NO_PLATEAU' },
+        { region: 'OUTER', relationship: 'LONGEST_POINT_NO_DECLINE_NO_TAPER' },
+      ],
+    },
+    topology: {
+      rise: 'SMOOTH_CONTINUOUS', shoulder: 'NONE_NO_PLATEAU',
+      postPeak: 'NOT_APPLICABLE_NO_PEAK_REGION_DEFINED', outerBehavior: 'MAXIMUM_AT_PHYSICAL_OUTER_NO_DECLINE',
+    },
+    primaryIntent: 'SOFT_PROGRESSIVE_VOLUME_BUILD_WITHOUT_A_DEFINED_PEAK_REGION',
+    excludedDefiningIntents: ['SPIKE_OR_ACCENT_ARCHITECTURE', 'CENTRAL_OR_PRE_OUTER_PEAK_WITH_DECLINE'],
+    relationships: {
+      applicationTechnique: { domain: 'APPLICATION_TECHNIQUE', selection: 'SEPARATE_LAYER', techniqueId: null },
+      curl: { domain: 'CURL_STRATEGY', selection: 'SEPARATE_LAYER', curlStrategyId: null },
+      direction: { domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_LAYER', strategyId: null },
+    },
+    densityFinish: { qualitativeIntent: ['SOFT', 'EVEN', 'PROGRESSIVE'], exactDensity: null, exactDiameter: null },
+    crossEffectComparison: {
+      'geometry.natural': {
+        distinction: 'NATURAL_HAS_A_BROAD_MODEST_MAXIMUM_REGION_WITH_CONTROLLED_OUTER_REDUCTION_THIS_HAS_NEITHER',
+        mutuallyExclusive: false,
+      },
+    },
+    unresolved: [
+      'EXACT_GRADIENT_STEEPNESS', 'GEOMETRY_CONSTRUCTION_COMPATIBILITY', 'DIRECTION_COMPATIBILITY',
+      'CURL_SELECTION', 'NUMERIC_TEMPLATES', 'CROSS_SCHOOL_TERMINOLOGY_CONSENSUS',
+    ],
+  };
+  softVolumeGradientDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], constructionIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  softVolumeGradientDefinition.validation = {
+    status: 'DRAFT',
+    evidence: [{
+      id: 'phase-1r-soft-volume-gradient-candidate', type: 'CANDIDATE_STRUCTURE_FROM_UNREVIEWED_REFERENCE_SOURCE',
+      scope: ['SMOOTH_CONTINUOUS_GRADIENT_NO_PLATEAU_NO_DECLINE', 'NO_SPIKE_ARCHITECTURE', 'SOFT_PROGRESSIVE_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1R_USER_SUPPLIED_REFERENCE_MATERIAL', scope: 'CANDIDATE_STRUCTURE_AND_REFERENCE_TEMPLATE_ONLY_NOT_DOMAIN_REVIEWED' }],
+    reviewers: [],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['No domain-authority review has occurred for this identity.'],
+  };
+  softVolumeGradientDefinition.referenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    zones: [
+      { order: 0, position: 'INNER', lengthMm: 8 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 9 },
+      { order: 2, position: 'BODY', lengthMm: 10 },
+      { order: 3, position: 'PRE_OUTER', lengthMm: 12 },
+      { order: 4, position: 'OUTER_TRANSITION', lengthMm: 13 },
+      { order: 5, position: 'OUTER', lengthMm: 14 },
+    ],
+    baseProfile: null, spikes: null, correctionGoal: null,
+    notes: ['8 → 9 → 10 → 12 → 13 → 14, per the requester\'s transcription -- monotonically increasing with no spike architecture, as specified.'],
+  };
+
+  // Phase 1R-4: Downturned-Eye Correction / Hybrid Natural. The requester
+  // explicitly flagged the physical-orientation risk for this one: a
+  // descending profile must mean descending from the ANATOMICAL inner
+  // corner to the ANATOMICAL outer corner, never from whatever appeared on
+  // the left side of a screenshot. This identity has NO relationship to
+  // DESIGN_CATALOG's existing 'correction' entry (an asymmetry-balancing
+  // map with an ascending-then-descending profile, peakZone 3) -- the two
+  // solve different problems and must not be conflated.
+  const downturnedEyeCorrectionDefinition = identity('geometry.downturned-eye-correction', 'Downturned-Eye Correction / Hybrid Natural', 'MAPPING_GEOMETRY', {
+    status: 'DRAFT', unresolved: true, legacyRelationship: 'NO_CURRENT_PRODUCTION_PRECEDENT',
+  });
+  downturnedEyeCorrectionDefinition.professionalDefinition = {
+    invariantOutcome: {
+      progression: 'DESCENDING_FROM_PHYSICAL_INNER_TO_PHYSICAL_OUTER',
+      maximum: 'AT_PHYSICAL_INNER_NOT_CENTRAL_NOT_LATE_OUTER',
+      silhouette: 'INNER_WEIGHTED_TAPERING_TOWARD_OUTER',
+      intent: 'OPTICALLY_COUNTERACT_A_DOWNTURNED_OUTER_CORNER_BY_SHIFTING_VISUAL_WEIGHT_INWARD',
+    },
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE', numericSamples: null,
+      sequence: [
+        { region: 'PHYSICAL_INNER', relationship: 'MAXIMUM_REGION' },
+        { region: 'BODY', relationship: 'CONTROLLED_DESCENT_FROM_INNER_MAXIMUM' },
+        { region: 'PHYSICAL_OUTER', relationship: 'MINIMUM_REGION' },
+      ],
+    },
+    topology: {
+      rise: 'NOT_APPLICABLE_MAXIMUM_STARTS_AT_INNER', shoulder: 'UNRESOLVED',
+      postPeak: 'CONTROLLED_DESCENT_ACROSS_ENTIRE_PROFILE', outerBehavior: 'MINIMUM_AT_PHYSICAL_OUTER',
+    },
+    physicalOrientationRule: {
+      requirement: 'PROFILE_MUST_BE_INTERPRETED_BY_ANATOMICAL_INNER_OUTER_NEVER_BY_SCREEN_OR_IMAGE_LEFT_RIGHT',
+      rationale: 'A DESCENDING_PROFILE_ENCODED_BY_SCREEN_SIDE_INSTEAD_OF_ANATOMY_WOULD_SILENTLY_REVERSE_ON_ONE_PHYSICAL_EYE',
+      relatedProtectedContracts: ['B', 'H'],
+      resolution: 'STRUCTURALLY_ENFORCED_BY_STORING_A_SINGLE_PHYSICAL_ORDER_ARRAY_SEE_REFERENCETEMPLATE',
+    },
+    primaryIntent: 'OPTICALLY_COUNTERACT_A_DOWNTURNED_OUTER_CORNER_BY_SHIFTING_VISUAL_WEIGHT_INWARD',
+    relationships: {
+      applicationTechnique: { domain: 'APPLICATION_TECHNIQUE', selection: 'SEPARATE_LAYER', techniqueId: null },
+      curl: { domain: 'CURL_STRATEGY', selection: 'SEPARATE_LAYER', curlStrategyId: null },
+      direction: { domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_LAYER', strategyId: null },
+    },
+    densityFinish: { qualitativeIntent: ['CORRECTIVE', 'INNER_WEIGHTED'], exactDensity: null, exactDiameter: null },
+    crossEffectComparison: {
+      'geometry.natural': {
+        distinction: 'NATURAL_HAS_A_BROAD_CENTRAL_OR_NEAR_CENTRAL_MAXIMUM_THIS_HAS_AN_INNER_MAXIMUM_WITH_CONTINUOUS_DESCENT',
+        mutuallyExclusive: false,
+      },
+    },
+    unresolved: [
+      'CLINICAL_EFFECTIVENESS_OF_INNER_WEIGHTED_DESCENT_FOR_DOWNTURNED_EYES', 'EXACT_DESCENT_SLOPE',
+      'GEOMETRY_CONSTRUCTION_COMPATIBILITY', 'DIRECTION_COMPATIBILITY', 'CURL_SELECTION',
+      'NUMERIC_TEMPLATES', 'RELATIONSHIP_TO_DESIGN_CATALOG_CORRECTION_ENTRY_BEYOND_SHARED_CATEGORY_NAME',
+    ],
+  };
+  downturnedEyeCorrectionDefinition.compatibility = {
+    geometryIds: [], directionIds: [], curlStrategyIds: [], constructionIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  downturnedEyeCorrectionDefinition.validation = {
+    status: 'DRAFT',
+    evidence: [{
+      id: 'phase-1r-downturned-eye-correction-candidate', type: 'CANDIDATE_STRUCTURE_FROM_UNREVIEWED_REFERENCE_SOURCE',
+      scope: ['DESCENDING_INNER_TO_OUTER_PROFILE', 'INNER_MAXIMUM', 'CORRECTIVE_INTENT_FOR_DOWNTURNED_OUTER_CORNER'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1R_USER_SUPPLIED_REFERENCE_MATERIAL', scope: 'CANDIDATE_STRUCTURE_AND_REFERENCE_TEMPLATE_ONLY_NOT_DOMAIN_REVIEWED' }],
+    reviewers: [],
+    reviewedAt: null,
+    revision: 1,
+    notes: [
+      'No domain-authority review has occurred for this identity, and its actual corrective effectiveness for downturned eyes has not been clinically validated -- treat as a structural candidate only.',
+      'Explicitly distinct from DESIGN_CATALOG\'s existing "correction" entry (asymmetry balancing, ascending-then-descending profile, peakZone 3) -- this identity solves a different problem (a monotonic inner-to-outer descent) and legacyIds is deliberately left empty rather than borrowing that unrelated production entry\'s identity.',
+    ],
+  };
+  downturnedEyeCorrectionDefinition.referenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    zones: [
+      { order: 0, position: 'PHYSICAL_INNER', lengthMm: 13 },
+      { order: 1, position: 'INNER_BODY', lengthMm: 12 },
+      { order: 2, position: 'BODY', lengthMm: 11 },
+      { order: 3, position: 'PRE_OUTER', lengthMm: 10 },
+      { order: 4, position: 'OUTER_TRANSITION', lengthMm: 9 },
+      { order: 5, position: 'PHYSICAL_OUTER', lengthMm: 8 },
+    ],
+    baseProfile: null, spikes: null,
+    correctionGoal: 'OPTICALLY_LIFT_A_DOWNTURNED_OUTER_CORNER_BY_PLACING_MAXIMUM_LENGTH_AT_THE_PHYSICAL_INNER_CORNER_AND_TAPERING_TOWARD_THE_PHYSICAL_OUTER_CORNER',
+    notes: [
+      '13 → 12 → 11 → 10 → 9 → 8, per the requester\'s transcription, encoded with order:0 fixed to PHYSICAL_INNER and order:5 fixed to PHYSICAL_OUTER regardless of which side of the source screenshot the numbers appeared on.',
+      'The requester explicitly warned against blindly encoding this sequence by screenshot left-to-right direction; `order` here is anatomical, not screen-side, matching Protected Contracts B and H, and is proven mirror-safe by construction (a single array serves both physical eyes -- see the dedicated mirror-safety test).',
+    ],
+  };
+
+  // Phase 1R-5: Multi-Curl Volume Fox. A second Fox-family variant (see
+  // Long Curved Fox / 1R-2 above) with BOTH length and curl changing across
+  // zones -- curl letters preserved exactly as transcribed, including one
+  // ('M') that does not match this codebase's other observed curl letters
+  // (J/B/C/CC/D/L/L+) and has not been cross-checked against a specific
+  // curl-system standard.
+  const multiCurlVolumeFoxDefinition = identity('geometry.multi-curl-volume-fox', 'Multi-Curl Volume Fox', 'MAPPING_GEOMETRY', {
+    status: 'DRAFT', unresolved: true, legacyRelationship: 'NO_CURRENT_PRODUCTION_PRECEDENT',
+  });
+  multiCurlVolumeFoxDefinition.professionalDefinition = {
+    invariantOutcome: {
+      progression: 'BUILD_TOWARD_OUTER_WITH_BOTH_LENGTH_AND_CURL_ESCALATING_BY_ZONE',
+      curlCharacter: 'PER_ZONE_CURL_ESCALATION_INDEPENDENT_OF_BUT_CORRELATED_WITH_LENGTH',
+      silhouette: 'PROGRESSIVE_VOLUME_AND_CURL_BUILD_TOWARD_PHYSICAL_OUTER',
+      intent: 'MAXIMUM_OUTER_DRAMA_THROUGH_COMBINED_LENGTH_AND_CURL_PROGRESSION',
+    },
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE', numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'SHORTEST_AND_FLATTEST' },
+        { region: 'BODY', relationship: 'BUILDS_LENGTH_AND_CURL_TOGETHER' },
+        { region: 'OUTER', relationship: 'LONGEST_AND_MOST_CURLED' },
+      ],
+    },
+    topology: {
+      rise: 'GRADUAL', shoulder: 'UNRESOLVED', postPeak: 'NOT_APPLICABLE_MAXIMUM_AT_OUTER',
+      outerBehavior: 'MAXIMUM_LENGTH_AND_CURL_AT_PHYSICAL_OUTER',
+    },
+    curlTopology: {
+      rule: 'LENGTH_AND_CURL_BOTH_ESCALATE_BY_ZONE_TOWARD_PHYSICAL_OUTER',
+      requiresPerZoneCurlRepresentation: true, distinctFromSingleBaseCurlModel: true,
+    },
+    primaryIntent: 'MAXIMUM_OUTER_DRAMA_THROUGH_COMBINED_LENGTH_AND_CURL_PROGRESSION',
+    relationships: {
+      applicationTechnique: { domain: 'APPLICATION_TECHNIQUE', selection: 'SEPARATE_LAYER', techniqueId: null },
+      curl: { domain: 'CURL_STRATEGY', selection: 'PER_ZONE_NOT_SINGLE_VALUE', curlStrategyId: null },
+      direction: { domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_LAYER', strategyId: 'direction.fox' },
+    },
+    densityFinish: { qualitativeIntent: ['VOLUME', 'PROGRESSIVE_CURL'], exactDensity: null, exactDiameter: null },
+    crossEffectComparison: {
+      'geometry.fox': {
+        multiCurlVolumeFoxDistinction: 'BOTH_LENGTH_AND_CURL_VARY_BY_ZONE_NOT_JUST_LENGTH',
+        sharedTrait: 'LATE_OUTER_TEMPORAL_ELONGATION_FAMILY', mutuallyExclusive: false,
+        relationship: 'FOX_FAMILY_VARIANT_WITH_ADDED_CURL_DATA_NOT_A_REPLACEMENT_FOR_GEOMETRY_FOX',
+      },
+      'geometry.long-curved-fox': {
+        distinction: 'LONG_CURVED_FOX_HOLDS_LENGTH_ROUGHLY_FLAT_ACROSS_THE_OUTER_HALF_WHILE_THIS_IDENTITY_CONTINUES_INCREASING_LENGTH_ALONGSIDE_CURL',
+        mutuallyExclusive: false,
+      },
+    },
+    unresolved: [
+      'EXACT_CURL_LETTER_SYSTEM_CROSS_CHECK_INCLUDING_THE_NON_STANDARD_M_LETTER', 'GEOMETRY_CONSTRUCTION_COMPATIBILITY',
+      'DIRECTION_COMPATIBILITY', 'NUMERIC_TEMPLATES', 'CROSS_SCHOOL_TERMINOLOGY_CONSENSUS',
+    ],
+  };
+  multiCurlVolumeFoxDefinition.compatibility = {
+    geometryIds: ['geometry.fox', 'geometry.long-curved-fox'], directionIds: ['direction.fox'], curlStrategyIds: [],
+    constructionIds: [], fanConstructionIds: [], conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  multiCurlVolumeFoxDefinition.validation = {
+    status: 'DRAFT',
+    evidence: [{
+      id: 'phase-1r-multi-curl-volume-fox-candidate', type: 'CANDIDATE_STRUCTURE_FROM_UNREVIEWED_REFERENCE_SOURCE',
+      scope: ['PER_ZONE_LENGTH_AND_CURL_ESCALATION', 'FOX_FAMILY_ELONGATION', 'MAXIMUM_OUTER_DRAMA_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1R_USER_SUPPLIED_REFERENCE_MATERIAL', scope: 'CANDIDATE_STRUCTURE_AND_REFERENCE_TEMPLATE_ONLY_NOT_DOMAIN_REVIEWED' }],
+    reviewers: [],
+    reviewedAt: null,
+    revision: 1,
+    notes: [
+      'No domain-authority review has occurred for this identity.',
+      'The transcribed curl sequence includes the letter "M", which does not match any curl letter observed elsewhere in this file\'s legacyReference records (J/B/C/CC/D/L/L+) -- preserved verbatim rather than silently corrected, and flagged here for the requester to confirm against their source.',
+    ],
+  };
+  multiCurlVolumeFoxDefinition.referenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    zones: [
+      { order: 0, position: 'INNER', lengthMm: 8, curl: 'B' },
+      { order: 1, position: 'INNER_BODY', lengthMm: 8, curl: 'C' },
+      { order: 2, position: 'BODY', lengthMm: 10, curl: 'M' },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 12, curl: 'M' },
+      { order: 4, position: 'PEAK', lengthMm: 13, curl: 'L' },
+      { order: 5, position: 'OUTER', lengthMm: 15, curl: 'L' },
+    ],
+    baseProfile: null, spikes: null, correctionGoal: null,
+    notes: ['8B, 8C, 10M, 12M, 13L, 15L, per the requester\'s transcription -- curl letters preserved exactly as given, including the non-standard "M" (see validation notes).'],
+  };
+
+  // Phase 1R-6: Hybrid Cat Eye. A Cat-family variant (horizontal elongation
+  // with an outer curl transition) elaborated with explicit per-zone curl,
+  // holding a steady C through the body and only transitioning to D at the
+  // very outer tip -- the reviewed geometry.cat definition above never
+  // resolves an exact curl value at all.
+  const hybridCatEyeDefinition = identity('geometry.hybrid-cat-eye', 'Hybrid Cat Eye', 'MAPPING_GEOMETRY', {
+    status: 'DRAFT', unresolved: true, legacyRelationship: 'NO_CURRENT_PRODUCTION_PRECEDENT',
+  });
+  hybridCatEyeDefinition.professionalDefinition = {
+    invariantOutcome: {
+      progression: 'GRADUAL_BUILD_WITH_STEADY_MID_CURL_AND_A_SHARP_OUTER_CURL_TRANSITION',
+      curlCharacter: 'STEADY_CURL_THROUGH_BODY_WITH_A_SINGLE_SHARP_TRANSITION_AT_THE_OUTER_TIP',
+      silhouette: 'HORIZONTAL_ELONGATION_WITH_OUTER_CURL_TRANSITION',
+      intent: 'FELINE_HORIZONTAL_ELONGATION_WITH_A_DEFINED_OUTER_LIFT_ACCENT',
+    },
+    normalizedProfile: {
+      unit: 'RELATIVE_TO_LASH_LINE', numericSamples: null,
+      sequence: [
+        { region: 'INNER', relationship: 'BELOW_BODY_FLATTEST_CURL' },
+        { region: 'BODY', relationship: 'BUILDS_TOWARD_OUTER_STEADY_MID_CURL' },
+        { region: 'OUTER_TIP', relationship: 'MAXIMUM_LENGTH_WITH_A_SHARP_CURL_TRANSITION' },
+      ],
+    },
+    topology: {
+      rise: 'GRADUAL', shoulder: 'UNRESOLVED', postPeak: 'NOT_APPLICABLE_MAXIMUM_AT_OUTER_TIP',
+      outerBehavior: 'MAXIMUM_LENGTH_WITH_SHARP_CURL_TRANSITION_AT_PHYSICAL_OUTER',
+    },
+    curlTopology: {
+      rule: 'STEADY_CURL_THROUGH_BODY_SINGLE_SHARP_TRANSITION_AT_OUTER_TIP',
+      requiresPerZoneCurlRepresentation: true, distinctFromSingleBaseCurlModel: true,
+      distinctFromGradualEscalation: 'UNLIKE_LONG_CURVED_FOX_AND_MULTI_CURL_VOLUME_FOX_CURL_IS_STEADY_THEN_TRANSITIONS_ONCE_RATHER_THAN_ESCALATING_ACROSS_EVERY_ZONE',
+    },
+    primaryIntent: 'FELINE_HORIZONTAL_ELONGATION_WITH_A_DEFINED_OUTER_LIFT_ACCENT',
+    relationships: {
+      applicationTechnique: { domain: 'APPLICATION_TECHNIQUE', selection: 'SEPARATE_LAYER', techniqueId: null },
+      curl: { domain: 'CURL_STRATEGY', selection: 'PER_ZONE_NOT_SINGLE_VALUE', curlStrategyId: null },
+      direction: { domain: 'DIRECTION_STRATEGY', role: 'SECONDARY_SEPARATE_LAYER', strategyId: 'direction.cat' },
+    },
+    densityFinish: { qualitativeIntent: ['FELINE', 'ELONGATED', 'OUTER_ACCENTED'], exactDensity: null, exactDiameter: null },
+    crossEffectComparison: {
+      'geometry.cat': {
+        hybridCatEyeDistinction: 'EXPLICIT_PER_ZONE_CURL_WITH_A_SHARP_OUTER_TRANSITION_NOT_PRESENT_IN_REVIEWED_CAT_DEFINITION',
+        sharedTrait: 'LATE_OUTER_FELINE_ELONGATION_FAMILY', mutuallyExclusive: false,
+        relationship: 'CAT_FAMILY_VARIANT_WITH_ADDED_CURL_DATA_NOT_A_REPLACEMENT_FOR_GEOMETRY_CAT',
+      },
+    },
+    unresolved: [
+      'EXACT_CURL_LETTER_SYSTEM_CROSS_CHECK', 'GEOMETRY_CONSTRUCTION_COMPATIBILITY', 'DIRECTION_COMPATIBILITY',
+      'NUMERIC_TEMPLATES', 'CROSS_SCHOOL_TERMINOLOGY_CONSENSUS',
+    ],
+  };
+  hybridCatEyeDefinition.compatibility = {
+    geometryIds: ['geometry.cat'], directionIds: ['direction.cat'], curlStrategyIds: [], constructionIds: [], fanConstructionIds: [],
+    conditions: [], resolution: 'UNRESOLVED_SEPARATE_LAYER_COMPOSITION',
+  };
+  hybridCatEyeDefinition.validation = {
+    status: 'DRAFT',
+    evidence: [{
+      id: 'phase-1r-hybrid-cat-eye-candidate', type: 'CANDIDATE_STRUCTURE_FROM_UNREVIEWED_REFERENCE_SOURCE',
+      scope: ['STEADY_CURL_WITH_SHARP_OUTER_TRANSITION', 'CAT_FAMILY_HORIZONTAL_ELONGATION', 'DEFINED_OUTER_LIFT_ACCENT_INTENT'],
+      numericClaims: false,
+    }],
+    provenance: [{ source: 'PHASE_1R_USER_SUPPLIED_REFERENCE_MATERIAL', scope: 'CANDIDATE_STRUCTURE_AND_REFERENCE_TEMPLATE_ONLY_NOT_DOMAIN_REVIEWED' }],
+    reviewers: [],
+    reviewedAt: null,
+    revision: 1,
+    notes: ['No domain-authority review has occurred for this identity.'],
+  };
+  hybridCatEyeDefinition.referenceTemplate = {
+    relationship: 'REFERENCE_MATERIAL_DERIVED_NOT_PRODUCTION',
+    isolatedFromProfessionalDefinition: true,
+    sourceType: 'USER_SUPPLIED_VISUAL_REFERENCE_CONCEPT_ONLY',
+    confidence: 'SINGLE_SOURCE_UNVALIDATED',
+    zones: [
+      { order: 0, position: 'INNER', lengthMm: 8, curl: 'B' },
+      { order: 1, position: 'INNER_BODY', lengthMm: 8, curl: 'C' },
+      { order: 2, position: 'BODY', lengthMm: 10, curl: 'C' },
+      { order: 3, position: 'PRE_PEAK', lengthMm: 11, curl: 'C' },
+      { order: 4, position: 'PEAK', lengthMm: 12, curl: 'C' },
+      { order: 5, position: 'PRE_OUTER', lengthMm: 13, curl: 'C' },
+      { order: 6, position: 'OUTER_TIP', lengthMmRange: [13, 14], curl: 'D' },
+    ],
+    baseProfile: null, spikes: null, correctionGoal: null,
+    notes: ['8B, 8C, 10C, 11C, 12C, 13C, 14-13D, per the requester\'s transcription -- 7 zones, steady C curl through the body with a single transition to D at the outer tip.'],
+  };
+
   const registries = {
     geometries: {
       'geometry.natural': naturalDefinition,
@@ -1856,6 +2547,12 @@
       'geometry.cat': catDefinition,
       'geometry.fox': foxDefinition,
       'geometry.squirrel': squirrelDefinition,
+      'geometry.mega-volume-dense': megaVolumeDenseDefinition,
+      'geometry.long-curved-fox': longCurvedFoxDefinition,
+      'geometry.soft-volume-gradient': softVolumeGradientDefinition,
+      'geometry.downturned-eye-correction': downturnedEyeCorrectionDefinition,
+      'geometry.multi-curl-volume-fox': multiCurlVolumeFoxDefinition,
+      'geometry.hybrid-cat-eye': hybridCatEyeDefinition,
     },
     techniques: {
       'technique.classic-one-to-one': classicTechniqueDefinition,
@@ -2051,6 +2748,23 @@
       isolatedFromProfessionalDefinition: true,
       mayContain: ['normalizedGeometry', 'templateMm', 'scoreCoefficients', 'spikeDeltas', 'textureFrequencies', 'curlLiftStrength', 'techniqueDiameters'],
     },
+    // Phase 1R reference-template capacity. Distinct from legacyReference:
+    // legacyReference.relationship is always CURRENT_PRODUCTION_COMPARISON_ONLY
+    // (it mirrors an already-shipped DESIGN_CATALOG entry). referenceTemplate
+    // instead holds concrete zone/curl/base+spike numbers pulled from a
+    // *candidate* source with no such production precedent (e.g. a
+    // user-supplied visual reference the artist wants captured as a starting
+    // point) -- always isolated from professionalDefinition the same way,
+    // never asserted as EXPERT_REVIEWED/VALIDATED truth on its own.
+    referenceTemplate: {
+      isolatedFromProfessionalDefinition: true,
+      purpose: 'CANDIDATE_NUMERIC_DATA_FROM_A_SINGLE_UNVALIDATED_REFERENCE_SOURCE_NOT_PRODUCTION_NOT_MULTI_SOURCE_REVIEWED',
+      location: 'library.referenceTemplates[canonicalId] -- a sibling map alongside registries, keyed by the same canonical id; the six brand-new Phase 1R geometries additionally carry it as their own .referenceTemplate property (equivalent content, safe to duplicate since nothing hashed those brand-new objects before this phase). NEVER assigned onto a pre-existing EXPERT_REVIEWED identity object directly -- see the long comment above animeReferenceTemplate for why.',
+      mayContain: ['zones', 'baseProfile', 'spikes', 'correctionGoal'],
+      zoneShape: '{order (0-based, strictly ascending, physical INNER=0..OUTER=last -- never screen-side-dependent), position (human-readable physical label), lengthMm or lengthMmRange:[min,max], curl (optional, per-zone)}',
+      layeredShape: 'baseProfile: zone[] (continuous supporting length curve); spikes: zone[] positionally aligned to baseProfile entries, each an accent length at/above its base',
+      mirrorSafety: 'exactly one physical-order array per definition; LEFT and RIGHT read the identical array, mirroring is a rendering-layer concern only (see Protected Contract H), never encoded here',
+    },
   };
 
   const targetInventory = [
@@ -2081,6 +2795,29 @@
     rollbackTarget: 'LEGACY_BEHAVIOR',
   };
 
+  // Phase 1R. Deliberately a SIBLING of `registries`, not a REGISTRY_NAMES
+  // member and never consulted by getDefinition()/allDefinitions() -- see
+  // schema.referenceTemplate and the long comment above animeReferenceTemplate
+  // for why: this keeps every reviewed identity object in `registries`
+  // (including construction.wet/wispy/anime, which this phase adds candidate
+  // numbers for) completely byte-identical to before this phase, so none of
+  // the many pre-existing cross-file "sibling remains untouched" guards need
+  // updating. The six brand-new Phase 1R geometries also carry their own
+  // `referenceTemplate` property directly (safe -- nothing hashed them
+  // before this phase existed); they're listed here too for one consistent
+  // lookup surface across all nine.
+  const referenceTemplates = deepFreeze({
+    'construction.wet': wetReferenceTemplate,
+    'construction.wispy': wispyReferenceTemplate,
+    'construction.anime': animeReferenceTemplate,
+    'geometry.mega-volume-dense': megaVolumeDenseDefinition.referenceTemplate,
+    'geometry.long-curved-fox': longCurvedFoxDefinition.referenceTemplate,
+    'geometry.soft-volume-gradient': softVolumeGradientDefinition.referenceTemplate,
+    'geometry.downturned-eye-correction': downturnedEyeCorrectionDefinition.referenceTemplate,
+    'geometry.multi-curl-volume-fox': multiCurlVolumeFoxDefinition.referenceTemplate,
+    'geometry.hybrid-cat-eye': hybridCatEyeDefinition.referenceTemplate,
+  });
+
   const library = deepFreeze({
     libraryVersion: LIBRARY_VERSION,
     schemaVersion: SCHEMA_VERSION,
@@ -2090,6 +2827,7 @@
     registries,
     targetInventory,
     activation,
+    referenceTemplates,
   });
 
   function getDefinition(canonicalId) {

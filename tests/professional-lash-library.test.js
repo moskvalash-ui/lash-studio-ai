@@ -27,6 +27,8 @@ test('schema/version and every separate professional registry exist', () => {
   assert.strictEqual(library.schema.textureConstruction.primitiveDefinitions.RAY.validation.status,'EXPERT_REVIEWED');
 });
 
+const PHASE_1R_CANDIDATE_GEOMETRY_IDS = ['geometry.mega-volume-dense','geometry.long-curved-fox','geometry.soft-volume-gradient','geometry.downturned-eye-correction','geometry.multi-curl-volume-fox','geometry.hybrid-cat-eye'];
+
 test('validation states are explicit for reviewed records and the draft Eyeliner direction slot', () => {
   assert.deepStrictEqual(library.validationStates, ['UNVALIDATED', 'DRAFT', 'EXPERT_REVIEWED', 'VALIDATED', 'SCHOOL_DEPENDENT']);
   for (const definition of allDefinitions()) {
@@ -39,6 +41,20 @@ test('validation states are explicit for reviewed records and the draft Eyeliner
       assert.strictEqual(definition.validation.status,'DRAFT');
       assert.ok(definition.professionalDefinition);
       assert.strictEqual(definition.validation.evidence[0].numericClaims,false);
+    }else if(PHASE_1R_CANDIDATE_GEOMETRY_IDS.includes(definition.id)){
+      // Phase 1R candidate geometries: unlike direction.eyeliner's DRAFT
+      // status (which still had an actual domain reviewer approve the
+      // qualitative slot structure), no domain-authority review event has
+      // occurred for these six identities at all -- reviewers stays empty,
+      // honestly reflecting that. professionalDefinition still carries zero
+      // numeric claims, matching every other identity in this file; all
+      // concrete zone/curl numbers live only in the isolated
+      // referenceTemplate field (see the dedicated Phase 1R test file).
+      assert.strictEqual(definition.validation.status,'DRAFT');
+      assert.ok(definition.professionalDefinition);
+      assert.strictEqual(definition.validation.evidence[0].numericClaims,false);
+      assert.deepStrictEqual(definition.validation.reviewers, []);
+      assert.ok(definition.referenceTemplate, `${definition.id} must carry its candidate numeric data in referenceTemplate`);
     }else{
       assert.strictEqual(definition.professionalDefinition, null, `${definition.id} must not contain invented professional content`);
       assert.deepStrictEqual(definition.validation.evidence, []);
@@ -168,7 +184,7 @@ test('production is isolated: the loader exists only for the debug preview, neve
 
 test('production source parity protects Recommendation, PHOTO, DIAGRAM, Plan, ranking, primary, and all 21 IDs', () => {
   const digest = value => crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource), '9e20ac494a4b9f125cc4189f791bd896343b11aa48a8c9bcea0f74909e997277');
+  assert.strictEqual(digest(indexSource), 'a5351e8308fab2413a88f000095300db6b0c84246e7057a4256e84fd20a9be64');
   assert.strictEqual(digest(domainSource), '11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   assert.ok(indexSource.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));

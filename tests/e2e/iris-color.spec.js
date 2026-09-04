@@ -14,28 +14,27 @@
 // owned by tests/iris-*.test.js and is not touched or re-asserted here.
 //
 // FIXTURE SCOPE (see tests/e2e/README.md "Fixture provenance" section
-// for the full provenance writeup): the only full-face image fixture
-// available anywhere in this repository is fixtures/happy-path-face.png
-// (an AI-generated, non-identifiable test image, already vetted for
-// Phase B). Every other Iris test fixture in tests/fixtures/*.json is
-// DERIVED pixel/audit data (by design -- see CLAUDE.md's Privacy
-// section), not an uploadable photo, so it cannot drive this E2E layer.
-// This file therefore covers exactly one category end to end (BLUE,
-// the real, multi-stage-corroborated ground truth for this fixture --
-// see the Phase C report for the full diagnostic evidence). GREEN,
-// BROWN, GRAY, and UNCERTAIN are not covered here: adding them would
-// require either a forbidden private/real source photo or fabricating
-// a brand-new fixture image, both explicitly out of scope for this
-// task. A future phase can extend this file once an equivalent
-// privacy-safe full-face fixture exists for those categories.
+// for the full provenance writeup, and IRIS_FIXTURE_AUDIT.md for the
+// full acceptance/rejection evidence trail). Three categories are
+// covered as of Phase C3a: BLUE (fixtures/happy-path-face.png), BROWN
+// (fixtures/iris-brown.png), and UNCERTAIN (fixtures/iris-uncertain.png)
+// -- all AI-generated, non-identifiable, and each individually verified
+// through this same real production pipeline before acceptance. GREEN
+// and GRAY/BLUE-GRAY are deliberately not covered: real candidates for
+// both were evaluated and rejected on their own sampled-pixel evidence
+// (see IRIS_FIXTURE_AUDIT.md), not merely unavailable.
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 
-const FIXTURE = path.join(__dirname, 'fixtures', 'happy-path-face.png');
+const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 
-test('real Iris Color happy path: real photo -> real pipeline -> displayed BLUE category on HeroScreen', async ({ page }) => {
-  test.setTimeout(60_000); // same bound as photo-analysis.spec.js: real CDN + real inference, not unlimited
-
+// Shared real-pipeline walk, reused by every category test below: real
+// upload -> real face-api -> real quality gate -> real analysis -> real
+// ReviewScreen -> real confirm -> real HeroScreen. Returns the Iris
+// Color row's real value locator so each test asserts its own expected
+// category text. No internal function is called and nothing is mocked
+// anywhere in this helper.
+async function runRealPhotoAnalysisToIrisResult(page, fixturePath) {
   const pageErrors = [];
   page.on('pageerror', (err) => pageErrors.push(err.message));
 
@@ -54,10 +53,9 @@ test('real Iris Color happy path: real photo -> real pipeline -> displayed BLUE 
 
   // 3) Upload the fixture through the real, production file input.
   const fileInput = page.locator('input[type="file"]');
-  await fileInput.setInputFiles(FIXTURE);
+  await fileInput.setInputFiles(fixturePath);
 
-  // 4) Wait for the real post-analysis ReviewScreen (already proven
-  // reliable for this exact fixture in Phase B).
+  // 4) Wait for the real post-analysis ReviewScreen.
   const reviewTitle = page.getByText('Подтверждение анализа', { exact: true });
   const errorRetryBtn = page.getByRole('button', { name: 'Выбрать другое фото', exact: true });
   await Promise.race([
@@ -86,8 +84,17 @@ test('real Iris Color happy path: real photo -> real pipeline -> displayed BLUE 
   const irisRow = page.locator('div.flex.justify-between.items-start.gap-3.py-3', { has: irisLabel });
   const irisValue = irisRow.locator('span').first();
 
-  // 7) THE assertion this file exists for: FULL PHOTO -> REAL PIPELINE
-  // -> EXPECTED DISPLAYED IRIS CATEGORY. 'Голубые' (RU for Blue) is the
+  return { irisValue, pageErrors };
+}
+
+test('real Iris Color happy path: real photo -> real pipeline -> displayed BLUE category on HeroScreen', async ({ page }) => {
+  test.setTimeout(60_000); // real CDN + real inference, not unlimited
+
+  const FIXTURE = path.join(FIXTURES_DIR, 'happy-path-face.png');
+  const { irisValue, pageErrors } = await runRealPhotoAnalysisToIrisResult(page, FIXTURE);
+
+  // THE assertion this test exists for: FULL PHOTO -> REAL PIPELINE ->
+  // EXPECTED DISPLAYED IRIS CATEGORY. 'Голубые' (RU for Blue) is the
   // real, multi-stage-corroborated ground truth for this fixture (both
   // eyes independently classify blue with real sampled-pixel evidence;
   // bilateral combineIris also resolves to blue, not uncertain -- see
@@ -96,6 +103,40 @@ test('real Iris Color happy path: real photo -> real pipeline -> displayed BLUE 
   // merely to make the assertion pass.
   await expect(irisValue, 'the real Iris Color pipeline must reach and display BLUE ("Голубые") for this fixture').toHaveText('Голубые');
 
-  // 8) No uncaught page error during the whole real flow.
+  expect(pageErrors, `no fatal page errors during the real analysis flow: ${JSON.stringify(pageErrors)}`).toEqual([]);
+});
+
+test('real Iris Color happy path: real photo -> real pipeline -> displayed BROWN category on HeroScreen', async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const FIXTURE = path.join(FIXTURES_DIR, 'iris-brown.png');
+  const { irisValue, pageErrors } = await runRealPhotoAnalysisToIrisResult(page, FIXTURE);
+
+  // 'Карие' (RU for Brown) is the real ground truth for this fixture
+  // (Phase C3a validation: both eyes 4/4 sectors brown, confidence
+  // 0.75/0.77, bilateral combineIris resolves to brown at confidence
+  // 0.72 -- see IRIS_FIXTURE_AUDIT.md). Must not be relaxed to a looser
+  // match or to uncertain merely to make the assertion pass.
+  await expect(irisValue, 'the real Iris Color pipeline must reach and display BROWN ("Карие") for this fixture').toHaveText('Карие');
+
+  expect(pageErrors, `no fatal page errors during the real analysis flow: ${JSON.stringify(pageErrors)}`).toEqual([]);
+});
+
+test('real Iris Color happy path: real photo -> real pipeline -> displayed UNCERTAIN category on HeroScreen', async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const FIXTURE = path.join(FIXTURES_DIR, 'iris-uncertain.png');
+  const { irisValue, pageErrors } = await runRealPhotoAnalysisToIrisResult(page, FIXTURE);
+
+  // 'Оттенок не определён' (Color inconclusive) is the real, legitimate
+  // ground truth for this fixture -- not a detection/ROI failure (face
+  // detection and both eyes' ROI are fully valid), but genuine angular-
+  // sector disagreement between adjacent warm hues (brown/hazel) on
+  // both eyes, below the production sector-agreement threshold (see
+  // IRIS_FIXTURE_AUDIT.md for the full trace). This is the pipeline's
+  // real, intended uncertainty-safety behavior and must not be treated
+  // as a failure to "fix" toward a stronger category.
+  await expect(irisValue, 'the real Iris Color pipeline must reach and display UNCERTAIN ("Оттенок не определён") for this fixture').toHaveText('Оттенок не определён');
+
   expect(pageErrors, `no fatal page errors during the real analysis flow: ${JSON.stringify(pageErrors)}`).toEqual([]);
 });

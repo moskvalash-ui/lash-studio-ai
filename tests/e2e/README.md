@@ -36,17 +36,36 @@ Exit code is non-zero if any test fails.
 
 **Phase B** — `photo-analysis.spec.js`: one real happy-path Photo Analysis flow (upload → real face-api detection → real quality gate → real analysis pipeline → real post-analysis Results screen, `ReviewScreen`). Deliberately asserts only that Results was reached, not any specific Iris/face-shape/recommendation content — that's the job of `tests/*.test.js` or a future, more targeted E2E phase. Does not touch Iris Color, Lash Map, Natural Lash Scan, or recommendation logic.
 
-**Phase C** — `iris-color.spec.js`: extends Phase B one step further, through the real "confirm" transition into `HeroScreen`, and asserts the actual, user-visible Iris Color result (RU label "Цвет радужки" → value "Голубые"/Blue) for `fixtures/happy-path-face.png`. This is the *only* Iris category currently covered end to end: it is the only full-face image fixture in the repository (every other Iris fixture under `../fixtures/*.json` is derived pixel/audit data by design — see `../../CLAUDE.md`'s Privacy section — not an uploadable photo). BLUE was confirmed, not assumed: both eyes independently classify blue with real sampled-pixel evidence (left: 3/4 sectors blue; right: 4/4 sectors blue), and bilateral `combineIris` also resolves to blue rather than uncertain (see the Phase C implementation report for the full diagnostic trace). GREEN/BROWN/GRAY/UNCERTAIN are not covered — each would need its own privacy-safe full-face fixture, which does not currently exist in this repository and was explicitly out of scope to fabricate in that task. Iris Color logic itself (thresholds, radial corroboration, bilateral combination, uncertainty propagation) remains owned by `tests/iris-*.test.js`; this file only proves the real UI wiring end to end.
+**Phase C** — `iris-color.spec.js`: extends Phase B one step further, through the real "confirm" transition into `HeroScreen`, and asserts the actual, user-visible Iris Color result on `HeroScreen` (RU label "Цвет радужки" → the real displayed value). Iris Color logic itself (thresholds, radial corroboration, bilateral combination, uncertainty propagation) remains owned by `tests/iris-*.test.js`; this file only proves the real UI wiring end to end — real photo → real face-api → real Iris pipeline → real displayed category. Nothing is mocked or injected.
+
+**Phase C (as of C3a)** covers three categories end to end:
+- **BLUE** — `fixtures/happy-path-face.png` → `Голубые`.
+- **BROWN** — `fixtures/iris-brown.png` → `Карие`.
+- **UNCERTAIN** — `fixtures/iris-uncertain.png` → `Оттенок не определён`.
+
+GREEN and GRAY/BLUE-GRAY are **not** covered — see `IRIS_FIXTURE_AUDIT.md` for the full evidence trail: a GREEN and a GRAY/BLUE-GRAY candidate were each evaluated through the real production pipeline and rejected on their own merits (not fixture unavailability alone). Each would need a new, separately-vetted privacy-safe fixture before E2E coverage could be added.
 
 Lash Map and further product-behavior E2E are later phases, each adding its own `*.spec.js` file on top of this same config/server foundation.
 
-## Fixture provenance (`fixtures/happy-path-face.png`)
+## Fixture provenance
+
+### `fixtures/happy-path-face.png` (BLUE)
 
 This image is a copy of one file (`тестик7.png`) from a batch of AI-generated frontal face images the project's user created earlier in this same working session, explicitly as disposable pipeline test fixtures (used across several rounds of Iris Color validation, documented in the session's own history and reflected in `tests/fixtures/real-capture-noregression-testik7-*.json`). It is **not a photograph of a real, identifiable person**: it shares the same repeating studio background/lighting/pose template as the rest of that generated batch, with only eye color varying between files — a generation-batch signature, not a real photo series. The user's own in-session messages described this batch as "generated," never as photographs of themselves, a client, or any other real individual.
 
 Verified through the real production path before being kept as a fixture: quality gate passes, exactly one face is detected, real face-api landmarks are obtained, and the real analysis pipeline reaches `ReviewScreen` — confirmed across the 3 consecutive Phase B runs in the implementation report (all pass, `retries: 0`).
 
-Do not replace this fixture with, or add alongside it, any real client/user/friend photograph, or any of the files this project's `CLAUDE.md` and prior sessions have already identified as real photographs (e.g. `глаза 33.jpeg`, `глаза 333.jpeg`, `blue-eyes-source.jpg`) — those must never be committed to this repository.
+### `fixtures/iris-brown.png` (BROWN) and `fixtures/iris-uncertain.png` (UNCERTAIN)
+
+Both images were AI-generated specifically for LASH STUDIO AI testing, as a later, separate batch of four disposable Iris Color candidate fixtures (Russian working filenames `зрачки1.png`–`зрачки4.png`) the project's user provided explicitly for this purpose. They are synthetic and do **not** depict a real, identifiable user, client, or friend.
+
+Both were validated through the real production Photo Analysis pipeline (`?debug=1`, read-only) before acceptance — not accepted on visual appearance alone:
+- **`iris-brown.png`** (source: `зрачки2.png`): both eyes independently classify `brown` with maximal sector agreement (4/4 sectors each), high confidence (left 0.75, right 0.77), and bilateral `combineIris` confidently resolves to `brown` (confidence 0.72). Stable across 3 consecutive runs.
+- **`iris-uncertain.png`** (source: `зрачки4.png`): face detection and both eyes' ROI are fully valid (not a detection/ROI failure) with substantial accepted pixel counts (~200 per eye), but each eye's angular sectors genuinely split between adjacent warm hues (brown/hazel) with sector agreement below the production threshold, and the bilateral result is legitimately `uncertain` — the pipeline's real, intended uncertainty-safety behavior, not a broken input. Stable across 3 consecutive runs.
+
+Two other candidates from the same batch (`зрачки1.png`, intended GREEN; `зрачки3.png`, intended GRAY/BLUE-GRAY) were evaluated through the same real pipeline and **rejected** — `зрачки1`'s sampled evidence was genuinely warm/amber, not green; `зрачки3`'s sampled evidence was neutral/low-chroma in the right direction but never reached the production sector-agreement threshold required to commit to gray. Neither was kept. See `IRIS_FIXTURE_AUDIT.md` for the full evidence trail.
+
+Do not replace or add alongside these fixtures any real client/user/friend photograph, or any of the files this project's `CLAUDE.md` and prior sessions have already identified as real photographs (e.g. `глаза 33.jpeg`, `глаза 333.jpeg`, `blue-eyes-source.jpg`) — those must never be committed to this repository.
 
 ## Failure artifacts
 

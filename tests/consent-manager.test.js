@@ -504,7 +504,61 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
     "          iris.compositionLabel = deriveIrisColorCompositionLabel(iris.colorComposition, iris.name);\n",
     ""
   );
-  const normalize = span => omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(span))))));
+  // Approved RELEASE-1.1 fix: TEMPORARY debug-only camera-startup timing
+  // instrumentation (T0-T9 performance.now() markers, gated behind the
+  // same debugAvailable flag this screen already uses for its other
+  // debug-only output) added to prove where a real device's reported
+  // Live Scan startup delay actually comes from. Bounded, additive,
+  // logs only elapsed milliseconds between named stages — no frame/
+  // pixel/face data. Normalized back to its pre-fix HEAD form, same
+  // technique as every other normalizer above, so this guard still
+  // fails loudly on any OTHER, unrelated drift in LiveScanScreen.
+  const omitCameraTimingInstrumentation = span => span
+    .replace(
+      "\n      // RELEASE-1.1 — TEMPORARY camera-startup timing diagnostics.\n      // Debug-only (never runs/logs unless ?debug=1); logs only elapsed\n      // milliseconds between named lifecycle stages (T0-T9), never any\n      // frame/pixel/face data. Exists to PROVE where a real device's\n      // \"stuck on Поиск лица\" delay actually comes from (camera/\n      // permission acquisition vs. model/inference warm-up vs. genuine\n      // face-search time) instead of guessing. Each stage is recorded\n      // once per scan (timingRef resets every effect run, same as the\n      // other scan-local refs above). Remove once real-device timing\n      // data has resolved the RELEASE-1.1 camera investigation.\n      const timingRef = useRef({});\n      const markTiming = (label) => {\n        if (!debugAvailable || timingRef.current[label] != null) return;\n        const t = performance.now();\n        timingRef.current[label] = t;\n        const t0 = timingRef.current.T0_live_scan_requested;\n        console.log('[LSA][TIMING]', label, t0 != null ? (t - t0).toFixed(0) + 'ms since T0' : 'T0 not yet marked');\n      };\n",
+      ""
+    )
+    .replace(
+      "        markTiming('T5_first_frame_eligible');\n",
+      ""
+    )
+    .replace(
+      "          markTiming('T6_first_inference_begins');\n",
+      ""
+    )
+    .replace(
+      "          markTiming('T7_first_inference_completes');\n",
+      ""
+    )
+    .replace(
+      "          markTiming('T8_first_valid_face_detected');\n",
+      ""
+    )
+    .replace(
+      "          markTiming('T9_analysis_stages_begin');\n",
+      ""
+    )
+    .replace(
+      "        timingRef.current = {};\n        markTiming('T0_live_scan_requested');\n",
+      ""
+    )
+    .replace(
+      "            markTiming('T1_getUserMedia_requested');\n",
+      ""
+    )
+    .replace(
+      "            markTiming('T2_stream_obtained');\n",
+      ""
+    )
+    .replace(
+      "              // Timing-only listener (debug-gated inside markTiming\n              // itself) — purely observational, never affects playback.\n              videoRef.current.addEventListener('loadedmetadata', () => markTiming('T3_video_metadata_ready'), { once: true });\n",
+      ""
+    )
+    .replace(
+      "              markTiming('T4_video_playing');\n",
+      ""
+    );
+  const normalize = span => omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(span)))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');

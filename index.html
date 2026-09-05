@@ -674,12 +674,29 @@
     // explicitly turned off with ?debug=0. This gates ONLY visibility —
     // every underlying computation/debug field still exists and runs
     // exactly as before.
+    // RELEASE-1.1 FIX (final, fail-closed contract) — was localStorage,
+    // then sessionStorage: EITHER storage-backed persistence lets a
+    // debug flag set once (e.g. the developer's own ?debug=1 testing)
+    // keep the current TAB in debug mode even after navigating that
+    // same tab to the plain production URL — proven live: setting
+    // ?debug=1 then navigating to the bare URL in the SAME session
+    // still read the flag as true. The release contract is stricter
+    // than "expires eventually": a normal public production URL with
+    // no explicit ?debug=1 must NEVER render developer diagnostics,
+    // regardless of any prior state in that browser. So this reads
+    // ONLY the CURRENT URL's own query string, every call — no
+    // storage of any kind. ?debug=1 enables debug mode for as long as
+    // that exact URL stays loaded (this is a client-state SPA that
+    // never changes the address bar on its own, so a real testing
+    // session keeps working exactly as before); the moment the tab
+    // navigates to any URL without that param — including a plain
+    // reload of the bare production URL — debug mode is false again.
+    // ?debug=0 is accepted for symmetry/explicitness but is no longer
+    // functionally different from omitting the param entirely.
     function isDebugModeEnabled() {
       try {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('debug') === '1') { localStorage.setItem('lashStudioDebug', '1'); return true; }
-        if (params.get('debug') === '0') { localStorage.removeItem('lashStudioDebug'); return false; }
-        return localStorage.getItem('lashStudioDebug') === '1';
+        return params.get('debug') === '1';
       } catch (e) { return false; }
     }
 
@@ -7045,11 +7062,31 @@
 
       const bumpRail = (seg) => { if (seg > railSegRef.current) { railSegRef.current = seg; setRailSeg(seg); } };
 
+      // RELEASE-1.1 — TEMPORARY camera-startup timing diagnostics.
+      // Debug-only (never runs/logs unless ?debug=1); logs only elapsed
+      // milliseconds between named lifecycle stages (T0-T9), never any
+      // frame/pixel/face data. Exists to PROVE where a real device's
+      // "stuck on Поиск лица" delay actually comes from (camera/
+      // permission acquisition vs. model/inference warm-up vs. genuine
+      // face-search time) instead of guessing. Each stage is recorded
+      // once per scan (timingRef resets every effect run, same as the
+      // other scan-local refs above). Remove once real-device timing
+      // data has resolved the RELEASE-1.1 camera investigation.
+      const timingRef = useRef({});
+      const markTiming = (label) => {
+        if (!debugAvailable || timingRef.current[label] != null) return;
+        const t = performance.now();
+        timingRef.current[label] = t;
+        const t0 = timingRef.current.T0_live_scan_requested;
+        console.log('[LSA][TIMING]', label, t0 != null ? (t - t0).toFixed(0) + 'ms since T0' : 'T0 not yet marked');
+      };
+
       tickImplRef.current = async () => {
         if (busyRef.current || doneRef.current) return;
         const video = videoRef.current;
         if (!video || video.readyState < 2) return;
         if (!modelsLoadedRef.current) return;
+        markTiming('T5_first_frame_eligible');
         busyRef.current = true;
         try {
           const canvas = procCanvasRef.current;
@@ -7061,7 +7098,9 @@
           totalFramesRef.current += 1;
           console.log('[LSA] FRAME RECEIVED', totalFramesRef.current, canvas.width + 'x' + canvas.height);
 
+          markTiming('T6_first_inference_begins');
           const det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks();
+          markTiming('T7_first_inference_completes');
           const now = performance.now();
           bufferRef.current = bufferRef.current.filter(e => now - e.t < BUFFER_WINDOW_MS);
 
@@ -7089,6 +7128,7 @@
             setProgress(Math.min(1, bufferRef.current.length / MIN_STABLE_FRAMES));
             return;
           }
+          markTiming('T8_first_valid_face_detected');
           const wasFaceless = !hadFaceRef.current;
           hadFaceRef.current = true;
           if (wasFaceless) {
@@ -7390,6 +7430,7 @@
           tagEventsRef.current.push({ label: t('tagSymmetry', langRef.current), ts: now });
 
           doneRef.current = true;
+          markTiming('T9_analysis_stages_begin');
           setPhase('finalizing'); setStageKey('stageCalculating'); setHintKey(null);
           bumpRail(railSegmentForPhase('finalizing'));
           if (loopRef.current) clearInterval(loopRef.current);
@@ -7521,6 +7562,8 @@
 
       useEffect(() => {
         let stream;
+        timingRef.current = {};
+        markTiming('T0_live_scan_requested');
         // LIFECYCLE FIX — cancellation guard for this effect run only
         // (mirrors the `cancelled`-flag pattern already used elsewhere
         // in this file, e.g. the App-level model-loading effect). Set
@@ -7584,7 +7627,9 @@
             // effectiveVisibleWidth compensation — those are reserved for
             // a later phase if real-device validation shows this minimal
             // constraint alone is insufficient.
+            markTiming('T1_getUserMedia_requested');
             const acquired = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+            markTiming('T2_stream_obtained');
             // LIFECYCLE FIX — Back/navigation (or a facingMode change)
             // may have unmounted/re-run this effect while getUserMedia
             // was still pending. A late-arriving stream must never be
@@ -7594,8 +7639,12 @@
             stream = acquired;
             stream.getVideoTracks().forEach(track => { track.onended = handleTrackEnded; });
             if (videoRef.current) {
+              // Timing-only listener (debug-gated inside markTiming
+              // itself) — purely observational, never affects playback.
+              videoRef.current.addEventListener('loadedmetadata', () => markTiming('T3_video_metadata_ready'), { once: true });
               videoRef.current.srcObject = stream;
               await videoRef.current.play();
+              markTiming('T4_video_playing');
             }
             if (cancelled) return;
           } catch (e) {
@@ -8979,7 +9028,20 @@
               <EyeProfileRow icon="size" label={t('spacingLabel', lang)} value={labels.spacing} confidence={p.spacingConfidence} />
               <EyeProfileRow icon="position" label={t('tiltLabel', lang)} value={labels.tilt} confidence={p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? undefined : p.tiltConfidence} />
               <EyeProfileRow icon="symmetry" label={t('symmetryLabel', lang)} value={labels.symmetry} confidence={p.symmetryCategory === 'uncertain' ? undefined : p.symmetryConfidence} />
-              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={labels.irisCompositionLabel} valueDetail={labels.irisCompositionBreakdown} confidence={result.iris?.confidence} />
+              {/* RELEASE-1.1 FIX — confidence is suppressed when the
+                  category itself is 'uncertain', matching the SAME
+                  pattern shape/symmetry above already use. Before this
+                  fix, an eye correctly (and safely) classified as
+                  'uncertain' by combineIris's eitherUncertain rule
+                  still displayed its raw pre-override blend confidence
+                  number (analyzeIrisSample/combineIris's own math is
+                  completely untouched) right next to the word
+                  "uncertain" -- reading as a confusing, seemingly
+                  confident number attached to a non-result. This is
+                  display-only: classifyIrisColor/analyzeIrisSample/
+                  combineIris/sectorAgreement/every quality gate are
+                  unmodified. */}
+              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={labels.irisCompositionLabel} valueDetail={labels.irisCompositionBreakdown} confidence={result.iris?.name === 'uncertain' ? undefined : result.iris?.confidence} />
               {result.faceShapeProfile && (
                 <EyeProfileRow
                   icon="shape"
@@ -11061,7 +11123,17 @@
               <EyeProfileRow icon="size" label={t('eyeSizeLabel', lang)} value={analysis.eye.size.category ? t('eyeSize_' + analysis.eye.size.category, lang) : na} />
               <EyeProfileRow icon="position" label={t('tiltLabel', lang)} value={tiltLabelFor(analysis.eye.tilt.tendency)} confidence={analysis.eye.tilt.confidence ?? undefined} />
               <EyeProfileRow icon="symmetry" label={t('symmetryLabel', lang)} value={analysis.eye.symmetry.category ? t('symmetry_' + analysis.eye.symmetry.category, lang) : na} />
-              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={analysis.iris && analysis.iris.category ? (lang === 'en' ? IRIS_NAMES[analysis.iris.category].en : IRIS_NAMES[analysis.iris.category].ru) : na} confidence={analysis.iris?.confidence ?? undefined} />
+              {/* RELEASE-1.1 consistency hotfix — same rule as Results'
+                  HeroScreen iris row: suppress the confidence percentage
+                  when the SAVED canonical category is 'uncertain', so a
+                  historical visit never shows a misleading number next
+                  to "Оттенок не определён". Display-only: reads the
+                  snapshot's own already-frozen category/confidence
+                  fields exactly as before, never recomputes anything
+                  from the current iris classifier/library, never
+                  touches visit-snapshot.js's schema or the client
+                  data store. */}
+              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={analysis.iris && analysis.iris.category ? (lang === 'en' ? IRIS_NAMES[analysis.iris.category].en : IRIS_NAMES[analysis.iris.category].ru) : na} confidence={analysis.iris?.category === 'uncertain' ? undefined : (analysis.iris?.confidence ?? undefined)} />
               <div className="mt-2 pt-2 border-t border-border/60">
                 <p className="text-[10px] uppercase tracking-wide text-textMuted mb-1.5">{t('visitDetailNaturalLashLabel', lang)}</p>
                 {['left', 'right'].map(side => {
@@ -13066,6 +13138,37 @@
 
       const handleComplete = (rec) => { if (typeof Analytics !== 'undefined') Analytics.track('scan_completed', { mode: screen === 'scan' ? 'live' : 'photo' }); setResult(rec); setNaturalLashProfile(null); setScreen('review'); };
       const handleReviewConfirm = (rec) => { if (typeof Analytics !== 'undefined') Analytics.track('results_viewed'); setResult(rec); setScreen('hero'); };
+
+      // RELEASE-1.1 FIX — real-device investigation (?debug=1 timing
+      // instrumentation in LiveScanScreen) measured the FIRST
+      // faceapi.detectSingleFace call of a session taking several
+      // seconds longer than every later call, while camera acquisition
+      // itself (getUserMedia -> video playing) stayed under ~1s. This
+      // is TF.js's own backend (WebGL/CPU) lazily compiling/allocating
+      // on its first real inference, not a bug in detection thresholds
+      // or camera code -- it cannot be removed, only moved. Paying that
+      // same one-time cost here, once, on a throwaway blank canvas,
+      // right after modelsLoaded flips true (while the user is still
+      // looking at the already-expected loading state on Home) means
+      // LiveScanScreen's own first tick is no longer the one paying it,
+      // which is what produced the "stuck on Поиск лица" symptom.
+      // Deliberately placed here rather than inside the model-loading
+      // effect above, which consent-manager.test.js's J3 guard pins
+      // byte-identical to git HEAD. Best-effort only: never sets any
+      // state, never throws into the render tree, changes nothing about
+      // modelsLoaded/loadError, and a real scan still works correctly
+      // even if this warm-up call itself fails for any reason.
+      useEffect(() => {
+        if (!modelsLoaded) return;
+        (async () => {
+          try {
+            const warm = document.createElement('canvas');
+            warm.width = 64; warm.height = 64;
+            await faceapi.detectSingleFace(warm, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.9 }));
+          } catch (e) { /* best-effort warm-up only */ }
+        })();
+      }, [modelsLoaded]);
+
       const retryLoad = () => setLoadAttempt(a => a + 1);
       const viewMap = (design) => { setActiveDesign(design); setScreen('lashmap'); };
       const handleLashScanComplete = (profile) => { setNaturalLashProfile(profile); setScreen('lashprofile'); };

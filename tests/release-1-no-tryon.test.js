@@ -95,7 +95,7 @@ test('H. Client Card -> Visit History -> Visit Detail wiring is intact and gated
 test('every screen route in App() is guarded so it can never render without its required data (no accidental blank screen)', () => {
   const routeLines = [...src.matchAll(/\{screen === '([a-zA-Z]+)' && ([\s\S]*?)<[A-Z][A-Za-z]*Screen/g)];
   assert.ok(routeLines.length >= 15, 'expected the full set of App() screen routes');
-  const dataFreeRoutes = new Set(['home', 'clients', 'clientForm', 'scan', 'photo', 'lashscan', 'proLibraryPreview']);
+  const dataFreeRoutes = new Set(['home', 'clients', 'clientForm', 'scan', 'photo', 'lashscan', 'proLibraryPreview', 'lashMapLibrary']);
   for (const [, name, guardExpr] of routeLines) {
     if (dataFreeRoutes.has(name)) continue;
     assert.notStrictEqual(guardExpr.trim(), '', name + ' route has no data guard before rendering its screen');

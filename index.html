@@ -651,6 +651,18 @@
       visitDetailNotAvailable: {ru:'Нет данных', en:'Not available'},
       visitArtistNoteTitle: {ru:'Заметка мастера', en:'Artist note'},
 
+      // LASH MAP LIBRARY — production UI. Reuses leftEye/rightEye/
+      // lashMapCurl/lashMapLength/visitDetailPeakLabel wherever the same
+      // concept already has a localized label; these are only the
+      // genuinely new strings.
+      lashMapLibraryNavLabel: {ru:'Библиотека Lash Map', en:'Lash Map Library'},
+      lashMapLibraryUnderReview: {ru:'На проверке', en:'Under review'},
+      lashMapLibraryBaseLabel: {ru:'База', en:'Base'},
+      lashMapLibraryRaysLabel: {ru:'Лучи', en:'Rays'},
+      lashMapLibraryTechniqueTitle: {ru:'Как выполнить', en:'How to execute'},
+      lashMapLibraryMapTitle: {ru:'Карта Lash Map', en:'Lash Map'},
+      lashMapLibraryNotFound: {ru:'Эффект не найден', en:'Effect not found'},
+
       clientConsentPromptTitle: {ru:'Хранение данных клиентки', en:'Storing client data'},
       clientConsentPromptBody: {ru:'Имя, дата рождения, контакты и заметки клиентки будут сохранены локально на этом устройстве — они никуда не отправляются. Вы, как мастер, отвечаете за согласие клиентки на хранение её данных.', en:'The client’s name, date of birth, contact details, and notes will be stored locally on this device only — nothing is sent anywhere. As the artist, you are responsible for your client’s consent to store their data.'},
       clientConsentPromptAccept: {ru:'Сохранять данные на этом устройстве', en:'Store data on this device'},
@@ -5803,7 +5815,7 @@
       );
     }
 
-    function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients }) {
+    function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary }) {
       const lang = useLang();
       return (
         <div className="h-full flex flex-col p-6 fade-in overflow-y-auto hide-scrollbar">
@@ -5840,9 +5852,13 @@
             </div>
           )}
           <p className="text-[11px] text-textMuted text-center leading-relaxed mb-4">{t('onDeviceAnalysisDisclosure', lang)}</p>
-          <button onClick={onClients} className="w-full py-3.5 rounded-md font-medium text-[14px] press-scale glass flex items-center justify-center gap-2 text-textPrimary mb-4">
+          <button onClick={onClients} className="w-full py-3.5 rounded-md font-medium text-[14px] press-scale glass flex items-center justify-center gap-2 text-textPrimary mb-2">
             <ClientsIcon className="w-4 h-4 text-accent" />
             {t('clientsNavLabel', lang)}
+          </button>
+          <button onClick={onLibrary} className="w-full py-3.5 rounded-md font-medium text-[14px] press-scale glass flex items-center justify-center gap-2 text-textPrimary mb-4">
+            <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5A2.5 2.5 0 016.5 3H20v15.5a1 1 0 01-1 1H6.5A2.5 2.5 0 004 22V5.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M4 19.5A2.5 2.5 0 016.5 17H20" /></svg>
+            {t('lashMapLibraryNavLabel', lang)}
           </button>
           <div className="glass rounded-lg p-4 mb-1">
             <p className="label-tech mb-2">{t('recentSessions', lang)}</p>
@@ -10520,6 +10536,194 @@
     }
 
     // ============================================================
+    // LASH MAP LIBRARY — production UI. Reachable from the normal Home
+    // screen for every user, NOT gated behind ?debug=. Reuses
+    // ProfessionalLashLibrary's referenceTemplate-backed identities via
+    // the SAME professionalReferenceTemplateToDiagramProps adapter and
+    // ProLibraryReferenceTemplateSide/LegacyLashMapDiagram the
+    // ?debug=library preview further below already uses (both are
+    // `function` declarations, hoisted within this script, so calling
+    // them from code positioned earlier in the file is exactly as safe
+    // as calling them from the preview itself) -- no second renderer,
+    // no duplicate mapping constants, no invented geometry. Only
+    // identities that actually carry a referenceTemplate (concrete,
+    // renderable zone/curl/peak data) are exposed here; every other
+    // canonical identity in the library stays qualitative-only and is
+    // not shown in this read-only artist reference.
+    // ------------------------------------------------------------
+    const LASH_MAP_LIBRARY_IDS = Object.keys(ProfessionalLashLibrary.library.referenceTemplates);
+
+    // Reads a referenceTemplate zone's raw {lengthMm} or {lengthMmRange}
+    // shape directly for DISPLAY text ("13–14" for a range) -- a
+    // different concern from plResolveMm (which resolves a range to its
+    // numeric midpoint for the diagram's own curve/interpolation math,
+    // untouched here and unchanged).
+    function plDisplayMm(zone) {
+      return Array.isArray(zone.lengthMmRange) ? `${zone.lengthMmRange[0]}–${zone.lengthMmRange[1]}` : zone.lengthMm;
+    }
+
+    // Deterministic, data-derived technique notes -- never a hand-
+    // authored per-effect script (no second hard-coded mapping). Every
+    // sentence is conditioned only on the SAME zones/curlByZone/peakIdx/
+    // spikeGeom the diagram itself already renders from. Never states a
+    // fan diameter, glue amount, isolation timing, diameter/D-value, or
+    // safety claim -- none of that exists in this data.
+    function buildLibraryTechniqueNotes(diagramProps, lang) {
+      if (!diagramProps) return [];
+      const { zones, zoneNames, peakIdx, curlByZone, spikeGeom } = diagramProps;
+      const en = lang === 'en';
+      const notes = [];
+      if (zones.length > 1 && zones[zones.length - 1] > zones[0]) {
+        notes.push(en
+          ? 'Length builds progressively from the inner corner toward the outer zone for an elongated silhouette.'
+          : 'Длина постепенно нарастает от внутреннего уголка к внешней зоне, создавая эффект удлинения.');
+      } else if (zones.length > 1 && zones[0] > zones[zones.length - 1]) {
+        notes.push(en
+          ? 'Length is concentrated toward the inner corner and eases outward, correcting the outer emphasis of a standard map.'
+          : 'Длина сосредоточена у внутреннего уголка и снижается к внешнему краю — это корректирует привычный акцент на внешний уголок.');
+      }
+      if (spikeGeom) {
+        notes.push(en
+          ? 'A distinct spike/ray layer sits on top of the base map — set the base lengths first, then add the longer accent rays at their marked zones.'
+          : 'Поверх базовой карты выполняется отдельный слой лучей — сначала выставляется база, затем в отмеченных зонах добавляются более длинные акцентные лучи.');
+      }
+      if (curlByZone && new Set(curlByZone.filter(Boolean)).size > 1) {
+        notes.push(en
+          ? 'Curl changes from zone to zone — confirm each zone\'s curl against the map instead of using one curl across the whole eye.'
+          : 'Изгиб меняется по зонам — сверяйте изгиб каждой зоны с картой, а не используйте один изгиб на весь глаз.');
+      }
+      if (peakIdx > 0 && peakIdx < zones.length - 1 && zones[zones.length - 1] < zones[peakIdx]) {
+        notes.push(en
+          ? 'Length tapers back down after the peak toward the outer corner for a softer finish.'
+          : 'После пика длина мягко снижается к внешнему уголку для более деликатного завершения.');
+      }
+      const peakName = zoneLabel(zoneNames[peakIdx], lang);
+      notes.push(en
+        ? `Peak length sits at the ${peakName} zone — this is where the design's visual emphasis is concentrated.`
+        : `Пик длины расположен в зоне «${peakName}» — именно здесь сосредоточен визуальный акцент схемы.`);
+      return notes;
+    }
+
+    function LashMapLibraryScreen({ lang, onBack, onSelect }) {
+      const items = LASH_MAP_LIBRARY_IDS.map(id => {
+        const def = ProfessionalLashLibrary.getDefinition(id);
+        const diagramProps = professionalReferenceTemplateToDiagramProps(id, 'left');
+        const notes = buildLibraryTechniqueNotes(diagramProps, lang);
+        const zones = diagramProps ? diagramProps.zones : [];
+        return {
+          id, def,
+          name: plIdentityName(id, def.displayName, lang),
+          isDraft: def.validation.status === 'DRAFT',
+          summary: notes[0] || '',
+          curl: diagramProps && diagramProps.curl ? diagramProps.curl : '',
+          lengthRange: zones.length ? `${Math.min(...zones)}–${Math.max(...zones)} mm` : '',
+        };
+      });
+      const T = lang === 'ru'
+        ? { count: `${items.length} профессиональных карт` }
+        : { count: `${items.length} professional maps` };
+      return (
+        <div className="h-full flex flex-col bg-bg fade-in">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+            <BackButton onBack={onBack} />
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-bold text-textPrimary truncate">{t('lashMapLibraryNavLabel', lang)}</h1>
+              <p className="text-xs text-textSecondary">{T.count}</p>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 hide-scrollbar">
+            {items.map(item => (
+              <button key={item.id} type="button" onClick={() => onSelect(item.id)} className="w-full text-left glass rounded-lg p-4 press-scale active:bg-surfaceHover">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-bold text-textPrimary truncate">{item.name}</div>
+                    {item.isDraft && <span className="inline-block mt-1 text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-peak/30 text-peak">{t('lashMapLibraryUnderReview', lang)}</span>}
+                  </div>
+                  <span className="text-textMuted text-lg leading-none shrink-0">›</span>
+                </div>
+                <div className="rounded-md overflow-hidden border border-border/60 bg-surface/60 aspect-[16/9] mb-2">
+                  <ProLibraryReferenceTemplateSide canonicalId={item.id} side="left" lang={lang} />
+                </div>
+                {item.summary && <p className="text-[12px] text-textSecondary leading-relaxed mb-2 line-clamp-2">{item.summary}</p>}
+                <div className="flex gap-3 text-[11px] text-textSecondary">
+                  {item.curl && <span>{t('lashMapCurl', lang)}: <span className="text-textPrimary font-medium">{item.curl}</span></span>}
+                  {item.lengthRange && <span>{t('lashMapLength', lang)}: <span className="text-textPrimary font-medium">{item.lengthRange}</span></span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function LashMapLibraryDetailScreen({ lang, canonicalId, onBack }) {
+      const def = ProfessionalLashLibrary.getDefinition(canonicalId);
+      const rt = ProfessionalLashLibrary.library.referenceTemplates[canonicalId];
+      if (!def || !rt) {
+        return (
+          <div className="h-full flex flex-col bg-bg">
+            <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+              <BackButton onBack={onBack} />
+              <h1 className="text-[15px] font-bold text-textPrimary">{t('lashMapLibraryNotFound', lang)}</h1>
+            </div>
+          </div>
+        );
+      }
+      const diagramProps = professionalReferenceTemplateToDiagramProps(canonicalId, 'left');
+      const isDraft = def.validation.status === 'DRAFT';
+      const orderedBase = [...(rt.baseProfile || rt.zones)].sort((a, b) => a.order - b.order);
+      const orderedSpikes = rt.spikes ? [...rt.spikes].sort((a, b) => a.order - b.order) : null;
+      const notes = buildLibraryTechniqueNotes(diagramProps, lang);
+      return (
+        <div className="h-full flex flex-col bg-bg fade-in">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+            <BackButton onBack={onBack} />
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-bold text-textPrimary truncate">{plIdentityName(canonicalId, def.displayName, lang)}</h1>
+              {isDraft && <p className="text-[11px] text-peak mt-0.5">{t('lashMapLibraryUnderReview', lang)}</p>}
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 hide-scrollbar">
+            <div className="glass rounded-lg p-4 mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('lashMapLibraryMapTitle', lang)}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <ProLibraryReferenceTemplateSide canonicalId={canonicalId} side="left" lang={lang} />
+                <ProLibraryReferenceTemplateSide canonicalId={canonicalId} side="right" lang={lang} />
+              </div>
+            </div>
+            <div className="glass rounded-lg p-4 mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('lashMapLibraryBaseLabel', lang)}</div>
+              <div className="space-y-1.5">
+                {orderedBase.map((z, i) => (
+                  <div key={i} className="flex items-center justify-between py-1 border-b border-border/60 last:border-0 text-[13px]">
+                    <span className="text-textSecondary">{zoneLabel(z.position, lang)}</span>
+                    <span className="text-textPrimary font-medium">{plDisplayMm(z)} mm{z.curl ? ` · ${z.curl}` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {orderedSpikes && (
+              <div className="glass rounded-lg p-4 mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('lashMapLibraryRaysLabel', lang)}</div>
+                <p className="text-[13px] text-textPrimary font-medium">{orderedSpikes.map(plDisplayMm).join(' / ')} mm</p>
+              </div>
+            )}
+            <div className="glass rounded-lg p-4 mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('visitDetailPeakLabel', lang)}</div>
+              <p className="text-[13px] text-textPrimary font-medium">{diagramProps ? zoneLabel(diagramProps.zoneNames[diagramProps.peakIdx], lang) : '—'}</p>
+            </div>
+            <div className="glass rounded-lg p-4 mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('lashMapLibraryTechniqueTitle', lang)}</div>
+              <div className="space-y-1.5">
+                {notes.map((n, i) => <p key={i} className="text-[13px] leading-relaxed text-textPrimary">{n}</p>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
     // CLIENT CARD / CLIENT HISTORY — Phase 2: production UI only.
     // ------------------------------------------------------------
     // Consumes the Phase 1 data layer (window.ClientStore /
@@ -12994,6 +13198,16 @@
       const openVisitDetail = (visitId) => { setActiveVisitId(visitId); setScreen('visitDetail'); };
       const closeVisitDetail = () => { setActiveVisitId(null); setScreen('clientCard'); };
 
+      // LASH MAP LIBRARY — production navigation state, isolated from
+      // every scan/result/client-save piece of state above: never read
+      // by, written by, or fed into recommendation, ranking, scan,
+      // camera, Lash Map (the artist's own client design), or
+      // Application Plan logic.
+      const [activeLibraryId, setActiveLibraryId] = useState(null);
+      const openLashMapLibrary = () => { setActiveLibraryId(null); setScreen('lashMapLibrary'); };
+      const openLashMapLibraryDetail = (canonicalId) => { setActiveLibraryId(canonicalId); setScreen('lashMapLibraryDetail'); };
+      const closeLashMapLibraryDetail = () => { setActiveLibraryId(null); setScreen('lashMapLibrary'); };
+
       // ------------------------------------------------------------
       // SAVE TO CLIENT — CLIENT-3. Wires the CLIENT-1 canonical Visit
       // snapshot (VisitSnapshot.buildVisitSnapshot) and the existing
@@ -13194,7 +13408,9 @@
                 <LangToggle lang={lang} setLang={setLang} />
               </div>
             )}
-            {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} />}
+            {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} onLibrary={openLashMapLibrary} />}
+            {screen === 'lashMapLibrary' && <LashMapLibraryScreen lang={lang} onBack={() => setScreen('home')} onSelect={openLashMapLibraryDetail} />}
+            {screen === 'lashMapLibraryDetail' && activeLibraryId && <LashMapLibraryDetailScreen lang={lang} canonicalId={activeLibraryId} onBack={closeLashMapLibraryDetail} />}
             {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={clientSelectForSave ? cancelSaveToClient : () => setScreen('home')} saveMode={clientSelectForSave} onSelectForSave={finishSaveToClient} busy={saveVisitBusy} />}
             {screen === 'clientCard' && activeClientId && <ClientCardScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} onBack={() => setScreen('clients')} onEdit={openEditClientForm} onDeleted={() => { setActiveClientId(null); setScreen('clients'); }} onOpenVisit={openVisitDetail} />}
             {screen === 'visitDetail' && activeClientId && activeVisitId && <VisitDetailScreen lang={lang} visitId={activeVisitId} clientId={activeClientId} store={clientStoreRef.current} onBack={closeVisitDetail} />}

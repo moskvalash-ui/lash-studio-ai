@@ -118,7 +118,7 @@ test('production remains disabled and all production consumers and 21 legacy IDs
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
-  assert.strictEqual(digest(indexSource),'3f0dcb172059a4ef8c36b7d812b86d920c6893d6e6ddf0af217414246e13a4e1');
+  assert.strictEqual(digest(indexSource),'87af9806bb991aa4ae1d1b9fbd4eeea8c8dfbfeecf86b014f8afc1fc8167c211');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();

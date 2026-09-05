@@ -140,38 +140,48 @@ test('library is deterministic, JSON-safe, and defensively immutable', () => {
   assert.strictEqual(getDefinition('missing.effect'), null);
 });
 
-test('production is isolated: the loader exists only for the debug preview, never for DESIGN_CATALOG/ranking/ClientLashDesign', () => {
+test('production is isolated: the loader is used only by the approved Lash Map Library UI and the debug preview, never for DESIGN_CATALOG/ranking/ClientLashDesign', () => {
   // 1. the script is loaded (debug-only Phase 1Q addition, same plain
   //    <script src> pattern as lash-scan-core.js/lash-design-domain.js).
   assert.ok(indexSource.includes('<script src="professional-lash-library.js"></script>'));
 
-  // 2. every JS reference to the ProfessionalLashLibrary global sits
-  //    inside the isolated debug-preview block (PRO_LIBRARY_KIND_LABELS
-  //    + ProLibraryPreviewScreen, placed right before App()) — none
-  //    anywhere between </head> (end of the loader <script> tag/comment)
-  //    and that block, and none after App() begins. That "between"
-  //    span covers DESIGN_CATALOG, rankDesigns/rankDesignsAll,
-  //    calculateEyeLashMap, and every screen component up through
-  //    ReviewScreen, so this proves none of them reference the loader.
+  // 2. every JS reference to the ProfessionalLashLibrary global sits in
+  //    exactly one of TWO approved, named spans:
+  //      - the LASH MAP LIBRARY production UI (LashMapLibraryScreen/
+  //        LashMapLibraryDetailScreen + the adapter/notes helpers they
+  //        share with the debug preview below), reachable from the
+  //        normal Home screen for every user;
+  //      - the pre-existing ?debug=library preview
+  //        (PRO_LIBRARY_KIND_LABELS + ProLibraryPreviewScreen, placed
+  //        right before App()).
+  //    None anywhere between </head> (end of the loader <script> tag/
+  //    comment) and the Lash Map Library section, and none after App()
+  //    begins. That leading zero-occurrence span covers DESIGN_CATALOG,
+  //    rankDesigns/rankDesignsAll, calculateEyeLashMap, and every screen
+  //    component up through ReviewScreen, so this proves none of them
+  //    reference the loader.
   const count = s => s.split('ProfessionalLashLibrary').length - 1;
   const headEnd = indexSource.indexOf('</head>');
+  const libraryUiStart = indexSource.indexOf('// LASH MAP LIBRARY — production UI. Reachable from the normal Home');
   const previewStart = indexSource.indexOf('// DEBUG-ONLY: Professional Lash Library preview');
   const appStart = indexSource.indexOf('function App() {');
-  assert.ok(headEnd > -1 && previewStart > headEnd && appStart > previewStart);
-  assert.strictEqual(count(indexSource.slice(headEnd, previewStart)), 0);
+  assert.ok(headEnd > -1 && libraryUiStart > headEnd && previewStart > libraryUiStart && appStart > previewStart);
+  assert.strictEqual(count(indexSource.slice(headEnd, libraryUiStart)), 0);
+  assert.ok(count(indexSource.slice(libraryUiStart, previewStart)) > 0, 'expected the approved Lash Map Library UI to reference ProfessionalLashLibrary');
   assert.ok(count(indexSource.slice(previewStart, appStart)) > 0);
   assert.strictEqual(count(indexSource.slice(appStart)), 0);
 
   // 3-6. DESIGN_CATALOG, rankDesigns, rankDesignsAll, and
-  //    calculateEyeLashMap all live inside that zero-occurrence span
-  //    (well before the debug-preview block), so none of them can
-  //    reference the loader; the whole-file digest test below
-  //    additionally freezes every character of all four unchanged.
+  //    calculateEyeLashMap all live inside that leading zero-occurrence
+  //    span (well before the Lash Map Library UI and the debug-preview
+  //    block), so none of them can reference the loader; the whole-file
+  //    digest test below additionally freezes every character of all
+  //    four unchanged.
   const catalogStart = indexSource.indexOf('    const DESIGN_CATALOG = ');
-  assert.ok(catalogStart > headEnd && catalogStart < previewStart);
-  assert.ok(indexSource.indexOf('function rankDesigns(') > headEnd && indexSource.indexOf('function rankDesigns(') < previewStart);
-  assert.ok(indexSource.indexOf('function rankDesignsAll(') > headEnd && indexSource.indexOf('function rankDesignsAll(') < previewStart);
-  assert.ok(indexSource.indexOf('function calculateEyeLashMap(') > headEnd && indexSource.indexOf('function calculateEyeLashMap(') < previewStart);
+  assert.ok(catalogStart > headEnd && catalogStart < libraryUiStart);
+  assert.ok(indexSource.indexOf('function rankDesigns(') > headEnd && indexSource.indexOf('function rankDesigns(') < libraryUiStart);
+  assert.ok(indexSource.indexOf('function rankDesignsAll(') > headEnd && indexSource.indexOf('function rankDesignsAll(') < libraryUiStart);
+  assert.ok(indexSource.indexOf('function calculateEyeLashMap(') > headEnd && indexSource.indexOf('function calculateEyeLashMap(') < libraryUiStart);
 
   // 7. lash-design-domain.js (ClientLashDesign's production behavior)
   //    never references the loader at all.
@@ -182,9 +192,21 @@ test('production is isolated: the loader exists only for the debug preview, neve
   assert.deepStrictEqual(library.activation.activeDefinitionIds, []);
 });
 
+test('the Lash Map Library UI never references DESIGN_CATALOG, rankDesigns[All], calculateEyeLashMap, ClientLashDesign, or the client/visit data store, and never writes to the library\'s own activation state', () => {
+  const libraryUiStart = indexSource.indexOf('// LASH MAP LIBRARY — production UI. Reachable from the normal Home');
+  const libraryUiEnd = indexSource.indexOf('// CLIENT CARD / CLIENT HISTORY', libraryUiStart);
+  assert.ok(libraryUiStart > -1 && libraryUiEnd > libraryUiStart, 'expected the Lash Map Library UI section to sit immediately before the Client Card section');
+  const libraryUiBlock = indexSource.slice(libraryUiStart, libraryUiEnd);
+  for (const forbidden of ['DESIGN_CATALOG', 'rankDesigns(', 'rankDesignsAll(', 'calculateEyeLashMap(', 'ClientLashDesign', 'ClientStore.', 'store.createVisit', 'activeDefinitionIds.push', 'activeDefinitionIds =', 'library.activation.', 'setActive', 'onActivate', 'activateDefinition']) {
+    assert.ok(!libraryUiBlock.includes(forbidden), 'Lash Map Library UI must not reference ' + forbidden);
+  }
+  assert.ok(!libraryUiBlock.includes('<input'));
+  assert.ok(!libraryUiBlock.includes('<select'));
+});
+
 test('production source parity protects Recommendation, PHOTO, DIAGRAM, Plan, ranking, primary, and all 21 IDs', () => {
   const digest = value => crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource), '3f0dcb172059a4ef8c36b7d812b86d920c6893d6e6ddf0af217414246e13a4e1');
+  assert.strictEqual(digest(indexSource), '87af9806bb991aa4ae1d1b9fbd4eeea8c8dfbfeecf86b014f8afc1fc8167c211');
   assert.strictEqual(digest(domainSource), '11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   assert.ok(indexSource.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));

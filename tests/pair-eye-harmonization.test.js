@@ -28,7 +28,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
 const src = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -90,28 +89,31 @@ const DESIGNS = ['natural', 'doll', 'fox', 'cat', 'squirrel'].map((id) => {
 // ============================================================
 // 1. Regression proof: OLD behavior reproduces the bug, NEW behavior fixes it.
 // ============================================================
-test('REGRESSION PROOF: the tiny-tilt PEAK divergence bug reproduces against the pre-fix (HEAD) source and is fixed in the current working tree', () => {
-  let beforeSrc;
-  try {
-    beforeSrc = execSync('git show HEAD:index.html', { cwd: root, maxBuffer: 1024 * 1024 * 50 }).toString('utf8');
-  } catch (e) {
-    // If HEAD already IS the fix commit (e.g. this test file is re-run
-    // after a later commit), the historical pre-fix source is recovered
-    // from HEAD~1 instead -- the specific commit is irrelevant, only
-    // that we compare against a real pre-fix snapshot.
-    beforeSrc = execSync('git show HEAD~1:index.html', { cwd: root, maxBuffer: 1024 * 1024 * 50 }).toString('utf8');
-  }
-  const before = extractApi(beforeSrc);
-  // If HEAD is already post-fix (e.g. re-running this suite on a branch
-  // built on top of the fix commit), fall back further until a genuinely
-  // different (pre-fix) mapSource is found, bounded to a few commits.
-  let depth = 1;
-  while (before.mapSource === current.mapSource && depth < 6) {
-    beforeSrc = execSync(`git show HEAD~${depth}:index.html`, { cwd: root, maxBuffer: 1024 * 1024 * 50 }).toString('utf8');
-    Object.assign(before, extractApi(beforeSrc));
-    depth++;
-  }
-  assert.notStrictEqual(before.mapSource, current.mapSource, 'a genuinely pre-fix calculateEyeLashMap/buildEyeZones source must be found within recent history for this regression proof to be meaningful');
+test('REGRESSION PROOF: the tiny-tilt PEAK divergence bug reproduces against the pre-fix source and is fixed in the current working tree', () => {
+  // TEST-ONLY FIX (narrow, no behavioral change): this used to walk
+  // `git show HEAD~N:index.html` for N up to 5, looking for a genuinely
+  // different (pre-fix) calculateEyeLashMap/buildEyeZones source to
+  // compare against. That walk went stale once more than 5 commits had
+  // landed on top of the actual fix commit (f5b9419, "Harmonize
+  // bilateral lash map peak selection") -- proven by directly probing
+  // `git show HEAD~N:index.html` for N=0..8 on 2026-09-05: N=0..5 all
+  // matched the current (post-fix) source byte-for-byte; the real
+  // divergence only appeared at N=6 (commit f886e6d, "Add PHOTO lash
+  // map mirror regression coverage", the commit immediately BEFORE the
+  // fix). A hardcoded "look back 5 commits" bound was always going to
+  // expire as later, unrelated commits accumulated -- it is not a
+  // production defect and not something a bigger magic number fixes
+  // permanently. Instead of walking history at all, this now loads a
+  // FROZEN, one-time-captured snapshot of that real pre-fix commit
+  // (tests/fixtures/pair-eye-harmonization-prefix-2026-09-05.json),
+  // making the regression proof immune to how many commits pass from
+  // here on. Every assertion below (the OLD snapshot must reproduce
+  // the bug, the NEW/current code must not) is completely unchanged.
+  const beforeFixture = require('./fixtures/pair-eye-harmonization-prefix-2026-09-05.json');
+  const before = new Function(beforeFixture.util + '\n' + beforeFixture.mapSource + '\nreturn { calculateEyeLashMap, buildEyeZones };')();
+  before.catalog = new Function('const clampScore=n=>n;' + beforeFixture.catalogSource + ';return DESIGN_CATALOG;')();
+  before.mapSource = beforeFixture.mapSource;
+  assert.notStrictEqual(before.mapSource, current.mapSource, 'the frozen pre-fix snapshot must genuinely differ from the current source for this regression proof to be meaningful');
 
   const eye = makeEye();
   const bugFixture = makeClient({ leftEye: eye, rightEye: { ...eye }, leftTilt: 3.9, rightTilt: 4.1 });

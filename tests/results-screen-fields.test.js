@@ -220,7 +220,10 @@ test('no language-specific branch was introduced by this cleanup (RU/EN share th
 // Production isolation
 // ------------------------------------------------------------
 test('production/library/backend/consent/client-storage files remain byte-identical to committed HEAD', () => {
-  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-scan-core.js']) {
+  // ClientStore's separately approved transaction hotfix is protected by
+  // client-store.test.js and client-store-transactions.test.js. Keep every
+  // other file in this subsystem's isolation guard unchanged.
+  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-data-consent.js', 'lash-scan-core.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

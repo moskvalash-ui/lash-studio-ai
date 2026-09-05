@@ -32,11 +32,9 @@
 //     change to whatever produced that snapshot (e.g. DESIGN_CATALOG
 //     or ProfessionalLashLibrary edits elsewhere in the app).
 //   - Storage backend is pluggable: a real IndexedDB adapter is used
-//     when `indexedDB` is available, but ANY failure to open/use it
-//     (unavailable, throws, errors) falls back to an in-memory adapter
-//     automatically. Every public method is async and NEVER throws
-//     due to storage unavailability — the rest of the app can call
-//     this module unconditionally without risking a crash.
+//     when `indexedDB` is available. Initialization failure falls back
+//     to memory. Once opened, mutation failures reject; they never
+//     silently fall back. IndexedDB mutations resolve only on commit.
 //   - No medical/diagnosis fields anywhere in the schema. Client
 //     preferences carry only plain, artist-authored free text.
 //
@@ -201,11 +199,16 @@
     };
   }
 
-  // Real IndexedDB adapter. Only reachable in a browser with a
-  // working `indexedDB`; any failure at any step (open throws, the
-  // open request errors, a transaction fails) rejects and the caller
-  // (getAdapter, below) falls back to the memory adapter instead of
-  // ever propagating the failure to application code.
+  // A request succeeding does not mean its transaction committed.
+  function waitForTransaction(tx) {
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = event => reject(tx.error || (event.target && event.target.error) || new Error('IndexedDB transaction failed'));
+      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+    });
+  }
+
+  // Only initialization failures may select the memory adapter.
   function openIndexedDBAdapter(indexedDBImpl) {
     return new Promise((resolve, reject) => {
       let req;
@@ -228,21 +231,39 @@
             r.onerror = () => rej(r.error || new Error('IndexedDB request failed'));
           });
         }
+        function transactionAdapter(tx) {
+          return {
+            async get(name, id) { return cloneSnapshot(await promisifyRequest(tx.objectStore(name).get(id))) || null; },
+            async getAll(name) { return (await promisifyRequest(tx.objectStore(name).getAll())).map(cloneSnapshot); },
+            async put(name, value) { await promisifyRequest(tx.objectStore(name).put(cloneSnapshot(value))); },
+            async delete(name, id) { await promisifyRequest(tx.objectStore(name).delete(id)); },
+          };
+        }
+        async function mutate(names, operation) {
+          const tx = db.transaction(names, 'readwrite');
+          const completion = waitForTransaction(tx);
+          // Attach a rejection handler immediately, while requests are pending.
+          // Promise.all still propagates the original transaction failure.
+          const requests = (async () => {
+            try { return await operation(transactionAdapter(tx)); }
+            catch (error) {
+              try { tx.abort(); } catch (_) { /* already finished/aborted */ }
+              throw error;
+            }
+          })();
+          const [result] = await Promise.all([requests, completion]);
+          return result;
+        }
         resolve({
           async get(storeName, id) {
-            const val = await promisifyRequest(db.transaction(storeName, 'readonly').objectStore(storeName).get(id));
-            return (val === undefined || val === null) ? null : cloneSnapshot(val);
+            return transactionAdapter(db.transaction(storeName, 'readonly')).get(storeName, id);
           },
           async getAll(storeName) {
-            const all = await promisifyRequest(db.transaction(storeName, 'readonly').objectStore(storeName).getAll());
-            return (all || []).map(cloneSnapshot);
+            return transactionAdapter(db.transaction(storeName, 'readonly')).getAll(storeName);
           },
-          async put(storeName, value) {
-            await promisifyRequest(db.transaction(storeName, 'readwrite').objectStore(storeName).put(cloneSnapshot(value)));
-          },
-          async delete(storeName, id) {
-            await promisifyRequest(db.transaction(storeName, 'readwrite').objectStore(storeName).delete(id));
-          },
+          put(name, value) { return mutate([name], adapter => adapter.put(name, value)); },
+          delete(name, id) { return mutate([name], adapter => adapter.delete(name, id)); },
+          mutate,
         });
       };
       req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
@@ -294,10 +315,16 @@
 
     // Resolves once the backend is chosen; returns 'indexeddb',
     // 'memory', or 'custom'. Safe to call any time — also implicitly
-    // awaited by every CRUD method below via getAdapter().
+    // awaited by every CRUD method below via getAdapter(). This reports
+    // the backend only; each mutation Promise separately confirms commit.
     async function whenReady() {
       await getAdapter();
       return mode;
+    }
+
+    async function mutate(names, operation) {
+      const adapter = await getAdapter();
+      return adapter.mutate ? adapter.mutate(names, operation) : operation(adapter);
     }
 
     // --------------------------------------------------------
@@ -336,38 +363,38 @@
     }
 
     async function updateClient(id, patch) {
-      const adapter = await getAdapter();
-      const existing = await adapter.get(STORE_CLIENTS, id);
-      if (!isValidClientRecord(existing)) throw new Error('updateClient: unknown or invalid client id: ' + id);
-      const src = patch || {};
-      const merged = {
-        ...existing,
-        fullName: typeof src.fullName === 'string' ? src.fullName : existing.fullName,
-        dateOfBirth: Object.prototype.hasOwnProperty.call(src, 'dateOfBirth')
-          ? (typeof src.dateOfBirth === 'string' ? src.dateOfBirth : null)
-          : existing.dateOfBirth,
-        phone: Object.prototype.hasOwnProperty.call(src, 'phone')
-          ? (typeof src.phone === 'string' ? src.phone : null)
-          : existing.phone,
-        preferences: src.preferences ? normalizePreferences({ ...existing.preferences, ...src.preferences }) : existing.preferences,
-        updatedAt: nowIso(),
-      };
-      await adapter.put(STORE_CLIENTS, merged);
-      return cloneSnapshot(merged);
+      return mutate([STORE_CLIENTS], async adapter => {
+        const existing = await adapter.get(STORE_CLIENTS, id);
+        if (!isValidClientRecord(existing)) throw new Error('updateClient: unknown or invalid client id: ' + id);
+        const src = patch || {};
+        const merged = {
+          ...existing,
+          fullName: typeof src.fullName === 'string' ? src.fullName : existing.fullName,
+          dateOfBirth: Object.prototype.hasOwnProperty.call(src, 'dateOfBirth')
+            ? (typeof src.dateOfBirth === 'string' ? src.dateOfBirth : null)
+            : existing.dateOfBirth,
+          phone: Object.prototype.hasOwnProperty.call(src, 'phone')
+            ? (typeof src.phone === 'string' ? src.phone : null)
+            : existing.phone,
+          preferences: src.preferences ? normalizePreferences({ ...existing.preferences, ...src.preferences }) : existing.preferences,
+          updatedAt: nowIso(),
+        };
+        await adapter.put(STORE_CLIENTS, merged);
+        return cloneSnapshot(merged);
+      });
     }
 
     // Deletes a client AND every visit record belonging to it — a
     // client can never be left with dangling/orphaned visits, and a
     // visit can never outlive the client it belongs to.
     async function deleteClient(id) {
-      const adapter = await getAdapter();
-      const existing = await adapter.get(STORE_CLIENTS, id);
-      if (existing && Array.isArray(existing.visitIds)) {
-        for (const visitId of existing.visitIds) {
-          await adapter.delete(STORE_VISITS, visitId);
+      return mutate([STORE_CLIENTS, STORE_VISITS], async adapter => {
+        const visits = await adapter.getAll(STORE_VISITS);
+        for (const visit of visits) {
+          if (visit.clientId === id) await adapter.delete(STORE_VISITS, visit.id);
         }
-      }
-      await adapter.delete(STORE_CLIENTS, id);
+        await adapter.delete(STORE_CLIENTS, id);
+      });
     }
 
     // --------------------------------------------------------
@@ -378,42 +405,43 @@
     // never for silently mutating a kept visit.
     // --------------------------------------------------------
     async function createVisit(clientId, input) {
-      const adapter = await getAdapter();
-      const client = await adapter.get(STORE_CLIENTS, clientId);
-      if (!isValidClientRecord(client)) throw new Error('createVisit: unknown or invalid client id: ' + clientId);
-      const src = input || {};
-      const ts = nowIso();
-      const record = {
-        id: genId('visit'),
-        clientId,
-        version: VISIT_SCHEMA_VERSION,
-        visitDate: typeof src.visitDate === 'string' ? src.visitDate : ts,
-        // Deep-cloned snapshots, never live references. Whatever the
-        // caller passes (e.g. a copy of `result.eyeProfile` or the
-        // selected ClientLashDesign) is frozen into this visit exactly
-        // as it looked at save time; later edits to the caller's
-        // object, DESIGN_CATALOG, or ProfessionalLashLibrary can never
-        // reach back into this record.
-        analysisSnapshot: (src.analysisSnapshot !== undefined && src.analysisSnapshot !== null) ? cloneSnapshot(src.analysisSnapshot) : null,
-        designSnapshot: (src.designSnapshot !== undefined && src.designSnapshot !== null) ? cloneSnapshot(src.designSnapshot) : null,
-        // Reserved shape only — Phase 1 never writes an actual photo
-        // Blob/id here. A future phase may populate these once photo
-        // storage exists.
-        photos: {
-          beforePhotoId: (src.photos && typeof src.photos.beforePhotoId === 'string') ? src.photos.beforePhotoId : null,
-          afterPhotoId: (src.photos && typeof src.photos.afterPhotoId === 'string') ? src.photos.afterPhotoId : null,
-        },
-        artistNote: typeof src.artistNote === 'string' ? src.artistNote : null,
-        createdAt: ts,
-      };
-      await adapter.put(STORE_VISITS, record);
-      const updatedClient = {
-        ...client,
-        visitIds: client.visitIds.concat(record.id),
-        updatedAt: ts,
-      };
-      await adapter.put(STORE_CLIENTS, updatedClient);
-      return cloneSnapshot(record);
+      return mutate([STORE_CLIENTS, STORE_VISITS], async adapter => {
+        const client = await adapter.get(STORE_CLIENTS, clientId);
+        if (!isValidClientRecord(client)) throw new Error('createVisit: unknown or invalid client id: ' + clientId);
+        const src = input || {};
+        const ts = nowIso();
+        const record = {
+          id: genId('visit'),
+          clientId,
+          version: VISIT_SCHEMA_VERSION,
+          visitDate: typeof src.visitDate === 'string' ? src.visitDate : ts,
+          // Deep-cloned snapshots, never live references. Whatever the
+          // caller passes (e.g. a copy of `result.eyeProfile` or the
+          // selected ClientLashDesign) is frozen into this visit exactly
+          // as it looked at save time; later edits to the caller's
+          // object, DESIGN_CATALOG, or ProfessionalLashLibrary can never
+          // reach back into this record.
+          analysisSnapshot: (src.analysisSnapshot !== undefined && src.analysisSnapshot !== null) ? cloneSnapshot(src.analysisSnapshot) : null,
+          designSnapshot: (src.designSnapshot !== undefined && src.designSnapshot !== null) ? cloneSnapshot(src.designSnapshot) : null,
+          // Reserved shape only — Phase 1 never writes an actual photo
+          // Blob/id here. A future phase may populate these once photo
+          // storage exists.
+          photos: {
+            beforePhotoId: (src.photos && typeof src.photos.beforePhotoId === 'string') ? src.photos.beforePhotoId : null,
+            afterPhotoId: (src.photos && typeof src.photos.afterPhotoId === 'string') ? src.photos.afterPhotoId : null,
+          },
+          artistNote: typeof src.artistNote === 'string' ? src.artistNote : null,
+          createdAt: ts,
+        };
+        await adapter.put(STORE_VISITS, record);
+        const updatedClient = {
+          ...client,
+          visitIds: client.visitIds.concat(record.id),
+          updatedAt: ts,
+        };
+        await adapter.put(STORE_CLIENTS, updatedClient);
+        return cloneSnapshot(record);
+      });
     }
 
     async function getVisit(id) {
@@ -432,20 +460,21 @@
     }
 
     async function deleteVisit(id) {
-      const adapter = await getAdapter();
-      const visit = await adapter.get(STORE_VISITS, id);
-      await adapter.delete(STORE_VISITS, id);
-      if (visit && typeof visit.clientId === 'string') {
-        const client = await adapter.get(STORE_CLIENTS, visit.clientId);
-        if (client && Array.isArray(client.visitIds)) {
-          const updated = {
-            ...client,
-            visitIds: client.visitIds.filter(vid => vid !== id),
-            updatedAt: nowIso(),
-          };
-          await adapter.put(STORE_CLIENTS, updated);
+      return mutate([STORE_CLIENTS, STORE_VISITS], async adapter => {
+        const visit = await adapter.get(STORE_VISITS, id);
+        await adapter.delete(STORE_VISITS, id);
+        if (visit && typeof visit.clientId === 'string') {
+          const client = await adapter.get(STORE_CLIENTS, visit.clientId);
+          if (client && Array.isArray(client.visitIds)) {
+            const updated = {
+              ...client,
+              visitIds: client.visitIds.filter(vid => vid !== id),
+              updatedAt: nowIso(),
+            };
+            await adapter.put(STORE_CLIENTS, updated);
+          }
         }
-      }
+      });
     }
 
     return {

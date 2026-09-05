@@ -282,7 +282,10 @@ test('existing preview-mirror behavior is untouched: still exactly 2 mirrored <v
 });
 
 test('production analysis/recommendation/Client Card/Professional Library code remains isolated from this fix', () => {
-  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-store.js', 'client-data-consent.js', 'lash-scan-core.js']) {
+  // ClientStore's separately approved transaction hotfix is protected by
+  // client-store.test.js and client-store-transactions.test.js. Keep every
+  // other file in this subsystem's isolation guard unchanged.
+  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-data-consent.js', 'lash-scan-core.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: repoRoot }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

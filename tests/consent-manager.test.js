@@ -643,7 +643,16 @@ test('J3. the model-loading effect + untouched handlers (retryLoad/viewMap/handl
   assert.strictEqual(curEffect, prevEffect, 'the model-loading effect must be byte-identical — Stage 2.1-2.3 must not touch model loading');
 
   // (a, cont'd) the three handlers Stage 2.1-2.3 does not instrument at all.
-  const curTail = extractSpan(src, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>');
+  // CLIENT-3 (later, separate, reviewed phase) adds one new handler —
+  // handleSaveToClient — right after handleLashScanComplete in this
+  // same span; normalized back out below, same technique as J1's
+  // omit*Fix helpers, so this guard still fails loudly on any OTHER,
+  // unrelated drift to retryLoad/viewMap/handleLashScanComplete.
+  const omitSaveToClientHandler = span => span.replace(
+    "\n      // Hero saves its current first recommendation; only the map uses\n      // activeDesign. Returning from a map must not leak that old selection\n      // into a save from Hero. Choosing another card opens its current map.\n      const handleSaveToClient = () => {\n        if (!result) return;\n        const design = screen === 'lashmap'\n          ? activeDesign\n          : (result.designs && result.designs.length)\n            ? canonicalRecommendationProps(result.designs[0], result.eyeProfile, lang, 0).clientDesign\n            : null;\n        beginSaveToClient(design);\n      };",
+    ''
+  );
+  const curTail = omitSaveToClientHandler(extractSpan(src, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>'));
   const prevTail = extractSpan(HEAD, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>');
   assert.ok(curTail !== null && prevTail !== null, 'expected to locate retryLoad..handleLashScanComplete in both current and HEAD source');
   assert.strictEqual(curTail, prevTail, 'retryLoad/viewMap/handleLashScanComplete must be byte-identical — Stage 2.1-2.3 does not touch them');

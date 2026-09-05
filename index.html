@@ -64,6 +64,13 @@
        consent-manager.js above). Defaults OFF; exports land on
        window.ClientDataConsent. -->
   <script src="client-data-consent.js"></script>
+  <!-- Canonical Visit snapshot builder (CLIENT-1 data contract, CLIENT-3
+       wires it into real screens). Same dual-load pattern as every other
+       plain script here. Exports land on window.VisitSnapshot. Pure
+       functions only — reads already-computed result/activeDesign/
+       naturalLashProfile state and returns immutable, cloned, photo-
+       and-landmark-free snapshots for ClientStore.createVisit(). -->
+  <script src="visit-snapshot.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -637,6 +644,14 @@
       clientConsentPromptBody: {ru:'Имя, дата рождения, контакты и заметки клиентки будут сохранены локально на этом устройстве — они никуда не отправляются. Вы, как мастер, отвечаете за согласие клиентки на хранение её данных.', en:'The client’s name, date of birth, contact details, and notes will be stored locally on this device only — nothing is sent anywhere. As the artist, you are responsible for your client’s consent to store their data.'},
       clientConsentPromptAccept: {ru:'Сохранять данные на этом устройстве', en:'Store data on this device'},
       clientConsentPromptDecline: {ru:'Не сейчас', en:'Not now'},
+
+      // CLIENT-3: Save to Client wiring. Copy only, same no-raw-
+      // identifier rule as the rest of this client-facing block.
+      saveToClientButton: {ru:'Сохранить клиентке', en:'Save to client'},
+      chooseClientTitle: {ru:'Выберите клиентку', en:'Choose a client'},
+      visitSavedToast: {ru:'Визит сохранён', en:'Visit saved'},
+      visitSavedTemporaryToast: {ru:'Визит сохранён временно — может не сохраниться после перезапуска', en:'Visit saved temporarily — may not survive a restart'},
+      visitSaveErrorToast: {ru:'Не удалось сохранить визит. Попробуйте ещё раз.', en:'Could not save the visit. Please try again.'},
     };
     function t(key, lang) { const e = STRINGS[key]; if (!e) return key; return e[lang] || e.ru; }
 
@@ -8887,7 +8902,7 @@
       );
     }
 
-    function HeroScreen({ result, naturalLashProfile, onViewMap, onDetails, onAllDesigns, onScanLashes, onViewLashProfile, onBack }) {
+    function HeroScreen({ result, naturalLashProfile, onViewMap, onDetails, onAllDesigns, onScanLashes, onViewLashProfile, onBack, onSaveToClient }) {
       const lang = useLang();
       const p = result.eyeProfile;
       const labels = eyeProfileLabels(p, result.iris, lang);
@@ -8905,6 +8920,14 @@
             <div className="w-10"></div>
           </div>
           {isDebugModeEnabled() && <CopyIrisDebugButton result={result} lang={lang} />}
+          {onSaveToClient && (
+            <div className="px-4 pt-3">
+              <button onClick={onSaveToClient} className="w-full py-2.5 rounded-md border border-border bg-white/[0.02] text-textSecondary text-[12px] font-semibold uppercase tracking-wide press-scale flex items-center justify-center gap-2">
+                <ClientsIcon className="w-3.5 h-3.5" />
+                {t('saveToClientButton', lang)}
+              </button>
+            </div>
+          )}
           <div className="px-4 pb-6">
             <div className="relative rounded-lg overflow-hidden aspect-[4/5] mb-6 border border-border mt-4">
               <img src={result.originalImage} className="w-full h-full object-cover" alt="client" />
@@ -9369,7 +9392,7 @@
       return <button type="button" data-lash-map-orientation-debug="true" onClick={copy} className="mb-3 w-full rounded-md border border-amber-400/40 bg-amber-500/10 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200 press-scale">{copied?'COPIED':'COPY LASH MAP ORIENTATION DEBUG'}</button>;
     }
 
-    function LashMapScreen({ result, design: designProp, naturalLashProfile, onBack }) {
+    function LashMapScreen({ result, design: designProp, naturalLashProfile, onBack, onSaveToClient }) {
       const lang = useLang();
       // designProp may have been built (and its text fields baked in)
       // under a different language earlier — e.g. selected on Result
@@ -9465,6 +9488,12 @@
           </div>
           <div className="flex-1 overflow-y-auto hide-scrollbar">
             <div className="px-4 pt-3 pb-2">
+              {onSaveToClient && (
+                <button onClick={onSaveToClient} className="w-full py-2.5 mb-2 rounded-md border border-border bg-white/[0.02] text-textSecondary text-[12px] font-semibold uppercase tracking-wide press-scale flex items-center justify-center gap-2">
+                  <ClientsIcon className="w-3.5 h-3.5" />
+                  {t('saveToClientButton', lang)}
+                </button>
+              )}
               <div className="flex rounded-md bg-surface border border-border p-1 mb-2">
                 {['ai','custom'].map(m => (
                   <button key={m} onClick={() => setMode(m)} className={`flex-1 py-2 rounded-sm text-xs font-medium uppercase tracking-wide transition-all ${mode===m ? 'bg-accent text-white' : 'text-textSecondary'}`}>{m==='ai'?t('aiDesignTab',lang):t('customTab',lang)}</button>
@@ -10454,10 +10483,36 @@
       );
     }
 
-    function ClientListCard({ client, stats, lang, onOpen }) {
+    // CLIENT-3: lightweight, self-dismissing feedback for the Save-to-
+    // Client action. Distinguishes a durably persisted Visit
+    // (store.whenReady() resolved 'indexeddb') from one that only made
+    // it into the in-memory fallback adapter (resolved 'memory') —
+    // never presents the latter as safely saved history.
+    function SaveVisitToast({ toast, lang, onDismiss }) {
+      useEffect(() => {
+        if (!toast) return;
+        const id = setTimeout(onDismiss, 3200);
+        return () => clearTimeout(id);
+      }, [toast]);
+      if (!toast) return null;
+      const message = !toast.ok
+        ? t('visitSaveErrorToast', lang)
+        : toast.persistent
+          ? t('visitSavedToast', lang)
+          : t('visitSavedTemporaryToast', lang);
+      return (
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 80 }} className="p-4 flex justify-center pointer-events-none">
+          <div onClick={onDismiss} className={`glass-strong rounded-md px-4 py-3 text-[13px] font-medium pointer-events-auto max-w-full ${toast.ok ? 'text-textPrimary' : 'text-danger'}`}>
+            {message}
+          </div>
+        </div>
+      );
+    }
+
+    function ClientListCard({ client, stats, lang, onOpen, disabled }) {
       const age = client.dateOfBirth ? ClientStore.calculateAge(client.dateOfBirth) : null;
       return (
-        <button onClick={() => onOpen(client.id)} className="w-full glass rounded-lg p-3 mb-2.5 flex items-center gap-3 text-left press-scale">
+        <button disabled={!!disabled} onClick={() => onOpen(client.id)} className="w-full glass rounded-lg p-3 mb-2.5 flex items-center gap-3 text-left press-scale disabled:opacity-60">
           <div className="w-12 h-12 rounded-full bg-white/[0.05] border border-border flex items-center justify-center flex-shrink-0">
             <ClientsIcon className="w-6 h-6 text-textMuted" />
           </div>
@@ -10476,10 +10531,11 @@
       );
     }
 
-    function ClientsListScreen({ lang, store, onOpenClient, onNewClient, onBack }) {
+    function ClientsListScreen({ lang, store, onOpenClient, onNewClient, onBack, saveMode, onSelectForSave, busy }) {
       const [loading, setLoading] = useState(true);
       const [rows, setRows] = useState([]);
       const [query, setQuery] = useState('');
+      const handleOpen = saveMode ? onSelectForSave : onOpenClient;
 
       useEffect(() => {
         let cancelled = false;
@@ -10504,7 +10560,7 @@
         <div className="h-full flex flex-col bg-bg fade-in">
           <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
             <BackButton onBack={onBack} />
-            <h1 className="text-[17px] font-bold text-textPrimary">{t('clientsNavLabel', lang)}</h1>
+            <h1 className="text-[17px] font-bold text-textPrimary">{saveMode ? t('chooseClientTitle', lang) : t('clientsNavLabel', lang)}</h1>
           </div>
           <div className="px-4 pt-4">
             <input
@@ -10512,7 +10568,7 @@
               placeholder={t('clientsSearchPlaceholder', lang)}
               className={CLIENT_INPUT_CLASS + ' mb-3'}
             />
-            <button onClick={onNewClient} className="w-full py-3.5 rounded-md font-semibold text-[14px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-4">
+            <button disabled={!!busy} onClick={onNewClient} className="w-full py-3.5 rounded-md font-semibold text-[14px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-4 disabled:opacity-60">
               {t('clientsNewButton', lang)}
             </button>
           </div>
@@ -10526,7 +10582,7 @@
               <p className="text-[13px] text-textMuted text-center py-6">{t('clientsNoResults', lang)}</p>
             ) : (
               filtered.map(({ client, stats }) => (
-                <ClientListCard key={client.id} client={client} stats={stats} lang={lang} onOpen={onOpenClient} />
+                <ClientListCard key={client.id} client={client} stats={stats} lang={lang} onOpen={handleOpen} disabled={busy} />
               ))
             )}
           </div>
@@ -12630,10 +12686,124 @@
         try { if (typeof ClientDataConsent !== 'undefined') ClientDataConsent.setConsent(ClientDataConsent.defaultStorage(), true); } catch (e) { /* best-effort; UI still reflects the grant even if persistence fails */ }
         setClientDataConsentGranted(true);
       };
-      const openClientsList = () => setScreen('clients');
+      // clientSelectForSave/pendingVisitSnapshot are defensively reset
+      // here too — the normal Home -> Clients entry point must never
+      // inherit save-mode state left over from an earlier flow.
+      const openClientsList = () => { setClientSelectForSave(false); setPendingVisitSnapshot(null); setScreen('clients'); };
       const openClientCard = (id) => { setActiveClientId(id); setScreen('clientCard'); };
       const openNewClientForm = () => { setActiveClientId(null); setScreen('clientForm'); };
       const openEditClientForm = (id) => { setActiveClientId(id); setScreen('clientForm'); };
+
+      // ------------------------------------------------------------
+      // SAVE TO CLIENT — CLIENT-3. Wires the CLIENT-1 canonical Visit
+      // snapshot (VisitSnapshot.buildVisitSnapshot) and the existing
+      // Client Card data layer (ClientStore/ClientDataConsent) to the
+      // completed analysis/design screens. pendingVisitSnapshot is a
+      // transient, in-memory-only holder for one built snapshot while
+      // the artist chooses/creates a client — never a second permanent
+      // source of truth, never containing photo/landmark data (see
+      // visit-snapshot.js's own boundary proof), and always cleared on
+      // success, cancel, or consent decline.
+      // ------------------------------------------------------------
+      const [pendingVisitSnapshot, setPendingVisitSnapshot] = useState(null);
+      const [saveVisitReturnScreen, setSaveVisitReturnScreen] = useState(null);
+      const [saveConsentPromptOpen, setSaveConsentPromptOpen] = useState(false);
+      const [clientSelectForSave, setClientSelectForSave] = useState(false);
+      const [saveVisitBusy, setSaveVisitBusy] = useState(false);
+      const saveVisitBusyRef = useRef(false);
+      const [saveVisitToast, setSaveVisitToast] = useState(null);
+
+      // Captures exactly what is currently on screen: the live result/
+      // naturalLashProfile state plus the given ClientLashDesign v2
+      // object. Never recomputes analysis, reruns recommendation, or
+      // reruns calculateEyeLashMap — buildVisitSnapshot only reads
+      // already-computed fields.
+      const beginSaveToClient = (design) => {
+        if (!result || typeof VisitSnapshot === 'undefined') return;
+        const snapshot = VisitSnapshot.buildVisitSnapshot({ result, activeDesign: design || null, naturalLashProfile });
+        setPendingVisitSnapshot(snapshot);
+        setSaveVisitReturnScreen(screen);
+        if (!clientDataConsentGranted) { setSaveConsentPromptOpen(true); return; }
+        setClientSelectForSave(true);
+        setScreen('clients');
+      };
+
+      // Full abandon: only reachable from the client-select list's own
+      // back action — discards the pending snapshot, creates nothing.
+      const cancelSaveToClient = () => {
+        setPendingVisitSnapshot(null);
+        setClientSelectForSave(false);
+        setScreen(saveVisitReturnScreen || 'hero');
+        setSaveVisitReturnScreen(null);
+      };
+
+      const handleSaveConsentAccept = () => {
+        grantClientDataConsent();
+        setSaveConsentPromptOpen(false);
+        setClientSelectForSave(true);
+        setScreen('clients');
+      };
+      // Consent declined: no Client/Visit record is ever created;
+      // return safely to exactly where the artist was (screen was
+      // never changed while the prompt was open).
+      const handleSaveConsentDecline = () => {
+        setSaveConsentPromptOpen(false);
+        setPendingVisitSnapshot(null);
+        setSaveVisitReturnScreen(null);
+      };
+
+      // One createVisit call per intentional Save-to-Client operation —
+      // saveVisitBusy guards against double-tap/async re-entry. Used
+      // both for an existing client (tapped directly from the
+      // save-mode list) and for a brand-new client (called from
+      // onSaved below) — exactly the "reuse the same handler" the
+      // brief asks for. On failure, pendingVisitSnapshot is
+      // deliberately NOT cleared so the artist can retry the same
+      // save; the UI never claims a failed write was persisted.
+      const finishSaveToClient = async (clientId) => {
+        // saveVisitBusyRef guards synchronously, independent of React's
+        // state-update batching/timing — saveVisitBusy (state) only
+        // drives the UI's disabled affordance. Two calls arriving in
+        // the same synchronous tick (not just two separate click
+        // events) must still only ever create one Visit.
+        if (saveVisitBusyRef.current || !pendingVisitSnapshot) return;
+        saveVisitBusyRef.current = true;
+        setSaveVisitBusy(true);
+        const store = clientStoreRef.current;
+        try {
+          if (!store) throw new Error('client store unavailable');
+          await store.createVisit(clientId, pendingVisitSnapshot);
+          const mode = await store.whenReady();
+          setSaveVisitToast({ ok: true, persistent: mode === 'indexeddb' });
+          setPendingVisitSnapshot(null);
+          setClientSelectForSave(false);
+          setSaveVisitReturnScreen(null);
+          setActiveClientId(clientId);
+          setScreen('clientCard');
+        } catch (e) {
+          setSaveVisitToast({ ok: false });
+        } finally {
+          saveVisitBusyRef.current = false;
+          setSaveVisitBusy(false);
+        }
+      };
+
+      // Reused as ClientFormScreen's onSaved for BOTH ordinary client
+      // creation/editing and the "create a new client mid-save" flow —
+      // pendingVisitSnapshot is only ever non-null during an actual
+      // Save-to-Client operation, so ordinary client creation from the
+      // Clients screen is completely unaffected.
+      const handleClientFormSaved = (client) => {
+        if (pendingVisitSnapshot && clientSelectForSave) {
+          // Keep the created client even if saving its visit fails. The
+          // form now edits this record, so retry cannot create a duplicate.
+          setActiveClientId(client.id);
+          finishSaveToClient(client.id);
+        } else {
+          setActiveClientId(client.id);
+          setScreen('clientCard');
+        }
+      };
 
       const [result, setResult] = useState(null);
       const [naturalLashProfile, setNaturalLashProfile] = useState(null);
@@ -12671,6 +12841,18 @@
       const retryLoad = () => setLoadAttempt(a => a + 1);
       const viewMap = (design) => { setActiveDesign(design); setScreen('lashmap'); };
       const handleLashScanComplete = (profile) => { setNaturalLashProfile(profile); setScreen('lashprofile'); };
+      // Hero saves its current first recommendation; only the map uses
+      // activeDesign. Returning from a map must not leak that old selection
+      // into a save from Hero. Choosing another card opens its current map.
+      const handleSaveToClient = () => {
+        if (!result) return;
+        const design = screen === 'lashmap'
+          ? activeDesign
+          : (result.designs && result.designs.length)
+            ? canonicalRecommendationProps(result.designs[0], result.eyeProfile, lang, 0).clientDesign
+            : null;
+        beginSaveToClient(design);
+      };
 
       return (
         <LangContext.Provider value={lang}>
@@ -12682,15 +12864,15 @@
               </div>
             )}
             {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} />}
-            {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={() => setScreen('home')} />}
+            {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={clientSelectForSave ? cancelSaveToClient : () => setScreen('home')} saveMode={clientSelectForSave} onSelectForSave={finishSaveToClient} busy={saveVisitBusy} />}
             {screen === 'clientCard' && activeClientId && <ClientCardScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} onBack={() => setScreen('clients')} onEdit={openEditClientForm} onDeleted={() => { setActiveClientId(null); setScreen('clients'); }} />}
-            {screen === 'clientForm' && <ClientFormScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} consentGranted={clientDataConsentGranted} onGrantConsent={grantClientDataConsent} onSaved={(client) => { setActiveClientId(client.id); setScreen('clientCard'); }} onCancel={() => setScreen(activeClientId ? 'clientCard' : 'clients')} />}
+            {screen === 'clientForm' && <ClientFormScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} consentGranted={clientDataConsentGranted} onGrantConsent={grantClientDataConsent} onSaved={handleClientFormSaved} onCancel={() => setScreen(clientSelectForSave ? 'clients' : (activeClientId ? 'clientCard' : 'clients'))} />}
             {screen === 'scan' && <LiveScanScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} onSetLang={setLang} />}
             {screen === 'photo' && <PhotoAnalysisScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} />}
             {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} onRescan={() => { if (typeof Analytics !== 'undefined') Analytics.track('rescan_started'); setScreen('home'); }} />}
-            {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => { if (typeof Analytics !== 'undefined') Analytics.track('details_viewed'); setScreen('details'); }} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} />}
+            {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => { if (typeof Analytics !== 'undefined') Analytics.track('details_viewed'); setScreen('details'); }} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} onSaveToClient={handleSaveToClient} />}
             {screen === 'catalog' && result && <AllDesignsScreen result={result} onSelect={viewMap} onBack={() => setScreen('hero')} />}
-            {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={LashDesignDomain.recommendationPropsFromClientDesign(activeDesign)} naturalLashProfile={naturalLashProfile} onBack={() => setScreen('hero')} />}
+            {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={LashDesignDomain.recommendationPropsFromClientDesign(activeDesign)} naturalLashProfile={naturalLashProfile} onBack={() => setScreen('hero')} onSaveToClient={handleSaveToClient} />}
             {screen === 'details' && result && <DetailsScreen result={result} onBack={() => setScreen('hero')} />}
             {screen === 'lashscan' && <NaturalLashScanScreen onComplete={handleLashScanComplete} onBack={() => setScreen('hero')} modelsLoaded={modelsLoaded} />}
             {screen === 'lashprofile' && naturalLashProfile && <NaturalLashProfileScreen profile={naturalLashProfile} onDone={() => setScreen('hero')} onBack={() => setScreen('hero')} />}
@@ -12723,6 +12905,10 @@
                 onClose={() => setConsentSettingsOpen(false)}
               />
             )}
+            {saveConsentPromptOpen && (
+              <ClientDataConsentPrompt lang={lang} onAccept={handleSaveConsentAccept} onDecline={handleSaveConsentDecline} />
+            )}
+            <SaveVisitToast toast={saveVisitToast} lang={lang} onDismiss={() => setSaveVisitToast(null)} />
           </div>
         </LangContext.Provider>
       );

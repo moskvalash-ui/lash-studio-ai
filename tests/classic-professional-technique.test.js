@@ -145,7 +145,7 @@ test('validation includes provenance, review, revision, and explicit unresolved 
 });
 
 test('production is untouched: activation stays inactive and all 21 legacy IDs and consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(indexSource),'b4e23d7eeff7c311edc18adf1c31c216bca877b7a93a9b65b5b248d487b46e7d');
+  assert.strictEqual(digest(indexSource),'96efd59857a3062cb5e6e68e2dbbe399edb34e591ef6061db30ec0fad67ae1f6');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end),catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
   assert.strictEqual(catalog.length,21);

@@ -69,5 +69,9 @@ test('Phase 2D isolation guards protect ranking and forbidden consumers',()=>{
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   const naturalStart=src.indexOf('    function NaturalLashScanScreen('),naturalEnd=src.indexOf('\n    function ',naturalStart+20);
   assert.ok(!src.slice(naturalStart,naturalEnd).includes('canonicalRecommendationProps'));
-  assert.strictEqual((src.match(/canonicalRecommendationProps\(/g)||[]).length,4);
+  // CLIENT-3 adds one genuine new call site: App()'s handleSaveToClient
+  // uses the same cached mapper to read the #1-ranked design's
+  // clientDesign as a HeroScreen fallback when activeDesign isn't set
+  // yet — still zero re-run of rankDesigns/calculateEyeLashMap.
+  assert.strictEqual((src.match(/canonicalRecommendationProps\(/g)||[]).length,5);
 });

@@ -652,8 +652,14 @@ test('J3. the model-loading effect + untouched handlers (retryLoad/viewMap/handl
     "\n      // Hero saves its current first recommendation; only the map uses\n      // activeDesign. Returning from a map must not leak that old selection\n      // into a save from Hero. Choosing another card opens its current map.\n      const handleSaveToClient = () => {\n        if (!result) return;\n        const design = screen === 'lashmap'\n          ? activeDesign\n          : (result.designs && result.designs.length)\n            ? canonicalRecommendationProps(result.designs[0], result.eyeProfile, lang, 0).clientDesign\n            : null;\n        beginSaveToClient(design);\n      };",
     ''
   );
+  // Both sides are normalized the same way: HEAD itself has carried the
+  // committed CLIENT-3 handleSaveToClient addition since that phase
+  // landed on main, so omitting only from curTail (as originally
+  // written, back when HEAD still predated CLIENT-3) would make this
+  // assertion fail permanently regardless of any OTHER drift -- the
+  // exact stale-comparison bug this normalization exists to avoid.
   const curTail = omitSaveToClientHandler(extractSpan(src, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>'));
-  const prevTail = extractSpan(HEAD, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>');
+  const prevTail = omitSaveToClientHandler(extractSpan(HEAD, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>'));
   assert.ok(curTail !== null && prevTail !== null, 'expected to locate retryLoad..handleLashScanComplete in both current and HEAD source');
   assert.strictEqual(curTail, prevTail, 'retryLoad/viewMap/handleLashScanComplete must be byte-identical — Stage 2.1-2.3 does not touch them');
 

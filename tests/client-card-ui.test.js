@@ -138,16 +138,25 @@ test('ClientsListScreen filters by client full name (case-insensitive)', () => {
 // ------------------------------------------------------------
 // 5. Empty states
 // ------------------------------------------------------------
-test('empty states exist for: no clients yet, no search results, no visit history, and no latest visit', () => {
-  for (const key of ['clientsEmptyTitle', 'clientsEmptyBody', 'clientsNoResults', 'clientCardHistoryEmpty', 'clientCardLastVisitEmpty']) {
+test('empty states exist for: no clients yet, no search results, and no visit history', () => {
+  for (const key of ['clientsEmptyTitle', 'clientsEmptyBody', 'clientsNoResults', 'clientCardHistoryEmpty']) {
     assert.ok(clientUiBlock.includes("t('" + key + "', lang)"), 'missing empty-state usage for ' + key);
   }
 });
 
-test("Phase 2 never implements visit saving: the Client Card's history/latest-visit sections always render their empty state", () => {
-  assert.ok(clientUiBlock.includes("t('clientCardLastVisitEmpty', lang)"));
+// CLIENT-4 supersedes the old Phase-2 assumption ("visit saving is a
+// later phase") this test used to pin down: the Visit History section
+// now renders real saved visits when present, and the true empty state
+// ONLY when store.listVisitsForClient(clientId) resolved zero visits —
+// see VisitHistoryCard/ClientCardScreen below. ClientCardScreen/
+// ClientsListScreen/ClientFormScreen themselves still never call
+// createVisit directly (that stays exclusively in App(), proven by
+// save-to-client-flow.test.js's own test O).
+test("Client Card's Visit History section renders real saved visits when present, and the true empty state only when there are none", () => {
+  assert.ok(clientUiBlock.includes('visits.length === 0'), 'expected a real conditional between the empty state and the real visit list');
   assert.ok(clientUiBlock.includes("t('clientCardHistoryEmpty', lang)"));
-  assert.ok(!clientUiBlock.includes('createVisit('), 'no code in this phase may call store.createVisit — visit saving is a later phase');
+  assert.ok(clientUiBlock.includes('visits.map(v => <VisitHistoryCard'), 'expected the real visits array to be rendered, not a second always-empty placeholder');
+  assert.ok(!clientUiBlock.includes('createVisit('), 'ClientCardScreen/ClientsListScreen/ClientFormScreen must never call store.createVisit — that stays exclusively in App()');
 });
 
 test('"New Visit" is visually present but structurally disconnected from scan/result state', () => {

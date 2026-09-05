@@ -626,10 +626,8 @@
       clientCardPreferredEffects: {ru:'Любимые эффекты', en:'Preferred effects'},
       clientCardRequestNotes: {ru:'Пожелания клиентки', en:'Client requests'},
       clientCardArtistNotesTitle: {ru:'Заметки мастера', en:'Artist notes'},
-      clientCardLastVisitTitle: {ru:'Последний визит', en:'Latest visit'},
-      clientCardLastVisitEmpty: {ru:'История визитов появится после сохранения первого визита.', en:'Visit history will appear once the first visit is saved.'},
-      clientCardHistoryTitle: {ru:'История визитов', en:'Visit history'},
-      clientCardHistoryEmpty: {ru:'Пока нет сохранённых визитов.', en:'No saved visits yet.'},
+      clientCardHistoryTitle: {ru:'История визитов', en:'Visit History'},
+      clientCardHistoryEmpty: {ru:'История визитов пока пуста', en:'No visits yet'},
       clientCardNewVisit: {ru:'Новый визит', en:'New visit'},
       clientCardNewVisitComingSoon: {ru:'Сохранение визита появится в следующем обновлении.', en:'Saving a visit will be available in a future update.'},
       clientCardEdit: {ru:'Редактировать', en:'Edit'},
@@ -639,6 +637,19 @@
       clientCardDeleteConfirmYes: {ru:'Удалить', en:'Delete'},
       clientCardDeleteConfirmNo: {ru:'Отмена', en:'Cancel'},
       clientCardNotFound: {ru:'Клиентка не найдена', en:'Client not found'},
+      // CLIENT-4: Visit History / Visit Detail. Reuses existing shape_*/
+      // eyeSet_*/eyeSize_*/symmetry_*/tilt*/leftEye/rightEye/lashMapCurl/
+      // lashMapLength/irisColorLabel/shapeLabel/spacingLabel/tiltLabel/
+      // symmetryLabel/eyeSizeLabel keys wherever the same concept already
+      // has a localized label — these are only the genuinely new strings.
+      visitDetailTitle: {ru:'Визит', en:'Visit'},
+      visitDetailDesignTitle: {ru:'Эффект', en:'Design'},
+      visitDetailPeakLabel: {ru:'Пик', en:'Peak'},
+      visitDetailCorrectionLabel: {ru:'Коррекция', en:'Correction'},
+      visitDetailAnalysisTitle: {ru:'Анализ', en:'Analysis'},
+      visitDetailNaturalLashLabel: {ru:'Натуральные ресницы', en:'Natural lashes'},
+      visitDetailNotAvailable: {ru:'Нет данных', en:'Not available'},
+      visitArtistNoteTitle: {ru:'Заметка мастера', en:'Artist note'},
 
       clientConsentPromptTitle: {ru:'Хранение данных клиентки', en:'Storing client data'},
       clientConsentPromptBody: {ru:'Имя, дата рождения, контакты и заметки клиентки будут сохранены локально на этом устройстве — они никуда не отправляются. Вы, как мастер, отвечаете за согласие клиентки на хранение её данных.', en:'The client’s name, date of birth, contact details, and notes will be stored locally on this device only — nothing is sent anywhere. As the artist, you are responsible for your client’s consent to store their data.'},
@@ -9259,6 +9270,41 @@
       return <LegacyLashMapDiagram {...diagramProps} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} lang={lang}/>;
     }
 
+    // CLIENT-4: smallest possible adapter from a stored, immutable
+    // VisitSnapshot.designSnapshot (visit-snapshot.js) to LegacyLashMapDiagram's
+    // props -- NOT a second Lash Map renderer. designSnapshot never carries
+    // a full ClientLashDesign v2 (mapping.diagram/curve/technique/
+    // spikeGeometry are Lash Map EDITOR runtime state, never persisted --
+    // see visit-snapshot.js's own field-by-field extraction), so this
+    // cannot reuse diagramPropsFromClientDesign/withDiagramRuntime, which
+    // both require that runtime shape. Reproducibility (never depends on
+    // DESIGN_CATALOG or any current library/recommendation machinery) is
+    // why `curve` defaults to {} (expandLashMapSectors's own even/linear
+    // fallback) rather than looking up the design's current catalog
+    // curve by designId -- the saved zones/peakZone/curl are the only
+    // inputs that must stay byte-for-byte historical.
+    function visitDesignDiagramProps(designSnapshot, side) {
+      const eye = designSnapshot && designSnapshot.physicalEyes && designSnapshot.physicalEyes[side];
+      if (!eye || !Array.isArray(eye.finalMm)) return null;
+      return {
+        zones: eye.finalMm,
+        peakIdx: eye.peakZone,
+        spikeGeom: null,
+        curve: {},
+        curl: (designSnapshot.curl && designSnapshot.curl.global) || null,
+        curlByZone: (designSnapshot.curl && designSnapshot.curl.byZone) || null,
+        technique: null,
+        side,
+        zoneNames: ZONE_NAMES,
+        lengthRangeByZone: null,
+      };
+    }
+    function VisitLashMapDiagram({ designSnapshot, side, hoveredZone, setHoveredZone, lang }) {
+      const diagramProps = visitDesignDiagramProps(designSnapshot, side);
+      if (!diagramProps) return null;
+      return <LegacyLashMapDiagram {...diagramProps} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} lang={lang}/>;
+    }
+
     // Artist-facing map over the exact captured eye. SVG image and
     // landmarks share the analysis-image coordinate system, so the
     // responsive crop cannot drift through CSS object-fit behavior.
@@ -10722,7 +10768,40 @@
       );
     }
 
-    function ClientCardScreen({ lang, clientId, store, onBack, onEdit, onDeleted }) {
+    // CLIENT-4: one row in the Visit History list. Reads ONLY the
+    // already-stored, immutable visit record (visit.designSnapshot/
+    // visit.artistNote/visit.visitDate) — never calls back into any
+    // current catalog/library/recommendation machinery. Rendered as a
+    // real <button> (not a div+onClick) so it is unambiguously
+    // tappable/focusable/keyboard-operable.
+    function VisitHistoryCard({ visit, lang, onOpen }) {
+      const design = visit.designSnapshot;
+      const name = design ? (lang === 'en' ? (design.display.enName || design.display.name) : (design.display.ruName || design.display.name)) : null;
+      const allMm = design ? [...(design.physicalEyes.left.finalMm || []), ...(design.physicalEyes.right.finalMm || [])] : [];
+      const lengthRange = allMm.length ? `${Math.min(...allMm)}–${Math.max(...allMm)} mm` : null;
+      const curl = (design && design.curl.global) || null;
+      const notePreview = visit.artistNote ? (visit.artistNote.length > 80 ? visit.artistNote.slice(0, 80) + '…' : visit.artistNote) : null;
+      return (
+        <button type="button" onClick={onOpen} className="w-full text-left rounded-md border border-border bg-white/[0.02] p-3 press-scale">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-textPrimary truncate">{name || t('visitDetailNotAvailable', lang)}</p>
+              <p className="text-[11px] text-textMuted mt-0.5">{formatClientDate(visit.visitDate, lang)}</p>
+            </div>
+            <svg className="w-4 h-4 text-textMuted flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
+          </div>
+          {(curl || lengthRange) && (
+            <div className="flex gap-3 mt-2 text-[11px] text-textSecondary">
+              {curl && <span>{t('lashMapCurl', lang)}: <span className="text-textPrimary font-medium">{curl}</span></span>}
+              {lengthRange && <span>{t('lashMapLength', lang)}: <span className="text-textPrimary font-medium">{lengthRange}</span></span>}
+            </div>
+          )}
+          {notePreview && <p className="text-[11px] text-textMuted mt-1.5 truncate">{notePreview}</p>}
+        </button>
+      );
+    }
+
+    function ClientCardScreen({ lang, clientId, store, onBack, onEdit, onDeleted, onOpenVisit }) {
       const [client, setClient] = useState(null);
       const [visits, setVisits] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -10825,13 +10904,14 @@
             )}
 
             <div className="glass rounded-lg p-4 mb-3">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('clientCardLastVisitTitle', lang)}</div>
-              <p className="text-[13px] text-textMuted text-center py-3">{t('clientCardLastVisitEmpty', lang)}</p>
-            </div>
-
-            <div className="glass rounded-lg p-4 mb-3">
               <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('clientCardHistoryTitle', lang)}</div>
-              <p className="text-[13px] text-textMuted text-center py-3">{t('clientCardHistoryEmpty', lang)}</p>
+              {visits.length === 0 ? (
+                <p className="text-[13px] text-textMuted text-center py-3">{t('clientCardHistoryEmpty', lang)}</p>
+              ) : (
+                <div className="space-y-2">
+                  {visits.map(v => <VisitHistoryCard key={v.id} visit={v} lang={lang} onOpen={() => onOpenVisit(v.id)} />)}
+                </div>
+              )}
             </div>
           </div>
           <div className="px-4 pb-5 pt-2 space-y-2 border-t border-border/60">
@@ -10865,6 +10945,147 @@
               </div>
             </div>
           )}
+        </div>
+      );
+    }
+
+    // ============================================================
+    // CLIENT-4: VISIT DETAIL — read-only reconstruction of one saved,
+    // IMMUTABLE Visit from ClientStore.getVisit(). Deliberately never
+    // calls back into any current catalog/library/recommendation/
+    // classification machinery — every value shown here comes
+    // exclusively from visit.designSnapshot/visit.analysisSnapshot/
+    // visit.artistNote exactly as CLIENT-3 stored them. This is what
+    // guarantees a saved Visit keeps displaying its own historical
+    // design/lengths/curls/PEAK/explanation even if the live catalog or
+    // ranking engine changes later.
+    // ============================================================
+    function VisitDetailScreen({ lang, visitId, clientId, store, onBack }) {
+      const [visit, setVisit] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [hoveredZoneLeft, setHoveredZoneLeft] = useState(null);
+      const [hoveredZoneRight, setHoveredZoneRight] = useState(null);
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          if (!store || !visitId) { setLoading(false); return; }
+          const v = await store.getVisit(visitId);
+          if (cancelled) return;
+          setVisit(v && v.clientId === clientId ? v : null);
+          setLoading(false);
+        })();
+        return () => { cancelled = true; };
+      }, [visitId, clientId, store]);
+
+      if (loading) {
+        return <div className="h-full flex items-center justify-center bg-bg"><p className="text-textMuted text-sm">…</p></div>;
+      }
+      if (!visit) {
+        return (
+          <div className="h-full flex flex-col bg-bg">
+            <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+              <BackButton onBack={onBack} />
+              <h1 className="text-[15px] font-bold text-textPrimary">{t('clientCardNotFound', lang)}</h1>
+            </div>
+          </div>
+        );
+      }
+
+      const design = visit.designSnapshot;
+      const analysis = visit.analysisSnapshot;
+      const na = t('visitDetailNotAvailable', lang);
+      const designName = design ? (lang === 'en' ? (design.display.enName || design.display.name) : (design.display.ruName || design.display.name)) : null;
+      const tiltLabelFor = (tendency) => tendency === 'upturned' ? t('tiltUpturned', lang)
+        : tendency === 'downturned' ? t('tiltDownturned', lang)
+        : tendency === 'neutral' ? t('tiltNeutral', lang)
+        : tendency ? t('tiltUncertain', lang) : na;
+
+      return (
+        <div className="h-full flex flex-col bg-bg fade-in">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
+            <BackButton onBack={onBack} />
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-bold text-textPrimary truncate">{t('visitDetailTitle', lang)}</h1>
+              <p className="text-[12px] text-textSecondary">{formatClientDate(visit.visitDate, lang)}</p>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 hide-scrollbar space-y-3">
+            {design ? (
+              <>
+                <div className="glass rounded-lg p-4">
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('visitDetailDesignTitle', lang)}</div>
+                  <p className="text-[16px] font-bold text-textPrimary">{designName || na}</p>
+                  {design.recommendation.whyItWorks && <p className="text-sm text-textSecondary leading-relaxed mt-2">{design.recommendation.whyItWorks}</p>}
+                  {design.recommendation.limitations.length > 0 && (
+                    <p className="text-xs text-peak/90 mt-2 flex items-start gap-1.5">
+                      <ParamIcon name="asymmetry" className="w-3.5 h-3.5 text-peak flex-shrink-0 mt-0.5" />
+                      <span>{design.recommendation.limitations[0]}</span>
+                    </p>
+                  )}
+                </div>
+
+                {['left', 'right'].map(side => {
+                  const eye = design.physicalEyes[side];
+                  const hasZones = eye && Array.isArray(eye.finalMm);
+                  return (
+                    <div key={side} className="glass rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-cyan">{side === 'left' ? t('leftEye', lang) : t('rightEye', lang)}</span>
+                        {eye && eye.peakZone != null && <span className="text-[11px] text-textMuted">{t('visitDetailPeakLabel', lang)}: {zoneLabel(ZONE_NAMES[eye.peakZone], lang)}</span>}
+                      </div>
+                      {hasZones && (
+                        <div className="relative mb-3 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
+                          <VisitLashMapDiagram designSnapshot={design} side={side} hoveredZone={side === 'left' ? hoveredZoneLeft : hoveredZoneRight} setHoveredZone={side === 'left' ? setHoveredZoneLeft : setHoveredZoneRight} lang={lang} />
+                        </div>
+                      )}
+                      <dl className="grid grid-cols-3 gap-2 text-center border-t border-white/[.06] pt-2.5">
+                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapCurl', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{design.curl.global || na}</dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapLength', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{hasZones ? `${Math.min(...eye.finalMm)}–${Math.max(...eye.finalMm)} mm` : na}</dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('visitDetailCorrectionLabel', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{design.correction && Number.isFinite(design.correction[side]?.correctionMm) ? `${design.correction[side].correctionMm} mm` : na}</dd></div>
+                      </dl>
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              <div className="glass rounded-lg p-4">
+                <p className="text-[13px] text-textMuted text-center py-3">{na}</p>
+              </div>
+            )}
+
+            <div className="glass rounded-lg p-4">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('visitDetailAnalysisTitle', lang)}</div>
+              <EyeProfileRow icon="shape" label={t('shapeLabel', lang)} value={analysis.eye.shape.category ? t('shape_' + analysis.eye.shape.category, lang) : na} confidence={analysis.eye.shape.confidence ?? undefined} />
+              <EyeProfileRow icon="size" label={t('spacingLabel', lang)} value={analysis.eye.spacing.category ? t('eyeSet_' + analysis.eye.spacing.category, lang) : na} />
+              <EyeProfileRow icon="size" label={t('eyeSizeLabel', lang)} value={analysis.eye.size.category ? t('eyeSize_' + analysis.eye.size.category, lang) : na} />
+              <EyeProfileRow icon="position" label={t('tiltLabel', lang)} value={tiltLabelFor(analysis.eye.tilt.tendency)} confidence={analysis.eye.tilt.confidence ?? undefined} />
+              <EyeProfileRow icon="symmetry" label={t('symmetryLabel', lang)} value={analysis.eye.symmetry.category ? t('symmetry_' + analysis.eye.symmetry.category, lang) : na} />
+              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={analysis.iris && analysis.iris.category ? (lang === 'en' ? IRIS_NAMES[analysis.iris.category].en : IRIS_NAMES[analysis.iris.category].ru) : na} confidence={analysis.iris?.confidence ?? undefined} />
+              <div className="mt-2 pt-2 border-t border-border/60">
+                <p className="text-[10px] uppercase tracking-wide text-textMuted mb-1.5">{t('visitDetailNaturalLashLabel', lang)}</p>
+                {['left', 'right'].map(side => {
+                  const eyeEvidence = analysis.naturalLash && analysis.naturalLash.eyes && analysis.naturalLash.eyes[side];
+                  const available = eyeEvidence && eyeEvidence.availability === 'AVAILABLE';
+                  return (
+                    <div key={side} className="flex justify-between items-center py-1 text-xs">
+                      <span className="text-textSecondary">{side === 'left' ? t('leftEye', lang) : t('rightEye', lang)}</span>
+                      <span className="text-textPrimary font-medium">
+                        {available ? `${lashDensityLabel(eyeEvidence.visibleOccupancy.value, lang)} · ${lashLengthLabel(eyeEvidence.relativeVisibleLength.value, lang)}` : na}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {visit.artistNote && (
+              <div className="glass rounded-lg p-4">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('visitArtistNoteTitle', lang)}</div>
+                <p className="text-[13px] text-textPrimary leading-relaxed">{visit.artistNote}</p>
+              </div>
+            )}
+          </div>
         </div>
       );
     }
@@ -12679,6 +12900,11 @@
         clientStoreRef.current = (typeof ClientStore !== 'undefined') ? ClientStore.createClientStore() : null;
       }
       const [activeClientId, setActiveClientId] = useState(null);
+      // CLIENT-4: which saved Visit the Visit Detail screen is showing.
+      // Only ever set alongside screen==='visitDetail'; activeClientId is
+      // deliberately left untouched by opening/closing a visit, so Back
+      // always returns to the SAME Client Card the artist came from.
+      const [activeVisitId, setActiveVisitId] = useState(null);
       const [clientDataConsentGranted, setClientDataConsentGranted] = useState(() => {
         try { return (typeof ClientDataConsent !== 'undefined') ? ClientDataConsent.isClientDataAllowed(ClientDataConsent.defaultStorage()) : false; } catch (e) { return false; }
       });
@@ -12693,6 +12919,8 @@
       const openClientCard = (id) => { setActiveClientId(id); setScreen('clientCard'); };
       const openNewClientForm = () => { setActiveClientId(null); setScreen('clientForm'); };
       const openEditClientForm = (id) => { setActiveClientId(id); setScreen('clientForm'); };
+      const openVisitDetail = (visitId) => { setActiveVisitId(visitId); setScreen('visitDetail'); };
+      const closeVisitDetail = () => { setActiveVisitId(null); setScreen('clientCard'); };
 
       // ------------------------------------------------------------
       // SAVE TO CLIENT — CLIENT-3. Wires the CLIENT-1 canonical Visit
@@ -12865,7 +13093,8 @@
             )}
             {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} />}
             {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={clientSelectForSave ? cancelSaveToClient : () => setScreen('home')} saveMode={clientSelectForSave} onSelectForSave={finishSaveToClient} busy={saveVisitBusy} />}
-            {screen === 'clientCard' && activeClientId && <ClientCardScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} onBack={() => setScreen('clients')} onEdit={openEditClientForm} onDeleted={() => { setActiveClientId(null); setScreen('clients'); }} />}
+            {screen === 'clientCard' && activeClientId && <ClientCardScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} onBack={() => setScreen('clients')} onEdit={openEditClientForm} onDeleted={() => { setActiveClientId(null); setScreen('clients'); }} onOpenVisit={openVisitDetail} />}
+            {screen === 'visitDetail' && activeClientId && activeVisitId && <VisitDetailScreen lang={lang} visitId={activeVisitId} clientId={activeClientId} store={clientStoreRef.current} onBack={closeVisitDetail} />}
             {screen === 'clientForm' && <ClientFormScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} consentGranted={clientDataConsentGranted} onGrantConsent={grantClientDataConsent} onSaved={handleClientFormSaved} onCancel={() => setScreen(clientSelectForSave ? 'clients' : (activeClientId ? 'clientCard' : 'clients'))} />}
             {screen === 'scan' && <LiveScanScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} onSetLang={setLang} />}
             {screen === 'photo' && <PhotoAnalysisScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} />}

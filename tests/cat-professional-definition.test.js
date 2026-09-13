@@ -100,9 +100,9 @@ test('all 21 legacy IDs and exact legacy Cat production inputs remain unchanged'
 
 test('Recommendation, PHOTO, DIAGRAM, Application Plan, and domain source remain unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource),'1c7387974ce9b374eba30ce39b6a90a53b896e509fcf4bdfaf675b17e880200a');
+  assert.strictEqual(digest(indexSource),'ffcd2471c522b275adc6b948e99e2b51d14fb7b48c6875d55653a23e9b620207');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
-  assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, i);'));
+  assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, rank);'));
   assert.ok(indexSource.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
   assert.ok(indexSource.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(indexSource.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));

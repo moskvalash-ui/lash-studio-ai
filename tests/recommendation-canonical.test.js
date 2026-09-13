@@ -73,5 +73,9 @@ test('Phase 2D isolation guards protect ranking and forbidden consumers',()=>{
   // uses the same cached mapper to read the #1-ranked design's
   // clientDesign as a HeroScreen fallback when activeDesign isn't set
   // yet — still zero re-run of rankDesigns/calculateEyeLashMap.
-  assert.strictEqual((src.match(/canonicalRecommendationProps\(/g)||[]).length,5);
+  // RESULTS HERO V1 adds exactly one more: HeroScreen computes `best`
+  // (the featured #1 recommendation) via this SAME function instead of
+  // reading result.designs[0] through the per-card loop a second time —
+  // still zero duplicate ranking/scoring/localization logic.
+  assert.strictEqual((src.match(/canonicalRecommendationProps\(/g)||[]).length,6);
 });

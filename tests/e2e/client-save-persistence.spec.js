@@ -45,10 +45,22 @@ async function reopen(page, name, count) {
 test('real analysis: Hero selection, new client durability, existing client append and reload', async ({ page }) => {
   test.setTimeout(180000);
   await analyze(page);
+  // Read the top recommendation's CANONICAL identity from the real
+  // rendered Results Hero, never inject analysis. data-hero-design-id is
+  // a presentation-layer-only test hook (see index.html HeroScreen) that
+  // exposes the canonical id independent of display text — needed since
+  // RESULTS HERO V1 can show a RU-only presentation label ("Лисий" for
+  // fox) that intentionally differs from the persisted canonical name.
+  const heroHeading = page.getByRole('heading', { level: 1 });
+  await expect(heroHeading).toBeVisible();
+  const topDesignId = await heroHeading.getAttribute('data-hero-design-id');
+  expect(topDesignId).toBeTruthy();
+  // Click a DIFFERENT (non-best) design's map, then go back to Hero and
+  // save from there, proving Hero always saves its current #1
+  // recommendation regardless of what was last viewed on the map (see
+  // tests/save-to-client-flow.test.js and the comment on
+  // App()'s handleSaveToClient).
   const mapButtons = page.getByRole('button', { name: 'ОТКРЫТЬ КАРТУ →', exact: true });
-  // Read the top recommendation from rendered UI, never inject analysis.
-  const cards = page.locator('div.glass.rounded-lg.p-4').filter({ has: mapButtons });
-  const topName = await cards.first().locator('h4').innerText();
   await mapButtons.nth(1).click();
   await page.locator('button').filter({ has: page.locator('svg path[d="M15 19l-7-7 7-7"]') }).click();
   await chooseNew(page, 'Synthetic CLIENT-3 E2E');
@@ -56,7 +68,7 @@ test('real analysis: Hero selection, new client durability, existing client appe
   await expect(page.getByText('Визит сохранён', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Synthetic CLIENT-3 E2E', exact: true })).toBeVisible();
   const first = await reopen(page, 'Synthetic CLIENT-3 E2E', 1);
-  expect(first.visits[0].designSnapshot.display.name.toUpperCase()).toBe(topName);
+  expect(first.visits[0].designSnapshot.designId).toBe(topDesignId);
   expect(first.visits[0].designSnapshot.recommendation.rank).toBe(0);
   await analyze(page);
   await page.getByRole('button', { name: 'Сохранить клиентке', exact: true }).click();

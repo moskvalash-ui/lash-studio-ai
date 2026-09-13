@@ -490,6 +490,16 @@
       recommendedDesigns: {ru:'Рекомендуемые дизайны', en:'Recommended designs'},
       allDesigns: {ru:'Все дизайны →', en:'All designs →'},
       viewMap: {ru:'ОТКРЫТЬ КАРТУ →', en:'VIEW MAP →'},
+      // RESULTS HERO V1 — additive only, no existing key renamed/reused
+      // for a different meaning. heroMatchLabel pairs with the existing
+      // numeric d.score (e.g. "77% совпадение" / "77% match"); the CTA
+      // strings are deliberately distinct from the existing per-card
+      // `viewMap`/`saveToClientButton` text (both of which are reused
+      // verbatim elsewhere) since the brief calls for this exact wording
+      // on the featured Hero's primary action specifically.
+      heroBestDesignTitle: {ru:'ВАШ ЛУЧШИЙ ДИЗАЙН', en:'YOUR BEST DESIGN'},
+      heroMatchLabel: {ru:'совпадение', en:'match'},
+      heroOpenLashMap: {ru:'ОТКРЫТЬ LASH MAP', en:'OPEN LASH MAP'},
       openLabel: {ru:'Открыть', en:'Open'},
       selectDesign: {ru:'Выбрать дизайн', en:'Select design'},
       lashMapTitle: {ru:'Профессиональная Lash Map', en:'Professional Lash Map'},
@@ -9439,12 +9449,32 @@
       );
     }
 
+    // RESULTS HERO V1 — Results-only, presentation-only design-name
+    // override for the featured Hero block below. Never mutates d, never
+    // touches d.id/d.name/d.clientDesign/DESIGN_CATALOG/legacyDesignId —
+    // it only chooses what STRING is displayed for the headline. RU has
+    // no translated design names in DESIGN_CATALOG today (every entry's
+    // ruName === enName — see the Results Hero UX audit), so this is a
+    // narrow, explicit exception for 'fox' only, not a general
+    // localization layer. Every other design/screen (the cards below,
+    // AllDesignsScreen, LashMapScreen) continues to show d.name unchanged.
+    function heroDesignDisplayName(d, lang) {
+      if (lang === 'en') return d.name;
+      return d.id === 'fox' ? 'Лисий' : d.name;
+    }
+
     function HeroScreen({ result, naturalLashProfile, onViewMap, onDetails, onAllDesigns, onScanLashes, onViewLashProfile, onBack, onSaveToClient }) {
       const lang = useLang();
       const p = result.eyeProfile;
       const labels = eyeProfileLabels(p, result.iris, lang);
       const correctionOpportunity = generateLashCorrectionOpportunity(p, lang);
       const lashConsiderations = generateLashDesignConsiderations(result, lang);
+      // RESULTS HERO V1 — the exact existing canonical recommendation
+      // path HeroScreen already used per-card (canonicalRecommendationProps),
+      // called once here for rank 0 to feature it. No ranking/scoring
+      // logic is duplicated; result.designs[0] is the SAME pre-ranked
+      // array this screen always read.
+      const best = result.designs.length ? canonicalRecommendationProps(result.designs[0], p, lang, 0) : null;
 
       return (
         <div className="h-full flex flex-col overflow-y-auto hide-scrollbar fade-in">
@@ -9457,16 +9487,92 @@
             <div className="w-10"></div>
           </div>
           {isDebugModeEnabled() && <CopyIrisDebugButton result={result} lang={lang} />}
-          {onSaveToClient && (
-            <div className="px-4 pt-3">
-              <button onClick={onSaveToClient} className="w-full py-2.5 rounded-md border border-border bg-white/[0.02] text-textSecondary text-[12px] font-semibold uppercase tracking-wide press-scale flex items-center justify-center gap-2">
-                <ClientsIcon className="w-3.5 h-3.5" />
-                {t('saveToClientButton', lang)}
-              </button>
-            </div>
-          )}
           <div className="px-4 pb-6">
-            <div className="relative rounded-lg overflow-hidden aspect-[4/5] mb-6 border border-border mt-4">
+            {/* RESULTS HERO V1 — the featured #1 recommendation. Every
+                value below (best.id/best.score/best.whyItWorks/
+                best.clientDesign) comes from the SAME canonicalRecommendationProps
+                call already used per-card further down; nothing is
+                recomputed. heroDesignDisplayName is presentation-only —
+                it never mutates best/best.id/best.name/best.clientDesign.
+                data-hero-design-id is a test-only hook (canonical id,
+                never the presentation label) so E2E/regression tests can
+                assert identity without depending on display text. */}
+            {best && (
+              <div className="glass rounded-lg p-5 mt-4 mb-6">
+                <p className="label-tech mb-2">{t('heroBestDesignTitle', lang)}</p>
+                <h1 data-hero-design-id={best.id} className="text-3xl font-bold leading-tight text-textPrimary mb-3">{heroDesignDisplayName(best, lang).toUpperCase()}</h1>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-2xl font-bold text-accent">{best.score}%</span>
+                  <span className="text-sm text-textSecondary">{t('heroMatchLabel', lang)}</span>
+                  <MatchBar score={best.score} />
+                </div>
+                <p className="text-sm text-textSecondary leading-relaxed mb-5 line-clamp-2">{best.whyItWorks}</p>
+                <button onClick={() => onViewMap(best.clientDesign)} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-3">
+                  {t('heroOpenLashMap', lang)}
+                </button>
+                {onSaveToClient && (
+                  <button onClick={onSaveToClient} className="w-full py-2.5 rounded-md border border-border bg-white/[0.02] text-textSecondary text-[12px] font-semibold uppercase tracking-wide press-scale flex items-center justify-center gap-2">
+                    <ClientsIcon className="w-3.5 h-3.5" />
+                    {t('saveToClientButton', lang)}
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="label-tech">{t('recommendedDesigns', lang)}</h3>
+              <button onClick={onAllDesigns} className="text-xs text-accent font-medium uppercase tracking-wide">{t('allDesigns', lang)}</button>
+            </div>
+            <div className="space-y-3 mb-6">
+              {result.designs.slice(1).map((raw, i) => {
+                // Same existing per-card path as before, just offset by
+                // one rank since result.designs[0] is now featured above
+                // instead of appearing a second time here — never a
+                // second ranking/localization mechanism.
+                const rank = i + 1;
+                const d = canonicalRecommendationProps(raw, p, lang, rank);
+                return (
+                <div key={d.id} className="glass rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg font-extrabold leading-none text-textMuted">{String(rank+1).padStart(2,'0')}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold tracking-wider uppercase text-textMuted">{tierBadge(rank, d.score, d.category, lang)}</span>
+                        <h4 className="text-base font-semibold text-textPrimary">{d.name.toUpperCase()}</h4>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <span className="text-lg font-bold text-textPrimary">{d.score}%</span>
+                      <MatchBar score={d.score} />
+                    </div>
+                  </div>
+                  <p className="text-sm text-textSecondary leading-relaxed mb-3">{d.whyItWorks}</p>
+                  {d.limitations.length > 0 && (
+                    <p className="text-xs text-peak/90 mb-3 flex items-start gap-1.5">
+                      <ParamIcon name="asymmetry" className="w-3.5 h-3.5 text-peak flex-shrink-0 mt-0.5" />
+                      <span>{d.limitations[0]}</span>
+                    </p>
+                  )}
+                  <button onClick={() => onViewMap(d.clientDesign)} className="w-full py-2.5 rounded-md bg-white/[0.06] border border-border text-textPrimary text-xs font-semibold uppercase tracking-wide press-scale">{t('viewMap', lang)}</button>
+                </div>
+                );
+              })}
+            </div>
+
+            <button onClick={naturalLashProfile ? onViewLashProfile : onScanLashes} className="w-full glass rounded-lg p-4 mb-6 flex items-center justify-between text-left press-scale">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-md bg-white/[0.03] border border-border flex items-center justify-center flex-shrink-0">
+                  <ParamIcon name="iris" className="w-4 h-4 text-accent" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-textPrimary">{t('natLashScanBtn', lang)}</p>
+                  <p className="text-[11px] text-textMuted">{naturalLashProfile ? t('natLashViewProfile', lang) : t('natLashScanTitle', lang)}</p>
+                </div>
+              </div>
+              <span className="text-accent text-lg">→</span>
+            </button>
+
+            <div className="relative rounded-lg overflow-hidden aspect-[4/5] mb-6 border border-border">
               <img src={result.originalImage} className="w-full h-full object-cover" alt="client" />
               <ResultMeshOverlay landmarks={result.landmarks} imageWidth={result.imageWidth} imageHeight={result.imageHeight} />
               <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/10 to-transparent"></div>
@@ -9489,7 +9595,7 @@
               </div>
             )}
 
-            <Section title={t('eyeProfileTitle', lang)} defaultOpen>
+            <Section title={t('eyeProfileTitle', lang)}>
               {/* UI DISPLAY SCOPE — Results screen shows only the
                   professionally useful parameters (shape, spacing, tilt,
                   symmetry, iris color); crease/hooding/eye-size rows and
@@ -9562,59 +9668,6 @@
                 ))}
               </div>
             </Section>
-
-            <button onClick={naturalLashProfile ? onViewLashProfile : onScanLashes} className="w-full glass rounded-lg p-4 mb-6 flex items-center justify-between text-left press-scale">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-md bg-white/[0.03] border border-border flex items-center justify-center flex-shrink-0">
-                  <ParamIcon name="iris" className="w-4 h-4 text-accent" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-textPrimary">{t('natLashScanBtn', lang)}</p>
-                  <p className="text-[11px] text-textMuted">{naturalLashProfile ? t('natLashViewProfile', lang) : t('natLashScanTitle', lang)}</p>
-                </div>
-              </div>
-              <span className="text-accent text-lg">→</span>
-            </button>
-
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="label-tech">{t('recommendedDesigns', lang)}</h3>
-              <button onClick={onAllDesigns} className="text-xs text-accent font-medium uppercase tracking-wide">{t('allDesigns', lang)}</button>
-            </div>
-            <div className="space-y-3">
-              {result.designs.map((raw, i) => {
-                // result.designs was built once when analysis finished,
-                // in whatever language was active then — re-localize its
-                // text fields for the *current* language on every render
-                // so a later language switch on this screen can't leave
-                // stale-language card text (see localizeDesign above).
-                const d = canonicalRecommendationProps(raw, p, lang, i);
-                return (
-                <div key={d.id} className="glass rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-start gap-3">
-                      <span className={`text-lg font-extrabold leading-none ${i===0?'text-accent':'text-textMuted'}`}>{String(i+1).padStart(2,'0')}</span>
-                      <div className="flex flex-col gap-1">
-                        <span className={`text-[10px] font-bold tracking-wider uppercase ${i===0?'text-accent':'text-textMuted'}`}>{tierBadge(i, d.score, d.category, lang)}</span>
-                        <h4 className="text-base font-semibold text-textPrimary">{d.name.toUpperCase()}</h4>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                      <span className="text-lg font-bold text-textPrimary">{d.score}%</span>
-                      <MatchBar score={d.score} />
-                    </div>
-                  </div>
-                  <p className="text-sm text-textSecondary leading-relaxed mb-3">{d.whyItWorks}</p>
-                  {d.limitations.length > 0 && (
-                    <p className="text-xs text-peak/90 mb-3 flex items-start gap-1.5">
-                      <ParamIcon name="asymmetry" className="w-3.5 h-3.5 text-peak flex-shrink-0 mt-0.5" />
-                      <span>{d.limitations[0]}</span>
-                    </p>
-                  )}
-                  <button onClick={() => onViewMap(d.clientDesign)} className="w-full py-2.5 rounded-md bg-white/[0.06] border border-border text-textPrimary text-xs font-semibold uppercase tracking-wide press-scale">{t('viewMap', lang)}</button>
-                </div>
-                );
-              })}
-            </div>
           </div>
         </div>
       );

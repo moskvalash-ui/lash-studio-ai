@@ -68,19 +68,32 @@ async function runRealPhotoAnalysisToIrisResult(page, fixturePath) {
   // 5) Advance through the real "confirm" transition -- the app's own
   // real handleReviewConfirm(rec) -> setScreen('hero') -- to reach the
   // real screen that actually displays Iris Color (ReviewScreen itself
-  // never renders an Iris row; HeroScreen does, unconditionally, via
-  // EyeProfileRow icon="iris").
+  // never renders an Iris row; HeroScreen does, via EyeProfileRow
+  // icon="iris" inside the "AI Eye Profile" Section).
   const confirmBtn = page.getByRole('button', { name: 'Подтвердить и построить схемы', exact: true });
   await confirmBtn.click();
 
-  // 6) The real, user-visible Iris Color row on HeroScreen. Scoped to
-  // the specific row's own container (via its label text) rather than a
-  // bare page-wide text match, since other rows on the same screen
-  // could in principle repeat category-like words -- this keeps the
-  // selector semantically tied to "the Iris Color row" specifically,
-  // the same real DOM structure a sighted user reads visually.
+  // 5.5) RESULTS HERO V1 — the "AI Eye Profile" Section is now collapsed
+  // by default (the Results Hero redesign features the best design/
+  // score/CTA first; see index.html HeroScreen). This reproduces what a
+  // real user now does: expand it via its own real, accessible toggle
+  // button (Section's title text is its own accessible name — same RU/EN
+  // text, "AI Eye Profile") before its rows become visible. No DOM
+  // visibility is forced, no internal state/function is touched — this
+  // is the same production <button onClick={() => setOpen(...)}> a real
+  // user clicks.
+  const eyeProfileToggle = page.getByRole('button', { name: 'AI Eye Profile', exact: true });
+  await eyeProfileToggle.click();
+
+  // 6) The real, user-visible Iris Color row on HeroScreen, now that the
+  // section containing it is expanded. Scoped to the specific row's own
+  // container (via its label text) rather than a bare page-wide text
+  // match, since other rows on the same screen could in principle repeat
+  // category-like words -- this keeps the selector semantically tied to
+  // "the Iris Color row" specifically, the same real DOM structure a
+  // sighted user reads visually.
   const irisLabel = page.getByText('Цвет радужки', { exact: true });
-  await expect(irisLabel, 'the real HeroScreen must render the Iris Color row label').toBeVisible({ timeout: 10_000 });
+  await expect(irisLabel, 'the real HeroScreen must render the Iris Color row label once AI Eye Profile is expanded').toBeVisible({ timeout: 10_000 });
   const irisRow = page.locator('div.flex.justify-between.items-start.gap-3.py-3', { has: irisLabel });
   const irisValue = irisRow.locator('span').first();
 

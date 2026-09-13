@@ -53,6 +53,16 @@ async function openDetail(page, target) {
 
 for (const target of TARGETS) {
   test(`${target.canonicalId}: LEFT and RIGHT reference-template diagrams render distinctly and mirror correctly`, async ({ page }) => {
+    // TEST-INFRASTRUCTURE ONLY: this file's own real-server + real-render
+    // + screenshot-capture setup has proven slow enough under load to
+    // exceed the default 30s test timeout (three different timeout/CDP
+    // signatures observed across repeated runs, on geometry.long-curved-fox
+    // and construction.wet specifically) — no assertion, selector, or
+    // interaction below is changed. test.setTimeout scopes this to just
+    // the current test instance, not the global config (the installed
+    // @playwright/test@1.40.0 does not support the newer
+    // test(title, options, fn) per-test-options overload).
+    test.setTimeout(60_000);
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 

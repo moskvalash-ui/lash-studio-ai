@@ -150,9 +150,59 @@ test('source guard: no CSS mirror is applied to either overlay <canvas> (only <v
   assert.ok(!/<canvas ref=\{overlayCanvasRef\}[^>]*scaleX/.test(src), 'overlay canvas element appears to carry a CSS scaleX transform');
 });
 
-test('source guard: both live-scan <video> elements carry the preview-only mirror', () => {
+// ------------------------------------------------------------
+// WEBKIT-SAFE VIDEO PRESENTATION (LiveScanScreen only) — real-iPhone
+// diagnostic evidence (?cameraLayoutDebug=1) proved the decoded video
+// frame and DOM geometry were both healthy while the user still saw a
+// broken narrow strip, isolating the bug to a CSS-transformed,
+// hardware-composited <video> layer on iOS/Yandex/WebKit. The fix
+// removes LiveScanScreen's CSS mirror transform entirely and instead
+// paints the live picture into the SAME overlay <canvas> every frame
+// (drawVideoCover), mirrored via a canvas 2D transform scoped to just
+// that drawImage call. NaturalLashScanScreen is unrelated to the
+// reported bug and is deliberately left on the old CSS-mirror
+// mechanism — these tests must keep proving that isolation.
+// ------------------------------------------------------------
+test('source guard: LiveScanScreen video is no longer CSS-mirrored — exactly ONE CSS-mirrored <video> remains (NaturalLashScanScreen, untouched)', () => {
   const videoMirrors = [...src.matchAll(/<video ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
-  assert.ok(videoMirrors.length >= 2, `expected 2 mirrored <video> elements (LiveScanScreen conditional + NaturalLashScanScreen unconditional), found ${videoMirrors.length}`);
+  assert.strictEqual(videoMirrors.length, 1, `expected exactly 1 CSS-mirrored <video> (NaturalLashScanScreen only), found ${videoMirrors.length}`);
+});
+test('source guard: LiveScanScreen video is invisible (opacity:0) and non-interactive — the canvas is now the only visible surface', () => {
+  assert.ok(src.includes("<video ref={videoRef} className=\"absolute inset-0 w-full h-full object-cover\" style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted />"),
+    'expected LiveScanScreen\'s <video> to be hidden via opacity:0, not display:none (which can pause decoding on some browsers)');
+});
+test('source guard: drawVideoCover mirrors via a canvas transform scoped to save/restore, never a persistent canvas-element CSS transform', () => {
+  const start = src.indexOf('function drawVideoCover(ctx, video, dispW, dispH, mirrored) {');
+  assert.ok(start > 0, 'expected to find drawVideoCover');
+  const body = src.slice(start, src.indexOf('\n    }', start));
+  assert.ok(body.includes('ctx.save();'));
+  assert.ok(body.includes('ctx.restore();'));
+  assert.ok(body.includes("ctx.scale(-1, 1);"));
+  assert.ok(!body.includes('style.transform'), 'must mirror via canvas transform, not by touching any element\'s CSS transform');
+});
+test('source guard: drawVideoCover reuses the SAME object-fit:cover scale formula as mapVideoPointToDisplay, so the picture and overlay graphics never disagree', () => {
+  const overlayScale = 'const scale = Math.max(dispW / videoW, dispH / videoH);';
+  const videoScale = 'const scale = Math.max(dispW / vw, dispH / vh);';
+  assert.ok(src.includes(overlayScale), 'mapVideoPointToDisplay\'s scale formula not found — has it changed shape?');
+  assert.ok(src.includes(videoScale), 'drawVideoCover\'s scale formula not found — has it changed shape?');
+});
+test('source guard: LiveScanScreen\'s video-paint and overlay-graphics mirroring share ONE hoisted `mirrored` read per frame, never two independent reads', () => {
+  const start = src.indexOf("const mirrored = facingModeRef.current === 'user';");
+  assert.ok(start > 0);
+  // Exactly one declaration of `mirrored` in the whole draw loop — both
+  // drawVideoCover(...) and the coordinate map() below must reference
+  // this same variable, not redeclare their own.
+  const drawLoopStart = src.lastIndexOf('const draw = () => {', start);
+  const drawLoopBody = src.slice(drawLoopStart, src.indexOf('\n      }, []);', drawLoopStart));
+  const declarations = (drawLoopBody.match(/const mirrored = /g) || []).length;
+  assert.strictEqual(declarations, 1, 'expected `mirrored` to be declared exactly once and shared by both the video paint and the coordinate map()');
+  assert.ok(drawLoopBody.includes('drawVideoCover(ctx, previewVideo, w, h, mirrored)'));
+  assert.ok(drawLoopBody.includes('mirrored ? { x: w - p.x, y: p.y } : p'));
+});
+test('source guard: the vignette + loading-state overlays still render on top of the (now canvas-painted) live picture', () => {
+  const canvasIdx = src.indexOf('<canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />');
+  const vignetteIdx = src.indexOf("radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)");
+  assert.ok(canvasIdx > 0 && vignetteIdx > canvasIdx, 'the vignette div must come AFTER the overlay canvas in DOM order, or it would be painted over and become invisible');
 });
 
 // ============================================================
@@ -275,9 +325,15 @@ test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisib
   assert.strictEqual(omitSecurity2ADiagGate(cur), omitSecurity2ADiagGate(prev), 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
 });
 
-test('existing preview-mirror behavior is untouched: still exactly 2 mirrored <video> elements, keyed on facingMode only', () => {
+test('NaturalLashScanScreen preview-mirror behavior is untouched by the LiveScanScreen presentation fix: still exactly 1 CSS-mirrored <video>, keyed on facingMode only', () => {
+  // Was "exactly 2" before the WEBKIT-SAFE VIDEO PRESENTATION fix
+  // (LiveScanScreen + NaturalLashScanScreen both CSS-mirrored). That
+  // fix intentionally moved LiveScanScreen's mirroring to a canvas
+  // transform (see the dedicated source-guard tests above) — this test
+  // now confirms NaturalLashScanScreen's own, separate mirroring is
+  // completely unaffected.
   const videoMirrors = [...src.matchAll(/<video ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
-  assert.strictEqual(videoMirrors.length, 2, 'expected exactly 2 mirrored <video> elements (LiveScanScreen conditional + NaturalLashScanScreen unconditional), unchanged by the camera-zoom fix');
+  assert.strictEqual(videoMirrors.length, 1, 'expected exactly 1 CSS-mirrored <video> (NaturalLashScanScreen), unchanged by the camera-zoom fix');
   assert.ok(!/getUserMedia\([^)]*scaleX/.test(src), 'the getUserMedia constraints object must never itself reference mirroring');
 });
 

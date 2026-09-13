@@ -558,7 +558,106 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       "              markTiming('T4_video_playing');\n",
       ""
     );
-  const normalize = span => omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(span)))))));
+  // Approved WEBKIT-SAFE VIDEO PRESENTATION fix: real-iPhone diagnostic
+  // evidence (?cameraLayoutDebug=1) proved the decoded video frame and
+  // DOM geometry were both healthy while the user still saw a broken
+  // narrow strip, isolating the bug to a CSS-transformed, hardware-
+  // composited <video> layer on iOS/Yandex/WebKit. LiveScanScreen's
+  // video mirror moved from a CSS `transform: scaleX(-1)` to a canvas
+  // transform (drawVideoCover, called once per frame from the overlay
+  // draw loop, sharing the SAME hoisted `mirrored` the graphics map()
+  // already used) — the <video> element itself is now permanently
+  // invisible (opacity:0) and unmirrored. Two disjoint edits, each
+  // normalized back to its pre-fix HEAD form — same technique as every
+  // other normalizer above — so this guard still fails loudly on any
+  // OTHER, unrelated drift in LiveScanScreen.
+  const omitWebkitSafeVideoPresentation = span => span
+    .replace(
+      "          // CAMERA FIX — preview-only mirror, now applied at the canvas\n" +
+      "          // level (see drawVideoCover's own header comment for why —\n" +
+      "          // real-iPhone diagnostic evidence isolated a visible narrow-\n" +
+      "          // strip bug to <video> hardware-layer presentation even\n" +
+      "          // though the decoded frame and DOM geometry were both proven\n" +
+      "          // healthy). `mirrored` is hoisted here, above `fresh`, so it\n" +
+      "          // drives BOTH this frame's video paint AND the overlay\n" +
+      "          // coordinate map() below from the exact same read — the\n" +
+      "          // video's live picture and the scanner graphics can never\n" +
+      "          // disagree about mirror state. Nothing here touches\n" +
+      "          // det/landmarks/lastDetRef/any measurement path: those still\n" +
+      "          // read the raw, un-mirrored processing-canvas snapshot\n" +
+      "          // upstream (tickImplRef), completely untouched by this.\n" +
+      "          const mirrored = facingModeRef.current === 'user';\n" +
+      "          const previewVideo = videoRef.current;\n" +
+      "          if (previewVideo && previewVideo.videoWidth && previewVideo.videoHeight) {\n" +
+      "            drawVideoCover(ctx, previewVideo, w, h, mirrored);\n" +
+      "          }\n" +
+      "\n" +
+      "          const time = performance.now();\n" +
+      "          const reduceMotion = reduceMotionRef.current;\n" +
+      "          const d = lastDetRef.current;\n" +
+      "          const fresh = d && d.hasFace && (time - d.ts) < FACE_LOST_GRACE_MS;\n" +
+      "          const s = smoothRef.current;\n" +
+      "          s.presence = lerpNum(s.presence, fresh ? 1 : 0, fresh ? 0.14 : 0.09);\n" +
+      "\n" +
+      "          if (fresh) {\n" +
+      "            // Text (drawEyeTarget's L/R labels) stays upright since ctx\n" +
+      "            // itself is never transformed here, only the coordinates\n" +
+      "            // fed into it.\n" +
+      "            const map = (x,y) => {",
+      "          const time = performance.now();\n" +
+      "          const reduceMotion = reduceMotionRef.current;\n" +
+      "          const d = lastDetRef.current;\n" +
+      "          const fresh = d && d.hasFace && (time - d.ts) < FACE_LOST_GRACE_MS;\n" +
+      "          const s = smoothRef.current;\n" +
+      "          s.presence = lerpNum(s.presence, fresh ? 1 : 0, fresh ? 0.14 : 0.09);\n" +
+      "\n" +
+      "          if (fresh) {\n" +
+      "            // CAMERA FIX — preview-only mirror. The <video> element is\n" +
+      "            // CSS-mirrored (scaleX(-1)) for the front camera only, so\n" +
+      "            // the overlay's on-screen X position is flipped here to\n" +
+      "            // match. This affects ONLY where shapes/text are drawn on\n" +
+      "            // screen — det/landmarks/lastDetRef/every measurement path\n" +
+      "            // still read the raw, un-mirrored canvas snapshot upstream,\n" +
+      "            // completely untouched by this. Text (drawEyeTarget's L/R\n" +
+      "            // labels) stays upright since ctx itself is never\n" +
+      "            // transformed, only the coordinates fed into it.\n" +
+      "            const mirrored = facingModeRef.current === 'user';\n" +
+      "            const map = (x,y) => {"
+    )
+    .replace(
+      "            {/* WEBKIT-SAFE PRESENTATION — this <video> is now the raw,\n" +
+      "                invisible (opacity:0) decode source only. It is never\n" +
+      "                CSS-transformed/mirrored any more: real-iPhone diagnostic\n" +
+      "                evidence (?cameraLayoutDebug=1) proved the decoded frame\n" +
+      "                and DOM geometry were both healthy while the user still\n" +
+      "                saw a broken narrow strip, isolating the bug to a CSS-\n" +
+      "                transformed, hardware-composited <video> layer on\n" +
+      "                iOS/Yandex/WebKit. The overlay <canvas> below now paints\n" +
+      "                the live, mirrored picture itself every frame\n" +
+      "                (drawVideoCover, keyed on the same `mirrored` used for\n" +
+      "                graphics coordinates) plus the scanner graphics on top —\n" +
+      "                so the user-visible surface never depends on a\n" +
+      "                transformed hardware video layer at all. Rear camera\n" +
+      "                ('environment') stays unmirrored, like a normal\n" +
+      "                viewfinder. Processing (tickImplRef) still reads this\n" +
+      "                same <video> element directly via a plain, untransformed\n" +
+      "                ctx.drawImage — completely unaffected by any of this. */}\n" +
+      "            <video ref={videoRef} className=\"absolute inset-0 w-full h-full object-cover\" style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted />\n" +
+      "            <canvas ref={overlayCanvasRef} className=\"absolute inset-0 w-full h-full pointer-events-none\" />\n" +
+      "            <div className=\"absolute inset-0 pointer-events-none\" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>",
+      "            {/* CAMERA FIX — preview-only mirror for the front camera,\n" +
+      "                matching standard selfie-camera UX (raw getUserMedia\n" +
+      "                video is never mirrored by the browser on its own).\n" +
+      "                Rear camera ('environment') stays unmirrored, like a\n" +
+      "                normal viewfinder. The overlay canvas below is NOT\n" +
+      "                CSS-mirrored — its own draw loop flips coordinates\n" +
+      "                instead, so its text labels stay upright; see the\n" +
+      "                overlay effect's `map`/`mirrored` comment. */}\n" +
+      "            <video ref={videoRef} className=\"absolute inset-0 w-full h-full object-cover\" style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : undefined} playsInline muted />\n" +
+      "            <div className=\"absolute inset-0 pointer-events-none\" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>\n" +
+      "            <canvas ref={overlayCanvasRef} className=\"absolute inset-0 w-full h-full pointer-events-none\" />"
+    );
+  const normalize = span => omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(span))))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');

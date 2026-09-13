@@ -4980,6 +4980,31 @@
       const offY = (dispH - videoH*scale) / 2;
       return { x: x*scale + offX, y: y*scale + offY };
     }
+    // WEBKIT-SAFE VIDEO PRESENTATION — paints the current <video> frame
+    // into a 2D canvas using the SAME object-fit:cover math as
+    // mapVideoPointToDisplay above (scale = max(dispW/vw, dispH/vh),
+    // centered), so the picture and the overlay graphics that reference
+    // mapVideoPointToDisplay always agree pixel-for-pixel. Mirroring
+    // (front camera only) is done via a canvas transform scoped to this
+    // single drawImage call (save/restore), never a CSS transform on the
+    // <video> element itself — this is what lets LiveScanScreen stop
+    // depending on a CSS-transformed, hardware-composited <video> layer
+    // (the real-iPhone-proven presentation bug's leading suspect) while
+    // keeping the exact same mirrored appearance for the user. Reads the
+    // video exactly as the processing tick's own drawImage call already
+    // does (see tickImplRef) — never mutates video/canvas state beyond
+    // the pixels just drawn, never touches constraints/srcObject/play().
+    function drawVideoCover(ctx, video, dispW, dispH, mirrored) {
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (!vw || !vh) return;
+      const scale = Math.max(dispW / vw, dispH / vh);
+      const dw = vw * scale, dh = vh * scale;
+      const dx = (dispW - dw) / 2, dy = (dispH - dh) / 2;
+      ctx.save();
+      if (mirrored) { ctx.translate(dispW, 0); ctx.scale(-1, 1); }
+      ctx.drawImage(video, dx, dy, dw, dh);
+      ctx.restore();
+    }
     function drawCornerBracket(ctx, x, y, dirX, dirY, len) {
       ctx.beginPath();
       ctx.moveTo(x + dirX*len, y);
@@ -7955,6 +7980,25 @@
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.clearRect(0, 0, w, h);
 
+          // CAMERA FIX — preview-only mirror, now applied at the canvas
+          // level (see drawVideoCover's own header comment for why —
+          // real-iPhone diagnostic evidence isolated a visible narrow-
+          // strip bug to <video> hardware-layer presentation even
+          // though the decoded frame and DOM geometry were both proven
+          // healthy). `mirrored` is hoisted here, above `fresh`, so it
+          // drives BOTH this frame's video paint AND the overlay
+          // coordinate map() below from the exact same read — the
+          // video's live picture and the scanner graphics can never
+          // disagree about mirror state. Nothing here touches
+          // det/landmarks/lastDetRef/any measurement path: those still
+          // read the raw, un-mirrored processing-canvas snapshot
+          // upstream (tickImplRef), completely untouched by this.
+          const mirrored = facingModeRef.current === 'user';
+          const previewVideo = videoRef.current;
+          if (previewVideo && previewVideo.videoWidth && previewVideo.videoHeight) {
+            drawVideoCover(ctx, previewVideo, w, h, mirrored);
+          }
+
           const time = performance.now();
           const reduceMotion = reduceMotionRef.current;
           const d = lastDetRef.current;
@@ -7963,16 +8007,9 @@
           s.presence = lerpNum(s.presence, fresh ? 1 : 0, fresh ? 0.14 : 0.09);
 
           if (fresh) {
-            // CAMERA FIX — preview-only mirror. The <video> element is
-            // CSS-mirrored (scaleX(-1)) for the front camera only, so
-            // the overlay's on-screen X position is flipped here to
-            // match. This affects ONLY where shapes/text are drawn on
-            // screen — det/landmarks/lastDetRef/every measurement path
-            // still read the raw, un-mirrored canvas snapshot upstream,
-            // completely untouched by this. Text (drawEyeTarget's L/R
-            // labels) stays upright since ctx itself is never
-            // transformed, only the coordinates fed into it.
-            const mirrored = facingModeRef.current === 'user';
+            // Text (drawEyeTarget's L/R labels) stays upright since ctx
+            // itself is never transformed here, only the coordinates
+            // fed into it.
             const map = (x,y) => {
               const p = mapVideoPointToDisplay(x, y, d.videoW, d.videoH, w, h);
               return mirrored ? { x: w - p.x, y: p.y } : p;
@@ -8124,17 +8161,26 @@
             </button>
           </div>
           <div ref={containerRef} data-live-scan-camera="" className="flex-1 relative bg-black overflow-hidden">
-            {/* CAMERA FIX — preview-only mirror for the front camera,
-                matching standard selfie-camera UX (raw getUserMedia
-                video is never mirrored by the browser on its own).
-                Rear camera ('environment') stays unmirrored, like a
-                normal viewfinder. The overlay canvas below is NOT
-                CSS-mirrored — its own draw loop flips coordinates
-                instead, so its text labels stay upright; see the
-                overlay effect's `map`/`mirrored` comment. */}
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : undefined} playsInline muted />
-            <div className="absolute inset-0 pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>
+            {/* WEBKIT-SAFE PRESENTATION — this <video> is now the raw,
+                invisible (opacity:0) decode source only. It is never
+                CSS-transformed/mirrored any more: real-iPhone diagnostic
+                evidence (?cameraLayoutDebug=1) proved the decoded frame
+                and DOM geometry were both healthy while the user still
+                saw a broken narrow strip, isolating the bug to a CSS-
+                transformed, hardware-composited <video> layer on
+                iOS/Yandex/WebKit. The overlay <canvas> below now paints
+                the live, mirrored picture itself every frame
+                (drawVideoCover, keyed on the same `mirrored` used for
+                graphics coordinates) plus the scanner graphics on top —
+                so the user-visible surface never depends on a
+                transformed hardware video layer at all. Rear camera
+                ('environment') stays unmirrored, like a normal
+                viewfinder. Processing (tickImplRef) still reads this
+                same <video> element directly via a plain, untransformed
+                ctx.drawImage — completely unaffected by any of this. */}
+            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted />
             <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+            <div className="absolute inset-0 pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>
             {!modelsLoaded && <div className="absolute inset-0 flex items-center justify-center bg-black/80"><p className="text-sm text-textSecondary">{t('modelsLoading', lang)}</p></div>}
             {/* EYELID CREASE V2 — DEBUG SHADOW MODE. Purely additive,
                 ?debug=1-only. Compares V1 (production, unchanged) against

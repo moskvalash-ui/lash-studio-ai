@@ -171,7 +171,13 @@ test('B7. COPY JSON never includes bestFrameRef/dataURL/image data — only boun
   assert.ok(!body.includes('dataURL'));
   assert.ok(!body.includes('bestFrameRef'));
 });
-test('B8. camera CSS fallback, mirror transform, and object-fit/object-position are unchanged by this diagnostic', () => {
+test('B8. the [data-live-scan-camera] CSS fallback block itself is unchanged by this diagnostic', () => {
+  // Mirror mechanism is NOT asserted here any more: the separately
+  // reviewed WEBKIT-SAFE VIDEO PRESENTATION fix intentionally moved
+  // LiveScanScreen's mirroring from a CSS transform on <video> to a
+  // canvas-transform inside drawVideoCover — see camera-preview.test.js
+  // for the dedicated regression coverage of that change. This test
+  // stays scoped to what THIS diagnostic-extension task actually
+  // touches: the static CSS fallback rule block, untouched either way.
   assert.ok(html.includes("[data-live-scan-camera] { position: relative; overflow: hidden; flex: 1 1 0%; }"));
-  assert.ok(html.includes("style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : undefined}"));
 });

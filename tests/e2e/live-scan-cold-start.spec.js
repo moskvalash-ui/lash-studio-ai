@@ -76,9 +76,16 @@ for (const mode of ['fast stream', 'delayed stream', 'delayed metadata']) {
         expect(row.container[2]).toBe(390);
         expect(row.container[3]).toBeGreaterThan(600);
         expect(row.horizontalOverflow).toBe(false);
+        // `mirror: 'none'` — the WEBKIT-SAFE VIDEO PRESENTATION fix
+        // intentionally removed <video>'s CSS transform: mirroring now
+        // happens via a canvas transform inside the overlay draw loop
+        // (drawVideoCover), proven by real painted-pixel sampling in
+        // tests/e2e/live-scan-video-presentation.spec.js. <video> is
+        // also now permanently invisible (opacity:0), which is why it
+        // no longer needs — or has — any CSS transform of its own.
         expect(contract(row)).toEqual({ containerPosition: 'relative', overflow: 'hidden', flex: '1 1 0%',
           videoPosition: 'absolute', inset: '0px', fit: 'cover', objectPosition: '50% 50%',
-          mirror: 'matrix(-1, 0, 0, 1, 0, 0)', overlayPosition: 'absolute', overlayMirror: 'none' });
+          mirror: 'none', overlayPosition: 'absolute', overlayMirror: 'none' });
       }
       const mounts = trace.rows.filter(r => r.event === 'mount');
       expect(mounts).toHaveLength(2);

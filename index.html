@@ -111,6 +111,12 @@
     * { -webkit-tap-highlight-color: transparent; }
     body { background: #02060B; color: #F4F7FA; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; overflow: hidden; touch-action: manipulation; }
 
+    /* Live Scan critical layout: available before Tailwind's first DOM scan. */
+    [data-live-scan-camera] { position: relative; overflow: hidden; flex: 1 1 0%; }
+    [data-live-scan-camera] > video,
+    [data-live-scan-camera] > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    [data-live-scan-camera] > video { object-fit: cover; }
+
     /* App shell + ambient background depth (section 25): almost-flat
        black, but with very faint blue glows and edge illumination so
        the interface reads as having depth rather than flat black. */
@@ -6972,9 +6978,132 @@
       );
     }
 
+    // TEMPORARY: URL-only, read-only camera layout diagnostics. No persisted debug flag.
+    function isCameraLayoutDebugEnabled() {
+      return new URLSearchParams(window.location.search).get('cameraLayoutDebug') === '1';
+    }
+
+    function readCameraLayoutSnapshot(video, container, overlay) {
+      const rect = el => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height };
+      };
+      const computed = (el, keys) => {
+        if (!el) return null;
+        const style = window.getComputedStyle(el);
+        return Object.fromEntries(keys.map(key => [key, style.getPropertyValue(key)]));
+      };
+      const box = el => el ? { rect: rect(el), clientWidth: el.clientWidth, clientHeight: el.clientHeight } : null;
+      let mediaTrackSettings = null;
+      try {
+        const settings = video?.srcObject?.getVideoTracks?.()[0]?.getSettings?.();
+        if (settings) mediaTrackSettings = Object.fromEntries(
+          ['width', 'height', 'aspectRatio', 'facingMode', 'frameRate']
+            .filter(key => settings[key] !== undefined).map(key => [key, settings[key]])
+        );
+      } catch (_) { /* Unavailable settings must never affect camera startup. */ }
+      const viewport = window.visualViewport;
+      return {
+        window: { innerWidth: window.innerWidth, innerHeight: window.innerHeight },
+        visualViewport: viewport ? { width: viewport.width, height: viewport.height, scale: viewport.scale } : null,
+        screen: { width: window.screen.width, height: window.screen.height },
+        devicePixelRatio: window.devicePixelRatio,
+        video: video ? {
+          ...box(video), offsetWidth: video.offsetWidth, offsetHeight: video.offsetHeight,
+          videoWidth: video.videoWidth, videoHeight: video.videoHeight,
+          readyState: video.readyState, paused: video.paused, currentTime: video.currentTime,
+          computed: computed(video, ['width', 'height', 'position', 'inset', 'top', 'right', 'bottom', 'left',
+            'display', 'object-fit', 'object-position', 'transform', 'aspect-ratio', 'max-width', 'max-height']),
+        } : null,
+        container: container ? { ...box(container), computed: computed(container,
+          ['width', 'height', 'position', 'overflow', 'display']) } : null,
+        overlay: overlay ? { ...box(overlay), ...(overlay.tagName === 'CANVAS' ? {
+          width: overlay.getAttribute('width'), height: overlay.getAttribute('height'),
+        } : {}) } : null,
+        mediaTrackSettings,
+      };
+    }
+
+    function CameraLayoutDebugPanel({ videoRef, containerRef, overlayRef, captureRef }) {
+      const [snapshots, setSnapshots] = useState([]);
+      const [copyStatus, setCopyStatus] = useState('');
+      React.useLayoutEffect(() => {
+        const video = videoRef.current;
+        const started = performance.now();
+        let active = true;
+        let timers = [];
+        const capture = event => {
+          if (!active) return;
+          try {
+            const snapshot = { event, elapsedMs: Math.round(performance.now() - started),
+              ...readCameraLayoutSnapshot(video, containerRef.current, overlayRef.current) };
+            setSnapshots(previous => [...previous, snapshot].slice(-60));
+          } catch (_) { /* Diagnostic failures must not enter the camera error path. */ }
+        };
+        const playing = () => {
+          capture('playing');
+          timers.forEach(clearTimeout);
+          timers = [100, 500, 1500].map(ms => setTimeout(() => capture('playing +' + ms + ' ms'), ms));
+        };
+        const metadata = () => capture('loadedmetadata');
+        const canplay = () => capture('canplay');
+        const resize = () => capture('resize');
+        const orientation = () => capture('orientationchange');
+        captureRef.current = capture;
+        video?.addEventListener('loadedmetadata', metadata);
+        video?.addEventListener('canplay', canplay);
+        video?.addEventListener('playing', playing);
+        window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', orientation);
+        window.visualViewport?.addEventListener('resize', resize);
+        capture('LiveScan mount');
+        return () => {
+          active = false;
+          captureRef.current = null;
+          timers.forEach(clearTimeout);
+          video?.removeEventListener('loadedmetadata', metadata);
+          video?.removeEventListener('canplay', canplay);
+          video?.removeEventListener('playing', playing);
+          window.removeEventListener('resize', resize);
+          window.removeEventListener('orientationchange', orientation);
+          window.visualViewport?.removeEventListener('resize', resize);
+        };
+      }, []);
+      const latest = snapshots[snapshots.length - 1];
+      const copy = async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify({ version: 1, snapshots }, null, 2));
+          setCopyStatus('Copied / Скопировано');
+        } catch (_) { setCopyStatus('Copy unavailable / Копирование недоступно'); }
+      };
+      // Portal avoids the scan's transformed/overflow-hidden ancestors; only this panel is styled.
+      return ReactDOM.createPortal(
+        <aside data-camera-layout-debug="1" aria-label="Camera layout diagnostics" style={{
+          position: 'fixed', top: '72px', right: '8px', width: 'min(360px, calc(100vw - 16px))',
+          maxHeight: '35vh', overflow: 'auto', zIndex: 10000, boxSizing: 'border-box',
+          background: 'rgba(0,0,0,0.88)', color: '#fff', padding: '8px', border: '1px solid #888',
+          font: '10px/1.35 monospace', textAlign: 'left', borderRadius: '6px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <strong>Camera layout debug</strong>
+            <button type="button" onClick={copy} style={{ padding: '8px', border: '1px solid #aaa' }}>COPY JSON</button>
+          </div>
+          <div role="status">{copyStatus}</div>
+          <div data-camera-layout-timeline="1">{snapshots.slice(-12).map((s, i) =>
+            <span key={i}>{s.elapsedMs}ms {s.event}; </span>)}</div>
+          <pre data-camera-layout-latest="1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '6px 0 0' }}>
+            {JSON.stringify(latest, null, 2)}
+          </pre>
+        </aside>, document.body
+      );
+    }
+
     function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {
       const lang = useLang();
       const videoRef = useRef(null);
+      const cameraLayoutDebugRef = useRef(null);
+      const cameraLayoutDebugEnabled = isCameraLayoutDebugEnabled();
       const containerRef = useRef(null);
       const overlayCanvasRef = useRef(null);
       const procCanvasRef = useRef(null);
@@ -7659,6 +7788,7 @@
               // itself) — purely observational, never affects playback.
               videoRef.current.addEventListener('loadedmetadata', () => markTiming('T3_video_metadata_ready'), { once: true });
               videoRef.current.srcObject = stream;
+              if (cameraLayoutDebugRef.current) cameraLayoutDebugRef.current('srcObject assigned');
               await videoRef.current.play();
               markTiming('T4_video_playing');
             }
@@ -7875,7 +8005,7 @@
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             </button>
           </div>
-          <div ref={containerRef} className="flex-1 relative bg-black overflow-hidden">
+          <div ref={containerRef} data-live-scan-camera="" className="flex-1 relative bg-black overflow-hidden">
             {/* CAMERA FIX — preview-only mirror for the front camera,
                 matching standard selfie-camera UX (raw getUserMedia
                 video is never mirrored by the browser on its own).
@@ -7910,6 +8040,8 @@
             </div>
             <p className="text-xs text-textSecondary text-center min-h-[16px]">{hint || t('holdSteady', lang)}</p>
           </div>
+          {cameraLayoutDebugEnabled && <CameraLayoutDebugPanel videoRef={videoRef} containerRef={containerRef}
+            overlayRef={overlayCanvasRef} captureRef={cameraLayoutDebugRef} />}
         </div>
       );
     }

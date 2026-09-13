@@ -45,6 +45,40 @@ test('URL-only diagnostic observes first camera opening without changing preview
       expect(last.video.videoWidth).toBe(480);
       expect(last.video.computed['object-fit']).toBe('cover');
       expect(Object.keys(last.mediaTrackSettings).every(k => ['width', 'height', 'aspectRatio', 'facingMode', 'frameRate'].includes(k))).toBe(true);
+
+      // A — content diagnostic: the synthetic stream is a real, full-width
+      // green/blue image (not a narrow strip), so the decoded-frame content
+      // measurement should independently confirm full-width, non-black
+      // content — proving the measurement pipeline itself works.
+      const withContent = data.snapshots.filter(s => s.frameContent);
+      expect(withContent.length).toBeGreaterThan(0);
+      for (const s of withContent) {
+        expect(s.frameContent.activeContentWidthRatio).toBeGreaterThan(0.8);
+        expect(s.frameContent.nonBlackPixelRatio).toBeGreaterThan(0.5);
+        expect(Object.keys(s.frameContent).sort()).toEqual(['activeContentLeft', 'activeContentRight',
+          'activeContentWidthRatio', 'meanLuma', 'nonBlackPixelRatio', 'sampleHeight', 'sampleWidth'].sort());
+      }
+
+      // B — detector diagnostic: the synthetic stream has no real face, so
+      // every recorded sample must show a clean, honest "no detection"
+      // outcome — never a stale/fabricated success.
+      await expect(page.locator('[data-camera-layout-detector]')).toBeVisible();
+      await expect(page.locator('[data-camera-layout-detector]')).toContainText('hasFace: false');
+      expect(Array.isArray(data.detectorSamples)).toBe(true);
+      expect(data.detectorSamples.length).toBeGreaterThan(0);
+      expect(data.detectorSamples.length).toBeLessThanOrEqual(50);
+      for (const s of data.detectorSamples) {
+        expect(s.hasFace).toBe(false);
+        expect(s.detectorScore).toBe(null);
+        expect(s.faceRatio).toBe(null);
+        expect(s.rejectionReasons).toEqual(['no_detection']);
+        expect(Object.keys(s).sort()).toEqual(['boxWidth', 'canvasWidth', 'detectorScore', 'elapsedMs', 'faceRatio',
+          'hasFace', 'hintKey', 'rejectionReasons', 'stageKey'].sort());
+      }
+      // No image/pixel data anywhere in the exported diagnostic payload.
+      const rawJson = JSON.stringify(data);
+      expect(rawJson.includes('data:image')).toBe(false);
+      expect(rawJson.includes('landmarks')).toBe(false);
     } else {
       await page.waitForTimeout(1800);
       await expect(page.locator('[data-camera-layout-debug]')).toHaveCount(0);

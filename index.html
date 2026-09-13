@@ -7025,7 +7025,57 @@
       };
     }
 
-    function CameraLayoutDebugPanel({ videoRef, containerRef, overlayRef, captureRef }) {
+    // TEMPORARY: URL-only (?cameraLayoutDebug=1) decoded-frame content
+    // measurement. Distinguishes "the decoded video frame itself is
+    // narrow/broken" from "the frame is full-width but the on-screen
+    // <video> is mis-painted" (a real hardware-compositor bug class).
+    // Draws into a small, LOCAL offscreen canvas that is never stored
+    // anywhere and goes out of scope (and is GC-eligible) the instant
+    // this function returns — only derived scalar numbers are ever
+    // returned, never pixels/dataURLs/the canvas itself. Read-only:
+    // never touches video.play/pause/srcObject or any camera state.
+    const CAMERA_CONTENT_SAMPLE_EVENTS = new Set([
+      'loadedmetadata', 'playing', 'playing +100 ms', 'playing +500 ms', 'playing +1500 ms',
+    ]);
+    function sampleVideoFrameContent(video) {
+      if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
+      try {
+        const maxDim = 64;
+        const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+        const w = Math.max(1, Math.round(video.videoWidth * scale));
+        const h = Math.max(1, Math.round(video.videoHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, w, h);
+        const data = ctx.getImageData(0, 0, w, h).data;
+        const LUMA_THRESHOLD = 12; // conservative: only near-pure-black counts as "no content"
+        let sum = 0, nonBlack = 0;
+        const colHasContent = new Array(w).fill(false);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            sum += luma;
+            if (luma > LUMA_THRESHOLD) { nonBlack++; colHasContent[x] = true; }
+          }
+        }
+        let left = -1, right = -1;
+        for (let x = 0; x < w; x++) if (colHasContent[x]) { if (left === -1) left = x; right = x; }
+        // Nothing beyond these plain numbers is kept — `canvas`/`ctx`/`data`
+        // are local and unreachable once this call returns.
+        return {
+          sampleWidth: w, sampleHeight: h,
+          meanLuma: +(sum / (w * h)).toFixed(1),
+          nonBlackPixelRatio: +(nonBlack / (w * h)).toFixed(3),
+          activeContentLeft: left === -1 ? null : left,
+          activeContentRight: right === -1 ? null : right,
+          activeContentWidthRatio: left === -1 ? 0 : +(((right - left + 1) / w).toFixed(3)),
+        };
+      } catch (_) { return null; }
+    }
+
+    function CameraLayoutDebugPanel({ videoRef, containerRef, overlayRef, captureRef, detectorSamplesRef, detectorLatest }) {
       const [snapshots, setSnapshots] = useState([]);
       const [copyStatus, setCopyStatus] = useState('');
       React.useLayoutEffect(() => {
@@ -7038,6 +7088,7 @@
           try {
             const snapshot = { event, elapsedMs: Math.round(performance.now() - started),
               ...readCameraLayoutSnapshot(video, containerRef.current, overlayRef.current) };
+            if (CAMERA_CONTENT_SAMPLE_EVENTS.has(event)) snapshot.frameContent = sampleVideoFrameContent(video);
             setSnapshots(previous => [...previous, snapshot].slice(-60));
           } catch (_) { /* Diagnostic failures must not enter the camera error path. */ }
         };
@@ -7073,10 +7124,18 @@
       const latest = snapshots[snapshots.length - 1];
       const copy = async () => {
         try {
-          await navigator.clipboard.writeText(JSON.stringify({ version: 1, snapshots }, null, 2));
+          // detectorSamples is the SAME bounded (latest-50) rolling
+          // buffer LiveScanScreen already recorded via
+          // recordDetectorSample — only scalar detection-outcome
+          // fields, never landmarks/pixels (see that function's own
+          // comment). No image/frame data is included anywhere here.
+          await navigator.clipboard.writeText(JSON.stringify({
+            version: 2, snapshots, detectorSamples: detectorSamplesRef ? detectorSamplesRef.current : [],
+          }, null, 2));
           setCopyStatus('Copied / Скопировано');
         } catch (_) { setCopyStatus('Copy unavailable / Копирование недоступно'); }
       };
+      const reasonsText = r => (r && r.length ? r.join(', ') : 'none');
       // Portal avoids the scan's transformed/overflow-hidden ancestors; only this panel is styled.
       return ReactDOM.createPortal(
         <aside data-camera-layout-debug="1" aria-label="Camera layout diagnostics" style={{
@@ -7092,6 +7151,17 @@
           <div role="status">{copyStatus}</div>
           <div data-camera-layout-timeline="1">{snapshots.slice(-12).map((s, i) =>
             <span key={i}>{s.elapsedMs}ms {s.event}; </span>)}</div>
+          {detectorLatest && (
+            <div data-camera-layout-detector="1" style={{ marginTop: '6px', borderTop: '1px solid #444', paddingTop: '4px' }}>
+              <strong>DETECTOR:</strong><br />
+              hasFace: {String(detectorLatest.hasFace)}<br />
+              score: {detectorLatest.detectorScore != null ? detectorLatest.detectorScore.toFixed(3) : '—'}<br />
+              faceRatio: {detectorLatest.faceRatio != null ? detectorLatest.faceRatio.toFixed(3) : '—'}<br />
+              reasons: {reasonsText(detectorLatest.rejectionReasons)}<br />
+              stage: {detectorLatest.stageKey || '—'}<br />
+              hint: {detectorLatest.hintKey || '—'}
+            </div>
+          )}
           <pre data-camera-layout-latest="1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '6px 0 0' }}>
             {JSON.stringify(latest, null, 2)}
           </pre>
@@ -7104,6 +7174,13 @@
       const videoRef = useRef(null);
       const cameraLayoutDebugRef = useRef(null);
       const cameraLayoutDebugEnabled = isCameraLayoutDebugEnabled();
+      // TEMPORARY: URL-only (?cameraLayoutDebug=1) detector/distance
+      // diagnostics — a bounded rolling sample (latest 50), never
+      // persisted, never fed back into detection/classification. See
+      // recordDetectorSample below for exactly what it records.
+      const detectorDebugStartRef = useRef(null);
+      const detectorSamplesRef = useRef([]);
+      const [detectorDebugLatest, setDetectorDebugLatest] = useState(null);
       const containerRef = useRef(null);
       const overlayCanvasRef = useRef(null);
       const procCanvasRef = useRef(null);
@@ -7226,6 +7303,23 @@
         console.log('[LSA][TIMING]', label, t0 != null ? (t - t0).toFixed(0) + 'ms since T0' : 'T0 not yet marked');
       };
 
+      // TEMPORARY: URL-only (?cameraLayoutDebug=1) per-tick detector/
+      // distance diagnostic. Records ONLY the scalar detection-outcome
+      // fields named below — never landmarks, never coordinates beyond
+      // the plain box/canvas widths already used for faceRatio, never
+      // pixels, never biometric data — into a bounded rolling buffer
+      // (latest 50). Exists purely to prove, on a real device, whether
+      // TinyFaceDetector itself returns no result at close range, or
+      // returns a result the quality gate then rejects. Never read by
+      // classifyFeatures/onComplete/rec/any production decision.
+      const recordDetectorSample = (partial) => {
+        if (!cameraLayoutDebugEnabled) return;
+        if (detectorDebugStartRef.current == null) detectorDebugStartRef.current = performance.now();
+        const sample = { elapsedMs: Math.round(performance.now() - detectorDebugStartRef.current), ...partial };
+        detectorSamplesRef.current = [...detectorSamplesRef.current, sample].slice(-50);
+        setDetectorDebugLatest(sample);
+      };
+
       tickImplRef.current = async () => {
         if (busyRef.current || doneRef.current) return;
         const video = videoRef.current;
@@ -7263,13 +7357,19 @@
             // state flipping instantly while the overlay lingered.
             const withinGrace = hadFaceRef.current && lastDetRef.current
               && (now - lastDetRef.current.ts) < FACE_LOST_GRACE_MS;
+            let diagStageKey = stageKeyRef.current;
             if (!withinGrace) {
               lastDetRef.current = { hasFace: false, ts: now };
-              if (hadFaceRef.current) { setPhase('lost'); setStageKey('stageLost'); }
-              else { setPhase('searching'); setStageKey('stageSearching'); }
+              if (hadFaceRef.current) { diagStageKey = 'stageLost'; setPhase('lost'); setStageKey('stageLost'); }
+              else { diagStageKey = 'stageSearching'; setPhase('searching'); setStageKey('stageSearching'); }
               hadFaceRef.current = false;
               setHintKey(null);
             }
+            recordDetectorSample({
+              hasFace: false, detectorScore: null, faceRatio: null, boxWidth: null,
+              canvasWidth: canvas.width, rejectionReasons: ['no_detection'],
+              stageKey: diagStageKey, hintKey: null,
+            });
             setProgress(Math.min(1, bufferRef.current.length / MIN_STABLE_FRAMES));
             return;
           }
@@ -7348,7 +7448,13 @@
           }
           if (metricsNaN) {
             console.log('[LSA] FRAME REJECTED: NaN in metrics');
-            setPhase('adjust'); setStageKey(hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected'); setHintKey('hintBlurry');
+            const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';
+            setPhase('adjust'); setStageKey(diagStageKey); setHintKey('hintBlurry');
+            recordDetectorSample({
+              hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),
+              boxWidth: det.detection.box.width, canvasWidth: canvas.width,
+              rejectionReasons: ['metrics_nan'], stageKey: diagStageKey, hintKey: 'hintBlurry',
+            });
             return;
           }
 
@@ -7359,14 +7465,26 @@
 
           if (!quality.ok) {
             console.log('[LSA] FRAME REJECTED:', quality.reasons.join(', '));
-            setPhase('adjust'); setStageKey(hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected');
-            setHintKey(boxClipped ? 'hintCenterFace' : (REASON_MESSAGES[quality.reasons[0]] || null));
+            const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';
+            const diagHintKey = boxClipped ? 'hintCenterFace' : (REASON_MESSAGES[quality.reasons[0]] || null);
+            setPhase('adjust'); setStageKey(diagStageKey);
+            setHintKey(diagHintKey);
+            recordDetectorSample({
+              hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),
+              boxWidth: det.detection.box.width, canvasWidth: canvas.width,
+              rejectionReasons: quality.reasons, stageKey: diagStageKey, hintKey: diagHintKey,
+            });
             setProgress(Math.min(1, bufferRef.current.length / MIN_STABLE_FRAMES));
             return;
           }
           if (lastDetRef.current) lastDetRef.current.aligned = true;
           hasHadValidFrameRef.current = true;
           console.log('[LSA] VALID FRAME accepted into buffer');
+          recordDetectorSample({
+            hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),
+            boxWidth: det.detection.box.width, canvasWidth: canvas.width,
+            rejectionReasons: [], stageKey: stageKeyRef.current, hintKey: null,
+          });
 
           // Crease pixel analysis only runs on frames already accepted
           // by the quality gate above, same as the other per-frame CV
@@ -8041,7 +8159,8 @@
             <p className="text-xs text-textSecondary text-center min-h-[16px]">{hint || t('holdSteady', lang)}</p>
           </div>
           {cameraLayoutDebugEnabled && <CameraLayoutDebugPanel videoRef={videoRef} containerRef={containerRef}
-            overlayRef={overlayCanvasRef} captureRef={cameraLayoutDebugRef} />}
+            overlayRef={overlayCanvasRef} captureRef={cameraLayoutDebugRef}
+            detectorSamplesRef={detectorSamplesRef} detectorLatest={detectorDebugLatest} />}
         </div>
       );
     }

@@ -738,6 +738,24 @@
     // the two were previously out of sync (decision state flipped
     // instantly, overlay faded gradually over the same 900ms).
     const FACE_LOST_GRACE_MS = 900;
+    // ISSUE B — close-face detection-loss recovery, LiveScanScreen only.
+    // Real-device (iPhone/Yandex) ?cameraLayoutDebug=1 capture proved a
+    // sequence FACE_LOST_GRACE_MS does not cover: a face confidently
+    // measured past the EXISTING too_close faceRatio threshold in
+    // assessFrameQuality (unchanged) can make detectSingleFace() return null on the very next
+    // ticks — the detector losing a face that fills most/all of its input,
+    // not the face actually leaving. Recovering from that requires the
+    // user to physically move the phone back, which takes longer than the
+    // single-missed-frame blink/motion-blur case FACE_LOST_GRACE_MS (900ms,
+    // ~4.5 ticks at the 200ms tick interval) was calibrated for. This
+    // window is deliberately just 2x that existing constant (10 ticks) —
+    // long enough to bridge one deliberate corrective motion, short enough
+    // that a genuine walk-away/abandon still falls through to normal
+    // lost/searching after at most 2 seconds, same as any other bounded
+    // grace here. Only extends how long the EXISTING no-detection grace
+    // branch (see tickImplRef below) holds its current phase/stageKey/hint
+    // — it fabricates no detection, box, or landmark data of its own.
+    const TOO_CLOSE_RECOVERY_GRACE_MS = FACE_LOST_GRACE_MS * 2;
 
     // ============================================================
     // PHYSICAL EYE NORMALIZATION — face-api.js -> application boundary.
@@ -1939,6 +1957,39 @@
       too_far: 'hintTooFar',
       too_close: 'hintTooClose',
     };
+
+    // ISSUE B — rejection-hint UX PRIORITY. assessFrameQuality()'s reasons[]
+    // push order above is a MEASUREMENT order only (never reordered by this
+    // list) — REASON_MESSAGES[reasons[0]] used to pick the displayed hint by
+    // that same incidental order, which is what let hintTooDark/hintLowConf
+    // win over hintTooClose whenever they happened to be pushed first. Real
+    // device (iPhone/Yandex) ?cameraLayoutDebug=1 capture proved exactly
+    // this: a face past the too_close faceRatio threshold that also read as
+    // too_dark/low_face_confidence was shown "improve lighting" instead of
+    // the one instruction that actually addresses all three at once — a
+    // face this close very often reads dark/low-confidence purely from
+    // being that close, not from real ambient light or detector doubt.
+    // Priority, highest first:
+    //   1. boxClipped -> hintCenterFace (handled by the caller, unchanged) —
+    //      a genuine center/edge framing condition; distance guidance never
+    //      overrides it.
+    //   2. head_tilted/head_turned/head_pitch -> hintLookStraight — genuine
+    //      framing/orientation; backing away does not fix a turned head.
+    //   3. eyes_closed -> hintEyesClosed — a hard measurement-validity
+    //      blocker independent of distance.
+    //   4. too_close -> hintTooClose — promoted above the remaining,
+    //      non-framing reasons below (their own guidance is lighting/
+    //      clarity-flavored, not a framing/safety condition).
+    //   5. low_face_confidence/too_dark/too_bright/blurry/too_far — fallback,
+    //      in their original relative order (too_far kept last: mutually
+    //      exclusive with too_close, unaffected by this change).
+    const HINT_PRIORITY_ORDER = ['head_tilted', 'head_turned', 'head_pitch', 'eyes_closed', 'too_close',
+      'low_face_confidence', 'too_dark', 'too_bright', 'blurry', 'too_far'];
+    function pickRejectionHintKey(reasons, boxClipped) {
+      if (boxClipped) return 'hintCenterFace';
+      const winner = HINT_PRIORITY_ORDER.find(reason => reasons.includes(reason));
+      return REASON_MESSAGES[winner] || REASON_MESSAGES[reasons[0]] || null;
+    }
 
     function assessFrameQuality({ detScore, headPose, leftEAR, rightEAR, brightness, sharpness, canvasWidth, boxWidth }) {
       const reasons = [];
@@ -7473,8 +7524,16 @@
             // it out on the same schedule, so decision state and
             // overlay now expire together instead of the decision
             // state flipping instantly while the overlay lingered.
+            // ISSUE B — see TOO_CLOSE_RECOVERY_GRACE_MS above: when the
+            // last real detection was past the too_close faceRatio
+            // threshold, the no-detection grace below is extended so a real-device
+            // detector dropout while the user is still too close doesn't
+            // collapse straight to "Searching for face" before they've had
+            // a chance to back away.
+            const graceWindowMs = (lastDetRef.current && lastDetRef.current.tooClose)
+              ? TOO_CLOSE_RECOVERY_GRACE_MS : FACE_LOST_GRACE_MS;
             const withinGrace = hadFaceRef.current && lastDetRef.current
-              && (now - lastDetRef.current.ts) < FACE_LOST_GRACE_MS;
+              && (now - lastDetRef.current.ts) < graceWindowMs;
             let diagStageKey = stageKeyRef.current;
             if (!withinGrace) {
               lastDetRef.current = { hasFace: false, ts: now };
@@ -7582,11 +7641,16 @@
             detScore: det.detection.score, headPose, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,
             brightness, sharpness, canvasWidth: canvas.width, boxWidth: det.detection.box.width,
           });
+          // ISSUE B — records ONLY whether THIS tick's own (unchanged,
+          // existing) too_close threshold fired, onto the SAME lastDetRef
+          // object already written above this tick — read by the
+          // no-detection branch's grace-window choice, nothing else.
+          if (lastDetRef.current) lastDetRef.current.tooClose = quality.reasons.includes('too_close');
 
           if (!quality.ok) {
             console.log('[LSA] FRAME REJECTED:', quality.reasons.join(', '));
             const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';
-            const diagHintKey = boxClipped ? 'hintCenterFace' : (REASON_MESSAGES[quality.reasons[0]] || null);
+            const diagHintKey = pickRejectionHintKey(quality.reasons, boxClipped);
             setPhase('adjust'); decideStage(diagStageKey);
             decideHint(diagHintKey);
             recordDetectorSample({

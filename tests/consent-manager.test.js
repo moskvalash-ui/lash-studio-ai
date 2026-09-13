@@ -755,7 +755,63 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
     }
     return span;
   };
-  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(span))))))))));
+  // Approved close-face detection-loss recovery + hint-priority fix (real-
+  // device iPhone/Yandex ?cameraLayoutDebug=1 capture: a face confidently
+  // measured too_close (faceRatio > 0.78, EXISTING threshold, unchanged)
+  // could make detectSingleFace() return null on the next ticks; the
+  // no-detection grace is extended, ONLY when the last detection was
+  // too_close, from the existing FACE_LOST_GRACE_MS to a new, strictly
+  // bounded TOO_CLOSE_RECOVERY_GRACE_MS (2x FACE_LOST_GRACE_MS). Also fixes
+  // rejection-hint UX priority so too_close outranks lighting/confidence
+  // guidance it was previously losing to. Two bounded, disjoint edits,
+  // each normalized back to its pre-fix HEAD form — same technique as
+  // every normalizer above — so this guard still fails loudly on any
+  // OTHER, unrelated drift in LiveScanScreen.
+  const omitCloseFaceRecoveryFix = span => span
+    .replace(
+      "            // ISSUE B — see TOO_CLOSE_RECOVERY_GRACE_MS above: when the\n" +
+      "            // last real detection was past the too_close faceRatio\n" +
+      "            // threshold, the no-detection grace below is extended so a real-device\n" +
+      "            // detector dropout while the user is still too close doesn't\n" +
+      "            // collapse straight to \"Searching for face\" before they've had\n" +
+      "            // a chance to back away.\n" +
+      "            const graceWindowMs = (lastDetRef.current && lastDetRef.current.tooClose)\n" +
+      "              ? TOO_CLOSE_RECOVERY_GRACE_MS : FACE_LOST_GRACE_MS;\n" +
+      "            const withinGrace = hadFaceRef.current && lastDetRef.current\n" +
+      "              && (now - lastDetRef.current.ts) < graceWindowMs;",
+      "            const withinGrace = hadFaceRef.current && lastDetRef.current\n" +
+      "              && (now - lastDetRef.current.ts) < FACE_LOST_GRACE_MS;"
+    )
+    .replace(
+      "          const quality = assessFrameQuality({\n" +
+      "            detScore: det.detection.score, headPose, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,\n" +
+      "            brightness, sharpness, canvasWidth: canvas.width, boxWidth: det.detection.box.width,\n" +
+      "          });\n" +
+      "          // ISSUE B — records ONLY whether THIS tick's own (unchanged,\n" +
+      "          // existing) too_close threshold fired, onto the SAME lastDetRef\n" +
+      "          // object already written above this tick — read by the\n" +
+      "          // no-detection branch's grace-window choice, nothing else.\n" +
+      "          if (lastDetRef.current) lastDetRef.current.tooClose = quality.reasons.includes('too_close');\n" +
+      "\n" +
+      "          if (!quality.ok) {\n" +
+      "            console.log('[LSA] FRAME REJECTED:', quality.reasons.join(', '));\n" +
+      "            const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';\n" +
+      "            const diagHintKey = pickRejectionHintKey(quality.reasons, boxClipped);",
+      "          const quality = assessFrameQuality({\n" +
+      "            detScore: det.detection.score, headPose, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,\n" +
+      "            brightness, sharpness, canvasWidth: canvas.width, boxWidth: det.detection.box.width,\n" +
+      "          });\n" +
+      "\n" +
+      "          if (!quality.ok) {\n" +
+      "            console.log('[LSA] FRAME REJECTED:', quality.reasons.join(', '));\n" +
+      "            const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';\n" +
+      "            const diagHintKey = boxClipped ? 'hintCenterFace' : (REASON_MESSAGES[quality.reasons[0]] || null);"
+    );
+  // omitCloseFaceRecoveryFix runs FIRST (innermost): it must revert to the
+  // Issue-B post-diagnostic form (decideStage/decideHint, REASON_MESSAGES-
+  // based hint lookup) BEFORE undoIssueB looks for that exact form to
+  // revert further back to true pre-Issue-B HEAD text.
+  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(span)))))))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');

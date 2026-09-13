@@ -223,7 +223,7 @@ test('protected professional definitions remain byte-identical after populating 
 });
 
 test('production is untouched: activation stays inactive and all 21 legacy IDs and consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(indexSource),'ddfda1132ca174ff9fb2dd677011276df334c21119db21f672fcb02ddb39a200');
+  assert.strictEqual(digest(indexSource),'1c7387974ce9b374eba30ce39b6a90a53b896e509fcf4bdfaf675b17e880200a');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end),catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
   assert.strictEqual(catalog.length,21);

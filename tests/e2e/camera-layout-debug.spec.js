@@ -28,7 +28,7 @@ test('URL-only diagnostic observes first camera opening without changing preview
     if (flagged) {
       await expect(page.locator('[data-camera-layout-debug]')).toBeVisible();
       // Real face-api inference can block the main thread on this older test machine.
-      await expect(page.locator('[data-camera-layout-latest]')).toContainText('playing +1500 ms', { timeout: 20000 });
+      await expect(page.locator('[data-camera-layout-timeline]')).toContainText('playing +1500 ms', { timeout: 20000 });
       await page.evaluate(() => { window.dispatchEvent(new Event('resize')); window.dispatchEvent(new Event('orientationchange')); });
       await expect(page.locator('[data-camera-layout-latest]')).toContainText('orientationchange');
       await page.getByRole('button', { name: 'COPY JSON', exact: true }).click();
@@ -44,19 +44,33 @@ test('URL-only diagnostic observes first camera opening without changing preview
       expect(last.container.rect).toEqual(last.overlay.rect);
       expect(last.video.videoWidth).toBe(480);
       expect(last.video.computed['object-fit']).toBe('cover');
-      expect(Object.keys(last.mediaTrackSettings).every(k => ['width', 'height', 'aspectRatio', 'facingMode', 'frameRate'].includes(k))).toBe(true);
+      expect(Object.keys(last.mediaTrackSettings).every(k => ['width', 'height', 'aspectRatio', 'facingMode', 'frameRate', 'zoom'].includes(k))).toBe(true);
 
-      // A — content diagnostic: the synthetic stream is a real, full-width
-      // green/blue image (not a narrow strip), so the decoded-frame content
-      // measurement should independently confirm full-width, non-black
-      // content — proving the measurement pipeline itself works.
-      const withContent = data.snapshots.filter(s => s.frameContent);
-      expect(withContent.length).toBeGreaterThan(0);
-      for (const s of withContent) {
-        expect(s.frameContent.activeContentWidthRatio).toBeGreaterThan(0.8);
-        expect(s.frameContent.nonBlackPixelRatio).toBeGreaterThan(0.5);
-        expect(Object.keys(s.frameContent).sort()).toEqual(['activeContentLeft', 'activeContentRight',
-          'activeContentWidthRatio', 'meanLuma', 'nonBlackPixelRatio', 'sampleHeight', 'sampleWidth'].sort());
+      expect(data.snapshots.every(s => !('frameContent' in s))).toBe(true);
+      expect(data.finalSnapshot.video.videoWidth).toBe(480);
+      // C — "strong zoom + Поиск лица" investigation diagnostics: the
+      // preview-crop geometry (independent of, and structurally
+      // different from, the processing-canvas geometry TinyFaceDetector
+      // actually receives).
+      const withGeometry = data.snapshots.filter(s => s.previewCoverGeometry);
+      expect(withGeometry.length).toBeGreaterThan(0);
+      for (const s of withGeometry) {
+        const g = s.previewCoverGeometry;
+        // "cover" always crops exactly one axis (or neither, if aspect
+        // ratios already match) — never both simultaneously with a
+        // real, non-square mismatch.
+        expect(g.cropHorizontalPct === 0 || g.cropVerticalPct === 0).toBe(true);
+        expect(g.effectiveVisibleWidthFraction).toBeGreaterThan(0);
+        expect(g.effectiveVisibleWidthFraction).toBeLessThanOrEqual(1);
+        expect(g.effectiveVisibleHeightFraction).toBeGreaterThan(0);
+        expect(g.effectiveVisibleHeightFraction).toBeLessThanOrEqual(1);
+      }
+      const withProcessing = data.snapshots.filter(s => s.processingCanvas);
+      expect(withProcessing.length).toBeGreaterThan(0);
+      for (const s of withProcessing) {
+        expect(s.processingCanvas.sourceCropped).toBe(false);
+        expect(s.processingCanvas.width).toBeGreaterThan(0);
+        expect(s.processingCanvas.height).toBeGreaterThan(0);
       }
 
       // B — detector diagnostic: the synthetic stream has no real face, so
@@ -66,14 +80,26 @@ test('URL-only diagnostic observes first camera opening without changing preview
       await expect(page.locator('[data-camera-layout-detector]')).toContainText('hasFace: false');
       expect(Array.isArray(data.detectorSamples)).toBe(true);
       expect(data.detectorSamples.length).toBeGreaterThan(0);
-      expect(data.detectorSamples.length).toBeLessThanOrEqual(50);
+      expect(data.detectorSamples.length).toBeLessThanOrEqual(300);
       for (const s of data.detectorSamples) {
         expect(s.hasFace).toBe(false);
+        expect(s.stageKey).toBe('stageSearching');
+        expect(s.videoWidth).toBe(480);
+        expect(s.processingCanvasHeight).toBe(640);
+        expect(s.visibleSourceFraction).toBeGreaterThan(0);
         expect(s.detectorScore).toBe(null);
         expect(s.faceRatio).toBe(null);
+        // Widened for the "strong zoom + Поиск лица" investigation:
+        // box geometry fields must all be explicitly null when nothing
+        // was detected — there is no box to report.
+        expect(s.boxX).toBe(null);
+        expect(s.boxY).toBe(null);
+        expect(s.boxWidth).toBe(null);
+        expect(s.boxHeight).toBe(null);
+        expect(s.boxClipped).toBe(null);
         expect(s.rejectionReasons).toEqual(['no_detection']);
-        expect(Object.keys(s).sort()).toEqual(['boxWidth', 'canvasWidth', 'detectorScore', 'elapsedMs', 'faceRatio',
-          'hasFace', 'hintKey', 'rejectionReasons', 'stageKey'].sort());
+        expect(Object.keys(s).sort()).toEqual(['boxClipped', 'boxHeight', 'boxWidth', 'boxX', 'boxY', 'canvasHeight',
+          'canvasWidth', 'detectorScore', 'elapsedMs', 'faceRatio', 'hasFace', 'hintKey', 'rejectionReasons', 'stageKey', 'boxNearEdge', 'videoWidth', 'videoHeight', 'processingCanvasWidth', 'processingCanvasHeight', 'previewContainerWidth', 'previewContainerHeight', 'previewCanvasWidth', 'previewCanvasHeight', 'coverScale', 'visibleSourceFraction', 'mediaTrackSettings'].sort());
       }
       // No image/pixel data anywhere in the exported diagnostic payload.
       const rawJson = JSON.stringify(data);
@@ -99,4 +125,53 @@ test('URL-only diagnostic observes first camera opening without changing preview
   expect(results[1]).toEqual(results[0]);
   expect(results[0].overflow).toBe(false);
   expect(results[0].persistedFlag).toBe(false);
+});
+
+test('successful diagnostic session stays live and copyable through subsequent no-face recovery testing', async ({ page }) => {
+  test.setTimeout(90000);
+  // Exercise the actual completion guard with a controlled successful result.
+  // Test-only source injection avoids presenting synthetic data as real detector evidence.
+  await page.route('**/?cameraLayoutDebug=1', async route => {
+    const response = await route.fetch();
+    let source = await response.text();
+    const start = source.indexOf("          if (cameraLayoutDebugEnabled) { decideStage('stageComplete');");
+    const end = source.indexOf('          doneRef.current = true;', start);
+    expect(start).toBeGreaterThan(0);
+    const guard = source.slice(start, end);
+    source = source.replace('      tickImplRef.current = async () => {', `
+      window.__exerciseDiagnosticSuccess = () => {
+        const decideStage = setStageKey, decideHint = setHintKey;
+        recordDetectorSample({hasFace:true, detectorScore:0.9, faceRatio:0.5,
+          boxX:100, boxY:100, boxWidth:240, boxHeight:300, boxClipped:false,
+          rejectionReasons:[], stageKey:'stageComplete', hintKey:null});
+        flushDetectorSample({}, {stageKey:'stageComplete',hintKey:null});
+        ${guard}
+        throw new Error('diagnostic completion must return before production navigation');
+      };
+      tickImplRef.current = async () => {`);
+    await route.fulfill({response, body:source});
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.clipboard, 'writeText', {value: async text => {window.__copied=text;}});
+    navigator.mediaDevices.getUserMedia = async () => {
+      const c=document.createElement('canvas');c.width=480;c.height=640;
+      const ctx=c.getContext('2d');ctx.fillStyle='green';ctx.fillRect(0,0,480,640);
+      return c.captureStream(5);
+    };
+  });
+  await page.goto('/?cameraLayoutDebug=1');
+  await page.getByRole('button',{name:'Отказаться',exact:true}).click({timeout:30000});
+  await page.getByRole('button',{name:'Начать Live Scan',exact:true}).click({timeout:60000});
+  await expect(page.locator('[data-camera-layout-detector]')).toBeVisible({timeout:20000});
+  await page.evaluate(() => window.__exerciseDiagnosticSuccess());
+  // Longer than the production navigation delay; panel and track must survive.
+  await page.waitForTimeout(1500);
+  await page.getByRole('button',{name:'COPY JSON',exact:true}).click();
+  const data=await page.evaluate(()=>JSON.parse(window.__copied));
+  expect(data.detectorSamples.some(s=>s.hasFace && s.stageKey==='stageComplete')).toBe(true);
+  expect(data.detectorSamples.at(-1).hasFace).toBe(false);
+  expect(data.finalSnapshot.video.paused).toBe(false);
+  expect(data.snapshots.some(s=>s.event==='detector state transition')).toBe(true);
+  expect(JSON.stringify(data)).not.toMatch(/data:image|landmarks|frameContent/);
+  expect(await page.locator('[data-camera-layout-debug]').count()).toBe(1);
 });

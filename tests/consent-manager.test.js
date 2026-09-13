@@ -657,7 +657,105 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       "            <div className=\"absolute inset-0 pointer-events-none\" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>\n" +
       "            <canvas ref={overlayCanvasRef} className=\"absolute inset-0 w-full h-full pointer-events-none\" />"
     );
-  const normalize = span => omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(span))))))));
+  // Approved "strong zoom + Поиск лица" real-device diagnostic
+  // extension: recordDetectorSample's four call sites now also record
+  // boxX/boxY/boxHeight/canvasHeight/boxClipped (still plain bounding-
+  // box geometry, never landmarks/pixels), the panel now also reads
+  // procCanvasRef for an independent processingCanvas snapshot, and the
+  // function's own doc comment was updated to describe the widened
+  // field set. All bounded, additive, gated behind the same
+  // cameraLayoutDebugEnabled flag — normalized back to pre-fix HEAD
+  // form, same technique as every other normalizer above, so this
+  // guard still fails loudly on any OTHER, unrelated drift.
+  const omitZoomDiagnosticExtension = span => span
+    .replace(
+      "      // TEMPORARY: URL-only (?cameraLayoutDebug=1) per-tick detector/\n" +
+      "      // distance diagnostic. Records ONLY the scalar detection-outcome\n" +
+      "      // fields named below — the face box's plain x/y/width/height (a\n" +
+      "      // bounding rectangle in processing-canvas pixels, not landmarks\n" +
+      "      // or an identity template) plus the processing canvas's own\n" +
+      "      // width/height and the pre-existing boxClipped edge-touch flag —\n" +
+      "      // never real landmark points, never pixels, never biometric\n" +
+      "      // identity data — into a bounded rolling buffer (latest 50).\n" +
+      "      // Exists purely to prove, on a real device, whether TinyFaceDetector\n" +
+      "      // itself returns no result at close range, or returns a result the\n" +
+      "      // quality gate then rejects, and whether a rejected/close face is\n" +
+      "      // touching the processing frame's edges (clipped) — see the\n" +
+      "      // \"strong zoom + stuck on Поиск лица\" investigation this was\n" +
+      "      // extended for. Never read by classifyFeatures/onComplete/rec/any\n" +
+      "      // production decision.",
+      "      // TEMPORARY: URL-only (?cameraLayoutDebug=1) per-tick detector/\n" +
+      "      // distance diagnostic. Records ONLY the scalar detection-outcome\n" +
+      "      // fields named below — never landmarks, never coordinates beyond\n" +
+      "      // the plain box/canvas widths already used for faceRatio, never\n" +
+      "      // pixels, never biometric data — into a bounded rolling buffer\n" +
+      "      // (latest 50). Exists purely to prove, on a real device, whether\n" +
+      "      // TinyFaceDetector itself returns no result at close range, or\n" +
+      "      // returns a result the quality gate then rejects. Never read by\n" +
+      "      // classifyFeatures/onComplete/rec/any production decision."
+    )
+    .replace(
+      "            recordDetectorSample({\n" +
+      "              hasFace: false, detectorScore: null, faceRatio: null,\n" +
+      "              boxX: null, boxY: null, boxWidth: null, boxHeight: null, boxClipped: null,\n" +
+      "              canvasWidth: canvas.width, canvasHeight: canvas.height, rejectionReasons: ['no_detection'],\n" +
+      "              stageKey: diagStageKey, hintKey: null,",
+      "            recordDetectorSample({\n" +
+      "              hasFace: false, detectorScore: null, faceRatio: null, boxWidth: null,\n" +
+      "              canvasWidth: canvas.width, rejectionReasons: ['no_detection'],\n" +
+      "              stageKey: diagStageKey, hintKey: null,"
+    )
+    .replace(
+      "            recordDetectorSample({\n" +
+      "              hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),\n" +
+      "              boxX: det.detection.box.x, boxY: det.detection.box.y, boxWidth: det.detection.box.width, boxHeight: det.detection.box.height, boxClipped,\n" +
+      "              canvasWidth: canvas.width, canvasHeight: canvas.height,\n" +
+      "              rejectionReasons: ['metrics_nan'], stageKey: diagStageKey, hintKey: 'hintBlurry',",
+      "            recordDetectorSample({\n" +
+      "              hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),\n" +
+      "              boxWidth: det.detection.box.width, canvasWidth: canvas.width,\n" +
+      "              rejectionReasons: ['metrics_nan'], stageKey: diagStageKey, hintKey: 'hintBlurry',"
+    )
+    .replace(
+      "            recordDetectorSample({\n" +
+      "              hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),\n" +
+      "              boxX: det.detection.box.x, boxY: det.detection.box.y, boxWidth: det.detection.box.width, boxHeight: det.detection.box.height, boxClipped,\n" +
+      "              canvasWidth: canvas.width, canvasHeight: canvas.height,\n" +
+      "              rejectionReasons: quality.reasons, stageKey: diagStageKey, hintKey: diagHintKey,",
+      "            recordDetectorSample({\n" +
+      "              hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),\n" +
+      "              boxWidth: det.detection.box.width, canvasWidth: canvas.width,\n" +
+      "              rejectionReasons: quality.reasons, stageKey: diagStageKey, hintKey: diagHintKey,"
+    )
+    .replace(
+      "          recordDetectorSample({\n" +
+      "            hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),\n" +
+      "            boxX: det.detection.box.x, boxY: det.detection.box.y, boxWidth: det.detection.box.width, boxHeight: det.detection.box.height, boxClipped,\n" +
+      "            canvasWidth: canvas.width, canvasHeight: canvas.height,\n" +
+      "            rejectionReasons: [], stageKey: stageKeyRef.current, hintKey: null,",
+      "          recordDetectorSample({\n" +
+      "            hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),\n" +
+      "            boxWidth: det.detection.box.width, canvasWidth: canvas.width,\n" +
+      "            rejectionReasons: [], stageKey: stageKeyRef.current, hintKey: null,"
+    )
+    .replace(
+      "          {cameraLayoutDebugEnabled && <CameraLayoutDebugPanel videoRef={videoRef} containerRef={containerRef}\n" +
+      "            overlayRef={overlayCanvasRef} captureRef={cameraLayoutDebugRef}\n" +
+      "            detectorSamplesRef={detectorSamplesRef} detectorLatest={detectorDebugLatest} procCanvasRef={procCanvasRef} />}",
+      "          {cameraLayoutDebugEnabled && <CameraLayoutDebugPanel videoRef={videoRef} containerRef={containerRef}\n" +
+      "            overlayRef={overlayCanvasRef} captureRef={cameraLayoutDebugRef}\n" +
+      "            detectorSamplesRef={detectorSamplesRef} detectorLatest={detectorDebugLatest} />}"
+    );
+  // Reverse only exact, reviewed Issue B diagnostic edits before the existing parity guard.
+  const undoIssueB = span => {
+    if (!span.includes('const flushDetectorSample =')) return span;
+    for (const change of require('./fixtures/issue-b-approved-live-diff.json')) {
+      assert.ok(span.includes(change.after), 'approved Issue B diagnostic block must match exactly');
+      span = span.replace(change.after, change.before);
+    }
+    return span;
+  };
+  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(span))))))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
@@ -665,7 +763,7 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
   assert.ok(cur.includes('getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })'),'camera-zoom fix constraints must still be present');
   assert.ok(cur.includes('let cancelled = false;'),'lifecycle fix cancellation flag must still be present');
   assert.ok(cur.includes('track.onended = handleTrackEnded'),'lifecycle fix track-ended handler must still be wired');
-  assert.ok(cur.includes("setStageKey('stageScanError')"),'lifecycle fix scan-error state must still be present');
+  assert.ok(cur.includes("decideStage('stageScanError')"),'lifecycle fix scan-error state must still be present');
 });
 
 // J2 used to demand that the ENTIRE PhotoAnalysisScreen span be

@@ -131,9 +131,9 @@ assert.ok(tickCatchStart >= 0, 'tick pipeline catch block must be structurally e
 const tickCatch = liveScanSource.slice(tickCatchStart, tickCatchEnd);
 
 test('E: a thrown detector/pipeline error transitions to a distinct, user-visible scan-error state', () => {
-  assert.ok(tickCatch.includes("setStageKey('stageScanError')"));
+  assert.ok(tickCatch.includes("decideStage('stageScanError')"));
   assert.ok(tickCatch.includes("setPhase('error')"));
-  assert.ok(tickCatch.includes("setHintKey('hintRestartScan')"));
+  assert.ok(tickCatch.includes("decideHint('hintRestartScan')"));
   assert.ok(!tickCatch.includes("'stageSearching'"));
   assert.deepStrictEqual(STRINGS.stageScanError, { ru: 'Ошибка сканирования', en: 'Scan error' });
 });

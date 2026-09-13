@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const html = fs.readFileSync(require('node:path').join(__dirname, '../index.html'), 'utf8');
 const source = html.slice(html.indexOf('    function isCameraLayoutDebugEnabled()'), html.indexOf('    function CameraLayoutDebugPanel('));
 const make = (window, document) => new Function('window', 'document',
-  source + '\nreturn { isCameraLayoutDebugEnabled, readCameraLayoutSnapshot, sampleVideoFrameContent };')(window, document);
+  source + '\nreturn { isCameraLayoutDebugEnabled, readCameraLayoutSnapshot, sampleVideoFrameContent, computePreviewCoverGeometry };')(window, document);
 test('only explicit cameraLayoutDebug=1 enables diagnostics, independent of persisted debug', () => {
   for (const [search, expected] of [['', false], ['?debug=1', false], ['?cameraLayoutDebug=0', false], ['?cameraLayoutDebug=true', false], ['?cameraLayoutDebug=1', true]]) {
     assert.equal(make({ location: { search } }).isCameraLayoutDebugEnabled(), expected);
@@ -150,8 +150,8 @@ test('B2. every recordDetectorSample call site records only the documented scala
     }
   }
 });
-test('B3. the detector diagnostic buffer is bounded (latest 50), never an unbounded growing log', () => {
-  assert.ok(html.includes('detectorSamplesRef.current = [...detectorSamplesRef.current, sample].slice(-50);'));
+test('B3. the detector diagnostic buffer is bounded (latest 300), never an unbounded growing log', () => {
+  assert.ok(html.includes('detectorSamplesRef.current = [...detectorSamplesRef.current, sample].slice(-300);'));
 });
 test('B4. TinyFaceDetector production configuration (inputSize/scoreThreshold) is unchanged by this diagnostic', () => {
   const occurrences = (html.match(/new faceapi\.TinyFaceDetectorOptions\(\{ inputSize: 320, scoreThreshold: 0\.5 \}\)/g) || []).length;
@@ -180,4 +180,174 @@ test('B8. the [data-live-scan-camera] CSS fallback block itself is unchanged by 
   // stays scoped to what THIS diagnostic-extension task actually
   // touches: the static CSS fallback rule block, untouched either way.
   assert.ok(html.includes("[data-live-scan-camera] { position: relative; overflow: hidden; flex: 1 1 0%; }"));
+});
+
+// ------------------------------------------------------------
+// C — "STRONG ZOOM + Поиск лица" investigation: preview-crop geometry
+// + processing-frame independence + widened detector box fields.
+// ------------------------------------------------------------
+test('C1. computePreviewCoverGeometry matches the real-device iPhone 14 Pro example: 720x1280 video in a ~393x455 container crops ~35% vertical FOV, 0% horizontal', () => {
+  const api = make({}, {});
+  const g = api.computePreviewCoverGeometry(720, 1280, 393, 455);
+  assert.ok(g, 'expected a geometry object for real, non-zero dimensions');
+  // width is the constraining axis (393/720 > 455/1280), so scale is
+  // set by width and there must be ZERO horizontal crop.
+  assert.equal(g.cropHorizontalPct, 0);
+  assert.equal(g.cropLeftPx, 0);
+  assert.equal(g.cropRightPx, 0);
+  // vertical crop must be substantial (this is the mathematical
+  // explanation for "strong zoom") — real value is ~34.9%.
+  assert.ok(g.cropVerticalPct > 30 && g.cropVerticalPct < 40, `expected ~35% vertical crop, got ${g.cropVerticalPct}%`);
+  assert.ok(Math.abs(g.scale - 393/720) < 0.001, 'scale must be set by the width-constraining axis');
+  // crop must be split symmetrically top/bottom (centered object-position).
+  assert.equal(g.cropTopPx, g.cropBottomPx);
+  assert.ok(g.effectiveVisibleHeightFraction > 0.6 && g.effectiveVisibleHeightFraction < 0.7);
+  assert.equal(g.effectiveVisibleWidthFraction, 1);
+});
+test('C2. computePreviewCoverGeometry reports zero crop when the video and container aspect ratios already match', () => {
+  const api = make({}, {});
+  const g = api.computePreviewCoverGeometry(400, 300, 800, 600); // identical 4:3 aspect
+  assert.equal(g.cropHorizontalPct, 0);
+  assert.equal(g.cropVerticalPct, 0);
+  assert.equal(g.effectiveVisibleWidthFraction, 1);
+  assert.equal(g.effectiveVisibleHeightFraction, 1);
+});
+test('C3. computePreviewCoverGeometry returns null (never throws/divides-by-zero) when any dimension is missing', () => {
+  const api = make({}, {});
+  assert.equal(api.computePreviewCoverGeometry(0, 1280, 393, 455), null);
+  assert.equal(api.computePreviewCoverGeometry(720, 0, 393, 455), null);
+  assert.equal(api.computePreviewCoverGeometry(720, 1280, 0, 455), null);
+  assert.equal(api.computePreviewCoverGeometry(720, 1280, 393, 0), null);
+});
+test('C4. computePreviewCoverGeometry is a pure, standalone function — it does not read/write video/canvas/DOM state and is never called by drawVideoCover', () => {
+  const start = html.indexOf('function computePreviewCoverGeometry(vw, vh, dispW, dispH) {');
+  assert.ok(start > 0);
+  const body = html.slice(start, html.indexOf('\n    }', start));
+  assert.ok(!/document\.|getContext|drawImage|getBoundingClientRect/.test(body), 'must be a pure arithmetic function, no DOM/canvas access');
+  const drawVideoCoverStart = html.indexOf('function drawVideoCover(ctx, video, dispW, dispH, mirrored) {');
+  const drawVideoCoverBody = html.slice(drawVideoCoverStart, html.indexOf('\n    }', drawVideoCoverStart));
+  assert.ok(!drawVideoCoverBody.includes('computePreviewCoverGeometry'), 'production drawVideoCover must remain completely independent of this diagnostic-only function');
+});
+test('C5. readCameraLayoutSnapshot exposes previewCoverGeometry, derived from the SAME rounded container rect drawVideoCover itself uses', () => {
+  const style = Object.freeze({ getPropertyValue: () => 'auto' });
+  const video = Object.freeze({ getBoundingClientRect: () => ({ x:0, y:0, width:393, height:455 }), clientWidth:393, clientHeight:455,
+    offsetWidth:393, offsetHeight:455, videoWidth: 720, videoHeight: 1280, readyState: 4, paused: false, currentTime: 1 });
+  const container = Object.freeze({ getBoundingClientRect: () => ({ x:0, y:0, width:392.6, height:455.4 }), clientWidth:393, clientHeight:455 });
+  const api = make({ innerWidth: 393, innerHeight: 852, screen: { width: 393, height: 852 }, devicePixelRatio: 3, getComputedStyle: () => style });
+  const snapshot = api.readCameraLayoutSnapshot(video, container, null);
+  assert.ok(snapshot.previewCoverGeometry, 'expected previewCoverGeometry to be computed when both video and container are present');
+  assert.ok(snapshot.previewCoverGeometry.cropVerticalPct > 30, 'unrounded 392.6/455.4 container rect must still round to the same real-device crop finding');
+  assert.equal(api.readCameraLayoutSnapshot(null, container, null).previewCoverGeometry, null);
+  assert.equal(api.readCameraLayoutSnapshot(video, null, null).previewCoverGeometry, null);
+});
+test('C6. processingCanvas is read from a SEPARATE ref (procCanvasRef) than the preview geometry (container/video refs) — preview and detector geometry are measured independently, never the same source', () => {
+  const start = html.indexOf("if (procCanvasRef?.current) {");
+  assert.ok(start > 0, 'expected the processingCanvas capture block');
+  const body = html.slice(start, html.indexOf('}', html.indexOf('sourceCropped: false', start)) + 1);
+  assert.ok(body.includes('procCanvasRef.current.width'));
+  assert.ok(body.includes('procCanvasRef.current.height'));
+  assert.ok(!body.includes('containerRef') && !body.includes('videoRef'), 'processingCanvas must come from procCanvasRef only, never the container/video refs previewCoverGeometry uses');
+  assert.ok(html.includes('sourceCropped: false'), 'processing frame must be structurally asserted as never cropped');
+});
+test('C7. the processing draw call has no source rectangle at all — it structurally cannot crop, matching the sourceCropped:false diagnostic field', () => {
+  const calls = [...html.matchAll(/ctx\.drawImage\(video, 0, 0, canvas\.width, canvas\.height\)/g)];
+  assert.ok(calls.length >= 2, 'expected the pre-existing full-frame, uncropped processing drawImage calls (LiveScanScreen + PhotoAnalysisScreen)');
+});
+test('C8. every recordDetectorSample call site now also records boxX/boxY/boxHeight/canvasHeight/boxClipped — still only plain bounding-box geometry, never landmarks/pixels/identity data', () => {
+  const calls = [...html.matchAll(/recordDetectorSample\(\{([\s\S]*?)\}\);/g)].map(m => m[1]);
+  assert.equal(calls.length, 4);
+  const forbidden = ['landmarks', 'jaw', 'nose', 'mouth', 'leftEye', 'rightEye', 'leftBrow', 'rightBrow',
+    'physicalLeft', 'physicalRight', 'dataURL', 'getImageData', 'toDataURL', 'leftIris', 'rightIris'];
+  for (const body of calls) {
+    for (const token of forbidden) assert.ok(!body.includes(token), `unexpectedly includes "${token}"`);
+    for (const key of ['boxX', 'boxY', 'boxWidth', 'boxHeight', 'boxClipped', 'canvasWidth', 'canvasHeight']) {
+      assert.ok(body.includes(key), `missing new/existing field "${key}"`);
+    }
+  }
+});
+test('C9. the no-detection sample explicitly nulls every box field (there is no box when nothing was detected)', () => {
+  const start = html.indexOf("rejectionReasons: ['no_detection']");
+  const callStart = html.lastIndexOf('recordDetectorSample({', start);
+  const call = html.slice(callStart, html.indexOf('});', start) + 3);
+  assert.ok(call.includes('boxX: null'));
+  assert.ok(call.includes('boxY: null'));
+  assert.ok(call.includes('boxHeight: null'));
+  assert.ok(call.includes('boxClipped: null'));
+});
+test('C10. this diagnostic extension does not touch faceRatio/too_close/too_far thresholds, TinyFaceDetector config, or getUserMedia constraints (re-verified after the box-field widening)', () => {
+  assert.equal((html.match(/faceRatio < 0\.16/g) || []).length, 1);
+  assert.equal((html.match(/faceRatio > 0\.78/g) || []).length, 1);
+  assert.equal((html.match(/new faceapi\.TinyFaceDetectorOptions\(\{ inputSize: 320, scoreThreshold: 0\.5 \}\)/g) || []).length, 2);
+  assert.ok(html.includes("navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })"));
+});
+
+function issueBRecorder(enabled = true) {
+  let now = 0;
+  const refs = { pendingDetectorSampleRef: { current: null }, detectorDebugStartRef: { current: null }, detectorSamplesRef: { current: [] }, cameraLayoutDebugRef: { current: () => {} } };
+  const start = html.indexOf('      const recordDetectorSample = (partial) => {');
+  const end = html.indexOf('      tickImplRef.current', start);
+  const api = new Function('cameraLayoutDebugEnabled', 'performance', ...Object.keys(refs), 'setDetectorDebugLatest',
+    html.slice(start, end) + ';return {recordDetectorSample, flushDetectorSample};')(
+      enabled, {now: () => now}, ...Object.values(refs), () => {});
+  return { ...api, refs, advance: ms => { now += ms; } };
+}
+test('Issue B retains more than 30 seconds at maximum tick rate and caps history at 300', () => {
+  const r = issueBRecorder();
+  for (let i = 0; i < 400; i++) {
+    r.recordDetectorSample({hasFace: i % 2 === 0, stageKey: 'old', hintKey: 'old', rejectionReasons: [], boxClipped: false});
+    r.flushDetectorSample({videoWidth: 720}, {stageKey: 'current', hintKey: null});
+    r.advance(200);
+  }
+  const samples = r.refs.detectorSamplesRef.current;
+  assert.equal(samples.length, 300);
+  assert.equal(samples.at(-1).elapsedMs - samples[0].elapsedMs, 59800);
+  assert.equal(samples.at(-1).stageKey, 'current');
+  assert.equal(samples.at(-1).hintKey, null);
+  assert.equal(samples.at(-1).boxNearEdge, false);
+});
+test('Issue B plain URL never queues or publishes a detector sample', () => {
+  const r = issueBRecorder(false);
+  r.recordDetectorSample({hasFace: true}); r.flushDetectorSample({}, {});
+  assert.equal(r.refs.pendingDetectorSampleRef.current, null);
+  assert.deepEqual(r.refs.detectorSamplesRef.current, []);
+});
+test('Issue B uses actual stage/hint setter decisions, flushing after all return branches', () => {
+  const begin = html.indexOf('        const diagnosticDecision = {};');
+  const end = html.indexOf('        try {', begin);
+  for (const enabled of [false, true]) {
+    const stages = [], hints = [];
+    const run = new Function('cameraLayoutDebugEnabled','setStageKey','setHintKey', html.slice(begin,end) +
+      "decideStage('stageRealigning'); decideHint('hintCenterFace'); return diagnosticDecision;");
+    const result = run(enabled, key => stages.push(key), key => hints.push(key));
+    assert.deepEqual(stages, ['stageRealigning']); assert.deepEqual(hints, ['hintCenterFace']);
+    assert.deepEqual(result, enabled ? {stageKey:'stageRealigning',hintKey:'hintCenterFace'} : {});
+  }
+  assert.ok(html.includes('} finally {\n          flushDetectorSample(diagnosticGeometry, diagnosticDecision);'));
+  assert.ok(html.includes('hintKey: withinGrace ? hintKey : null'));
+});
+test('Issue B completion holds only diagnostic sessions; plain completion falls through unchanged', () => {
+  const start = html.indexOf('          if (cameraLayoutDebugEnabled) { decideStage(\'stageComplete\');');
+  const end = html.indexOf('          doneRef.current = true;',start);
+  assert.ok(start > 0 && end > start);
+  const run = new Function('cameraLayoutDebugEnabled','decideStage','decideHint',html.slice(start,end)+'return "production completion";');
+  const stages = [];
+  assert.equal(run(true, key => stages.push(key), () => {}), undefined);
+  assert.deepEqual(stages, ['stageComplete']);
+  assert.equal(run(false, () => assert.fail(), () => assert.fail()), 'production completion');
+  assert.ok(html.includes('setTimeout(() => onCompleteRef.current(rec), 1000);'));
+});
+test('Issue B includes exposed zoom only, never requests it, and pixel sampling requires a second explicit flag', () => {
+  const style = {getPropertyValue: () => ''};
+  const api = make({ screen: {}, getComputedStyle: () => style });
+  for (const exposed of [false, true]) {
+    const el = {getBoundingClientRect: () => ({width:393,height:709}),videoWidth:720,videoHeight:1280,
+      srcObject:{getVideoTracks: () => [{getSettings: () => ({width:720,...(exposed ? {zoom:1.5}:{}),deviceId:'SECRET'}),applyConstraints:()=>assert.fail()}]}};
+    const settings = api.readCameraLayoutSnapshot(el,el,null).mediaTrackSettings;
+    assert.equal('zoom' in settings, exposed);
+    if(exposed) assert.equal(settings.zoom,1.5);
+    assert.equal('deviceId' in settings,false);
+  }
+  assert.ok(html.includes("if (new URLSearchParams(window.location.search).get('cameraContentDebug') === '1' && CAMERA_CONTENT_SAMPLE_EVENTS.has(event))"));
+  const recorder = html.slice(html.indexOf('const flushDetectorSample ='),html.indexOf('      tickImplRef.current'));
+  assert.ok(!/getImageData|drawImage|toDataURL|landmarks/.test(recorder));
 });

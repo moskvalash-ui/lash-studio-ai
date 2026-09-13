@@ -7008,6 +7008,35 @@
       return new URLSearchParams(window.location.search).get('cameraLayoutDebug') === '1';
     }
 
+    // TEMPORARY: URL-only (?cameraLayoutDebug=1) preview-crop geometry.
+    // Computes, READ-ONLY, exactly what the production drawVideoCover's
+    // own cover-fit math implies (same `scale = max(dispW/vw, dispH/vh)`
+    // formula, same centering) — so a real-device capture can report
+    // precisely how much of the sensor's field of view the "cover"
+    // preview crops away, and whether that crop is new or pre-existing.
+    // This function is diagnostic-only: it does NOT feed drawVideoCover,
+    // mapVideoPointToDisplay, or any production render/measurement path
+    // — it independently re-derives the same numbers purely for
+    // reporting, so it can never desync production behavior even if
+    // this whole diagnostic were deleted.
+    function computePreviewCoverGeometry(vw, vh, dispW, dispH) {
+      if (!vw || !vh || !dispW || !dispH) return null;
+      const scale = Math.max(dispW / vw, dispH / vh);
+      const dw = vw * scale, dh = vh * scale;
+      const cropXPx = Math.max(0, (dw - dispW) / scale);
+      const cropYPx = Math.max(0, (dh - dispH) / scale);
+      return {
+        scale: +scale.toFixed(4),
+        scaledWidth: +dw.toFixed(1), scaledHeight: +dh.toFixed(1),
+        cropLeftPx: +(cropXPx / 2).toFixed(1), cropRightPx: +(cropXPx / 2).toFixed(1),
+        cropTopPx: +(cropYPx / 2).toFixed(1), cropBottomPx: +(cropYPx / 2).toFixed(1),
+        cropHorizontalPct: +((cropXPx / vw) * 100).toFixed(1),
+        cropVerticalPct: +((cropYPx / vh) * 100).toFixed(1),
+        effectiveVisibleWidthFraction: +Math.min(1, dispW / dw).toFixed(4),
+        effectiveVisibleHeightFraction: +Math.min(1, dispH / dh).toFixed(4),
+      };
+    }
+
     function readCameraLayoutSnapshot(video, container, overlay) {
       const rect = el => {
         if (!el) return null;
@@ -7024,7 +7053,7 @@
       try {
         const settings = video?.srcObject?.getVideoTracks?.()[0]?.getSettings?.();
         if (settings) mediaTrackSettings = Object.fromEntries(
-          ['width', 'height', 'aspectRatio', 'facingMode', 'frameRate']
+          ['width', 'height', 'aspectRatio', 'facingMode', 'frameRate', 'zoom']
             .filter(key => settings[key] !== undefined).map(key => [key, settings[key]])
         );
       } catch (_) { /* Unavailable settings must never affect camera startup. */ }
@@ -7047,6 +7076,14 @@
           width: overlay.getAttribute('width'), height: overlay.getAttribute('height'),
         } : {}) } : null,
         mediaTrackSettings,
+        // Matches drawVideoCover's own `w = Math.round(rect.width)` /
+        // `h = Math.round(rect.height)` rounding exactly, so this is
+        // the SAME dispW/dispH the real preview draw call uses — not
+        // an approximation.
+        previewCoverGeometry: (video && container) ? computePreviewCoverGeometry(
+          video.videoWidth, video.videoHeight,
+          Math.max(1, Math.round(rect(container)?.width || 0)), Math.max(1, Math.round(rect(container)?.height || 0))
+        ) : null,
       };
     }
 
@@ -7100,7 +7137,7 @@
       } catch (_) { return null; }
     }
 
-    function CameraLayoutDebugPanel({ videoRef, containerRef, overlayRef, captureRef, detectorSamplesRef, detectorLatest }) {
+    function CameraLayoutDebugPanel({ videoRef, containerRef, overlayRef, captureRef, detectorSamplesRef, detectorLatest, procCanvasRef }) {
       const [snapshots, setSnapshots] = useState([]);
       const [copyStatus, setCopyStatus] = useState('');
       React.useLayoutEffect(() => {
@@ -7113,7 +7150,19 @@
           try {
             const snapshot = { event, elapsedMs: Math.round(performance.now() - started),
               ...readCameraLayoutSnapshot(video, containerRef.current, overlayRef.current) };
-            if (CAMERA_CONTENT_SAMPLE_EVENTS.has(event)) snapshot.frameContent = sampleVideoFrameContent(video);
+            if (new URLSearchParams(window.location.search).get('cameraContentDebug') === '1' && CAMERA_CONTENT_SAMPLE_EVENTS.has(event)) snapshot.frameContent = sampleVideoFrameContent(video);
+            // PROCESSING — the SEPARATE canvas tickImplRef actually feeds
+            // TinyFaceDetector. Read-only: only its already-set
+            // width/height (never pixels). Structurally never cropped —
+            // production's own ctx.drawImage(video, 0, 0, canvas.width,
+            // canvas.height) call has no source rectangle at all, so it
+            // always draws the FULL video frame, just uniformly
+            // downscaled — this field exists so a real capture can
+            // directly corroborate that, not because cropping is
+            // possible here.
+            if (procCanvasRef?.current) {
+              snapshot.processingCanvas = { width: procCanvasRef.current.width, height: procCanvasRef.current.height, sourceCropped: false };
+            }
             setSnapshots(previous => [...previous, snapshot].slice(-60));
           } catch (_) { /* Diagnostic failures must not enter the camera error path. */ }
         };
@@ -7149,13 +7198,13 @@
       const latest = snapshots[snapshots.length - 1];
       const copy = async () => {
         try {
-          // detectorSamples is the SAME bounded (latest-50) rolling
+          // detectorSamples is the SAME bounded (latest-300) rolling
           // buffer LiveScanScreen already recorded via
           // recordDetectorSample — only scalar detection-outcome
           // fields, never landmarks/pixels (see that function's own
           // comment). No image/frame data is included anywhere here.
           await navigator.clipboard.writeText(JSON.stringify({
-            version: 2, snapshots, detectorSamples: detectorSamplesRef ? detectorSamplesRef.current : [],
+            version: 3, finalSnapshot: readCameraLayoutSnapshot(videoRef.current, containerRef.current, overlayRef.current), snapshots, detectorSamples: detectorSamplesRef ? detectorSamplesRef.current : [],
           }, null, 2));
           setCopyStatus('Copied / Скопировано');
         } catch (_) { setCopyStatus('Copy unavailable / Копирование недоступно'); }
@@ -7170,7 +7219,7 @@
           font: '10px/1.35 monospace', textAlign: 'left', borderRadius: '6px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <strong>Camera layout debug</strong>
+            <strong>Camera layout debug · capture continues after success</strong>
             <button type="button" onClick={copy} style={{ padding: '8px', border: '1px solid #aaa' }}>COPY JSON</button>
           </div>
           <div role="status">{copyStatus}</div>
@@ -7182,6 +7231,8 @@
               hasFace: {String(detectorLatest.hasFace)}<br />
               score: {detectorLatest.detectorScore != null ? detectorLatest.detectorScore.toFixed(3) : '—'}<br />
               faceRatio: {detectorLatest.faceRatio != null ? detectorLatest.faceRatio.toFixed(3) : '—'}<br />
+              box: {detectorLatest.boxWidth != null ? `${Math.round(detectorLatest.boxX)},${Math.round(detectorLatest.boxY)} ${Math.round(detectorLatest.boxWidth)}x${Math.round(detectorLatest.boxHeight)} / canvas ${detectorLatest.canvasWidth}x${detectorLatest.canvasHeight}` : '—'}<br />
+              clipped: {detectorLatest.boxClipped == null ? '—' : String(detectorLatest.boxClipped)}<br />
               reasons: {reasonsText(detectorLatest.rejectionReasons)}<br />
               stage: {detectorLatest.stageKey || '—'}<br />
               hint: {detectorLatest.hintKey || '—'}
@@ -7200,7 +7251,7 @@
       const cameraLayoutDebugRef = useRef(null);
       const cameraLayoutDebugEnabled = isCameraLayoutDebugEnabled();
       // TEMPORARY: URL-only (?cameraLayoutDebug=1) detector/distance
-      // diagnostics — a bounded rolling sample (latest 50), never
+      // diagnostics — a bounded rolling sample (latest 300), never
       // persisted, never fed back into detection/classification. See
       // recordDetectorSample below for exactly what it records.
       const detectorDebugStartRef = useRef(null);
@@ -7330,18 +7381,41 @@
 
       // TEMPORARY: URL-only (?cameraLayoutDebug=1) per-tick detector/
       // distance diagnostic. Records ONLY the scalar detection-outcome
-      // fields named below — never landmarks, never coordinates beyond
-      // the plain box/canvas widths already used for faceRatio, never
-      // pixels, never biometric data — into a bounded rolling buffer
-      // (latest 50). Exists purely to prove, on a real device, whether
-      // TinyFaceDetector itself returns no result at close range, or
-      // returns a result the quality gate then rejects. Never read by
-      // classifyFeatures/onComplete/rec/any production decision.
+      // fields named below — the face box's plain x/y/width/height (a
+      // bounding rectangle in processing-canvas pixels, not landmarks
+      // or an identity template) plus the processing canvas's own
+      // width/height and the pre-existing boxClipped edge-touch flag —
+      // never real landmark points, never pixels, never biometric
+      // identity data — into a bounded rolling buffer (latest 300).
+      // Exists purely to prove, on a real device, whether TinyFaceDetector
+      // itself returns no result at close range, or returns a result the
+      // quality gate then rejects, and whether a rejected/close face is
+      // touching the processing frame's edges (clipped) — see the
+      // "strong zoom + stuck on Поиск лица" investigation this was
+      // extended for. Never read by classifyFeatures/onComplete/rec/any
+      // production decision.
+      // Issue B: at most 5 detector ticks/second; 300 samples retain ~60 seconds.
+      // Only geometry/settings are read. Nothing here samples image content.
+      const pendingDetectorSampleRef = useRef(null);
       const recordDetectorSample = (partial) => {
         if (!cameraLayoutDebugEnabled) return;
+        pendingDetectorSampleRef.current = partial;
+      };
+      const flushDetectorSample = (geometry, decision) => {
+        if (!cameraLayoutDebugEnabled || !pendingDetectorSampleRef.current) return;
+        const partial = pendingDetectorSampleRef.current;
+        pendingDetectorSampleRef.current = null;
         if (detectorDebugStartRef.current == null) detectorDebugStartRef.current = performance.now();
-        const sample = { elapsedMs: Math.round(performance.now() - detectorDebugStartRef.current), ...partial };
-        detectorSamplesRef.current = [...detectorSamplesRef.current, sample].slice(-50);
+        const sample = {
+          elapsedMs: Math.round(performance.now() - detectorDebugStartRef.current), ...partial,
+          ...geometry, ...decision, boxNearEdge: partial.boxClipped,
+        };
+        const previous = detectorSamplesRef.current.at(-1);
+        if (!previous || JSON.stringify([previous.hasFace, previous.stageKey, previous.hintKey, previous.rejectionReasons]) !==
+          JSON.stringify([sample.hasFace, sample.stageKey, sample.hintKey, sample.rejectionReasons])) {
+          cameraLayoutDebugRef.current?.('detector state transition');
+        }
+        detectorSamplesRef.current = [...detectorSamplesRef.current, sample].slice(-300);
         setDetectorDebugLatest(sample);
       };
 
@@ -7352,6 +7426,10 @@
         if (!modelsLoadedRef.current) return;
         markTiming('T5_first_frame_eligible');
         busyRef.current = true;
+        let diagnosticGeometry = null;
+        const diagnosticDecision = {};
+        const decideStage = key => { if (cameraLayoutDebugEnabled) diagnosticDecision.stageKey = key; setStageKey(key); };
+        const decideHint = key => { if (cameraLayoutDebugEnabled) diagnosticDecision.hintKey = key; setHintKey(key); };
         try {
           const canvas = procCanvasRef.current;
           const scale = Math.min(1, 640 / video.videoWidth);
@@ -7362,6 +7440,21 @@
           totalFramesRef.current += 1;
           console.log('[LSA] FRAME RECEIVED', totalFramesRef.current, canvas.width + 'x' + canvas.height);
 
+          if (cameraLayoutDebugEnabled) {
+            const layout = readCameraLayoutSnapshot(video, containerRef.current, overlayCanvasRef.current);
+            const cover = layout.previewCoverGeometry;
+            diagnosticGeometry = {
+              videoWidth: video.videoWidth, videoHeight: video.videoHeight,
+              processingCanvasWidth: canvas.width, processingCanvasHeight: canvas.height,
+              previewContainerWidth: layout.container?.rect.width ?? null,
+              previewContainerHeight: layout.container?.rect.height ?? null,
+              previewCanvasWidth: overlayCanvasRef.current?.width ?? null,
+              previewCanvasHeight: overlayCanvasRef.current?.height ?? null,
+              coverScale: cover?.scale ?? null,
+              visibleSourceFraction: cover ? cover.effectiveVisibleWidthFraction * cover.effectiveVisibleHeightFraction : null,
+              mediaTrackSettings: layout.mediaTrackSettings,
+            };
+          }
           markTiming('T6_first_inference_begins');
           const det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks();
           markTiming('T7_first_inference_completes');
@@ -7385,15 +7478,16 @@
             let diagStageKey = stageKeyRef.current;
             if (!withinGrace) {
               lastDetRef.current = { hasFace: false, ts: now };
-              if (hadFaceRef.current) { diagStageKey = 'stageLost'; setPhase('lost'); setStageKey('stageLost'); }
-              else { diagStageKey = 'stageSearching'; setPhase('searching'); setStageKey('stageSearching'); }
+              if (hadFaceRef.current) { diagStageKey = 'stageLost'; setPhase('lost'); decideStage('stageLost'); }
+              else { diagStageKey = 'stageSearching'; setPhase('searching'); decideStage('stageSearching'); }
               hadFaceRef.current = false;
-              setHintKey(null);
+              decideHint(null);
             }
             recordDetectorSample({
-              hasFace: false, detectorScore: null, faceRatio: null, boxWidth: null,
-              canvasWidth: canvas.width, rejectionReasons: ['no_detection'],
-              stageKey: diagStageKey, hintKey: null,
+              hasFace: false, detectorScore: null, faceRatio: null,
+              boxX: null, boxY: null, boxWidth: null, boxHeight: null, boxClipped: null,
+              canvasWidth: canvas.width, canvasHeight: canvas.height, rejectionReasons: ['no_detection'],
+              stageKey: diagStageKey, hintKey: withinGrace ? hintKey : null,
             });
             setProgress(Math.min(1, bufferRef.current.length / MIN_STABLE_FRAMES));
             return;
@@ -7474,10 +7568,11 @@
           if (metricsNaN) {
             console.log('[LSA] FRAME REJECTED: NaN in metrics');
             const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';
-            setPhase('adjust'); setStageKey(diagStageKey); setHintKey('hintBlurry');
+            setPhase('adjust'); decideStage(diagStageKey); decideHint('hintBlurry');
             recordDetectorSample({
               hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),
-              boxWidth: det.detection.box.width, canvasWidth: canvas.width,
+              boxX: det.detection.box.x, boxY: det.detection.box.y, boxWidth: det.detection.box.width, boxHeight: det.detection.box.height, boxClipped,
+              canvasWidth: canvas.width, canvasHeight: canvas.height,
               rejectionReasons: ['metrics_nan'], stageKey: diagStageKey, hintKey: 'hintBlurry',
             });
             return;
@@ -7492,11 +7587,12 @@
             console.log('[LSA] FRAME REJECTED:', quality.reasons.join(', '));
             const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';
             const diagHintKey = boxClipped ? 'hintCenterFace' : (REASON_MESSAGES[quality.reasons[0]] || null);
-            setPhase('adjust'); setStageKey(diagStageKey);
-            setHintKey(diagHintKey);
+            setPhase('adjust'); decideStage(diagStageKey);
+            decideHint(diagHintKey);
             recordDetectorSample({
               hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),
-              boxWidth: det.detection.box.width, canvasWidth: canvas.width,
+              boxX: det.detection.box.x, boxY: det.detection.box.y, boxWidth: det.detection.box.width, boxHeight: det.detection.box.height, boxClipped,
+              canvasWidth: canvas.width, canvasHeight: canvas.height,
               rejectionReasons: quality.reasons, stageKey: diagStageKey, hintKey: diagHintKey,
             });
             setProgress(Math.min(1, bufferRef.current.length / MIN_STABLE_FRAMES));
@@ -7507,7 +7603,8 @@
           console.log('[LSA] VALID FRAME accepted into buffer');
           recordDetectorSample({
             hasFace: true, detectorScore: det.detection.score, faceRatio: det.detection.box.width / Math.max(canvas.width, 1),
-            boxWidth: det.detection.box.width, canvasWidth: canvas.width,
+            boxX: det.detection.box.x, boxY: det.detection.box.y, boxWidth: det.detection.box.width, boxHeight: det.detection.box.height, boxClipped,
+            canvasWidth: canvas.width, canvasHeight: canvas.height,
             rejectionReasons: [], stageKey: stageKeyRef.current, hintKey: null,
           });
 
@@ -7686,18 +7783,18 @@
           const count = bufferRef.current.length;
           console.log('[LSA] STABLE FRAMES', count, '/', MIN_STABLE_FRAMES);
           setProgress(Math.min(1, count / MIN_STABLE_FRAMES));
-          setHintKey(null);
+          decideHint(null);
 
-          if (count <= 2) { setPhase('aligning'); setStageKey('stageAligning'); bumpRail(railSegmentForPhase('aligning')); return; }
-          if (count <= 7) { setPhase('tracking'); setStageKey('stageTracking'); bumpRail(railSegmentForPhase('tracking')); return; }
-          if (count <= 11) { setPhase('mapping'); setStageKey('stageMapping'); bumpRail(railSegmentForPhase('mapping')); return; }
+          if (count <= 2) { setPhase('aligning'); decideStage('stageAligning'); bumpRail(railSegmentForPhase('aligning')); return; }
+          if (count <= 7) { setPhase('tracking'); decideStage('stageTracking'); bumpRail(railSegmentForPhase('tracking')); return; }
+          if (count <= 11) { setPhase('mapping'); decideStage('stageMapping'); bumpRail(railSegmentForPhase('mapping')); return; }
           if (count <= 14) {
             if (phaseRef.current !== 'eyelids') { isolationStartRef.current = now; tagEventsRef.current.push({ label: t('tagTilt', langRef.current), ts: now }); }
-            setPhase('eyelids'); setStageKey('stageEyelids'); bumpRail(railSegmentForPhase('eyelids')); return;
+            setPhase('eyelids'); decideStage('stageEyelids'); bumpRail(railSegmentForPhase('eyelids')); return;
           }
           if (count <= 16) {
             if (phaseRef.current !== 'iris') tagEventsRef.current.push({ label: t('tagLid', langRef.current), ts: now });
-            setPhase('iris'); setStageKey('stageIris'); bumpRail(railSegmentForPhase('iris')); return;
+            setPhase('iris'); decideStage('stageIris'); bumpRail(railSegmentForPhase('iris')); return;
           }
           if (count < MIN_STABLE_FRAMES) {
             if (phaseRef.current !== 'symmetry') {
@@ -7705,21 +7802,23 @@
               irisAcquiredStartRef.current = now;
               dataFlowStartRef.current = now;
             }
-            setPhase('symmetry'); setStageKey('stageSymmetry'); bumpRail(railSegmentForPhase('symmetry')); return;
+            setPhase('symmetry'); decideStage('stageSymmetry'); bumpRail(railSegmentForPhase('symmetry')); return;
           }
 
           const stability = computeStability(bufferRef.current);
           console.log('[LSA] STABILITY CHECK', stability.stable ? 'STABLE' : 'NOT STABLE', stability.variance);
           if (!stability.stable) {
-            setPhase('stabilizing'); setStageKey('stageStabilizing'); bumpRail(railSegmentForPhase('stabilizing'));
+            setPhase('stabilizing'); decideStage('stageStabilizing'); bumpRail(railSegmentForPhase('stabilizing'));
             return;
           }
           setStabilityLocked(true);
           tagEventsRef.current.push({ label: t('tagSymmetry', langRef.current), ts: now });
 
+          // Issue B only: keep camera, sampling and COPY JSON alive through recovery.
+          if (cameraLayoutDebugEnabled) { decideStage('stageComplete'); decideHint(null); return; }
           doneRef.current = true;
           markTiming('T9_analysis_stages_begin');
-          setPhase('finalizing'); setStageKey('stageCalculating'); setHintKey(null);
+          setPhase('finalizing'); decideStage('stageCalculating'); decideHint(null);
           bumpRail(railSegmentForPhase('finalizing'));
           if (loopRef.current) clearInterval(loopRef.current);
           console.log('[LSA] ANALYSIS COMPLETE — generating recommendations');
@@ -7828,7 +7927,7 @@
           // this console.log is debug-gated.
           if (debugAvailable) console.log('[LSA] RESULT GENERATED', rec.diagnostics);
 
-          setStageKey('stageComplete');
+          decideStage('stageComplete');
           setTimeout(() => onCompleteRef.current(rec), 1000);
         } catch (e) {
           // LIFECYCLE FIX — a genuine processing/detector failure used
@@ -7842,8 +7941,9 @@
           console.error('[LSA] PIPELINE ERROR', e);
           if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null; }
           doneRef.current = true;
-          setStageKey('stageScanError'); setPhase('error'); setHintKey('hintRestartScan');
+          decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');
         } finally {
+          flushDetectorSample(diagnosticGeometry, diagnosticDecision);
           busyRef.current = false;
         }
       };
@@ -8206,7 +8306,7 @@
           </div>
           {cameraLayoutDebugEnabled && <CameraLayoutDebugPanel videoRef={videoRef} containerRef={containerRef}
             overlayRef={overlayCanvasRef} captureRef={cameraLayoutDebugRef}
-            detectorSamplesRef={detectorSamplesRef} detectorLatest={detectorDebugLatest} />}
+            detectorSamplesRef={detectorSamplesRef} detectorLatest={detectorDebugLatest} procCanvasRef={procCanvasRef} />}
         </div>
       );
     }

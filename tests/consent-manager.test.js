@@ -860,13 +860,154 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
   assert.ok([curOuterEnd, prevOuterEnd, curBrightnessIdx, prevBrightnessIdx, curQualityIdx, prevQualityIdx].every((i) => i !== -1), 'expected to locate the brightness line, quality-gate call, and end of PhotoAnalysisScreen in both current and HEAD source');
 
   // (a) everything up to and including the (unchanged) brightness line.
-  const curHead = src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length);
-  const prevHead = HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length);
+  // PHOTO QUALITY DEBUG — ?photoQualityDebug=1 diagnostic (see
+  // index.html's own "TEMPORARY: URL-only, read-only Photo Analysis
+  // quality diagnostics" comments). Three bounded, additive edits land
+  // in this head span: the two new photoQualityDebugEnabled/
+  // photoQualityDebugInfo declarations, the reset call at the top of
+  // analyze(), and the !det branch gaining a debug-gated diagnostic
+  // capture before its existing setState('error'); return;. Normalized
+  // back to pre-fix HEAD form, same technique as every normalizer in
+  // this file, so this guard still fails loudly on any OTHER,
+  // unrelated drift in PhotoAnalysisScreen's measurement setup.
+  const omitPhotoQualityDebugHead = (head) => head
+    .replace(
+      "      const fileInputRef = useRef(null);\n" +
+      "      const photoQualityDebugEnabled = isPhotoQualityDebugEnabled();\n" +
+      "      const [photoQualityDebugInfo, setPhotoQualityDebugInfo] = useState(null);\n",
+      "      const fileInputRef = useRef(null);\n"
+    )
+    .replace(
+      "        if (!file) return;\n" +
+      "        if (photoQualityDebugEnabled) setPhotoQualityDebugInfo(null);\n" +
+      "        const url = URL.createObjectURL(file);",
+      "        if (!file) return;\n" +
+      "        const url = URL.createObjectURL(file);"
+    )
+    .replace(
+      "          if (!det) {\n" +
+      "            if (photoQualityDebugEnabled) {\n" +
+      "              setPhotoQualityDebugInfo({\n" +
+      "                version: 1, detectorPresent: false, detectorScore: null, faceRatio: null,\n" +
+      "                leftEAR: null, rightEAR: null, roll: null, yaw: null, pitch: null,\n" +
+      "                brightness: null, sharpness: null, boxClipped: null,\n" +
+      "                allReasons: [], qualityOk: null, primaryReason: 'no_detection',\n" +
+      "                failureBeforeQualityCheck: true, failureType: 'no_detection',\n" +
+      "                finalHardBlockPath: 'no_detection (before assessFrameQuality)',\n" +
+      "                userFacingMessageKey: 'photoErrorQuality', wouldBeHintKeyIfWired: null,\n" +
+      "                exceptionInfo: null,\n" +
+      "              });\n" +
+      "            }\n" +
+      "            setState('error'); return;\n" +
+      "          }\n",
+      "          if (!det) { setState('error'); return; }\n"
+    );
+  const curHead = omitPhotoQualityDebugHead(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length));
+  const prevHead = omitPhotoQualityDebugHead(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length));
   assert.strictEqual(curHead, prevHead, 'everything before the sharpness measurement (detection, headPose, leftMetrics/rightMetrics, physical-eye normalization, brightness sampling) must be byte-identical to git HEAD');
 
-  // (b) everything from the quality-gate call onward.
-  const curTail = src.slice(curQualityIdx, curOuterEnd);
-  const prevTail = HEAD.slice(prevQualityIdx, prevOuterEnd);
+  // (b) everything from the quality-gate call onward. outerEnd now also
+  // picks up two new appended top-level functions (isPhotoQualityDebugEnabled,
+  // PhotoQualityDebugPanel) — deliberately placed AFTER PhotoAnalysisScreen's
+  // own closing brace, not before it, so they never land inside
+  // LiveScanScreen/NaturalLashScanScreen's own byte-identical guards
+  // (see J1 above and camera-preview.test.js) — normalized away below
+  // alongside the quality-branch/catch-branch/JSX-panel-render additions.
+  const omitPhotoQualityDebugTail = (tail) => {
+    let out = tail
+      .replace(
+        "          console.log('[Photo] quality', quality);\n" +
+        "          if (photoQualityDebugEnabled) {\n" +
+        "            // faceRatio here mirrors assessFrameQuality's own internal\n" +
+        "            // `boxWidth / canvasWidth` formula exactly, purely for\n" +
+        "            // display — assessFrameQuality itself is not modified and\n" +
+        "            // its return value is used as-is (quality.ok/quality.reasons).\n" +
+        "            const photoFaceRatio = det.detection.box.width / Math.max(canvas.width, 1);\n" +
+        "            const photoQualityDiag = {\n" +
+        "              version: 1, detectorPresent: true, detectorScore: det.detection.score,\n" +
+        "              faceRatio: photoFaceRatio, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,\n" +
+        "              roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,\n" +
+        "              brightness, sharpness,\n" +
+        "              // Photo Analysis never computes an edge-clip check today\n" +
+        "              // (unlike Live Scan's boxClipped) — reported honestly as\n" +
+        "              // not-computed rather than inventing a new derived value.\n" +
+        "              boxClipped: null,\n" +
+        "              allReasons: quality.reasons, qualityOk: quality.ok,\n" +
+        "              primaryReason: quality.reasons[0] ?? null,\n" +
+        "              failureBeforeQualityCheck: false,\n" +
+        "              failureType: quality.ok ? 'none' : 'quality_rejection',\n" +
+        "              finalHardBlockPath: quality.ok ? 'none (quality.ok=true)' : `assessFrameQuality:${quality.reasons[0]}`,\n" +
+        "              userFacingMessageKey: quality.ok ? null : 'photoErrorQuality',\n" +
+        "              // Informational only — Photo Analysis's UI does not\n" +
+        "              // currently select a per-reason hint at all (it always\n" +
+        "              // shows the single generic photoErrorQuality message);\n" +
+        "              // this reuses the EXISTING pickRejectionHintKey function\n" +
+        "              // (already used by Live Scan) against the SAME reasons\n" +
+        "              // array, purely to show what it would resolve to.\n" +
+        "              wouldBeHintKeyIfWired: quality.ok ? null : pickRejectionHintKey(quality.reasons, false),\n" +
+        "              exceptionInfo: null,\n" +
+        "            };\n" +
+        "            setPhotoQualityDebugInfo(photoQualityDiag);\n" +
+        "            // On a PASS, this screen calls onComplete() and unmounts\n" +
+        "            // immediately (see the EYELID CREASE V2 / IRIS COLOR AUDIT\n" +
+        "            // comments above for the same documented constraint) — no\n" +
+        "            // panel has time to render, so this is logged the same\n" +
+        "            // read-only \"debug shadow\" way those two already are.\n" +
+        "            if (quality.ok) console.log('[PhotoQualityDebug]', photoQualityDiag);\n" +
+        "          }\n" +
+        "          if (!quality.ok) { setState('error'); return; }",
+        "          console.log('[Photo] quality', quality);\n" +
+        "          if (!quality.ok) { setState('error'); return; }"
+      )
+      .replace(
+        "        } catch (e) {\n" +
+        "          console.error('[Photo] PIPELINE ERROR', e);\n" +
+        "          if (photoQualityDebugEnabled) {\n" +
+        "            // Safe error type/message only — a generic JS Error's\n" +
+        "            // name/message (e.g. \"TypeError: Failed to fetch\",\n" +
+        "            // \"SecurityError: ...\") never contains pixel data; the\n" +
+        "            // exception object itself is never stored or copied.\n" +
+        "            setPhotoQualityDebugInfo({\n" +
+        "              version: 1, detectorPresent: null, detectorScore: null, faceRatio: null,\n" +
+        "              leftEAR: null, rightEAR: null, roll: null, yaw: null, pitch: null,\n" +
+        "              brightness: null, sharpness: null, boxClipped: null,\n" +
+        "              allReasons: [], qualityOk: null, primaryReason: null,\n" +
+        "              failureBeforeQualityCheck: null, failureType: 'exception',\n" +
+        "              finalHardBlockPath: 'exception',\n" +
+        "              userFacingMessageKey: 'photoErrorQuality', wouldBeHintKeyIfWired: null,\n" +
+        "              exceptionInfo: { name: (e && e.name) || 'Error', message: String((e && e.message) || e || 'unknown') },\n" +
+        "            });\n" +
+        "          }\n" +
+        "          setState('error');\n" +
+        "        }",
+        "        } catch (e) {\n" +
+        "          console.error('[Photo] PIPELINE ERROR', e);\n" +
+        "          setState('error');\n" +
+        "        }"
+      )
+      .replace(
+        "                <p className=\"text-xs text-danger leading-relaxed\">{t('photoErrorQuality', lang)}</p>\n" +
+        "                {photoQualityDebugEnabled && photoQualityDebugInfo && <PhotoQualityDebugPanel info={photoQualityDebugInfo} />}\n",
+        "                <p className=\"text-xs text-danger leading-relaxed\">{t('photoErrorQuality', lang)}</p>\n"
+      );
+    // The two new appended functions, if present, sit right after
+    // PhotoAnalysisScreen's own closing "    }" and before "function
+    // ParamIcon(" — stripped by exact marker rather than a giant
+    // literal match, so a genuine future edit inside either function
+    // still fails loudly via the separate photo-quality-debug.test.js
+    // suite, not silently absorbed here.
+    const helperMarker = "\n    // TEMPORARY: URL-only, read-only Photo Analysis quality diagnostics.";
+    const helperStart = out.indexOf(helperMarker);
+    if (helperStart !== -1) {
+      const panelCloseMarker = "\n        </aside>\n      );\n    }\n";
+      const panelCloseIdx = out.indexOf(panelCloseMarker, helperStart);
+      assert.ok(panelCloseIdx !== -1, 'expected to find the end of the appended PhotoQualityDebugPanel function');
+      out = out.slice(0, helperStart) + out.slice(panelCloseIdx + panelCloseMarker.length);
+    }
+    return out;
+  };
+  const curTail = omitPhotoQualityDebugTail(src.slice(curQualityIdx, curOuterEnd));
+  const prevTail = omitPhotoQualityDebugTail(HEAD.slice(prevQualityIdx, prevOuterEnd));
   const debugStart = '          let irisColorAuditForRec = null;';
   const debugEnd = '          const designs = rankDesigns(classified, lang);';
   const omitIrisDebugAudit = (tail) => {

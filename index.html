@@ -8928,9 +8928,12 @@
       const [state, setState] = useState('idle');
       const [previewUrl, setPreviewUrl] = useState(null);
       const fileInputRef = useRef(null);
+      const photoQualityDebugEnabled = isPhotoQualityDebugEnabled();
+      const [photoQualityDebugInfo, setPhotoQualityDebugInfo] = useState(null);
 
       const analyze = async (file) => {
         if (!file) return;
+        if (photoQualityDebugEnabled) setPhotoQualityDebugInfo(null);
         const url = URL.createObjectURL(file);
         setPreviewUrl(url);
         setState('analyzing');
@@ -8944,7 +8947,21 @@
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
           const det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks();
-          if (!det) { setState('error'); return; }
+          if (!det) {
+            if (photoQualityDebugEnabled) {
+              setPhotoQualityDebugInfo({
+                version: 1, detectorPresent: false, detectorScore: null, faceRatio: null,
+                leftEAR: null, rightEAR: null, roll: null, yaw: null, pitch: null,
+                brightness: null, sharpness: null, boxClipped: null,
+                allReasons: [], qualityOk: null, primaryReason: 'no_detection',
+                failureBeforeQualityCheck: true, failureType: 'no_detection',
+                finalHardBlockPath: 'no_detection (before assessFrameQuality)',
+                userFacingMessageKey: 'photoErrorQuality', wouldBeHintKeyIfWired: null,
+                exceptionInfo: null,
+              });
+            }
+            setState('error'); return;
+          }
 
           const headPose = computeHeadPose(det.landmarks);
           const leftMetrics = computeEyeSideMetrics(det.landmarks, 'left', headPose);
@@ -9009,6 +9026,44 @@
             brightness, sharpness, canvasWidth: canvas.width, boxWidth: det.detection.box.width,
           });
           console.log('[Photo] quality', quality);
+          if (photoQualityDebugEnabled) {
+            // faceRatio here mirrors assessFrameQuality's own internal
+            // `boxWidth / canvasWidth` formula exactly, purely for
+            // display — assessFrameQuality itself is not modified and
+            // its return value is used as-is (quality.ok/quality.reasons).
+            const photoFaceRatio = det.detection.box.width / Math.max(canvas.width, 1);
+            const photoQualityDiag = {
+              version: 1, detectorPresent: true, detectorScore: det.detection.score,
+              faceRatio: photoFaceRatio, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,
+              roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,
+              brightness, sharpness,
+              // Photo Analysis never computes an edge-clip check today
+              // (unlike Live Scan's boxClipped) — reported honestly as
+              // not-computed rather than inventing a new derived value.
+              boxClipped: null,
+              allReasons: quality.reasons, qualityOk: quality.ok,
+              primaryReason: quality.reasons[0] ?? null,
+              failureBeforeQualityCheck: false,
+              failureType: quality.ok ? 'none' : 'quality_rejection',
+              finalHardBlockPath: quality.ok ? 'none (quality.ok=true)' : `assessFrameQuality:${quality.reasons[0]}`,
+              userFacingMessageKey: quality.ok ? null : 'photoErrorQuality',
+              // Informational only — Photo Analysis's UI does not
+              // currently select a per-reason hint at all (it always
+              // shows the single generic photoErrorQuality message);
+              // this reuses the EXISTING pickRejectionHintKey function
+              // (already used by Live Scan) against the SAME reasons
+              // array, purely to show what it would resolve to.
+              wouldBeHintKeyIfWired: quality.ok ? null : pickRejectionHintKey(quality.reasons, false),
+              exceptionInfo: null,
+            };
+            setPhotoQualityDebugInfo(photoQualityDiag);
+            // On a PASS, this screen calls onComplete() and unmounts
+            // immediately (see the EYELID CREASE V2 / IRIS COLOR AUDIT
+            // comments above for the same documented constraint) — no
+            // panel has time to render, so this is logged the same
+            // read-only "debug shadow" way those two already are.
+            if (quality.ok) console.log('[PhotoQualityDebug]', photoQualityDiag);
+          }
           if (!quality.ok) { setState('error'); return; }
 
           const leftBrowPts = physicalLeft.brow, rightBrowPts = physicalRight.brow;
@@ -9113,6 +9168,22 @@
           onComplete(photoRec);
         } catch (e) {
           console.error('[Photo] PIPELINE ERROR', e);
+          if (photoQualityDebugEnabled) {
+            // Safe error type/message only — a generic JS Error's
+            // name/message (e.g. "TypeError: Failed to fetch",
+            // "SecurityError: ...") never contains pixel data; the
+            // exception object itself is never stored or copied.
+            setPhotoQualityDebugInfo({
+              version: 1, detectorPresent: null, detectorScore: null, faceRatio: null,
+              leftEAR: null, rightEAR: null, roll: null, yaw: null, pitch: null,
+              brightness: null, sharpness: null, boxClipped: null,
+              allReasons: [], qualityOk: null, primaryReason: null,
+              failureBeforeQualityCheck: null, failureType: 'exception',
+              finalHardBlockPath: 'exception',
+              userFacingMessageKey: 'photoErrorQuality', wouldBeHintKeyIfWired: null,
+              exceptionInfo: { name: (e && e.name) || 'Error', message: String((e && e.message) || e || 'unknown') },
+            });
+          }
           setState('error');
         }
       };
@@ -9140,6 +9211,7 @@
             {state === 'error' && (
               <div className="glass rounded-md p-4 border-danger/25 mb-4 w-full">
                 <p className="text-xs text-danger leading-relaxed">{t('photoErrorQuality', lang)}</p>
+                {photoQualityDebugEnabled && photoQualityDebugInfo && <PhotoQualityDebugPanel info={photoQualityDebugInfo} />}
               </div>
             )}
             <button onClick={() => fileInputRef.current?.click()} disabled={!modelsLoaded || state==='analyzing'} className={`w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale transition-colors disabled:opacity-50 ${!modelsLoaded || state==='analyzing' ? 'bg-white/10 text-textSecondary' : 'bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)]'}`}>
@@ -9148,6 +9220,81 @@
             <p className="text-xs text-textMuted text-center mt-3">{t('photoHint', lang)}</p>
           </div>
         </div>
+      );
+    }
+
+    // TEMPORARY: URL-only, read-only Photo Analysis quality diagnostics.
+    // No persisted debug flag — same convention as isCameraLayoutDebugEnabled.
+    function isPhotoQualityDebugEnabled() {
+      return new URLSearchParams(window.location.search).get('photoQualityDebug') === '1';
+    }
+
+    // TEMPORARY: URL-only (?photoQualityDebug=1) Photo Analysis quality-
+    // gate diagnostic panel. DIAGNOSTIC ONLY — does not change, recompute,
+    // or feed back into the quality decision (assessFrameQuality itself is
+    // untouched; every value shown here is the SAME value PhotoAnalysisScreen's
+    // analyze() already computed for the real decision, read after the fact).
+    // Shows only derived scalar metrics/reason codes — never raw pixels,
+    // base64, an image URL, landmark points, or a face bounding box (only
+    // the normalized faceRatio scalar, which reveals relative face SIZE,
+    // never position). See PhotoAnalysisScreen's analyze() for exactly
+    // what is captured in each of the three possible outcomes (no
+    // detection / quality rejection or pass / thrown exception).
+    function PhotoQualityDebugPanel({ info }) {
+      const [copyStatus, setCopyStatus] = useState('');
+      const copy = async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(info, null, 2));
+          setCopyStatus('Copied / Скопировано');
+        } catch (_) { setCopyStatus('Copy unavailable / Копирование недоступно'); }
+      };
+      const num = v => v == null ? '—' : (typeof v === 'number' ? v.toFixed(3) : String(v));
+      return (
+        <aside data-photo-quality-debug="1" aria-label="Photo Analysis quality diagnostics" style={{
+          width: '100%', boxSizing: 'border-box', marginTop: '10px',
+          background: 'rgba(0,0,0,0.88)', color: '#fff', padding: '8px', border: '1px solid #888',
+          font: '10px/1.35 monospace', textAlign: 'left', borderRadius: '6px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <strong>Photo quality debug</strong>
+            <button type="button" onClick={copy} style={{ padding: '8px', border: '1px solid #aaa' }}>COPY DEBUG JSON</button>
+          </div>
+          <div role="status">{copyStatus}</div>
+          <div data-photo-quality-primary-reason="1" style={{ marginTop: '6px', borderTop: '1px solid #444', paddingTop: '4px' }}>
+            <strong>PRIMARY REJECTION REASON:</strong> {info.primaryReason || 'none'}<br />
+            <strong>ALL REASONS:</strong> [{(info.allReasons || []).join(', ')}]<br />
+            <strong>failureType:</strong> {info.failureType}<br />
+            <strong>finalHardBlockPath:</strong> {info.finalHardBlockPath}<br />
+            <strong>failureBeforeQualityCheck:</strong> {String(info.failureBeforeQualityCheck)}<br />
+            <strong>userFacingMessageKey:</strong> {info.userFacingMessageKey || '—'}
+          </div>
+          <div data-photo-quality-metrics="1" style={{ marginTop: '6px', borderTop: '1px solid #444', paddingTop: '4px' }}>
+            <strong>DETECTOR:</strong><br />
+            detectorPresent: {String(info.detectorPresent)}<br />
+            detectorScore: {num(info.detectorScore)}<br />
+            faceRatio: {num(info.faceRatio)}<br />
+            leftEAR: {num(info.leftEAR)}<br />
+            rightEAR: {num(info.rightEAR)}<br />
+            roll: {num(info.roll)}<br />
+            yaw: {num(info.yaw)}<br />
+            pitch: {num(info.pitch)}<br />
+            brightness: {num(info.brightness)}<br />
+            sharpness: {num(info.sharpness)}<br />
+            boxClipped: {info.boxClipped == null ? '— (not computed by Photo Analysis)' : String(info.boxClipped)}<br />
+            qualityOk: {String(info.qualityOk)}<br />
+            wouldBeHintKeyIfWired: {info.wouldBeHintKeyIfWired || '— (Photo Analysis UI does not currently select a per-reason hint)'}
+          </div>
+          {info.exceptionInfo && (
+            <div data-photo-quality-exception="1" style={{ marginTop: '6px', borderTop: '1px solid #444', paddingTop: '4px' }}>
+              <strong>EXCEPTION:</strong><br />
+              name: {info.exceptionInfo.name}<br />
+              message: {info.exceptionInfo.message}
+            </div>
+          )}
+          <pre data-photo-quality-json="1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '6px 0 0' }}>
+            {JSON.stringify(info, null, 2)}
+          </pre>
+        </aside>
       );
     }
 

@@ -989,6 +989,18 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
         "                <p className=\"text-xs text-danger leading-relaxed\">{t('photoErrorQuality', lang)}</p>\n" +
         "                {photoQualityDebugEnabled && photoQualityDebugInfo && <PhotoQualityDebugPanel info={photoQualityDebugInfo} />}\n",
         "                <p className=\"text-xs text-danger leading-relaxed\">{t('photoErrorQuality', lang)}</p>\n"
+      )
+      // PHOTO QUALITY DEBUG PANEL VISIBILITY FIX — PhotoAnalysisScreen's
+      // content body gained overflow-y-auto/hide-scrollbar (the same
+      // pattern every other screen with a fixed header already uses,
+      // e.g. the `flex-1 overflow-y-auto hide-scrollbar p-4 space-y-6`
+      // bodies elsewhere in this file) so a taller debug panel is
+      // reachable by scroll instead of being clipped by the ancestor
+      // `overflow:hidden` app-container with no way to scroll to it.
+      // Presentation-only: no analyze()/assessFrameQuality logic changed.
+      .replace(
+        '          <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col items-center justify-center p-6">',
+        '          <div className="flex-1 flex flex-col items-center justify-center p-6">'
       );
     // The two new appended functions, if present, sit right after
     // PhotoAnalysisScreen's own closing "    }" and before "function

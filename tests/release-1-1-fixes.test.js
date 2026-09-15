@@ -168,9 +168,15 @@ test('Visit Detail iris fix does not touch the classifier, combineIris, threshol
 // 4. Live Scan vs Photo Analysis resolution — documents the real,
 // measured difference this investigation found in code.
 // ------------------------------------------------------------
-test('Live Scan processes frames at a lower resolution cap (640px) than Photo Analysis (900px) — the real, measured input-resolution difference behind the iris-uncertainty investigation', () => {
+test('Live Scan processes frames at a lower resolution cap (640px) than Photo Analysis\'s primary attempt (900px) — the real, measured input-resolution difference behind the iris-uncertainty investigation', () => {
   assert.ok(src.includes('const scale = Math.min(1, 640 / video.videoWidth);'), 'expected LiveScanScreen\'s tick to still cap at 640px wide');
-  assert.ok(src.includes('const maxW = 900;'), 'expected PhotoAnalysisScreen to still cap at 900px wide');
+  // Post PHOTO-ONLY NO_DETECTION FALLBACK (see photo-detection-fallback.
+  // test.js): the same 900px primary cap is now expressed as a
+  // buildAnalysisCanvas(900) call rather than a standalone `const maxW
+  // = 900;` statement — the literal this assertion originally searched
+  // for. The actual 900px behavior itself is unchanged and independently
+  // proven (canvas.width === 900) by photo-detection-fallback.test.js.
+  assert.ok(src.includes('buildAnalysisCanvas(900)'), 'expected PhotoAnalysisScreen\'s primary attempt to still cap at 900px wide');
 });
 
 // ------------------------------------------------------------

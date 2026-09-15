@@ -8939,14 +8939,53 @@
         setState('analyzing');
         try {
           const img = await faceapi.fetchImage(url);
-          const maxW = 900;
-          const scale = Math.min(1, maxW / img.width);
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // Builds the proportional analysis canvas/context for a given
+          // width cap. Shared by the primary attempt and the bounded
+          // no_detection fallback below so both reuse the exact same,
+          // already-proven canvas-building logic (only maxW differs).
+          const buildAnalysisCanvas = (maxW) => {
+            const s = Math.min(1, maxW / img.width);
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+            const cx = c.getContext('2d', { willReadFrequently: true });
+            cx.drawImage(img, 0, 0, c.width, c.height);
+            return { canvas: c, ctx: cx, scale: s };
+          };
 
-          const det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks();
+          let { canvas, ctx, scale } = buildAnalysisCanvas(900);
+          let det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks();
+
+          // PHOTO-ONLY NO_DETECTION FALLBACK — real-device evidence
+          // (?photoQualityDebug=1) showed a real, large, frontal,
+          // clearly-visible beauty/lash portrait still returning
+          // no_detection on the primary 900px/416 attempt. ONE bounded
+          // retry only: same TinyFaceDetector model, same
+          // scoreThreshold (0.5, unchanged) — never a second face
+          // model, never a confidence relaxation. PHOTO_FALLBACK_MAX_W
+          // (1600) is chosen so the 608 detector (face-api.js's own
+          // next TinyYolov2 size step above 416, a valid inputSize
+          // exactly like today's 416) gets real source detail
+          // comfortably above its own 608 working resolution (~2.6x
+          // headroom) instead of upsampling from an already-downscaled
+          // 900px canvas, while staying well below an unrestricted
+          // native iPhone width (3024-4032px) for memory/performance
+          // safety. `canvas`/`ctx`/`scale` are REASSIGNED (not
+          // remapped) to the fallback's own canvas on success, so every
+          // later coordinate/pixel read in this function (det.detection.box,
+          // det.landmarks, brightness/sharpness sampling, the native-
+          // coordinate remap below) stays in one internally consistent
+          // coordinate space — whichever attempt actually succeeded.
+          // Live Scan/NLS are untouched: this helper and fallback exist
+          // only inside PhotoAnalysisScreen's own analyze().
+          if (!det) {
+            const PHOTO_FALLBACK_MAX_W = 1600;
+            const fb = buildAnalysisCanvas(PHOTO_FALLBACK_MAX_W);
+            const fallbackDet = await faceapi.detectSingleFace(fb.canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.5 })).withFaceLandmarks();
+            if (fallbackDet) {
+              canvas = fb.canvas; ctx = fb.ctx; scale = fb.scale; det = fallbackDet;
+            }
+          }
+
           if (!det) {
             if (photoQualityDebugEnabled) {
               setPhotoQualityDebugInfo({

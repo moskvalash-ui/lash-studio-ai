@@ -105,10 +105,15 @@ test('2b. no-detection branch: when debug is ON, records detectorPresent:false a
 // ------------------------------------------------------------
 // PART B — the quality-evaluated diagnostic branch (pass or reject).
 // ------------------------------------------------------------
-const qualityBlockStartMarker = "console.log('[Photo] quality', quality);\n          if (photoQualityDebugEnabled) {";
+const qualityBlockStartMarker = "console.log('[Photo] quality', quality);";
 const qualityBlockStart = photoBlock.indexOf(qualityBlockStartMarker);
 assert.ok(qualityBlockStart >= 0, 'quality-evaluated diagnostic branch must be structurally extractable');
-const qualityBlockEndMarker = "if (!quality.ok) { setState('error'); return; }";
+// Extends through the Photo-only quality-recovery decision (see
+// photo-quality-recovery.test.js for that logic's own dedicated,
+// focused coverage) since photoEdgeClipped/photoQualityRecovered/
+// photoQualityProceeds are computed here and consumed by both the
+// diagnostic object below AND the final hard-block line.
+const qualityBlockEndMarker = "if (!photoQualityProceeds) { setState('error'); return; }";
 const qualityBlockEndIdx = photoBlock.indexOf(qualityBlockEndMarker, qualityBlockStart);
 assert.ok(qualityBlockEndIdx > qualityBlockStart);
 const qualityBranch = photoBlock.slice(qualityBlockStart, qualityBlockEndIdx + qualityBlockEndMarker.length);
@@ -155,11 +160,15 @@ function runQualityBranch({ photoQualityDebugEnabled, det, headPose, leftMetrics
   return calls;
 }
 
+// box/canvas are comfortably non-edge-touching by construction (box
+// spans x:[200,500], y:[200,500] inside a 900x1200 canvas, well within
+// the 2%/98% margins photoEdgeClipped checks) so baseFixture never
+// trips the new clip check unless a test deliberately overrides it.
 const baseFixture = {
-  det: { detection: { score: 0.91, box: { width: 300 } } },
+  det: { detection: { score: 0.91, box: { x: 200, y: 200, width: 300, height: 300 } } },
   headPose: { roll: 3.2, yawProxy: 0.05, pitchProxy: 0.7 },
   leftMetrics: { ear: 0.28 }, rightMetrics: { ear: 0.31 },
-  brightness: 120, sharpness: 55, canvas: { width: 900 },
+  brightness: 120, sharpness: 55, canvas: { width: 900, height: 1200 },
   pickRejectionHintKey: () => 'hintUnused',
 };
 
@@ -223,9 +232,11 @@ test('6c. one-eye-only EAR failure ("eyes_closed" from a single low EAR) is capt
   assert.strictEqual(diag.primaryReason, 'eyes_closed');
 });
 
-test('7. boxClipped is honestly reported as not computed by Photo Analysis (never a fabricated value)', () => {
+test('7. boxClipped now reports the REAL geometric edge-touch check (Photo-only quality recovery) — see photo-quality-recovery.test.js for full coverage of the check itself', () => {
   const calls = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: true, quality: { ok: true, reasons: [] } });
-  assert.strictEqual(calls.setPhotoQualityDebugInfo[0].boxClipped, null);
+  // baseFixture's box (x:200,y:200,w:300,h:300 in a 900x1200 canvas) is
+  // comfortably inside the 2%/98% margins -- not clipped.
+  assert.strictEqual(calls.setPhotoQualityDebugInfo[0].boxClipped, false);
 });
 
 test('8. no forbidden data (pixels/base64/image URL/landmarks/raw box position) in the quality-branch diagnostic', () => {
@@ -297,13 +308,18 @@ test('10. every setPhotoQualityDebugInfo call site is inside an `if (photoQualit
   assert.strictEqual(callSites.length, 4, `expected 4 setPhotoQualityDebugInfo call sites, found ${callSites.length}`);
   assert.ok(photoBlock.includes('if (photoQualityDebugEnabled) setPhotoQualityDebugInfo(null);'), 'reset call must be guarded');
   assert.ok(photoBlock.includes("if (!det) {\n            if (photoQualityDebugEnabled) {\n              setPhotoQualityDebugInfo({"), 'no-detection call must be guarded');
-  assert.ok(photoBlock.includes("console.log('[Photo] quality', quality);\n          if (photoQualityDebugEnabled) {") && photoBlock.includes('setPhotoQualityDebugInfo(photoQualityDiag);'), 'quality-branch guard must open before the diagnostic is built and set');
+  assert.ok(photoBlock.includes('if (photoQualityDebugEnabled) {\n            // faceRatio here mirrors') && photoBlock.includes('setPhotoQualityDebugInfo(photoQualityDiag);'), 'quality-branch guard must open before the diagnostic is built and set');
   assert.ok(photoBlock.includes("} catch (e) {\n          console.error('[Photo] PIPELINE ERROR', e);\n          if (photoQualityDebugEnabled) {") && photoBlock.includes("exceptionInfo: { name: (e && e.name)"), 'exception-branch guard must open right after the catch, before the diagnostic is built');
 });
 
 test('11. the real hard-block decisions are unconditional — never gated behind the debug flag', () => {
   assert.ok(photoBlock.includes("setState('error'); return;\n          }"), 'no-detection setState(error) must be unconditional');
-  assert.ok(photoBlock.includes("if (!quality.ok) { setState('error'); return; }"), 'quality-rejection setState(error) must be unconditional and unchanged');
+  // Post Photo-only quality recovery: the hard-block now reads
+  // photoQualityProceeds (quality.ok || photoQualityRecovered) instead
+  // of quality.ok directly -- still unconditional/ungated by the debug
+  // flag, and quality.ok/quality.reasons themselves are never rewritten
+  // (see photo-quality-recovery.test.js for the recovery logic itself).
+  assert.ok(photoBlock.includes("if (!photoQualityProceeds) { setState('error'); return; }"), 'quality-rejection setState(error) must be unconditional and unchanged');
   assert.ok(photoBlock.includes('onComplete(photoRec);'), 'success path onComplete must be unconditional and unchanged');
 });
 

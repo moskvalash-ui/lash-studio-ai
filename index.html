@@ -9065,6 +9065,42 @@
             brightness, sharpness, canvasWidth: canvas.width, boxWidth: det.detection.box.width,
           });
           console.log('[Photo] quality', quality);
+          // PHOTO-ONLY QUALITY RECOVERY — real-device evidence
+          // (?photoQualityDebug=1) showed a real, fully-visible,
+          // frontal face (every landmark recovered; EAR/pose/
+          // brightness/sharpness all comfortably passing) still hard-
+          // rejected by assessFrameQuality purely on low_face_confidence
+          // and/or too_close — two reasons that are pure detector-
+          // confidence/box-size PROXIES, not evidence any real content
+          // is actually missing. assessFrameQuality itself, its
+          // thresholds, and Live Scan's own call to it are completely
+          // unchanged — this only decides whether Photo Analysis ACTS
+          // on an already-computed, unmodified rejection, using a real
+          // geometric edge-touch check (same 2%/98% margins Live Scan
+          // already proves safe for its own boxClipped hint-selection)
+          // computed independently here against Photo's own ACTIVE
+          // canvas/detection — including a fallback-recovered
+          // detection, since canvas/det above are already the single
+          // reassigned pair from the bounded fallback.
+          const photoEdgeClipped = det.detection.box.x < canvas.width * 0.02 || det.detection.box.y < canvas.height * 0.02 ||
+            (det.detection.box.x + det.detection.box.width) > canvas.width * 0.98 ||
+            (det.detection.box.y + det.detection.box.height) > canvas.height * 0.98;
+          // Recoverable ONLY when every reported reason is one of these
+          // two proxies — any other reason (blurry, eyes_closed,
+          // head_turned, etc.), alone or mixed with an allowlisted one,
+          // still hard-blocks exactly as today (no partial credit).
+          const PHOTO_RECOVERABLE_REASONS = ['low_face_confidence', 'too_close'];
+          const photoQualityRecovered = !quality.ok && quality.reasons.length > 0
+            && quality.reasons.every(r => PHOTO_RECOVERABLE_REASONS.includes(r))
+            && !photoEdgeClipped;
+          // quality.ok/quality.reasons themselves are NEVER rewritten —
+          // this only changes whether analyze() acts on a real,
+          // unmodified assessFrameQuality rejection. imageQuality below
+          // still multiplies in the real (possibly low) det.detection.
+          // score unconditionally, so a recovered photo's reported
+          // confidence still reflects that it was marginal — never
+          // silently upgraded to "perfect".
+          const photoQualityProceeds = quality.ok || photoQualityRecovered;
           if (photoQualityDebugEnabled) {
             // faceRatio here mirrors assessFrameQuality's own internal
             // `boxWidth / canvasWidth` formula exactly, purely for
@@ -9076,34 +9112,40 @@
               faceRatio: photoFaceRatio, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,
               roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,
               brightness, sharpness,
-              // Photo Analysis never computes an edge-clip check today
-              // (unlike Live Scan's boxClipped) — reported honestly as
-              // not-computed rather than inventing a new derived value.
-              boxClipped: null,
+              // Real geometric edge-touch check (same 2%/98% margins as
+              // Live Scan's own boxClipped) — no longer hardcoded null.
+              boxClipped: photoEdgeClipped,
               allReasons: quality.reasons, qualityOk: quality.ok,
               primaryReason: quality.reasons[0] ?? null,
               failureBeforeQualityCheck: false,
-              failureType: quality.ok ? 'none' : 'quality_rejection',
-              finalHardBlockPath: quality.ok ? 'none (quality.ok=true)' : `assessFrameQuality:${quality.reasons[0]}`,
-              userFacingMessageKey: quality.ok ? null : 'photoErrorQuality',
+              failureType: photoQualityProceeds ? 'none' : 'quality_rejection',
+              finalHardBlockPath: quality.ok ? 'none (quality.ok=true)' : photoQualityRecovered ? 'none (photo quality recovery applied)' : `assessFrameQuality:${quality.reasons[0]}`,
+              userFacingMessageKey: photoQualityProceeds ? null : 'photoErrorQuality',
               // Informational only — Photo Analysis's UI does not
               // currently select a per-reason hint at all (it always
               // shows the single generic photoErrorQuality message);
               // this reuses the EXISTING pickRejectionHintKey function
               // (already used by Live Scan) against the SAME reasons
               // array, purely to show what it would resolve to.
-              wouldBeHintKeyIfWired: quality.ok ? null : pickRejectionHintKey(quality.reasons, false),
+              wouldBeHintKeyIfWired: photoQualityProceeds ? null : pickRejectionHintKey(quality.reasons, false),
               exceptionInfo: null,
+              // Photo-only quality recovery diagnostics — purely
+              // derived booleans, never raw pixels/coordinates. Always
+              // false together when quality.ok is already true (no
+              // recovery needed/applicable).
+              photoRecoveryEligible: photoQualityRecovered,
+              photoRecoveryApplied: photoQualityRecovered,
             };
             setPhotoQualityDebugInfo(photoQualityDiag);
-            // On a PASS, this screen calls onComplete() and unmounts
-            // immediately (see the EYELID CREASE V2 / IRIS COLOR AUDIT
-            // comments above for the same documented constraint) — no
-            // panel has time to render, so this is logged the same
+            // On a PASS (or a recovered marginal Photo — both proceed
+            // to onComplete() and unmount immediately), this screen
+            // unmounts before a panel could render (see the EYELID
+            // CREASE V2 / IRIS COLOR AUDIT comments above for the same
+            // documented constraint), so this is logged the same
             // read-only "debug shadow" way those two already are.
-            if (quality.ok) console.log('[PhotoQualityDebug]', photoQualityDiag);
+            if (photoQualityProceeds) console.log('[PhotoQualityDebug]', photoQualityDiag);
           }
-          if (!quality.ok) { setState('error'); return; }
+          if (!photoQualityProceeds) { setState('error'); return; }
 
           const leftBrowPts = physicalLeft.brow, rightBrowPts = physicalRight.brow;
           const leftCrease = detectEyelidCrease(canvas, leftEye, leftBrowPts);

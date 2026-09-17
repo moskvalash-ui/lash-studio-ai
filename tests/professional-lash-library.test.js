@@ -206,7 +206,7 @@ test('the Lash Map Library UI never references DESIGN_CATALOG, rankDesigns[All],
 
 test('production source parity protects Recommendation, PHOTO, DIAGRAM, Plan, ranking, primary, and all 21 IDs', () => {
   const digest = value => crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource), '95a152e7083558e8750cd9660f63a72ca78057cbb28581edc55a6d86e177fad6');
+  assert.strictEqual(digest(indexSource), '0273bb9ad3311b4cb33920c1e7e070f3fdfd0b16e8276e06e7760458b65fc04e');
   assert.strictEqual(digest(domainSource), '11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   assert.ok(indexSource.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(indexSource.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));

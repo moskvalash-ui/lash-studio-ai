@@ -9075,24 +9075,55 @@
           // is actually missing. assessFrameQuality itself, its
           // thresholds, and Live Scan's own call to it are completely
           // unchanged — this only decides whether Photo Analysis ACTS
-          // on an already-computed, unmodified rejection, using a real
-          // geometric edge-touch check (same 2%/98% margins Live Scan
-          // already proves safe for its own boxClipped hint-selection)
-          // computed independently here against Photo's own ACTIVE
-          // canvas/detection — including a fallback-recovered
-          // detection, since canvas/det above are already the single
-          // reassigned pair from the bounded fallback.
+          // on an already-computed, unmodified rejection.
+          //
+          // photoEdgeClipped below checks the GENERIC face-detector box
+          // against the frame edge — DIAGNOSTIC ONLY now, kept for
+          // visibility, no longer what gates recovery. A follow-up
+          // real-device case found this generic box legitimately
+          // extends past the frame for an ordinary tight beauty/lash
+          // portrait (forehead/jaw/ear margin, not eye content) even
+          // when both eyes are fully, safely visible. The actual gate
+          // is requiredEyeRegionClipped below, built from the SAME
+          // eye+brow points and the SAME 0.45 / (0.45*1.3) margin
+          // extractEyeROI already uses for real eyelid-crease sampling
+          // (see detectEyelidCrease's own unchanged call to it below) —
+          // the largest real ROI any downstream consumer (crease,
+          // iris, brightness) actually needs. Live Scan/assessFrameQuality
+          // remain untouched; this is Photo-only, additive.
           const photoEdgeClipped = det.detection.box.x < canvas.width * 0.02 || det.detection.box.y < canvas.height * 0.02 ||
             (det.detection.box.x + det.detection.box.width) > canvas.width * 0.98 ||
             (det.detection.box.y + det.detection.box.height) > canvas.height * 0.98;
+          // Same arithmetic as extractEyeROI's own x0/y0/x1/y1 (marginFrac
+          // 0.45, vertical 0.45*1.3) — computed RAW/unclamped here (no
+          // canvas draw needed) purely to test whether the real required
+          // sampling region for EACH eye fits inside the active canvas.
+          // Union of LEFT and RIGHT — either eye's required region
+          // touching/exceeding the frame is disqualifying.
+          const requiredEyeRegionBox = (eyePoints, browPoints) => {
+            const xs = eyePoints.map(p => p.x), ys = eyePoints.map(p => p.y);
+            const browYs = browPoints.map(p => p.y);
+            const x0raw = Math.min(...xs), x1raw = Math.max(...xs);
+            const y0raw = Math.min(...browYs), y1raw = Math.max(...ys);
+            const mx = (x1raw - x0raw) * 0.45, my = (y1raw - y0raw) * 0.45 * 1.3;
+            return { x0: x0raw - mx, y0: y0raw - my, x1: x1raw + mx, y1: y1raw + my };
+          };
+          const leftRequiredRegion = requiredEyeRegionBox(leftEye, physicalLeft.brow);
+          const rightRequiredRegion = requiredEyeRegionBox(rightEye, physicalRight.brow);
+          const clippedLeft = leftRequiredRegion.x0 < 0 || rightRequiredRegion.x0 < 0;
+          const clippedTop = leftRequiredRegion.y0 < 0 || rightRequiredRegion.y0 < 0;
+          const clippedRight = leftRequiredRegion.x1 > canvas.width || rightRequiredRegion.x1 > canvas.width;
+          const clippedBottom = leftRequiredRegion.y1 > canvas.height || rightRequiredRegion.y1 > canvas.height;
+          const requiredEyeRegionClipped = clippedLeft || clippedTop || clippedRight || clippedBottom;
           // Recoverable ONLY when every reported reason is one of these
-          // two proxies — any other reason (blurry, eyes_closed,
+          // two proxies AND the real required eye/periocular region is
+          // not clipped — any other reason (blurry, eyes_closed,
           // head_turned, etc.), alone or mixed with an allowlisted one,
           // still hard-blocks exactly as today (no partial credit).
           const PHOTO_RECOVERABLE_REASONS = ['low_face_confidence', 'too_close'];
           const photoQualityRecovered = !quality.ok && quality.reasons.length > 0
             && quality.reasons.every(r => PHOTO_RECOVERABLE_REASONS.includes(r))
-            && !photoEdgeClipped;
+            && !requiredEyeRegionClipped;
           // quality.ok/quality.reasons themselves are NEVER rewritten —
           // this only changes whether analyze() acts on a real,
           // unmodified assessFrameQuality rejection. imageQuality below
@@ -9112,9 +9143,16 @@
               faceRatio: photoFaceRatio, leftEAR: leftMetrics.ear, rightEAR: rightMetrics.ear,
               roll: headPose.roll, yaw: headPose.yawProxy, pitch: headPose.pitchProxy,
               brightness, sharpness,
-              // Real geometric edge-touch check (same 2%/98% margins as
-              // Live Scan's own boxClipped) — no longer hardcoded null.
+              // DIAGNOSTIC ONLY — the GENERIC face-detector box's own
+              // edge-touch check (same 2%/98% margins as Live Scan's
+              // own boxClipped). No longer what gates recovery; see
+              // requiredEyeRegionClipped below for the real gate.
               boxClipped: photoEdgeClipped,
+              // The real recovery gate: does the required eye/
+              // periocular sampling region (not the generic face box)
+              // touch/exceed the frame edge — purely derived booleans,
+              // never coordinates/distances/landmarks.
+              requiredEyeRegionClipped, clippedTop, clippedBottom, clippedLeft, clippedRight,
               allReasons: quality.reasons, qualityOk: quality.ok,
               primaryReason: quality.reasons[0] ?? null,
               failureBeforeQualityCheck: false,
@@ -9372,7 +9410,7 @@
               message: {info.exceptionInfo.message}
             </div>
           )}
-          <pre data-photo-quality-json="1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '6px 0 0' }}>
+          <pre data-photo-quality-json="1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '6px 0 0', maxHeight: '150px', overflowY: 'auto' }}>
             {JSON.stringify(info, null, 2)}
           </pre>
         </aside>

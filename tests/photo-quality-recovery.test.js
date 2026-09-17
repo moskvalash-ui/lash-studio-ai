@@ -82,8 +82,10 @@ test('2. LiveScanScreen quality call site and its own boxClipped are byte-identi
 
 // ------------------------------------------------------------
 // Extract the recovery-decision snippet in isolation: pure computation
-// on det/canvas/quality, no React/DOM dependency, no side effects --
-// eval'd directly to get { photoEdgeClipped, photoQualityRecovered,
+// on det/canvas/quality/leftEye/rightEye/physicalLeft/physicalRight,
+// no React/DOM dependency, no side effects -- eval'd directly to get
+// { photoEdgeClipped, requiredEyeRegionClipped, clippedTop,
+// clippedBottom, clippedLeft, clippedRight, photoQualityRecovered,
 // photoQualityProceeds } as outputs.
 // ------------------------------------------------------------
 const recoveryStartMarker = 'const photoEdgeClipped = det.detection.box.x';
@@ -94,57 +96,130 @@ const recoveryEndIdx = photoBlock.indexOf(recoveryEndMarker, recoveryStart);
 assert.ok(recoveryEndIdx > recoveryStart);
 const recoverySnippet = photoBlock.slice(recoveryStart, recoveryEndIdx + recoveryEndMarker.length);
 
-function runRecoveryDecision({ det, canvas, quality }) {
-  const fn = new Function('det', 'canvas', 'quality',
-    recoverySnippet + '\nreturn { photoEdgeClipped, photoQualityRecovered, photoQualityProceeds };');
-  return fn(det, canvas, quality);
+function runRecoveryDecision({ det, canvas, quality, leftEye, rightEye, physicalLeft, physicalRight }) {
+  const fn = new Function('det', 'canvas', 'quality', 'leftEye', 'rightEye', 'physicalLeft', 'physicalRight',
+    recoverySnippet + '\nreturn { photoEdgeClipped, requiredEyeRegionClipped, clippedTop, clippedBottom, clippedLeft, clippedRight, photoQualityRecovered, photoQualityProceeds };');
+  return fn(det, canvas, quality, leftEye, rightEye, physicalLeft, physicalRight);
 }
 
-// A comfortably non-edge-touching box: x:[200,500], y:[200,500] inside
-// a 900x1200 canvas -- well within the 2%/98% margins.
+// A comfortably non-edge-touching GENERIC box: x:[200,500], y:[200,500]
+// inside a 900x1200 canvas -- well within the 2%/98% margins. Used only
+// for photoEdgeClipped (diagnostic-only) fixtures below; the recovery
+// gate itself no longer reads this box.
 const CANVAS = { width: 900, height: 1200 };
 const SAFE_BOX = { x: 200, y: 200, width: 300, height: 300 };
 const det = (box = SAFE_BOX) => ({ detection: { box } });
+
+// Mock 6-point eye contours / 5-point brow contours -- same shape and
+// margin convention as photo-quality-debug.test.js's mockEye/mockBrow,
+// comfortably centered by default (safe = requiredEyeRegionClipped
+// false) so a test only needs to override the ONE side it's probing.
+const mockEye = (cx, cy) => [
+  { x: cx - 20, y: cy }, { x: cx - 10, y: cy - 6 }, { x: cx + 10, y: cy - 6 },
+  { x: cx + 20, y: cy }, { x: cx + 10, y: cy + 6 }, { x: cx - 10, y: cy + 6 },
+];
+const mockBrow = (cx, cy) => [
+  { x: cx - 22, y: cy }, { x: cx - 11, y: cy - 4 }, { x: cx, y: cy - 6 },
+  { x: cx + 11, y: cy - 4 }, { x: cx + 22, y: cy },
+];
+const SAFE_LEFT_EYE = mockEye(300, 310), SAFE_LEFT_BROW = mockBrow(300, 280);
+const SAFE_RIGHT_EYE = mockEye(600, 310), SAFE_RIGHT_BROW = mockBrow(600, 280);
+const safeEyes = () => ({
+  leftEye: SAFE_LEFT_EYE, rightEye: SAFE_RIGHT_EYE,
+  physicalLeft: { brow: SAFE_LEFT_BROW }, physicalRight: { brow: SAFE_RIGHT_BROW },
+});
 
 test('3. the Photo recovery allowlist is exactly low_face_confidence and too_close -- no other reason is ever eligible', () => {
   const allReasons = ['low_face_confidence', 'head_tilted', 'head_turned', 'head_pitch', 'eyes_closed', 'too_dark', 'too_bright', 'blurry', 'too_far', 'too_close'];
   const allowlisted = ['low_face_confidence', 'too_close'];
   for (const reason of allReasons) {
-    const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: [reason] } });
+    const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: [reason] }, ...safeEyes() });
     const shouldRecover = allowlisted.includes(reason);
     assert.strictEqual(result.photoQualityRecovered, shouldRecover, `reason "${reason}" recovery eligibility must be ${shouldRecover}`);
   }
 });
 
-test('4. low_face_confidence + too_close together, not edge-clipped => proceeds', () => {
-  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['low_face_confidence', 'too_close'] } });
-  assert.strictEqual(result.photoEdgeClipped, false);
+test('4. low_face_confidence + too_close together, required eye regions intact => proceeds', () => {
+  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['low_face_confidence', 'too_close'] }, ...safeEyes() });
+  assert.strictEqual(result.requiredEyeRegionClipped, false);
   assert.strictEqual(result.photoQualityRecovered, true);
   assert.strictEqual(result.photoQualityProceeds, true);
 });
 
-test('5. low_face_confidence alone, not clipped => proceeds', () => {
-  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['low_face_confidence'] } });
+test('5. low_face_confidence alone, required eye regions intact => proceeds', () => {
+  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['low_face_confidence'] }, ...safeEyes() });
   assert.strictEqual(result.photoQualityRecovered, true);
   assert.strictEqual(result.photoQualityProceeds, true);
 });
 
-test('6. too_close alone, not clipped => proceeds', () => {
-  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] } });
+test('6. too_close alone, required eye regions intact => proceeds', () => {
+  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] }, ...safeEyes() });
   assert.strictEqual(result.photoQualityRecovered, true);
   assert.strictEqual(result.photoQualityProceeds, true);
 });
 
-test('7. genuinely edge-clipped box => hard reject even with only allowlisted reasons', () => {
-  // Box touches the right edge: x + width = 900 = canvas.width (> 98% margin).
+test('7. CORE AUDIT FINDING: the generic face-detector box is genuinely edge-clipped (photoEdgeClipped=true), but BOTH required eye/periocular regions are intact => recovery still proceeds', () => {
+  // Box touches the right edge: x + width = 900 = canvas.width (>98% margin) --
+  // this is exactly the real-device shape (a tight beauty/lash portrait
+  // whose generic forehead/jaw/ear box overshoots the frame while both
+  // eyes remain fully visible).
   const clippedBox = { x: 600, y: 200, width: 300, height: 300 };
-  const result = runRecoveryDecision({ det: det(clippedBox), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] } });
-  assert.strictEqual(result.photoEdgeClipped, true);
-  assert.strictEqual(result.photoQualityRecovered, false);
+  const result = runRecoveryDecision({ det: det(clippedBox), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] }, ...safeEyes() });
+  assert.strictEqual(result.photoEdgeClipped, true, 'the generic face box IS clipped in this fixture (diagnostic-only, no longer gates recovery)');
+  assert.strictEqual(result.requiredEyeRegionClipped, false, 'the real required eye regions are NOT clipped');
+  assert.strictEqual(result.photoQualityRecovered, true, 'recovery must proceed -- generic box clipping alone must never block it');
+  assert.strictEqual(result.photoQualityProceeds, true);
+});
+
+test('7b. genuinely LEFT required-eye-region clipping (left eye pushed to the frame edge) hard-rejects, even though the generic face box and every reason are otherwise fine', () => {
+  const clippedLeftEye = mockEye(20, 310), clippedLeftBrow = mockBrow(20, 280);
+  const result = runRecoveryDecision({
+    det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] },
+    leftEye: clippedLeftEye, rightEye: SAFE_RIGHT_EYE,
+    physicalLeft: { brow: clippedLeftBrow }, physicalRight: { brow: SAFE_RIGHT_BROW },
+  });
+  assert.strictEqual(result.clippedLeft, true, 'the LEFT eye/periocular region must be detected as touching the frame\'s left edge');
+  assert.strictEqual(result.requiredEyeRegionClipped, true);
+  assert.strictEqual(result.photoQualityRecovered, false, 'genuine left-eye-region clipping must deny recovery');
   assert.strictEqual(result.photoQualityProceeds, false);
 });
 
-test('7b. each edge (left/top/right/bottom) independently trips photoEdgeClipped, reusing Live Scan\'s own proven 2%/98% margins', () => {
+test('7c. genuinely RIGHT required-eye-region clipping (right eye pushed to the frame edge) hard-rejects', () => {
+  const clippedRightEye = mockEye(880, 310), clippedRightBrow = mockBrow(880, 280);
+  const result = runRecoveryDecision({
+    det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['low_face_confidence'] },
+    leftEye: SAFE_LEFT_EYE, rightEye: clippedRightEye,
+    physicalLeft: { brow: SAFE_LEFT_BROW }, physicalRight: { brow: clippedRightBrow },
+  });
+  assert.strictEqual(result.clippedRight, true, 'the RIGHT eye/periocular region must be detected as touching the frame\'s right edge');
+  assert.strictEqual(result.requiredEyeRegionClipped, true);
+  assert.strictEqual(result.photoQualityRecovered, false, 'genuine right-eye-region clipping must deny recovery');
+  assert.strictEqual(result.photoQualityProceeds, false);
+});
+
+test('7d. top and bottom edges of the required region are independently detected too (vertical clipping, e.g. brow/lower-lid cut off by a very tight crop)', () => {
+  const topEye = mockEye(300, 40), topBrow = mockBrow(300, 10);
+  const topResult = runRecoveryDecision({
+    det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] },
+    leftEye: topEye, rightEye: SAFE_RIGHT_EYE,
+    physicalLeft: { brow: topBrow }, physicalRight: { brow: SAFE_RIGHT_BROW },
+  });
+  assert.strictEqual(topResult.clippedTop, true);
+  assert.strictEqual(topResult.requiredEyeRegionClipped, true);
+  assert.strictEqual(topResult.photoQualityRecovered, false);
+
+  const bottomEye = mockEye(300, 1180), bottomBrow = mockBrow(300, 1150);
+  const bottomResult = runRecoveryDecision({
+    det: det(), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] },
+    leftEye: bottomEye, rightEye: SAFE_RIGHT_EYE,
+    physicalLeft: { brow: bottomBrow }, physicalRight: { brow: SAFE_RIGHT_BROW },
+  });
+  assert.strictEqual(bottomResult.clippedBottom, true);
+  assert.strictEqual(bottomResult.requiredEyeRegionClipped, true);
+  assert.strictEqual(bottomResult.photoQualityRecovered, false);
+});
+
+test('7e. photoEdgeClipped (generic face-box, diagnostic-only) still independently reports each edge, reusing Live Scan\'s own proven 2%/98% margins -- untouched by this fix', () => {
   const cases = {
     left: { x: 0, y: 200, width: 300, height: 300 },
     top: { x: 200, y: 0, width: 300, height: 300 },
@@ -152,15 +227,16 @@ test('7b. each edge (left/top/right/bottom) independently trips photoEdgeClipped
     bottom: { x: 200, y: 901, width: 300, height: 300 },
   };
   for (const [edge, box] of Object.entries(cases)) {
-    const result = runRecoveryDecision({ det: det(box), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] } });
-    assert.strictEqual(result.photoEdgeClipped, true, `${edge}-edge box must be detected as clipped`);
+    const result = runRecoveryDecision({ det: det(box), canvas: CANVAS, quality: { ok: false, reasons: ['too_close'] }, ...safeEyes() });
+    assert.strictEqual(result.photoEdgeClipped, true, `${edge}-edge generic box must still be detected as clipped (diagnostic only)`);
+    assert.strictEqual(result.requiredEyeRegionClipped, false, `${edge}-edge GENERIC box clipping alone must not clip the real required region`);
   }
 });
 
 const OTHER_REASONS = ['head_tilted', 'head_turned', 'head_pitch', 'eyes_closed', 'too_dark', 'too_bright', 'blurry', 'too_far'];
-test('8. every other individual quality reason still hard-rejects Photo (never eligible for recovery)', () => {
+test('8. every other individual quality reason still hard-rejects Photo (never eligible for recovery), even with required eye regions intact', () => {
   for (const reason of OTHER_REASONS) {
-    const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: [reason] } });
+    const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: [reason] }, ...safeEyes() });
     assert.strictEqual(result.photoQualityRecovered, false, `"${reason}" alone must never be recoverable`);
     assert.strictEqual(result.photoQualityProceeds, false, `"${reason}" alone must still hard-reject`);
   }
@@ -169,7 +245,7 @@ test('8. every other individual quality reason still hard-rejects Photo (never e
 test('9. a mix of an allowlisted reason with ANY non-allowlisted reason still hard-rejects -- no partial credit', () => {
   for (const other of OTHER_REASONS) {
     for (const allowlisted of ['low_face_confidence', 'too_close']) {
-      const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: [allowlisted, other] } });
+      const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: false, reasons: [allowlisted, other] }, ...safeEyes() });
       assert.strictEqual(result.photoQualityRecovered, false, `[${allowlisted}, ${other}] must not be recoverable`);
       assert.strictEqual(result.photoQualityProceeds, false, `[${allowlisted}, ${other}] must still hard-reject`);
     }
@@ -177,14 +253,14 @@ test('9. a mix of an allowlisted reason with ANY non-allowlisted reason still ha
 });
 
 test('10. quality.ok=true short-circuits recovery entirely (recovery is only ever evaluated for an actual rejection)', () => {
-  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: true, reasons: [] } });
+  const result = runRecoveryDecision({ det: det(), canvas: CANVAS, quality: { ok: true, reasons: [] }, ...safeEyes() });
   assert.strictEqual(result.photoQualityRecovered, false);
   assert.strictEqual(result.photoQualityProceeds, true, 'a real pass must still proceed, via quality.ok, not recovery');
 });
 
 test('11. quality.ok/quality.reasons are never rewritten by the recovery decision -- the real assessFrameQuality verdict stays intact', () => {
   const quality = { ok: false, reasons: ['too_close'] };
-  runRecoveryDecision({ det: det(), canvas: CANVAS, quality });
+  runRecoveryDecision({ det: det(), canvas: CANVAS, quality, ...safeEyes() });
   assert.strictEqual(quality.ok, false, 'quality.ok must not be mutated to true');
   assert.deepStrictEqual(quality.reasons, ['too_close'], 'quality.reasons must not be mutated');
 });

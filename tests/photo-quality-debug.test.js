@@ -149,16 +149,31 @@ test('4. assessFrameQuality itself is byte-for-byte unchanged by this diagnostic
   ));
 });
 
-function runQualityBranch({ photoQualityDebugEnabled, det, headPose, leftMetrics, rightMetrics, brightness, sharpness, canvas, quality, pickRejectionHintKey }) {
+function runQualityBranch({ photoQualityDebugEnabled, det, headPose, leftMetrics, rightMetrics, brightness, sharpness, canvas, quality, pickRejectionHintKey, leftEye, rightEye, physicalLeft, physicalRight }) {
   const calls = { setPhotoQualityDebugInfo: [], consoleLog: [], setState: [] };
   const fn = new Function('photoQualityDebugEnabled', 'det', 'headPose', 'leftMetrics', 'rightMetrics',
-    'brightness', 'sharpness', 'canvas', 'quality', 'pickRejectionHintKey', 'setPhotoQualityDebugInfo', 'console', 'setState',
+    'brightness', 'sharpness', 'canvas', 'quality', 'pickRejectionHintKey', 'leftEye', 'rightEye', 'physicalLeft', 'physicalRight',
+    'setPhotoQualityDebugInfo', 'console', 'setState',
     qualityBranch);
   fn(photoQualityDebugEnabled, det, headPose, leftMetrics, rightMetrics, brightness, sharpness, canvas, quality,
-    pickRejectionHintKey, info => calls.setPhotoQualityDebugInfo.push(info),
+    pickRejectionHintKey, leftEye, rightEye, physicalLeft, physicalRight,
+    info => calls.setPhotoQualityDebugInfo.push(info),
     { log: (...args) => calls.consoleLog.push(args) }, s => calls.setState.push(s));
   return calls;
 }
+
+// Mock 6-point eye contours / 5-point brow contours, matching face-
+// api's real shape -- comfortably centered with wide margins in the
+// 900x1200 canvas so requiredEyeRegionClipped is false unless a test
+// deliberately overrides these points.
+const mockEye = (cx, cy) => [
+  { x: cx - 20, y: cy }, { x: cx - 10, y: cy - 6 }, { x: cx + 10, y: cy - 6 },
+  { x: cx + 20, y: cy }, { x: cx + 10, y: cy + 6 }, { x: cx - 10, y: cy + 6 },
+];
+const mockBrow = (cx, cy) => [
+  { x: cx - 22, y: cy }, { x: cx - 11, y: cy - 4 }, { x: cx, y: cy - 6 },
+  { x: cx + 11, y: cy - 4 }, { x: cx + 22, y: cy },
+];
 
 // box/canvas are comfortably non-edge-touching by construction (box
 // spans x:[200,500], y:[200,500] inside a 900x1200 canvas, well within
@@ -168,6 +183,8 @@ const baseFixture = {
   det: { detection: { score: 0.91, box: { x: 200, y: 200, width: 300, height: 300 } } },
   headPose: { roll: 3.2, yawProxy: 0.05, pitchProxy: 0.7 },
   leftMetrics: { ear: 0.28 }, rightMetrics: { ear: 0.31 },
+  leftEye: mockEye(300, 310), rightEye: mockEye(600, 310),
+  physicalLeft: { brow: mockBrow(300, 280) }, physicalRight: { brow: mockBrow(600, 280) },
   brightness: 120, sharpness: 55, canvas: { width: 900, height: 1200 },
   pickRejectionHintKey: () => 'hintUnused',
 };
@@ -232,11 +249,19 @@ test('6c. one-eye-only EAR failure ("eyes_closed" from a single low EAR) is capt
   assert.strictEqual(diag.primaryReason, 'eyes_closed');
 });
 
-test('7. boxClipped now reports the REAL geometric edge-touch check (Photo-only quality recovery) — see photo-quality-recovery.test.js for full coverage of the check itself', () => {
+test('7. boxClipped (generic face-box, diagnostic only) and requiredEyeRegionClipped (the real recovery gate) both report correctly for a comfortably-unclipped fixture — see photo-quality-recovery.test.js for full coverage of the required-region check itself', () => {
   const calls = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: true, quality: { ok: true, reasons: [] } });
-  // baseFixture's box (x:200,y:200,w:300,h:300 in a 900x1200 canvas) is
-  // comfortably inside the 2%/98% margins -- not clipped.
-  assert.strictEqual(calls.setPhotoQualityDebugInfo[0].boxClipped, false);
+  const diag = calls.setPhotoQualityDebugInfo[0];
+  // baseFixture's generic box (x:200,y:200,w:300,h:300 in a 900x1200
+  // canvas) is comfortably inside the 2%/98% margins -- not clipped.
+  assert.strictEqual(diag.boxClipped, false);
+  // baseFixture's eye/brow points are comfortably centered -- the real
+  // required-region gate also reports not clipped, on all four edges.
+  assert.strictEqual(diag.requiredEyeRegionClipped, false);
+  assert.strictEqual(diag.clippedTop, false);
+  assert.strictEqual(diag.clippedBottom, false);
+  assert.strictEqual(diag.clippedLeft, false);
+  assert.strictEqual(diag.clippedRight, false);
 });
 
 test('8. no forbidden data (pixels/base64/image URL/landmarks/raw box position) in the quality-branch diagnostic', () => {

@@ -43,8 +43,15 @@ test('V1 release flow: Photo Analysis -> Results (no Try-On CTA) -> Lash Map (no
   await assertNoTryOnCTA(page);
 
   // ---- Lash Map ----
-  const mapButtons = page.getByRole('button', { name: 'ОТКРЫТЬ КАРТУ →', exact: true });
-  await mapButtons.first().click();
+  // Which alternative design is opened is irrelevant to this test's own
+  // purpose (proving no Try-On CTA exists + the save/persist journey) --
+  // any non-Hero design's own Lash Map works. RESULTS DESIGN DISCOVERY
+  // replaced the old plain "ОТКРЫТЬ КАРТУ →" per-card button with a
+  // carousel whose cards ARE the clickable elements directly
+  // (data-alt-design-id), same result.designs.slice(1,6) data/order,
+  // same onViewMap(d.clientDesign) handler.
+  const altCards = page.locator('[data-alt-carousel] [data-alt-design-id]');
+  await altCards.first().click();
   await expect(page.getByRole('button', { name: 'Сохранить клиентке', exact: true })).toBeVisible();
   await assertNoTryOnCTA(page);
 

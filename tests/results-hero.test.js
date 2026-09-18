@@ -1,6 +1,9 @@
 'use strict';
 // ============================================================
-// RESULTS HERO V1 — focused regression coverage.
+// RESULTS HERO V1 + RESULTS DESIGN DISCOVERY — focused regression
+// coverage for both phases (Design Discovery added the alternatives
+// carousel + View All entry directly below the same Hero this file
+// already covered).
 // ------------------------------------------------------------
 // HeroScreen is a JSX closure, not requirable/executable directly in
 // Node without a build step (this repo has no @babel/core hard
@@ -9,7 +12,8 @@
 // save-to-client-flow.test.js). The one genuinely new, pure-JS piece
 // this phase adds — heroDesignDisplayName — is extracted and eval'd
 // verbatim and exercised directly. Real-browser rendering proof lives
-// in tests/e2e/results-hero.spec.js.
+// in tests/e2e/results-hero.spec.js and
+// tests/e2e/results-design-discovery.spec.js.
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert');
@@ -81,11 +85,24 @@ test('4. new Hero STRINGS keys exist with the exact required RU/EN text', () => 
   assert.deepStrictEqual(STRINGS.heroOpenLashMap, { ru: 'ОТКРЫТЬ LASH MAP', en: 'OPEN LASH MAP' });
 });
 
-test('5. existing canonical strings this phase reuses are untouched', () => {
+test('5. existing canonical strings from this phase (saveToClientButton) and from Results Design Discovery (openLabel) remain untouched', () => {
   assert.deepStrictEqual(STRINGS.saveToClientButton, { ru: 'Сохранить клиентке', en: 'Save to client' });
+  assert.deepStrictEqual(STRINGS.openLabel, { ru: 'Открыть', en: 'Open' });
+  // viewMap/recommendedDesigns/allDesigns STRINGS entries are left
+  // defined with unchanged values even though HeroScreen no longer
+  // references any of them -- see RESULTS DESIGN DISCOVERY below,
+  // which replaced their call sites with moreDesignsForYou/openLabel/
+  // viewAllDesignsEntry. Left in place rather than removed (harmless
+  // unused localization constants; removing them is out of this
+  // phase's scope and not required by the audit).
   assert.deepStrictEqual(STRINGS.viewMap, { ru: 'ОТКРЫТЬ КАРТУ →', en: 'VIEW MAP →' });
   assert.deepStrictEqual(STRINGS.recommendedDesigns, { ru: 'Рекомендуемые дизайны', en: 'Recommended designs' });
   assert.deepStrictEqual(STRINGS.allDesigns, { ru: 'Все дизайны →', en: 'All designs →' });
+});
+
+test('5b. RESULTS DESIGN DISCOVERY: new moreDesignsForYou/viewAllDesignsEntry STRINGS keys exist with the exact required RU/EN text', () => {
+  assert.deepStrictEqual(STRINGS.moreDesignsForYou, { ru: 'Ещё подходящие дизайны', en: 'More designs for you' });
+  assert.deepStrictEqual(STRINGS.viewAllDesignsEntry, { ru: 'Смотреть все дизайны', en: 'View all designs' });
 });
 
 // ------------------------------------------------------------
@@ -113,16 +130,23 @@ test('9. exactly one Save-to-Client button is rendered on HeroScreen (moved into
   assert.strictEqual(occurrences, 1, 'expected exactly one onSaveToClient button in HeroScreen, found ' + occurrences);
 });
 
-test('10. the best design is NOT duplicated in the recommended-design list below the Hero: the list is built from result.designs.slice(1)', () => {
-  assert.ok(heroBlock.includes('result.designs.slice(1).map((raw, i) => {'));
+test('10. RESULTS DESIGN DISCOVERY: the best design is NOT duplicated in the alternatives carousel below the Hero: the carousel is built from result.designs.slice(1, 6) (max 5, rank 0 excluded)', () => {
+  assert.ok(heroBlock.includes('result.designs.slice(1, 6).map((raw, i) => {'));
   assert.ok(!heroBlock.includes('result.designs.map((raw, i) => {'), 'the old full-list (including rank 0) loop must no longer exist');
+  assert.ok(!heroBlock.includes('result.designs.slice(1).map((raw, i) => {'), 'the old unbounded (no max-5) slice must no longer exist');
 });
 
-test('11. the sliced list still uses the exact existing per-card recommendation path and Lash Map handler, offset by the correct rank', () => {
+test('11. RESULTS DESIGN DISCOVERY: the carousel cards still use the exact existing per-card recommendation path and Lash Map handler, offset by the correct rank, with the existing openLabel string for the tap action', () => {
   assert.ok(heroBlock.includes('const rank = i + 1;'));
   assert.ok(heroBlock.includes('const d = canonicalRecommendationProps(raw, p, lang, rank);'));
   assert.ok(heroBlock.includes('onClick={() => onViewMap(d.clientDesign)}'));
-  assert.ok(heroBlock.includes("{t('viewMap', lang)}"));
+  assert.ok(heroBlock.includes("{t('openLabel', lang)}"));
+  assert.ok(heroBlock.includes('data-alt-design-id={d.id}'), 'each carousel card must carry a canonical-id-only test hook');
+});
+
+test('11b. RESULTS DESIGN DISCOVERY: carousel is horizontally scrollable native overflow, no new dependency/library', () => {
+  assert.ok(heroBlock.includes('overflow-x-auto'));
+  assert.ok(heroBlock.includes("data-alt-carousel=\"1\""));
 });
 
 test('12. Natural Lash Analysis remains reachable from HeroScreen via the existing handlers, unchanged', () => {
@@ -130,9 +154,9 @@ test('12. Natural Lash Analysis remains reachable from HeroScreen via the existi
   assert.ok(heroBlock.includes("{t('natLashScanBtn', lang)}"));
 });
 
-test('13. All Designs remains reachable from HeroScreen via the existing onAllDesigns handler, unchanged', () => {
+test('13. RESULTS DESIGN DISCOVERY: All Designs remains reachable from HeroScreen via the existing onAllDesigns handler (no new navigation target/screen), now as the compact entry below the carousel', () => {
   assert.ok(heroBlock.includes('onClick={onAllDesigns}'));
-  assert.ok(heroBlock.includes("{t('allDesigns', lang)}"));
+  assert.ok(heroBlock.includes("{t('viewAllDesignsEntry', lang)}"));
 });
 
 test('14. Professional Details remains reachable via the existing onDetails handler, unchanged', () => {
@@ -175,6 +199,14 @@ test('19. no new Lash Map renderer/diagram is introduced by this phase', () => {
 
 test('20. data-hero-design-id is a canonical-id-only test hook, never the presentation label', () => {
   assert.ok(heroBlock.includes('data-hero-design-id={best.id}'));
+});
+
+test('20b. RESULTS DESIGN DISCOVERY: the carousel introduces zero new recommendation/scoring calls — canonicalRecommendationProps is called exactly twice in HeroScreen (once for the Hero, once inside the carousel map), never rankDesigns/rankDesignsAll/buildDesignResult directly', () => {
+  const canonicalCallCount = (heroBlock.match(/canonicalRecommendationProps\(/g) || []).length;
+  assert.strictEqual(canonicalCallCount, 2, 'expected exactly 2 canonicalRecommendationProps call sites (Hero + carousel), found ' + canonicalCallCount);
+  assert.ok(!heroBlock.includes('rankDesigns('));
+  assert.ok(!heroBlock.includes('rankDesignsAll('));
+  assert.ok(!heroBlock.includes('buildDesignResult('));
 });
 
 // ------------------------------------------------------------

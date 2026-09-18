@@ -490,6 +490,15 @@
       recommendedDesigns: {ru:'Рекомендуемые дизайны', en:'Recommended designs'},
       allDesigns: {ru:'Все дизайны →', en:'All designs →'},
       viewMap: {ru:'ОТКРЫТЬ КАРТУ →', en:'VIEW MAP →'},
+      // RESULTS DESIGN DISCOVERY — additive only, see HeroScreen's
+      // alternatives carousel below. moreDesignsForYou is the carousel's
+      // own section heading (distinct from recommendedDesigns above,
+      // which the carousel replaces); viewAllDesignsEntry is the compact
+      // entry below the carousel into the EXISTING AllDesignsScreen
+      // (same destination as the allDesigns key above, just a second,
+      // more discoverable entry point) — never a new screen.
+      moreDesignsForYou: {ru:'Ещё подходящие дизайны', en:'More designs for you'},
+      viewAllDesignsEntry: {ru:'Смотреть все дизайны', en:'View all designs'},
       // RESULTS HERO V1 — additive only, no existing key renamed/reused
       // for a different meaning. heroMatchLabel pairs with the existing
       // numeric d.score (e.g. "77% совпадение" / "77% match"); the CTA
@@ -9785,45 +9794,44 @@
               </div>
             )}
 
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="label-tech">{t('recommendedDesigns', lang)}</h3>
-              <button onClick={onAllDesigns} className="text-xs text-accent font-medium uppercase tracking-wide">{t('allDesigns', lang)}</button>
-            </div>
-            <div className="space-y-3 mb-6">
-              {result.designs.slice(1).map((raw, i) => {
-                // Same existing per-card path as before, just offset by
-                // one rank since result.designs[0] is now featured above
-                // instead of appearing a second time here — never a
-                // second ranking/localization mechanism.
+            {/* RESULTS DESIGN DISCOVERY — horizontal carousel of up to 5
+                personalized alternatives (rank 1..5, never rank 0 —
+                that stays exclusively in the Hero above). Reads the
+                SAME result.designs/canonicalRecommendationProps/
+                tierBadge/MatchBar/onViewMap this screen already used
+                for its previous vertical list — no new ranking, no new
+                recommendation data, no new navigation handler. The
+                partially-visible next card (each card ~78% of the
+                content width) is the swipe affordance itself; no
+                instructional copy, no pagination dots, no carousel
+                library — plain CSS horizontal overflow + scroll-snap. */}
+            <h3 className="label-tech mb-3">{t('moreDesignsForYou', lang)}</h3>
+            <div data-alt-carousel="1" className="flex gap-3 overflow-x-auto hide-scrollbar pb-1 mb-3" style={{ scrollSnapType: 'x mandatory' }}>
+              {result.designs.slice(1, 6).map((raw, i) => {
                 const rank = i + 1;
                 const d = canonicalRecommendationProps(raw, p, lang, rank);
                 return (
-                <div key={d.id} className="glass rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg font-extrabold leading-none text-textMuted">{String(rank+1).padStart(2,'0')}</span>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold tracking-wider uppercase text-textMuted">{tierBadge(rank, d.score, d.category, lang)}</span>
-                        <h4 className="text-base font-semibold text-textPrimary">{d.name.toUpperCase()}</h4>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  <button
+                    key={d.id}
+                    data-alt-design-id={d.id}
+                    onClick={() => onViewMap(d.clientDesign)}
+                    className="glass rounded-lg p-4 text-left press-scale flex-shrink-0"
+                    style={{ width: '78%', scrollSnapAlign: 'start' }}
+                  >
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-textMuted block mb-1.5">{tierBadge(rank, d.score, d.category, lang)}</span>
+                    <h4 className="text-base font-semibold text-textPrimary mb-2 line-clamp-1">{d.name.toUpperCase()}</h4>
+                    <div className="flex items-center gap-2 mb-3">
                       <span className="text-lg font-bold text-textPrimary">{d.score}%</span>
                       <MatchBar score={d.score} />
                     </div>
-                  </div>
-                  <p className="text-sm text-textSecondary leading-relaxed mb-3">{d.whyItWorks}</p>
-                  {d.limitations.length > 0 && (
-                    <p className="text-xs text-peak/90 mb-3 flex items-start gap-1.5">
-                      <ParamIcon name="asymmetry" className="w-3.5 h-3.5 text-peak flex-shrink-0 mt-0.5" />
-                      <span>{d.limitations[0]}</span>
-                    </p>
-                  )}
-                  <button onClick={() => onViewMap(d.clientDesign)} className="w-full py-2.5 rounded-md bg-white/[0.06] border border-border text-textPrimary text-xs font-semibold uppercase tracking-wide press-scale">{t('viewMap', lang)}</button>
-                </div>
+                    <span className="text-[11px] text-accent font-semibold uppercase tracking-wide">{t('openLabel', lang)} →</span>
+                  </button>
                 );
               })}
             </div>
+            <button onClick={onAllDesigns} className="w-full py-3 rounded-md border border-border bg-white/[0.02] text-textSecondary text-xs font-semibold uppercase tracking-wide press-scale mb-6">
+              {t('viewAllDesignsEntry', lang)}
+            </button>
 
             <button onClick={naturalLashProfile ? onViewLashProfile : onScanLashes} className="w-full glass rounded-lg p-4 mb-6 flex items-center justify-between text-left press-scale">
               <div className="flex items-center gap-3">

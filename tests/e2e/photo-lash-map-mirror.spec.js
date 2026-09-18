@@ -51,8 +51,12 @@ async function reachLashMapFor(page, designName) {
 
   // HeroScreen -> All Designs (catalog, every one of the 21 real designs,
   // not just the top-6 recommended) -> deterministic Fox/Cat selection,
-  // independent of this fixture's actual top recommendation rank.
-  const allDesignsBtn = page.getByRole('button', { name: 'Все дизайны →', exact: true });
+  // independent of this fixture's actual top recommendation rank. Entry
+  // point is the "View all designs" row RESULTS DESIGN DISCOVERY added
+  // below the alternatives carousel (same onAllDesigns handler/
+  // AllDesignsScreen destination as the prior "Все дизайны →" header
+  // link it replaced -- text changed, navigation target did not).
+  const allDesignsBtn = page.getByRole('button', { name: 'Смотреть все дизайны', exact: true });
   await allDesignsBtn.waitFor({ state: 'attached', timeout: 20_000 });
   await allDesignsBtn.scrollIntoViewIfNeeded();
   await expect(allDesignsBtn).toBeVisible({ timeout: 10_000 });

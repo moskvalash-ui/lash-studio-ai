@@ -59,9 +59,14 @@ test('real analysis: Hero selection, new client durability, existing client appe
   // save from there, proving Hero always saves its current #1
   // recommendation regardless of what was last viewed on the map (see
   // tests/save-to-client-flow.test.js and the comment on
-  // App()'s handleSaveToClient).
-  const mapButtons = page.getByRole('button', { name: 'ОТКРЫТЬ КАРТУ →', exact: true });
-  await mapButtons.nth(1).click();
+  // App()'s handleSaveToClient). The alternatives carousel RESULTS
+  // DESIGN DISCOVERY added is itself the same result.designs.slice(1,6)
+  // list the old plain-card list rendered -- each card is now the
+  // clickable element directly (data-alt-design-id), rank 0/Hero
+  // excluded either way -- so .nth(1) still opens a genuinely
+  // non-best, non-rank-0 design's map.
+  const altCards = page.locator('[data-alt-carousel] [data-alt-design-id]');
+  await altCards.nth(1).click();
   await page.locator('button').filter({ has: page.locator('svg path[d="M15 19l-7-7 7-7"]') }).click();
   await chooseNew(page, 'Synthetic CLIENT-3 E2E');
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();

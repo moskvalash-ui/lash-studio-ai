@@ -38,11 +38,15 @@ async function clickBack(page) {
 // tests/save-to-client-flow.test.js test P). This is what lets two
 // visits saved from the very same fixture photo carry two genuinely
 // distinct designSnapshot.designId values.
+// RESULTS DESIGN DISCOVERY replaced the old plain div-card + nested
+// "ОТКРЫТЬ КАРТУ →" button list with a horizontal carousel whose cards
+// ARE the clickable elements directly (data-alt-design-id) -- same
+// underlying result.designs.slice(1,6) order, same onViewMap(d.clientDesign)
+// handler, so index N still opens the exact Nth-ranked alternative.
 async function openNthDesignMapAndBeginSave(page, index) {
-  const mapButtons = page.getByRole('button', { name: 'ОТКРЫТЬ КАРТУ →', exact: true });
-  const cards = page.locator('div.glass.rounded-lg.p-4').filter({ has: mapButtons });
+  const cards = page.locator('[data-alt-carousel] [data-alt-design-id]');
   const name = await cards.nth(index).locator('h4').innerText();
-  await mapButtons.nth(index).click();
+  await cards.nth(index).click();
   await page.getByRole('button', { name: 'Сохранить клиентке', exact: true }).click();
   return name;
 }

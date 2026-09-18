@@ -38,7 +38,14 @@ const STRINGS = extractObjectLiteral('STRINGS');
 // late-resolution track cleanup, idempotent teardown.
 // ------------------------------------------------------------
 const cameraEffectStart = liveScanSource.indexOf('      useEffect(() => {\n        let stream;');
-const cameraEffectEnd = liveScanSource.indexOf('}, [facingMode]);', cameraEffectStart) + '}, [facingMode]);'.length;
+// RELEASE FIX #1 — dependency array grew from [facingMode] to
+// [facingMode, cameraRetryToken] so the Retry button (added by that
+// fix) can re-trigger this exact same effect from the no-camera
+// state, reusing its existing cleanup-then-start lifecycle. The
+// effect's own logic (cancellation guard, cleanup ordering, track
+// handling) is otherwise byte-identical, which every other test below
+// still verifies directly against the real source.
+const cameraEffectEnd = liveScanSource.indexOf('}, [facingMode, cameraRetryToken]);', cameraEffectStart) + '}, [facingMode, cameraRetryToken]);'.length;
 assert.ok(cameraEffectStart >= 0 && cameraEffectEnd > cameraEffectStart, 'camera-init effect must be structurally extractable');
 const cameraEffect = liveScanSource.slice(cameraEffectStart, cameraEffectEnd);
 

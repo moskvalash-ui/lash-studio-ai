@@ -807,11 +807,49 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       "            const diagStageKey = hasHadValidFrameRef.current ? 'stageRealigning' : 'stageFaceDetected';\n" +
       "            const diagHintKey = boxClipped ? 'hintCenterFace' : (REASON_MESSAGES[quality.reasons[0]] || null);"
     );
+  // Approved RELEASE FIX #1 (Live Scan camera error/retry): the no-camera
+  // catch block now classifies permission-denial vs. other acquisition
+  // failure (cameraErrorKind) instead of a single generic branch, a
+  // cameraErrorKind reset line was added to the effect's initial state
+  // reset, two new useState declarations were added, the acquisition
+  // effect's dependency array grew from [facingMode] to
+  // [facingMode, cameraRetryToken] so a Retry button can re-trigger the
+  // SAME existing cleanup-then-start lifecycle, and the hint paragraph
+  // gained a stageKey==='stageNoCamera' branch (camera-specific message +
+  // Retry button) instead of ever falling through to holdSteady. Five
+  // disjoint insertions/edits, each normalized back to its pre-fix form —
+  // same technique as every other normalizer here — so this guard still
+  // fails loudly on any OTHER, unrelated drift in LiveScanScreen. Runs
+  // FIRST (innermost, before omitCloseFaceRecoveryFix): its catch-block
+  // and dependency-array reversals restore the exact literal text
+  // omitLiveScanLifecycleFix's own replacements further down the chain
+  // expect to match against.
+  const omitCameraRetryFix = span => span
+    .replace(
+      "      const [everLocked, setEverLocked] = useState(false);\n      const [stabilityLocked, setStabilityLocked] = useState(false);\n      // RELEASE FIX #1 — LIVE SCAN CAMERA ERROR / RETRY. cameraErrorKind\n      // distinguishes a real getUserMedia permission denial ('denied',\n      // e.name === 'NotAllowedError') from any other acquisition\n      // failure ('unavailable' — no device, hardware busy, etc.),\n      // purely to pick which of the two fixed camera-specific messages\n      // to show below; the raw exception is never rendered to the user.\n      // cameraRetryToken is a plain counter the Retry button bumps; it\n      // is added to the acquisition effect's own dependency array\n      // further below so the SAME existing cleanup-then-start\n      // lifecycle (already stops any stale stream/interval before\n      // re-acquiring, for every other dependency change) runs again —\n      // no new stream-management logic, no duplicate active streams.\n      const [cameraErrorKind, setCameraErrorKind] = useState(null);\n      const [cameraRetryToken, setCameraRetryToken] = useState(0);",
+      "      const [everLocked, setEverLocked] = useState(false);\n      const [stabilityLocked, setStabilityLocked] = useState(false);"
+    )
+    .replace(
+      "        setStageKey('stageSearching'); setPhase('searching'); setProgress(0); setHintKey(null);\n        setCameraErrorKind(null);\n",
+      "        setStageKey('stageSearching'); setPhase('searching'); setProgress(0); setHintKey(null);\n"
+    )
+    .replace(
+      "          } catch (e) {\n            // RELEASE FIX #1 — 'NotAllowedError' is the spec-standard\n            // getUserMedia rejection name for a user/OS permission\n            // denial; every other failure (no device, hardware busy,\n            // OverconstrainedError, etc.) falls back to the generic\n            // camera-unavailable message. e itself is never stored or\n            // rendered.\n            if (!cancelled) {\n              setStageKey('stageNoCamera');\n              setCameraErrorKind(e && e.name === 'NotAllowedError' ? 'denied' : 'unavailable');\n              setHintKey(null);\n            }\n            return;\n          }",
+      "          } catch (e) {\n            if (!cancelled) { setStageKey('stageNoCamera'); setHintKey(null); }\n            return;\n          }"
+    )
+    .replace(
+      "      }, [facingMode, cameraRetryToken]);",
+      "      }, [facingMode]);"
+    )
+    .replace(
+      "            {/* RELEASE FIX #1 — the no-camera state gets its own\n                explicit, camera-specific message + Retry action instead\n                of ever falling through to the generic holdSteady text\n                (which is misleading when there is no camera feed at\n                all). Retry re-runs the SAME acquisition effect via\n                cameraRetryToken — no new navigation, no new stream\n                logic. */}\n            {stageKey === 'stageNoCamera' ? (\n              <div className=\"w-full flex flex-col items-center gap-3\">\n                <p className=\"text-xs text-textSecondary text-center min-h-[16px]\">\n                  {t(cameraErrorKind === 'denied' ? 'hintCameraPermissionDenied' : 'hintCameraUnavailable', lang)}\n                </p>\n                <button onClick={() => setCameraRetryToken(v => v + 1)} className=\"px-5 py-2.5 rounded-full glass text-xs font-semibold text-white press-scale\">\n                  {t('retryCameraButton', lang)}\n                </button>\n              </div>\n            ) : (\n              <p className=\"text-xs text-textSecondary text-center min-h-[16px]\">{hint || t('holdSteady', lang)}</p>\n            )}",
+      "            <p className=\"text-xs text-textSecondary text-center min-h-[16px]\">{hint || t('holdSteady', lang)}</p>"
+    );
   // omitCloseFaceRecoveryFix runs FIRST (innermost): it must revert to the
   // Issue-B post-diagnostic form (decideStage/decideHint, REASON_MESSAGES-
   // based hint lookup) BEFORE undoIssueB looks for that exact form to
   // revert further back to true pre-Issue-B HEAD text.
-  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(span)))))))))));
+  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(omitCameraRetryFix(span))))))))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');

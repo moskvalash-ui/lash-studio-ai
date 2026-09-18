@@ -257,6 +257,14 @@
       stageScanError: {ru:'Ошибка сканирования', en:'Scan error'},
       hintRestartScan: {ru:'Попробуйте запустить сканирование снова.', en:'Please start the scan again.'},
       holdSteady: {ru:'Держите лицо неподвижно в кадре', en:'Hold your face steady in frame'},
+      // RELEASE FIX #1 — camera acquisition failure/permission-denial
+      // guidance, distinct from the generic holdSteady/hintRestartScan
+      // strings above (neither applies when there is no camera feed at
+      // all). Never shows e.name/e.message — only these two fixed,
+      // localized messages.
+      hintCameraPermissionDenied: {ru:'Нет доступа к камере. Разрешите доступ в настройках браузера и повторите попытку.', en:'Camera access is required. Please allow camera access and try again.'},
+      hintCameraUnavailable: {ru:'Не удалось подключиться к камере. Проверьте, что она не используется другим приложением, и повторите попытку.', en:'Couldn’t access the camera. Make sure it isn’t being used by another app, then try again.'},
+      retryCameraButton: {ru:'Повторить попытку', en:'Retry Camera'},
       hintLowConf: {ru:'Лицо видно нечётко — улучшите освещение', en:'Face unclear — improve lighting'},
       hintLookStraight: {ru:'Смотрите прямо', en:'Look straight ahead'},
       hintEyesClosed: {ru:'Не закрывайте глаза', en:'Keep both eyes visible'},
@@ -7340,6 +7348,20 @@
       const [railSeg, setRailSeg] = useState(-1);
       const [everLocked, setEverLocked] = useState(false);
       const [stabilityLocked, setStabilityLocked] = useState(false);
+      // RELEASE FIX #1 — LIVE SCAN CAMERA ERROR / RETRY. cameraErrorKind
+      // distinguishes a real getUserMedia permission denial ('denied',
+      // e.name === 'NotAllowedError') from any other acquisition
+      // failure ('unavailable' — no device, hardware busy, etc.),
+      // purely to pick which of the two fixed camera-specific messages
+      // to show below; the raw exception is never rendered to the user.
+      // cameraRetryToken is a plain counter the Retry button bumps; it
+      // is added to the acquisition effect's own dependency array
+      // further below so the SAME existing cleanup-then-start
+      // lifecycle (already stops any stale stream/interval before
+      // re-acquiring, for every other dependency change) runs again —
+      // no new stream-management logic, no duplicate active streams.
+      const [cameraErrorKind, setCameraErrorKind] = useState(null);
+      const [cameraRetryToken, setCameraRetryToken] = useState(0);
       // EYELID CREASE V2 — DEBUG SHADOW MODE ONLY. debugAvailable gates
       // whether detectEyelidCreaseV2 runs AT ALL (see the tick handler
       // below) — in normal mode it never executes, so it costs nothing.
@@ -8062,6 +8084,7 @@
         completionRef.current.start = -Infinity;
         setRailSeg(-1); setEverLocked(false); setStabilityLocked(false);
         setStageKey('stageSearching'); setPhase('searching'); setProgress(0); setHintKey(null);
+        setCameraErrorKind(null);
 
         // LIFECYCLE FIX — unexpected camera-track termination (OS
         // revokes access while backgrounded, another app takes the
@@ -8120,7 +8143,17 @@
             }
             if (cancelled) return;
           } catch (e) {
-            if (!cancelled) { setStageKey('stageNoCamera'); setHintKey(null); }
+            // RELEASE FIX #1 — 'NotAllowedError' is the spec-standard
+            // getUserMedia rejection name for a user/OS permission
+            // denial; every other failure (no device, hardware busy,
+            // OverconstrainedError, etc.) falls back to the generic
+            // camera-unavailable message. e itself is never stored or
+            // rendered.
+            if (!cancelled) {
+              setStageKey('stageNoCamera');
+              setCameraErrorKind(e && e.name === 'NotAllowedError' ? 'denied' : 'unavailable');
+              setHintKey(null);
+            }
             return;
           }
           if (cancelled) return;
@@ -8137,7 +8170,7 @@
           if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
           if (videoRef.current) videoRef.current.srcObject = null;
         };
-      }, [facingMode]);
+      }, [facingMode, cameraRetryToken]);
 
       // Cinematic overlay redraw loop (~60/sec). Reads the latest
       // real detection (lastDetRef) plus phase/alignment/timestamps
@@ -8385,7 +8418,25 @@
                 </div>
               ))}
             </div>
-            <p className="text-xs text-textSecondary text-center min-h-[16px]">{hint || t('holdSteady', lang)}</p>
+            {/* RELEASE FIX #1 — the no-camera state gets its own
+                explicit, camera-specific message + Retry action instead
+                of ever falling through to the generic holdSteady text
+                (which is misleading when there is no camera feed at
+                all). Retry re-runs the SAME acquisition effect via
+                cameraRetryToken — no new navigation, no new stream
+                logic. */}
+            {stageKey === 'stageNoCamera' ? (
+              <div className="w-full flex flex-col items-center gap-3">
+                <p className="text-xs text-textSecondary text-center min-h-[16px]">
+                  {t(cameraErrorKind === 'denied' ? 'hintCameraPermissionDenied' : 'hintCameraUnavailable', lang)}
+                </p>
+                <button onClick={() => setCameraRetryToken(v => v + 1)} className="px-5 py-2.5 rounded-full glass text-xs font-semibold text-white press-scale">
+                  {t('retryCameraButton', lang)}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-textSecondary text-center min-h-[16px]">{hint || t('holdSteady', lang)}</p>
+            )}
           </div>
           {cameraLayoutDebugEnabled && <CameraLayoutDebugPanel videoRef={videoRef} containerRef={containerRef}
             overlayRef={overlayCanvasRef} captureRef={cameraLayoutDebugRef}

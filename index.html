@@ -4,6 +4,77 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>LASH STUDIO AI</title>
+  <!-- RELEASE FIX #3 — BOOT WATCHDOG. Plain, native, non-"text/babel"
+       script — runs regardless of whether Tailwind/React/ReactDOM/
+       Babel/face-api ever load, since it is the FIRST element in
+       <head>, before any of those CDN <script> tags. If the app has
+       not populated #root within BOOT_WATCHDOG_MS (a real CDN/parse/
+       mount failure, not a slow-but-working load — see the value's
+       own justification below), it shows a minimal, hardcoded-string,
+       inline-styled (never a Tailwind class, since Tailwind itself may
+       be the thing that failed) error state instead of leaving the
+       user on an unexplained blank page. A late, slow-but-successful
+       mount removes the fallback automatically (safety poll below) —
+       this never wins a race against a real, working app. Entirely
+       separate from — and never touches — the EXISTING face-api
+       MODEL-loading error UI (HomeScreen's modelsError/loadError/
+       retryLoad), which only ever runs AFTER React has already
+       mounted and covers a completely different failure (models, not
+       bootstrap). window.__BOOT_WATCHDOG_MS lets tests override the
+       real 10s timeout deterministically via page.addInitScript,
+       without waiting on a real slow/broken CDN. -->
+  <script>
+    (function () {
+      // 10s: generous enough to cover CDN fetch (Tailwind + React +
+      // ReactDOM + Babel + face-api + the local dependency-free
+      // scripts, all synchronous/blocking) + in-browser Babel
+      // transpilation of this file + React's first mount on a slow
+      // mobile connection/device, per this codebase's own documented
+      // real-device evidence that first-load/first-inference latency
+      // on this app can genuinely run several seconds (see the
+      // App-level model-loading warm-up fix) — short enough that a
+      // genuinely broken load doesn't leave a real user staring at a
+      // blank screen indefinitely.
+      var BOOT_WATCHDOG_MS = window.__BOOT_WATCHDOG_MS || 10000;
+      function rootHasMounted() {
+        var root = document.getElementById('root');
+        return !!(root && root.childElementCount > 0);
+      }
+      function showBootFallback() {
+        if (rootHasMounted() || document.querySelector('[data-boot-fallback]')) return;
+        var lang = 'ru';
+        try { lang = localStorage.getItem('lashStudioLang') || 'ru'; } catch (e) {}
+        var en = lang === 'en';
+        var wrap = document.createElement('div');
+        wrap.setAttribute('data-boot-fallback', '1');
+        wrap.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;background:#02060B;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;text-align:center;';
+        var title = document.createElement('p');
+        title.style.cssText = 'margin:0;font-size:16px;font-weight:600;color:#EF4444;';
+        title.textContent = en ? 'Unable to load the app' : 'Не удалось загрузить приложение';
+        var body = document.createElement('p');
+        body.style.cssText = 'margin:0;max-width:320px;font-size:13px;line-height:1.5;color:#8E9AA8;';
+        body.textContent = en ? 'Check your internet connection and try again.' : 'Проверьте интернет-соединение и попробуйте ещё раз.';
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.cssText = 'margin-top:6px;padding:12px 32px;border:none;border-radius:8px;background:#0A8CFF;color:#fff;font-size:13px;font-weight:700;letter-spacing:0.08em;';
+        btn.textContent = en ? 'RETRY' : 'ПОВТОРИТЬ';
+        btn.onclick = function () { location.reload(); };
+        wrap.appendChild(title); wrap.appendChild(body); wrap.appendChild(btn);
+        (document.body || document.documentElement).appendChild(wrap);
+        // Safety poll: if a slow-but-working boot finishes AFTER the
+        // watchdog already fired, remove the fallback the moment #root
+        // is actually populated — the real app always wins.
+        var poll = setInterval(function () {
+          if (rootHasMounted()) {
+            var el = document.querySelector('[data-boot-fallback]');
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+            clearInterval(poll);
+          }
+        }, 300);
+      }
+      setTimeout(showBootFallback, BOOT_WATCHDOG_MS);
+    })();
+  </script>
   <!-- SECURITY-2C: pinned to the exact version already being served
        (verified byte-identical to the prior unversioned redirect target
        at pinning time). Tailwind's CDN response carries no

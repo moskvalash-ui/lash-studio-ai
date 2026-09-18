@@ -1192,10 +1192,14 @@ test('J3. the model-loading effect + untouched handlers (retryLoad/viewMap/handl
   // viewMap gained a second (origin) parameter and a setLashMapOrigin
   // call, so LashMapScreen's Back can return to whichever screen
   // (Hero/AllDesignsScreen) it was actually opened from instead of
-  // always 'hero'. Normalized back to its pre-fix form on curTail
-  // only (HEAD predates this fix entirely) — same technique as every
-  // other normalizer here — so this guard still fails loudly on any
-  // OTHER, unrelated drift to retryLoad/viewMap/handleLashScanComplete.
+  // always 'hero'. RELEASE FIX #2 has since landed on main (commit
+  // e33e282), so HEAD now legitimately carries this fix too — same
+  // situation as CLIENT-3/handleSaveToClient below, so this is
+  // normalized out of BOTH sides identically, not curTail only.
+  // (curTail-only was correct only in the earlier pre-commit window
+  // when HEAD still predated the fix; left asymmetric after the fix
+  // landed, this guard would fail against itself, not against any
+  // real drift.)
   const omitLashMapOriginFix = span => span.replace(
     "const viewMap = (design, origin) => { setActiveDesign(design); setLashMapOrigin(origin || 'hero'); setScreen('lashmap'); };",
     "const viewMap = (design) => { setActiveDesign(design); setScreen('lashmap'); };"
@@ -1207,7 +1211,7 @@ test('J3. the model-loading effect + untouched handlers (retryLoad/viewMap/handl
   // assertion fail permanently regardless of any OTHER drift -- the
   // exact stale-comparison bug this normalization exists to avoid.
   const curTail = omitSaveToClientHandler(omitLashMapOriginFix(extractSpan(src, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>')));
-  const prevTail = omitSaveToClientHandler(extractSpan(HEAD, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>'));
+  const prevTail = omitSaveToClientHandler(omitLashMapOriginFix(extractSpan(HEAD, '      const retryLoad = ', '\n\n      return (\n        <LangContext.Provider value={lang}>')));
   assert.ok(curTail !== null && prevTail !== null, 'expected to locate retryLoad..handleLashScanComplete in both current and HEAD source');
   assert.strictEqual(curTail, prevTail, 'retryLoad/viewMap/handleLashScanComplete must be byte-identical — Stage 2.1-2.3 does not touch them');
 

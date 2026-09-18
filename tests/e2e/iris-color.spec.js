@@ -120,7 +120,14 @@ test('real Iris Color happy path: real photo -> real pipeline -> displayed BLUE 
 });
 
 test('real Iris Color happy path: real photo -> real pipeline -> displayed BROWN category on HeroScreen', async ({ page }) => {
-  test.setTimeout(60_000);
+  // Real trace evidence (Final V1 Release Regression gate) showed the
+  // real pipeline for this fixture still genuinely progressing through
+  // later real milestones (face detection quality gate, Results screen
+  // reached) well after the original 60s budget elapsed -- not stuck,
+  // just slower than 60s for this fixture in this environment. Raised
+  // to the same 90s budget already established elsewhere this session
+  // for the same class of real-inference timing variance.
+  test.setTimeout(90_000);
 
   const FIXTURE = path.join(FIXTURES_DIR, 'iris-brown.png');
   const { irisValue, pageErrors } = await runRealPhotoAnalysisToIrisResult(page, FIXTURE);

@@ -424,11 +424,16 @@ test('P2. choosing another Hero card saves that exact map selection, including a
   const first = buildRealClientDesign({ design: { id: 'fox' } });
   const selected = buildRealClientDesign({ design: { id: 'cat' } });
   const result = buildRealResult({ designs: [{ clientDesign: first }, { clientDesign: selected }] });
-  const viewMapSource = appBlock.match(/const viewMap = \(design\) => \{[^\n]+/)[0];
+  // RELEASE FIX #2 — viewMap gained a second (origin) parameter and now
+  // also calls setLashMapOrigin; this test is about activeDesign/screen
+  // selection only (proven below), so setLashMapOrigin is stubbed as a
+  // no-op here — Lash Map origin/Back-navigation behavior itself is
+  // covered by tests/e2e/lashmap-back-navigation.spec.js.
+  const viewMapSource = appBlock.match(/const viewMap = \(design, origin\) => \{[^\n]+/)[0];
   let activeDesign = first;
   let screen = 'hero';
-  new Function('setActiveDesign', 'setScreen', 'selected', viewMapSource + '\nviewMap(selected);')(
-    design => { activeDesign = design; }, value => { screen = value; }, selected
+  new Function('setActiveDesign', 'setLashMapOrigin', 'setScreen', 'selected', viewMapSource + '\nviewMap(selected);')(
+    design => { activeDesign = design; }, () => {}, value => { screen = value; }, selected
   );
   const saved = saveDesignFromScreen(screen, result, activeDesign);
   assert.strictEqual(saved.saved, selected);

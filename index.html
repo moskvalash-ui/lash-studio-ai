@@ -14232,6 +14232,17 @@
       const [result, setResult] = useState(null);
       const [naturalLashProfile, setNaturalLashProfile] = useState(null);
       const [activeDesign, setActiveDesign] = useState(null);
+      // RELEASE FIX #2 — context-aware Lash Map Back navigation.
+      // lashMapOrigin records which screen viewMap was called FROM, so
+      // LashMapScreen's Back returns there instead of always going to
+      // 'hero'. Defaults to 'hero' (viewMap's own default arg below)
+      // since that's correct for both Hero call sites (best-design CTA
+      // and the alternatives carousel — neither passes an origin, both
+      // are already on 'hero' when clicked). Only AllDesignsScreen's
+      // wiring further below passes 'catalog' explicitly. Read ONLY by
+      // LashMapScreen's onBack; never affects activeDesign/clientDesign
+      // selection, ranking, or geometry.
+      const [lashMapOrigin, setLashMapOrigin] = useState('hero');
       const [modelsLoaded, setModelsLoaded] = useState(false);
       const [loadError, setLoadError] = useState(false);
       const [loadAttempt, setLoadAttempt] = useState(0);
@@ -14294,7 +14305,7 @@
       }, [modelsLoaded]);
 
       const retryLoad = () => setLoadAttempt(a => a + 1);
-      const viewMap = (design) => { setActiveDesign(design); setScreen('lashmap'); };
+      const viewMap = (design, origin) => { setActiveDesign(design); setLashMapOrigin(origin || 'hero'); setScreen('lashmap'); };
       const handleLashScanComplete = (profile) => { setNaturalLashProfile(profile); setScreen('lashprofile'); };
       // Hero saves its current first recommendation; only the map uses
       // activeDesign. Returning from a map must not leak that old selection
@@ -14329,8 +14340,8 @@
             {screen === 'photo' && <PhotoAnalysisScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} />}
             {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} onRescan={() => { if (typeof Analytics !== 'undefined') Analytics.track('rescan_started'); setScreen('home'); }} />}
             {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => { if (typeof Analytics !== 'undefined') Analytics.track('details_viewed'); setScreen('details'); }} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} onSaveToClient={handleSaveToClient} />}
-            {screen === 'catalog' && result && <AllDesignsScreen result={result} onSelect={viewMap} onBack={() => setScreen('hero')} />}
-            {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={LashDesignDomain.recommendationPropsFromClientDesign(activeDesign)} naturalLashProfile={naturalLashProfile} onBack={() => setScreen('hero')} onSaveToClient={handleSaveToClient} />}
+            {screen === 'catalog' && result && <AllDesignsScreen result={result} onSelect={(design) => viewMap(design, 'catalog')} onBack={() => setScreen('hero')} />}
+            {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={LashDesignDomain.recommendationPropsFromClientDesign(activeDesign)} naturalLashProfile={naturalLashProfile} onBack={() => setScreen(lashMapOrigin)} onSaveToClient={handleSaveToClient} />}
             {screen === 'details' && result && <DetailsScreen result={result} onBack={() => setScreen('hero')} />}
             {screen === 'lashscan' && <NaturalLashScanScreen onComplete={handleLashScanComplete} onBack={() => setScreen('hero')} modelsLoaded={modelsLoaded} />}
             {screen === 'lashprofile' && naturalLashProfile && <NaturalLashProfileScreen profile={naturalLashProfile} onDone={() => setScreen('hero')} onBack={() => setScreen('hero')} />}

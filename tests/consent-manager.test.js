@@ -261,13 +261,18 @@ test('I1. consent-manager.js is loaded as a plain global <script>, before the ma
 // index.html — still holds and is re-asserted below with the two now-
 // legitimate tokens removed from the forbidden list. tests/analytics.test.js
 // carries the more detailed Phase-2-scoped version of this guarantee.
-test('I2. NO real analytics PROVIDER SDK, provider script tag, or actual network-sending primitive exists anywhere in index.html (analytics.js\'s own consent-gated wrapper + its .track() call sites are Phase 2, reviewed/approved, and still only drive an inert no-op stub — see tests/analytics.test.js)', () => {
+test('I2. NO real analytics PROVIDER SDK, provider script tag, or actual network-sending primitive exists anywhere in index.html\'s CODE (Stage 3: analytics.js\'s own consent-gated wrapper is the ONLY reviewed/approved place a real provider — PostHog EU Cloud, HTTP-capture-only — may be driven from; see tests/analytics.test.js. Comments naming that approved vendor for documentation are not a violation — scan CODE ONLY, same line-comments-stripped pattern as I4/analytics.test.js, so this stays a real guard against an undocumented SECOND pathway sneaking directly into index.html rather than a ban on the word itself)', () => {
+  // Also strips the file's HTML `<!-- ... -->` doc comments (the top-of-
+  // file script-tag documentation block), not just `//` comments — those
+  // legitimately name the approved vendor for documentation, same reason
+  // as the `//` case above.
+  const codeOnly = stripLineComments(src).replace(/<!--[\s\S]*?-->/g, '');
   const forbiddenSignatures = [
     'plausible.io', 'umami', 'posthog', 'google-analytics', 'googletagmanager',
     'gtag(', 'fetch(', 'XMLHttpRequest', 'navigator.sendBeacon', 'new WebSocket',
   ];
-  const hits = forbiddenSignatures.filter((sig) => src.includes(sig));
-  assert.deepStrictEqual(hits, [], `index.html must never contain a real analytics provider signature or a real network-sending primitive; found: ${hits.join(', ')}`);
+  const hits = forbiddenSignatures.filter((sig) => codeOnly.includes(sig));
+  assert.deepStrictEqual(hits, [], `index.html code must never contain a real analytics provider signature or a real network-sending primitive; found: ${hits.join(', ')}`);
 });
 
 test('I3. consent-manager.js itself contains no network/analytics call of any kind', () => {
@@ -845,11 +850,22 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
       "            {/* RELEASE FIX #1 — the no-camera state gets its own\n                explicit, camera-specific message + Retry action instead\n                of ever falling through to the generic holdSteady text\n                (which is misleading when there is no camera feed at\n                all). Retry re-runs the SAME acquisition effect via\n                cameraRetryToken — no new navigation, no new stream\n                logic. */}\n            {stageKey === 'stageNoCamera' ? (\n              <div className=\"w-full flex flex-col items-center gap-3\">\n                <p className=\"text-xs text-textSecondary text-center min-h-[16px]\">\n                  {t(cameraErrorKind === 'denied' ? 'hintCameraPermissionDenied' : 'hintCameraUnavailable', lang)}\n                </p>\n                <button onClick={() => setCameraRetryToken(v => v + 1)} className=\"px-5 py-2.5 rounded-full glass text-xs font-semibold text-white press-scale\">\n                  {t('retryCameraButton', lang)}\n                </button>\n              </div>\n            ) : (\n              <p className=\"text-xs text-textSecondary text-center min-h-[16px]\">{hint || t('holdSteady', lang)}</p>\n            )}",
       "            <p className=\"text-xs text-textSecondary text-center min-h-[16px]\">{hint || t('holdSteady', lang)}</p>"
     );
+  // Approved CLOSED-BETA ANALYTICS patch: one Analytics.track('scan_failed',
+  // {mode:'live', reason_code:'processing_error'}) call added right before
+  // the existing pipeline-error stage transition. Normalized out of BOTH
+  // sides identically via the shared normalize() below (not curTail-only —
+  // see the J3 postmortem above this file for why an asymmetric normalizer
+  // is the wrong pattern once/if a fix lands on HEAD; a symmetric one like
+  // this is always safe, whether or not HEAD already has the text).
+  const omitAnalyticsScanFailedLiveFix = span => span.replace(
+    "          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'live', reason_code: 'processing_error' });\n          decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');",
+    "          decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');"
+  );
   // omitCloseFaceRecoveryFix runs FIRST (innermost): it must revert to the
   // Issue-B post-diagnostic form (decideStage/decideHint, REASON_MESSAGES-
   // based hint lookup) BEFORE undoIssueB looks for that exact form to
   // revert further back to true pre-Issue-B HEAD text.
-  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(omitCameraRetryFix(span))))))))))));
+  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(omitCameraRetryFix(omitAnalyticsScanFailedLiveFix(span)))))))))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
@@ -954,8 +970,30 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
       "          }\n",
       "          if (!det) { setState('error'); return; }\n"
     );
-  const curHead = omitPhotoQualityDebugHead(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length));
-  const prevHead = omitPhotoQualityDebugHead(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length));
+  // Approved CLOSED-BETA ANALYTICS patch: three Analytics.track('scan_failed',
+  // {mode:'photo', reason_code:...}) calls added at PhotoAnalysisScreen's
+  // three real failure sites (no_face_detected inside the !det branch,
+  // quality_rejected at the quality-gate short-circuit, processing_error
+  // inside the catch block). Stripped BEFORE the rest of the head/tail
+  // normalizer chains run, restoring the pre-patch form those chains
+  // already expect — symmetric (a no-op on the HEAD side, which has none
+  // of these lines), same pattern as LiveScanScreen's own
+  // omitAnalyticsScanFailedLiveFix above.
+  const omitPhotoAnalyticsScanFailedFix = span => span
+    .replace(
+      "            }\n            if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'no_face_detected' });\n            setState('error'); return;\n          }",
+      "            }\n            setState('error'); return;\n          }"
+    )
+    .replace(
+      "          if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }",
+      "          if (!photoQualityProceeds) { setState('error'); return; }"
+    )
+    .replace(
+      "          }\n          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'processing_error' });\n          setState('error');",
+      "          }\n          setState('error');"
+    );
+  const curHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length)));
+  const prevHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length)));
   assert.strictEqual(curHead, prevHead, 'everything before the sharpness measurement (detection, headPose, leftMetrics/rightMetrics, physical-eye normalization, brightness sampling) must be byte-identical to git HEAD');
 
   // (b) everything from the quality-gate call onward. outerEnd now also
@@ -1094,8 +1132,8 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
     }
     return out;
   };
-  const curTail = omitPhotoQualityDebugTail(src.slice(curQualityIdx, curOuterEnd));
-  const prevTail = omitPhotoQualityDebugTail(HEAD.slice(prevQualityIdx, prevOuterEnd));
+  const curTail = omitPhotoQualityDebugTail(omitPhotoAnalyticsScanFailedFix(src.slice(curQualityIdx, curOuterEnd)));
+  const prevTail = omitPhotoQualityDebugTail(omitPhotoAnalyticsScanFailedFix(HEAD.slice(prevQualityIdx, prevOuterEnd)));
   const debugStart = '          let irisColorAuditForRec = null;';
   const debugEnd = '          const designs = rankDesigns(classified, lang);';
   const omitIrisDebugAudit = (tail) => {

@@ -103,13 +103,14 @@
        land on window.ConsentManager. Phase 1 only: no analytics SDK,
        script, or network request exists anywhere in this codebase yet. -->
   <script src="consent-manager.js"></script>
-  <!-- Analytics (Phase 2, Stage 2.1-2.3): consent-gated event wrapper,
-       same dual-load pattern as consent-manager.js/lash-scan-core.js.
-       Exports land on window.Analytics. STAGE 2.1-2.3 ONLY: the
-       provider adapter inside analytics.js is an inert no-op stub —
-       no real analytics SDK/script/network request exists anywhere in
-       this codebase yet. See analytics.js's own header for the full
-       scope note. -->
+  <!-- Analytics (Phase 2, Stage 3 — closed-beta PostHog integration):
+       consent-gated event wrapper, same dual-load pattern as
+       consent-manager.js/lash-scan-core.js. Exports land on
+       window.Analytics. The provider behind Analytics sends approved,
+       schema-allowlisted events to PostHog EU Cloud over its plain HTTP
+       Capture API only — posthog-js itself (autocapture, session
+       replay, etc.) is never loaded. See analytics.js's own header for
+       the full scope note. -->
   <script src="analytics.js"></script>
   <!-- Professional Lash Library (Phase 1B-1P foundation): pure canonical
        identity/data module, same dual-load pattern as the other local
@@ -8117,6 +8118,7 @@
           console.error('[LSA] PIPELINE ERROR', e);
           if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null; }
           doneRef.current = true;
+          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'live', reason_code: 'processing_error' });
           decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');
         } finally {
           flushDetectorSample(diagnosticGeometry, diagnosticDecision);
@@ -9130,6 +9132,7 @@
                 exceptionInfo: null,
               });
             }
+            if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'no_face_detected' });
             setState('error'); return;
           }
 
@@ -9314,7 +9317,7 @@
             // read-only "debug shadow" way those two already are.
             if (photoQualityProceeds) console.log('[PhotoQualityDebug]', photoQualityDiag);
           }
-          if (!photoQualityProceeds) { setState('error'); return; }
+          if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }
 
           const leftBrowPts = physicalLeft.brow, rightBrowPts = physicalRight.brow;
           const leftCrease = detectEyelidCrease(canvas, leftEye, leftBrowPts);
@@ -9434,6 +9437,7 @@
               exceptionInfo: { name: (e && e.name) || 'Error', message: String((e && e.message) || e || 'unknown') },
             });
           }
+          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'processing_error' });
           setState('error');
         }
       };
@@ -9904,7 +9908,7 @@
                   <MatchBar score={best.score} />
                 </div>
                 <p className="text-sm text-textSecondary leading-relaxed mb-5 line-clamp-2">{best.whyItWorks}</p>
-                <button onClick={() => onViewMap(best.clientDesign)} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-3">
+                <button onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: best.id, origin: 'best_design' }); onViewMap(best.clientDesign); }} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-3">
                   {t('heroOpenLashMap', lang)}
                 </button>
                 {onSaveToClient && (
@@ -9936,7 +9940,7 @@
                   <button
                     key={d.id}
                     data-alt-design-id={d.id}
-                    onClick={() => onViewMap(d.clientDesign)}
+                    onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: d.id, origin: 'results_carousel' }); onViewMap(d.clientDesign); }}
                     className="glass rounded-lg p-4 text-left press-scale flex-shrink-0"
                     style={{ width: '78%', scrollSnapAlign: 'start' }}
                   >
@@ -10088,7 +10092,7 @@
                   {all.filter(d => d.category === cat).map((d) => {
                     const rank = all.findIndex(x=>x.id===d.id);
                     return (
-                      <button key={d.id} onClick={() => onSelect(d.clientDesign)} className="w-full glass rounded-lg p-4 text-left press-scale block">
+                      <button key={d.id} onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: d.id, origin: 'all_designs' }); onSelect(d.clientDesign); }} className="w-full glass rounded-lg p-4 text-left press-scale block">
                         <div className="flex justify-between items-start mb-1.5">
                           <h4 className="text-sm font-semibold text-textPrimary">{d.name.toUpperCase()}</h4>
                           <span className={`text-sm font-bold flex-shrink-0 ml-2 ${rank===0 ? 'text-accent' : 'text-textPrimary'}`}>{d.score}%</span>
@@ -11991,6 +11995,7 @@
           if (!store || !clientId) { setLoading(false); return; }
           const [c, v] = await Promise.all([store.getClient(clientId), store.listVisitsForClient(clientId)]);
           if (cancelled) return;
+          if (c && typeof Analytics !== 'undefined') Analytics.track('client_card_viewed');
           setClient(c);
           setVisits(v);
           setLoading(false);
@@ -14028,30 +14033,38 @@
       };
 
       // ------------------------------------------------------------
-      // ANALYTICS — Phase 2, Stage 2.1-2.3. The ONLY place this app
-      // reads consent for analytics purposes: whenever `consent`
-      // changes (Accept/Reject/Customize-save/withdraw, including the
-      // very first render for a returning already-decided user),
-      // re-read the decision through the EXISTING
-      // ConsentManager.isAnalyticsAllowed(storage) — the same function
-      // the rest of the app already trusts as the single source of
-      // truth for "is analytics allowed right now" — and forward that
-      // boolean into Analytics.setConsent(...). This file never
-      // recomputes the analytics-allowed boolean itself (no
+      // ANALYTICS — Phase 2, Stage 3 (closed-beta PostHog integration).
+      // The ONLY place this app reads consent for analytics purposes:
+      // whenever `consent` changes (Accept/Reject/Customize-save/
+      // withdraw, including the very first render for a returning
+      // already-decided user), re-read the decision through the
+      // EXISTING ConsentManager.isAnalyticsAllowed(storage) — the same
+      // function the rest of the app already trusts as the single
+      // source of truth for "is analytics allowed right now" — and
+      // forward that boolean into Analytics.setConsent(...). This file
+      // never recomputes the analytics-allowed boolean itself (no
       // `consent.analytics === true` duplicated here); it defers
       // entirely to ConsentManager. Analytics itself (analytics.js)
       // re-checks this on every track() call, not just here — so a
       // withdrawal takes effect immediately, not only on the next
-      // render. Stage 2.1-2.3: the provider behind Analytics is an
-      // inert no-op stub — this effect never causes a real
-      // script/network request regardless of the boolean's value (see
-      // analytics.js's header).
+      // render, without a reload. The provider behind Analytics is a
+      // real one (PostHog EU Cloud, plain HTTP Capture API only — see
+      // analytics.js's header); this effect's boolean is what gates
+      // whether that provider ever loads or sends anything at all.
       // ------------------------------------------------------------
       useEffect(() => {
         if (typeof Analytics !== 'undefined' && typeof ConsentManager !== 'undefined') {
           Analytics.setConsent(ConsentManager.isAnalyticsAllowed(consentStorageRef.current));
         }
       }, [consent]);
+
+      // Fires once per app load, regardless of the current consent
+      // state at that moment — Analytics.track() itself is the gate
+      // (silently no-ops pre-consent, exactly like every other call
+      // site in this file); this effect never checks consent itself.
+      useEffect(() => {
+        if (typeof Analytics !== 'undefined') Analytics.track('app_open');
+      }, []);
 
       // Debug-only entry point: ?debug=library lands directly on the
       // read-only Professional Lash Library preview. Read once at
@@ -14105,7 +14118,7 @@
       const openClientCard = (id) => { setActiveClientId(id); setScreen('clientCard'); };
       const openNewClientForm = () => { setActiveClientId(null); setScreen('clientForm'); };
       const openEditClientForm = (id) => { setActiveClientId(id); setScreen('clientForm'); };
-      const openVisitDetail = (visitId) => { setActiveVisitId(visitId); setScreen('visitDetail'); };
+      const openVisitDetail = (visitId) => { if (typeof Analytics !== 'undefined') Analytics.track('historical_visit_opened'); setActiveVisitId(visitId); setScreen('visitDetail'); };
       const closeVisitDetail = () => { setActiveVisitId(null); setScreen('clientCard'); };
 
       // LASH MAP LIBRARY — production navigation state, isolated from
@@ -14144,6 +14157,7 @@
       // already-computed fields.
       const beginSaveToClient = (design) => {
         if (!result || typeof VisitSnapshot === 'undefined') return;
+        if (typeof Analytics !== 'undefined') Analytics.track('save_to_client_started');
         const snapshot = VisitSnapshot.buildVisitSnapshot({ result, activeDesign: design || null, naturalLashProfile });
         setPendingVisitSnapshot(snapshot);
         setSaveVisitReturnScreen(screen);
@@ -14198,6 +14212,7 @@
           if (!store) throw new Error('client store unavailable');
           await store.createVisit(clientId, pendingVisitSnapshot);
           const mode = await store.whenReady();
+          if (typeof Analytics !== 'undefined') Analytics.track('visit_saved');
           setSaveVisitToast({ ok: true, persistent: mode === 'indexeddb' });
           setPendingVisitSnapshot(null);
           setClientSelectForSave(false);
@@ -14205,6 +14220,9 @@
           setActiveClientId(clientId);
           setScreen('clientCard');
         } catch (e) {
+          // Only a fixed, safe reason code ever leaves the device here —
+          // never e.message/e.stack (see analytics.js's isVisitFailReason).
+          if (typeof Analytics !== 'undefined') Analytics.track('visit_save_failed', { reason_code: (e && e.message === 'client store unavailable') ? 'store_unavailable' : 'write_failed' });
           setSaveVisitToast({ ok: false });
         } finally {
           saveVisitBusyRef.current = false;
@@ -14218,6 +14236,11 @@
       // Save-to-Client operation, so ordinary client creation from the
       // Clients screen is completely unaffected.
       const handleClientFormSaved = (client) => {
+        // activeClientId here is whatever it was BEFORE this save (the
+        // value ClientFormScreen was rendered with) — null means this
+        // was a brand-new client, non-null means an edit of an
+        // existing one. Only the create case is a funnel event.
+        if (activeClientId === null && typeof Analytics !== 'undefined') Analytics.track('client_created');
         if (pendingVisitSnapshot && clientSelectForSave) {
           // Keep the created client even if saving its visit fails. The
           // form now edits this record, so retry cannot create a duplicate.
@@ -14332,14 +14355,14 @@
             {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} onLibrary={openLashMapLibrary} />}
             {screen === 'lashMapLibrary' && <LashMapLibraryScreen lang={lang} onBack={() => setScreen('home')} onSelect={openLashMapLibraryDetail} />}
             {screen === 'lashMapLibraryDetail' && activeLibraryId && <LashMapLibraryDetailScreen lang={lang} canonicalId={activeLibraryId} onBack={closeLashMapLibraryDetail} />}
-            {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={clientSelectForSave ? cancelSaveToClient : () => setScreen('home')} saveMode={clientSelectForSave} onSelectForSave={finishSaveToClient} busy={saveVisitBusy} />}
+            {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={clientSelectForSave ? cancelSaveToClient : () => setScreen('home')} saveMode={clientSelectForSave} onSelectForSave={(id) => { if (clientSelectForSave && typeof Analytics !== 'undefined') Analytics.track('client_selected'); finishSaveToClient(id); }} busy={saveVisitBusy} />}
             {screen === 'clientCard' && activeClientId && <ClientCardScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} onBack={() => setScreen('clients')} onEdit={openEditClientForm} onDeleted={() => { setActiveClientId(null); setScreen('clients'); }} onOpenVisit={openVisitDetail} />}
             {screen === 'visitDetail' && activeClientId && activeVisitId && <VisitDetailScreen lang={lang} visitId={activeVisitId} clientId={activeClientId} store={clientStoreRef.current} onBack={closeVisitDetail} />}
             {screen === 'clientForm' && <ClientFormScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} consentGranted={clientDataConsentGranted} onGrantConsent={grantClientDataConsent} onSaved={handleClientFormSaved} onCancel={() => setScreen(clientSelectForSave ? 'clients' : (activeClientId ? 'clientCard' : 'clients'))} />}
             {screen === 'scan' && <LiveScanScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} onSetLang={setLang} />}
             {screen === 'photo' && <PhotoAnalysisScreen onComplete={handleComplete} onBack={() => setScreen('home')} modelsLoaded={modelsLoaded} />}
             {screen === 'review' && result && <ReviewScreen result={result} onConfirm={handleReviewConfirm} onBack={() => setScreen('home')} onRescan={() => { if (typeof Analytics !== 'undefined') Analytics.track('rescan_started'); setScreen('home'); }} />}
-            {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => { if (typeof Analytics !== 'undefined') Analytics.track('details_viewed'); setScreen('details'); }} onAllDesigns={() => setScreen('catalog')} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} onSaveToClient={handleSaveToClient} />}
+            {screen === 'hero' && result && <HeroScreen result={result} naturalLashProfile={naturalLashProfile} onViewMap={viewMap} onDetails={() => { if (typeof Analytics !== 'undefined') Analytics.track('details_viewed'); setScreen('details'); }} onAllDesigns={() => { if (typeof Analytics !== 'undefined') Analytics.track('all_designs_opened'); setScreen('catalog'); }} onScanLashes={() => setScreen('lashscan')} onViewLashProfile={() => setScreen('lashprofile')} onBack={() => setScreen('home')} onSaveToClient={handleSaveToClient} />}
             {screen === 'catalog' && result && <AllDesignsScreen result={result} onSelect={(design) => viewMap(design, 'catalog')} onBack={() => setScreen('hero')} />}
             {screen === 'lashmap' && result && activeDesign && <LashMapScreen result={result} design={LashDesignDomain.recommendationPropsFromClientDesign(activeDesign)} naturalLashProfile={naturalLashProfile} onBack={() => setScreen(lashMapOrigin)} onSaveToClient={handleSaveToClient} />}
             {screen === 'details' && result && <DetailsScreen result={result} onBack={() => setScreen('hero')} />}

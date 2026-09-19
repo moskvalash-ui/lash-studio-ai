@@ -121,7 +121,10 @@ test('C. ClientCardScreen renders store.listVisitsForClient results in the order
 // E/F. opening/closing a Visit navigates correctly and back
 // ------------------------------------------------------------
 test('E/F. App wires openVisitDetail/closeVisitDetail: opening a visit sets activeVisitId+screen, Back clears the visit and returns to the SAME Client Card (activeClientId untouched)', () => {
-  assert.ok(appBlock.includes("const openVisitDetail = (visitId) => { setActiveVisitId(visitId); setScreen('visitDetail'); };"));
+  // Approved CLOSED-BETA ANALYTICS patch: openVisitDetail now fires the
+  // reviewed, consent-gated historical_visit_opened event before its
+  // original, unmodified state transitions (see analytics.js EVENT_SCHEMA).
+  assert.ok(appBlock.includes("const openVisitDetail = (visitId) => { if (typeof Analytics !== 'undefined') Analytics.track('historical_visit_opened'); setActiveVisitId(visitId); setScreen('visitDetail'); };"));
   assert.ok(appBlock.includes("const closeVisitDetail = () => { setActiveVisitId(null); setScreen('clientCard'); };"));
   assert.ok(!appBlock.match(/const closeVisitDetail = \(\) => \{[^}]*setActiveClientId/), 'closeVisitDetail must never touch activeClientId — Back must return to the same client');
   assert.ok(appBlock.includes("<ClientCardScreen lang={lang} clientId={activeClientId} store={clientStoreRef.current} onBack={() => setScreen('clients')} onEdit={openEditClientForm} onDeleted={() => { setActiveClientId(null); setScreen('clients'); }} onOpenVisit={openVisitDetail} />"));

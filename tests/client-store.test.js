@@ -373,9 +373,14 @@ test('client-store.js and client-data-consent.js never call production scan/rank
   for (const token of forbidden) assert.ok(!clientStoreCode.includes(token), 'client-store.js must not reference ' + token);
 });
 
-test('backend/worker.js, consent-manager.js, and analytics.js remain byte-identical (client-store.js never touches production library/backend/consent/analytics code)', () => {
+test('backend/worker.js and consent-manager.js remain byte-identical (client-store.js never touches production library/backend/consent code)', () => {
+  // analytics.js is deliberately excluded: it is now separately,
+  // intentionally modified by the approved closed-beta Analytics
+  // implementation (Stage 3), with its own dedicated regression coverage
+  // (analytics.test.js, consent-manager.test.js) — not a regression
+  // client-store.js needs to guard against.
   const { execSync } = require('node:child_process');
-  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js']) {
+  for (const file of ['backend/worker.js', 'consent-manager.js']) {
     let diff;
     try {
       diff = execSync('git diff -- ' + JSON.stringify(file), { cwd: root }).toString();

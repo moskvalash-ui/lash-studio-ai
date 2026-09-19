@@ -438,7 +438,10 @@ test('P2. choosing another Hero card saves that exact map selection, including a
   const saved = saveDesignFromScreen(screen, result, activeDesign);
   assert.strictEqual(saved.saved, selected);
   assert.deepStrictEqual(saved.mapperCalls, [], 'map saving must not resolve a different recommendation');
-  assert.ok(src.includes('onClick={() => onViewMap(d.clientDesign)}'));
+  // Approved CLOSED-BETA ANALYTICS patch: this results-carousel card now
+  // fires the reviewed, consent-gated lash_map_opened event (design_id/
+  // origin only) before its original, unmodified onViewMap call.
+  assert.ok(src.includes("onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: d.id, origin: 'results_carousel' }); onViewMap(d.clientDesign); }}"));
 });
 
 test('Q. real form persistence retries a failed new-client visit against the same client ID', async () => {
@@ -459,7 +462,14 @@ test('Q. real form persistence retries a failed new-client visit against the sam
   let activeClientId = null;
   let visitPromise;
   let lastCalls;
-  const onSaved = new Function('pendingVisitSnapshot', 'clientSelectForSave', 'setActiveClientId', 'finishSaveToClient', 'setScreen',
+  // Approved CLOSED-BETA ANALYTICS patch: handleClientFormSaved now reads
+  // the outer activeClientId closure variable (client_created fires only
+  // on true creation, activeClientId === null) — pass this harness's own
+  // pre-save value through so the real, unmodified callback source has it
+  // in scope. Not asserted on directly here (Analytics itself is untyped/
+  // undefined in this Node extraction, so the track() call never actually
+  // fires); this only prevents a ReferenceError.
+  const onSaved = new Function('pendingVisitSnapshot', 'clientSelectForSave', 'setActiveClientId', 'finishSaveToClient', 'setScreen', 'activeClientId',
     callbackSource + '\nreturn handleClientFormSaved;')(
     snapshot, true, id => { activeClientId = id; },
     id => {
@@ -468,7 +478,7 @@ test('Q. real form persistence retries a failed new-client visit against the sam
       lastCalls = harness.calls;
       visitPromise = harness.fn(id);
       return visitPromise;
-    }, () => {}
+    }, () => {}, activeClientId
   );
   // Re-extract the real form's create/update path for each render, using
   // the ID retained by the real App callback after client creation.

@@ -184,8 +184,13 @@ test('client-data consent is read/written exclusively through window.ClientDataC
   assert.ok(!grantFnMatch[0].includes('ConsentManager'), 'granting client-data consent must never touch the analytics ConsentManager');
 });
 
-test('consent-manager.js and analytics.js remain byte-identical — this phase never modifies existing analytics consent logic', () => {
-  for (const file of ['consent-manager.js', 'analytics.js']) {
+test('consent-manager.js remains byte-identical — this phase never modifies existing analytics consent logic', () => {
+  // analytics.js is deliberately excluded: it is now separately,
+  // intentionally modified by the approved closed-beta Analytics
+  // implementation (Stage 3), with its own dedicated regression coverage
+  // (analytics.test.js, consent-manager.test.js) — not a regression this
+  // Client Card UI phase needs to guard against.
+  for (const file of ['consent-manager.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');
@@ -256,8 +261,13 @@ test('the new Client UI code never calls production ranking/scan/library functio
   for (const token of forbidden) assert.ok(!clientUiCode.includes(token), 'Client UI must not reference ' + token);
 });
 
-test('backend/worker.js, consent-manager.js, and analytics.js remain byte-identical to committed HEAD', () => {
-  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js']) {
+test('backend/worker.js and consent-manager.js remain byte-identical to committed HEAD', () => {
+  // analytics.js is deliberately excluded: it is now separately,
+  // intentionally modified by the approved closed-beta Analytics
+  // implementation (Stage 3), with its own dedicated regression coverage
+  // (analytics.test.js, consent-manager.test.js) — not a regression this
+  // Client Card UI phase needs to guard against.
+  for (const file of ['backend/worker.js', 'consent-manager.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

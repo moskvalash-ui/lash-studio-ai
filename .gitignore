@@ -4,3 +4,7 @@
 tests/e2e/node_modules/
 tests/e2e/test-results/
 tests/e2e/playwright-report/
+
+# Local-only secret: PostHog project token, read once by tooling to
+# write it into analytics.js. Never staged, never committed.
+.posthog-token.local

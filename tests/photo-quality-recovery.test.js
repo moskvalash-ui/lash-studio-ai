@@ -279,7 +279,10 @@ test('12. imageQuality is still computed from the real det.detection.score, unco
   // exactly as before this fix (recovery does not skip past it or feed
   // it a synthetic/boosted score).
   const recoveryIdx = photoBlock.indexOf(recoveryEndMarker);
-  const hardBlockIdx = photoBlock.indexOf("if (!photoQualityProceeds) { setState('error'); return; }");
+  // Approved CLOSED-BETA ANALYTICS patch: this line also fires the
+  // reviewed, consent-gated scan_failed({mode:'photo', reason_code:
+  // 'quality_rejected'}) event — still the same hard-block position.
+  const hardBlockIdx = photoBlock.indexOf("if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }");
   const imageQualityIdx = photoBlock.indexOf(marker);
   assert.ok(recoveryIdx < hardBlockIdx && hardBlockIdx < imageQualityIdx, 'imageQuality must be computed after the recovery decision and the hard-block check, on the proceeding path only');
 });
@@ -336,7 +339,12 @@ test('16. no forbidden data in the recovery mechanism itself -- source-level che
 // photo-detection-fallback.test.js / photo-quality-debug.test.js).
 // ------------------------------------------------------------
 test('17. Live Scan, Iris, recommendation/scoring, Lash Map, Client Store, VisitSnapshot, Results Hero production files are untouched', () => {
-  for (const file of ['lash-scan-core.js', 'lash-design-domain.js', 'professional-lash-library.js', 'client-store.js', 'visit-snapshot.js', 'consent-manager.js', 'client-data-consent.js', 'analytics.js']) {
+  // analytics.js is deliberately excluded: it is now separately,
+  // intentionally modified by the approved closed-beta Analytics
+  // implementation (Stage 3), with its own dedicated regression coverage
+  // (analytics.test.js, consent-manager.test.js) — not a regression this
+  // Photo Quality Recovery phase needs to guard against.
+  for (const file of ['lash-scan-core.js', 'lash-design-domain.js', 'professional-lash-library.js', 'client-store.js', 'visit-snapshot.js', 'consent-manager.js', 'client-data-consent.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

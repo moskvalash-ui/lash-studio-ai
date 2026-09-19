@@ -107,7 +107,7 @@ test('validation records provenance and every required unresolved field',()=>{
 });
 
 test('all legacy production consumers and source bytes remain unchanged',()=>{
-  assert.strictEqual(digest(indexSource),'f0e585be6716a834718be8fe70c9962f287ef710f56210c174c2dd465a85d579');
+  assert.strictEqual(digest(indexSource),'f703102f7d4def19e45c6826f622d10a6d245273110648075526fec49c49f6f6');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();

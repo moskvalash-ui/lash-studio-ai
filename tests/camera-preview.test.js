@@ -340,8 +340,13 @@ test('NaturalLashScanScreen preview-mirror behavior is untouched by the LiveScan
 test('production analysis/recommendation/Client Card/Professional Library code remains isolated from this fix', () => {
   // ClientStore's separately approved transaction hotfix is protected by
   // client-store.test.js and client-store-transactions.test.js. Keep every
-  // other file in this subsystem's isolation guard unchanged.
-  for (const file of ['backend/worker.js', 'consent-manager.js', 'analytics.js', 'client-data-consent.js', 'lash-scan-core.js']) {
+  // other file in this subsystem's isolation guard unchanged. analytics.js
+  // is deliberately excluded: it is now separately, intentionally modified
+  // by the approved closed-beta Analytics implementation (Stage 3), with
+  // its own dedicated regression coverage (analytics.test.js,
+  // consent-manager.test.js) — not a regression this camera-zoom fix
+  // needs to guard against.
+  for (const file of ['backend/worker.js', 'consent-manager.js', 'client-data-consent.js', 'lash-scan-core.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: repoRoot }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

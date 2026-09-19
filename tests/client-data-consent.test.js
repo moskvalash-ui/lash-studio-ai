@@ -151,9 +151,14 @@ test('the stored record never contains any client personal data, only the yes/no
   assert.deepStrictEqual(Object.keys(parsed).sort(), ['clientData', 'decidedAt', 'updatedAt', 'version']);
 });
 
-test('consent-manager.js and analytics.js remain byte-identical (this phase never touches them)', () => {
+test('consent-manager.js remains byte-identical (this phase never touches it)', () => {
+  // analytics.js is deliberately excluded: it is now separately,
+  // intentionally modified by the approved closed-beta Analytics
+  // implementation (Stage 3), with its own dedicated regression coverage
+  // (analytics.test.js, consent-manager.test.js) — not a regression this
+  // Client Card consent phase needs to guard against.
   const { execSync } = require('node:child_process');
-  for (const file of ['consent-manager.js', 'analytics.js']) {
+  for (const file of ['consent-manager.js']) {
     let diff;
     try {
       diff = execSync('git diff -- ' + file, { cwd: root }).toString();

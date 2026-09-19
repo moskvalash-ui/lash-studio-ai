@@ -115,7 +115,10 @@ test('6. Hero block is built from result.designs[0] via the SAME canonicalRecomm
 });
 
 test('7. Hero primary CTA opens Lash Map via the exact existing handler and canonical clientDesign', () => {
-  assert.ok(heroBlock.includes('onClick={() => onViewMap(best.clientDesign)}'));
+  // Approved CLOSED-BETA ANALYTICS patch: this button now fires the
+  // reviewed, consent-gated lash_map_opened event (design_id/origin only)
+  // before its original, unmodified onViewMap call.
+  assert.ok(heroBlock.includes("onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: best.id, origin: 'best_design' }); onViewMap(best.clientDesign); }}"));
   assert.ok(heroBlock.includes("{t('heroOpenLashMap', lang)}"));
 });
 
@@ -139,7 +142,10 @@ test('10. RESULTS DESIGN DISCOVERY: the best design is NOT duplicated in the alt
 test('11. RESULTS DESIGN DISCOVERY: the carousel cards still use the exact existing per-card recommendation path and Lash Map handler, offset by the correct rank, with the existing openLabel string for the tap action', () => {
   assert.ok(heroBlock.includes('const rank = i + 1;'));
   assert.ok(heroBlock.includes('const d = canonicalRecommendationProps(raw, p, lang, rank);'));
-  assert.ok(heroBlock.includes('onClick={() => onViewMap(d.clientDesign)}'));
+  // Approved CLOSED-BETA ANALYTICS patch: this card now fires the
+  // reviewed, consent-gated lash_map_opened event (design_id/origin only)
+  // before its original, unmodified onViewMap call.
+  assert.ok(heroBlock.includes("onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: d.id, origin: 'results_carousel' }); onViewMap(d.clientDesign); }}"));
   assert.ok(heroBlock.includes("{t('openLabel', lang)}"));
   assert.ok(heroBlock.includes('data-alt-design-id={d.id}'), 'each carousel card must carry a canonical-id-only test hook');
 });
@@ -227,7 +233,12 @@ test('22. rankDesignsAll/rankDesigns/buildDesignResult wiring is byte-unchanged'
 });
 
 test('23. VisitSnapshot / ClientStore / LashDesignDomain production files have zero diff against committed HEAD', () => {
-  for (const file of ['visit-snapshot.js', 'client-store.js', 'lash-design-domain.js', 'professional-lash-library.js', 'lash-scan-core.js', 'consent-manager.js', 'client-data-consent.js', 'analytics.js', 'backend/worker.js']) {
+  // analytics.js is deliberately excluded: it is now separately,
+  // intentionally modified by the approved closed-beta Analytics
+  // implementation (Stage 3), with its own dedicated regression coverage
+  // (analytics.test.js, consent-manager.test.js) — not a regression this
+  // Results Hero phase needs to guard against.
+  for (const file of ['visit-snapshot.js', 'client-store.js', 'lash-design-domain.js', 'professional-lash-library.js', 'lash-scan-core.js', 'consent-manager.js', 'client-data-consent.js', 'backend/worker.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

@@ -113,7 +113,10 @@ assert.ok(qualityBlockStart >= 0, 'quality-evaluated diagnostic branch must be s
 // focused coverage) since photoEdgeClipped/photoQualityRecovered/
 // photoQualityProceeds are computed here and consumed by both the
 // diagnostic object below AND the final hard-block line.
-const qualityBlockEndMarker = "if (!photoQualityProceeds) { setState('error'); return; }";
+// Approved CLOSED-BETA ANALYTICS patch: this line now also fires the
+// reviewed, consent-gated scan_failed({mode:'photo', reason_code:
+// 'quality_rejected'}) event before its original, unmodified setState.
+const qualityBlockEndMarker = "if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }";
 const qualityBlockEndIdx = photoBlock.indexOf(qualityBlockEndMarker, qualityBlockStart);
 assert.ok(qualityBlockEndIdx > qualityBlockStart);
 const qualityBranch = photoBlock.slice(qualityBlockStart, qualityBlockEndIdx + qualityBlockEndMarker.length);
@@ -344,7 +347,11 @@ test('11. the real hard-block decisions are unconditional — never gated behind
   // of quality.ok directly -- still unconditional/ungated by the debug
   // flag, and quality.ok/quality.reasons themselves are never rewritten
   // (see photo-quality-recovery.test.js for the recovery logic itself).
-  assert.ok(photoBlock.includes("if (!photoQualityProceeds) { setState('error'); return; }"), 'quality-rejection setState(error) must be unconditional and unchanged');
+  // Approved CLOSED-BETA ANALYTICS patch: this line also fires the
+  // reviewed, consent-gated scan_failed({mode:'photo', reason_code:
+  // 'quality_rejected'}) event — still unconditional/ungated by the debug
+  // flag, and the underlying setState('error') is unchanged.
+  assert.ok(photoBlock.includes("if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }"), 'quality-rejection setState(error) must be unconditional and unchanged');
   assert.ok(photoBlock.includes('onComplete(photoRec);'), 'success path onComplete must be unconditional and unchanged');
 });
 
@@ -372,7 +379,12 @@ test('13. PhotoQualityDebugPanel\'s copy() serializes ONLY the info prop — no 
 // ------------------------------------------------------------
 const { execSync } = require('node:child_process');
 test('14. Live Scan, recommendation engine, Iris classifier, Lash Map, Client Store, VisitSnapshot, Results Hero production files are untouched', () => {
-  for (const file of ['lash-scan-core.js', 'lash-design-domain.js', 'professional-lash-library.js', 'client-store.js', 'visit-snapshot.js', 'consent-manager.js', 'client-data-consent.js', 'analytics.js', 'backend/worker.js']) {
+  // analytics.js is deliberately excluded: it is now separately,
+  // intentionally modified by the approved closed-beta Analytics
+  // implementation (Stage 3), with its own dedicated regression coverage
+  // (analytics.test.js, consent-manager.test.js) — not a regression this
+  // Photo Quality Debug phase needs to guard against.
+  for (const file of ['lash-scan-core.js', 'lash-design-domain.js', 'professional-lash-library.js', 'client-store.js', 'visit-snapshot.js', 'consent-manager.js', 'client-data-consent.js', 'backend/worker.js']) {
     let diff;
     try { diff = execSync('git diff -- ' + file, { cwd: root }).toString(); } catch (e) { diff = 'DIFF_FAILED: ' + e.message; }
     assert.strictEqual(diff.trim(), '', file + ' must have zero diff against committed HEAD');

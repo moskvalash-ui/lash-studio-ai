@@ -44,7 +44,7 @@ test('B. navigating Back mid-animation is safe: no crash, no page error, no doub
   await reachHomeAndStartPhoto(page);
   await page.locator('input[type=file]').setInputFiles(FIXTURE);
   await page.locator('[data-photo-scan-canvas]').waitFor({ state: 'visible', timeout: 10000 });
-  // Mid-animation, well before either the ~2.9s minimum or real
+  // Mid-animation, well before either the ~5.3s minimum or real
   // analysis could plausibly finish.
   await page.waitForTimeout(400);
   // Same real BackButton selector already established by

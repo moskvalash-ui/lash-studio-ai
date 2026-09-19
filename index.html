@@ -9607,14 +9607,33 @@
       useEffect(() => {
         if (state !== 'analyzing') return;
         const reduceMotion = reduceMotionRef.current;
-        // ~2.9s of visual sequence + a short collapse lands the total
-        // in the requested ~2.8-3.2s window when real analysis is fast.
-        // Reduced motion never waits on a minimum duration -- it shows
-        // a stable, non-sweeping state and proceeds the instant real
-        // analysis is done, per this feature's own accessibility
-        // requirement.
+        // ~5.3s of geometry-relative visual sequence + a slower, more
+        // deliberate collapse lands the total in the requested ~5.5-6.0s
+        // window when real analysis is fast (PACING FIX: the original
+        // ~2.9-3.2s total didn't give the premium scan effect enough
+        // time to actually be perceived -- this stretches and re-
+        // separates every phase; it does not touch any analytical
+        // value). Reduced motion never waits on a minimum duration --
+        // it shows a stable, non-sweeping state and proceeds the
+        // instant real analysis is done, per this feature's own
+        // accessibility requirement.
+        // Phase choreography (all measured from geomStart, i.e.
+        // geomElapsed, below):
+        //   0-900ms      ACQUISITION: subject lock develops, scan frame
+        //                fades in and un-aligned -> aligned; no beam/mesh yet.
+        //   900-2800ms   PRIMARY SCAN: scan frame is "aligned"; the scan
+        //                beam does one slow sweep (cycleMs matches this
+        //                window so it completes one deliberate pass, not
+        //                a fast repeating flash); the face mesh reveals
+        //                progressively behind/around it.
+        //   2800-4200ms  EYE TARGETING: mesh is fully, statically visible;
+        //                both eye targets fade in and stay prominent.
+        //   4200-5300ms  IRIS / FINAL: iris micro-scan is the visual
+        //                focus; data-flow accents fire; the fully
+        //                revealed state then holds.
+        //   5300-5800ms  COMPLETION: stable hold, then collapse.
         // MIN_MS gates the overall minimum time before completion is
-        // even considered (matches the requested ~2.8-3.2s total when
+        // even considered (matches the requested ~5.5-6.0s total when
         // real analysis/detection is fast). REVEAL_MS is a SEPARATE
         // floor measured from when real face geometry actually becomes
         // available (geomStart below), not from animation start --
@@ -9623,12 +9642,12 @@
         // already-elapsed clock and render every phase at full presence
         // in the same frame instead of revealing progressively. Using
         // BOTH floors together means: on a fast device (typical target
-        // hardware) REVEAL_MS is already satisfied well before MIN_MS,
-        // so total time matches the ~2.8-3.2s target; if detection is
-        // ever slow, the choreography still always gets to play out in
-        // full before the final hold/collapse, per "hold the final
-        // scanning state until analysis completes."
-        const MIN_MS = 2900, REVEAL_MS = 2200, COLLAPSE_MS = 260;
+        // hardware) REVEAL_MS is already satisfied at the same moment as
+        // MIN_MS, so total time matches the ~5.5-6.0s target; if
+        // detection is ever slow, the choreography still always gets to
+        // play out in full before the final hold/collapse, per "hold the
+        // final scanning state until analysis completes."
+        const MIN_MS = 5300, REVEAL_MS = 5300, COLLAPSE_MS = 500;
         scanStartRef.current = performance.now();
         let collapseStart = null;
         let geomStart = null;
@@ -9666,7 +9685,7 @@
           const hasGeometry = !!(data && data.box);
           if (hasGeometry && geomStart == null) geomStart = time;
           // Choreography (lock/beam/mesh/eyes/iris reveal) is timed off
-          // geomElapsed -- always a full, smooth ~2.2s reveal starting
+          // geomElapsed -- always a full, smooth ~5.3s reveal starting
           // the moment real geometry exists, independent of how long
           // detection itself took. Only the completion GATE below still
           // also checks the overall `elapsed` against MIN_MS.
@@ -9699,29 +9718,29 @@
             } else {
               const finishT = collapseStart != null ? clamp((time - collapseStart) / COLLAPSE_MS, 0, 1) : 0;
               const collapse = collapseStart != null ? 1 - finishT : 1;
-              const presence = Math.min(1, geomElapsed / 300) * collapse;
-              const isolating = geomElapsed > 1700 && geomElapsed < 2600 && collapseStart == null;
+              const presence = Math.min(1, geomElapsed / 700) * collapse;
+              const isolating = geomElapsed > 4200 && geomElapsed < 5300 && collapseStart == null;
 
-              drawSubjectLock(ctx, box, Math.min(1, geomElapsed / 500), false);
-              drawScanFrame(ctx, box, presence, geomElapsed > 550);
+              drawSubjectLock(ctx, box, Math.min(1, geomElapsed / 900), false);
+              drawScanFrame(ctx, box, presence, geomElapsed > 900);
 
-              const revealMode = geomElapsed < 2200;
-              const wavefrontY = box.y + clamp((geomElapsed - 300) / 1600, 0, 1) * box.height;
-              const beamSoftness = collapseStart != null ? Math.max(0, 1 - finishT * 2) : (geomElapsed < 1700 ? 0.85 : 0);
-              const beamY = drawScanBeam(ctx, box, time, 1800, beamSoftness * presence, false);
+              const revealMode = geomElapsed < 2800;
+              const wavefrontY = box.y + clamp((geomElapsed - 900) / 1900, 0, 1) * box.height;
+              const beamSoftness = collapseStart != null ? Math.max(0, 1 - finishT * 2) : (geomElapsed >= 900 && geomElapsed < 2800 ? 0.85 : 0);
+              const beamY = drawScanBeam(ctx, box, time, 1900, beamSoftness * presence, false);
 
               // Computed once, reused by both drawFaceMeshV3 and the
               // eye-targeting data-flow fan below -- same "one mesh per
               // frame, shared by every consumer" pattern LiveScanScreen's
               // own draw() already uses.
               const mesh = buildFaceMesh({ jaw: mapAll(data.jaw), leftBrow: mapAll(data.leftBrow), rightBrow: mapAll(data.rightBrow), nose: mapAll(data.nose), leftEye: mapAll(data.leftEye), rightEye: mapAll(data.rightEye), mouth: mapAll(data.mouth) });
-              const meshPresence = clamp((geomElapsed - 600) / 900, 0, 1) * collapse;
+              const meshPresence = clamp((geomElapsed - 900) / 1300, 0, 1) * collapse;
               if (meshPresence > 0.01) {
                 drawFaceMeshV3(ctx, mesh, { revealMode, wavefrontY, beamY, presence: meshPresence, boxCenter: { x: box.x + box.width / 2, y: box.y + box.height / 2 }, faceHalfW: Math.max(box.width, box.height) / 2 });
               }
               drawDust(ctx, box, beamY, isolating, time);
 
-              const eyePresence = clamp((geomElapsed - 1500) / 500, 0, 1) * collapse;
+              const eyePresence = clamp((geomElapsed - 2800) / 700, 0, 1) * collapse;
               if (eyePresence > 0.01) {
                 const illum = (eye) => Math.max(0, 1 - Math.abs(beamY - eye.center.y) / 46);
                 drawEyeTarget(ctx, le.center, le.rx, le.ry, le.inner, le.outer, 'L', illum(le), eyePresence, time, isolating, 0);
@@ -9731,14 +9750,14 @@
                   drawIrisMicroScan(ctx, re.center, re.rx, re.ry, time);
                 }
                 const nodeCenter = { x: (le.center.x + re.center.x) / 2, y: Math.min(le.center.y, re.center.y) - Math.max(le.ry, re.ry) * 0.6 };
-                const flowT = (geomElapsed - 1900) / 650;
+                const flowT = (geomElapsed - 4400) / 700;
                 if (mesh) {
                   drawDataFlowFan(ctx, le.center, [mesh.f1[0], mesh.nose[6], mesh.cheekAU, nodeCenter], flowT);
                   drawDataFlowFan(ctx, re.center, [mesh.f1[4], mesh.nose[6], mesh.cheekBU, nodeCenter], flowT);
                 } else {
                   drawDataFlow(ctx, le.center, re.center, nodeCenter, flowT);
                 }
-                drawCenterLabel(ctx, box.x + box.width / 2, box.y - 14, t('photoFaceDetected', langRef.current), geomElapsed - 560, 120, 2600, 250);
+                drawCenterLabel(ctx, box.x + box.width / 2, box.y - 14, t('photoFaceDetected', langRef.current), geomElapsed - 2800, 150, 3200, 300);
               }
             }
           }

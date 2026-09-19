@@ -226,7 +226,11 @@ test('canonical labels are never placed inside the reserved top band (the fixed 
     {mapX:95,mapY:50,len:10,isKey:true,isPeak:false,label:'OUTER',keyZoneIndex:4},
   ];
   const labels=selectProfessionalEyeLabels(points,crop);
-  const reservedTopY=crop.y+crop.height*.16;
+  // MOBILE LAYOUT FIX: matches production's real, measured reserved
+  // fraction (see selectProfessionalEyeLabels' own comment on why .40,
+  // not .16) — kept in sync so this test proves the ACTUAL current
+  // floor, not a stale one a weaker check would silently pass anyway.
+  const reservedTopY=crop.y+crop.height*.40;
   for(const label of labels)if(label)assert.ok(label.y>=reservedTopY,`label must not sit above the reserved band: ${JSON.stringify(label)}`);
 });
 

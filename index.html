@@ -4394,7 +4394,34 @@
       // of crop height maps consistently onto that same physical region
       // regardless of eye size, zoom, or side -- geometry-relative, not
       // a per-effect or per-screenshot pixel constant.
-      const reservedTopY=crop.y+crop.height*.16;
+      //
+      // MOBILE LAYOUT FIX — real-device report: on the LEFT eye card
+      // (where PEAK/OUTER naturally render on the same, right, side as
+      // this button), the PEAK label visually competed with the button.
+      // Root cause, confirmed by measuring the REAL rendered DOM at the
+      // production ~390-430px iPhone viewport range: the button's own
+      // fixed footprint (top-3 = 12px offset + min-h-[44px] = 56px from
+      // the card's top) occupies ~28% of the card's actual height at
+      // 390px width (356x200px card) and ~25% at 430px (396x223px) --
+      // the previous .16 constant reserved barely more than half of
+      // that. .30 (the button's own footprint plus a small margin) was
+      // tried first and still failed a real getBoundingClientRect()
+      // collision check by ~2px: reservedTopY constrains a label's SVG
+      // text BASELINE, but the glyph's rendered top sits several more
+      // px above that baseline (font ascent) -- so the real protected
+      // band needs to additionally cover that, not just the button's
+      // own box. .40 is the value that empirically clears the button
+      // with real margin at both 390px and 430px, for both eyes, for
+      // both FOX and CAT EYE (tests/e2e/photo-lash-map-button-safe-
+      // area.spec.js) -- verified against real rendering, not derived
+      // by formula alone. This card is ALWAYS aspect-[16/9] and the
+      // button's CSS footprint is fixed-pixel (never relative), so this
+      // constant is real and measured for this viewport range, not a
+      // guess -- recalibrating it only changes where a canonical
+      // label's TEXT is allowed to render; it never touches the sample
+      // point's own mapX/mapY (dot position stays exactly on the real
+      // curve) or any geometry function.
+      const reservedTopY=crop.y+crop.height*.40;
       points.forEach((point,index)=>{
         if(!point.isKey)return;
         const kind=point.isPeak?'PEAK':point.label;

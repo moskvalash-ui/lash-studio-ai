@@ -97,7 +97,7 @@ test('2b. no-detection branch: when debug is ON, records detectorPresent:false a
   assert.deepStrictEqual(calls.setState, ['error'], 'setState("error") must still fire exactly as before, regardless of debug flag');
   // No forbidden fields anywhere in the recorded object.
   const json = JSON.stringify(diag);
-  for (const forbidden of ['landmarks', 'base64', 'data:image', 'toDataURL', 'originalImage']) {
+  for (const forbidden of ['landmarks', 'base64', 'data:image', 'toDataURL', 'originalImage', 'nativeImage']) {
     assert.ok(!json.includes(forbidden), `no-detection diagnostic must never contain "${forbidden}"`);
   }
 });
@@ -270,7 +270,7 @@ test('7. boxClipped (generic face-box, diagnostic only) and requiredEyeRegionCli
 test('8. no forbidden data (pixels/base64/image URL/landmarks/raw box position) in the quality-branch diagnostic', () => {
   const calls = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: true, quality: { ok: false, reasons: ['too_close'] } });
   const json = JSON.stringify(calls.setPhotoQualityDebugInfo[0]);
-  for (const forbidden of ['landmarks', 'base64', 'data:image', 'toDataURL', 'originalImage', 'previewUrl', '"x":', '"y":']) {
+  for (const forbidden of ['landmarks', 'base64', 'data:image', 'toDataURL', 'originalImage', 'nativeImage', 'previewUrl', '"x":', '"y":']) {
     assert.ok(!json.includes(forbidden), `quality-branch diagnostic must never contain "${forbidden}"`);
   }
 });

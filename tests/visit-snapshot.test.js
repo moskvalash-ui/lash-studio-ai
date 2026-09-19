@@ -241,20 +241,24 @@ test('K3. no renderer-only derivedSectors leak into the designSnapshot', () => {
 test('L. no photo/image/landmark data can appear in any snapshot -- proven against a result object that actually carries them', () => {
   const resultWithPhoto = {
     originalImage: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD-fake-not-a-real-photo',
+    // RELEASE POLISH: production's photoRec now also carries this
+    // additive, presentation-only field — included here so this proof
+    // genuinely covers it, like originalImage.
+    nativeImage: 'blob:fake-not-a-real-native-image-url',
     landmarks: { positions: [{ x: 1, y: 2 }], getNose: () => [] },
     imageWidth: 800, imageHeight: 600,
     eyeProfile: realEyeProfileFixture(), iris: realIrisFixture(),
   };
   const visit = VisitSnapshot.buildVisitSnapshot({ result: resultWithPhoto, activeDesign: buildRealClientDesign(), naturalLashProfile: null });
   const json = JSON.stringify(visit);
-  for (const forbidden of ['data:image', 'base64', 'originalImage', 'landmarks', 'positions', 'imageWidth', 'imageHeight']) {
+  for (const forbidden of ['data:image', 'base64', 'blob:', 'originalImage', 'nativeImage', 'landmarks', 'positions', 'imageWidth', 'imageHeight']) {
     assert.ok(!json.includes(forbidden), `forbidden photo/image/landmark marker "${forbidden}" leaked into the visit snapshot`);
   }
 });
 
-test('L2. source-level proof: visit-snapshot.js never references originalImage/landmarks/dataURL/base64/getImageData anywhere in its own source', () => {
+test('L2. source-level proof: visit-snapshot.js never references originalImage/nativeImage/landmarks/dataURL/base64/getImageData anywhere in its own source', () => {
   const src = fs.readFileSync(path.join(root, 'visit-snapshot.js'), 'utf8');
-  for (const forbidden of ['originalImage', 'landmarks', 'dataURL', 'base64', 'getImageData', 'toDataURL']) {
+  for (const forbidden of ['originalImage', 'nativeImage', 'landmarks', 'dataURL', 'base64', 'getImageData', 'toDataURL']) {
     assert.ok(!src.includes(forbidden), `visit-snapshot.js source must never reference "${forbidden}"`);
   }
 });

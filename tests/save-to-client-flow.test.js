@@ -54,6 +54,10 @@ function buildRealClientDesign(overrides) {
 function buildRealResult(overrides) {
   return {
     originalImage: 'data:image/jpeg;base64,IGNORED_IN_THIS_TEST',
+    // RELEASE POLISH: production's photoRec now also carries this
+    // additive, presentation-only field — included here so test K below
+    // genuinely proves it never reaches storage, like originalImage.
+    nativeImage: 'blob:IGNORED_NATIVE_IMAGE_URL',
     landmarks: { positions: [{ x: 1, y: 1 }] },
     imageWidth: 800, imageHeight: 600,
     eyeProfile: { eyeShapeCategory: 'almond', eyeShapeConfidence: 0.8, tiltTendency: 'neutral', tiltConfidence: 0.7, tiltDegrees: 1, perEyeTiltDegrees: { left: 1, right: 1 }, eyelidCategory: 'none', eyelidCategoryConfidence: 0.6, eyelidType: 'standard', eyelidTypeConfidence: 0.6, eyelidSignalsConflict: false, creaseState: 'visible', hoodingState: 'none', eyeSetCategory: 'standard', eyeSizeCategory: 'medium', symmetryCategory: 'symmetric', compositeAsymmetry: 0.02, overallConfidence: 0.75 },
@@ -306,7 +310,7 @@ test('K. a Visit saved via the real flow contains no photo/image/landmark data a
   await fn(client.id);
   const visits = await store.listVisitsForClient(client.id);
   const raw = JSON.stringify(visits[0]);
-  for (const forbidden of ['originalImage', 'IGNORED_IN_THIS_TEST', 'data:image', 'landmarks', 'base64']) {
+  for (const forbidden of ['originalImage', 'nativeImage', 'IGNORED_IN_THIS_TEST', 'IGNORED_NATIVE_IMAGE_URL', 'data:image', 'blob:', 'landmarks', 'base64']) {
     assert.ok(!raw.includes(forbidden), 'stored Visit must never contain ' + forbidden);
   }
   assert.strictEqual(visits[0].photos.beforePhotoId, null);
@@ -315,7 +319,7 @@ test('K. a Visit saved via the real flow contains no photo/image/landmark data a
 
 test('K2. beginSaveToClient/finishSaveToClient never reference originalImage/landmarks/base64/photoId in their own source', () => {
   const beginMatch = appBlock.match(/const beginSaveToClient = \(design\) => \{[\s\S]*?\n {6}\};/)[0];
-  for (const forbidden of ['originalImage', 'landmarks', 'base64', 'photoId', '.getContext(']) {
+  for (const forbidden of ['originalImage', 'nativeImage', 'landmarks', 'base64', 'photoId', '.getContext(']) {
     assert.ok(!beginMatch.includes(forbidden), 'beginSaveToClient must not reference ' + forbidden);
     assert.ok(!finishSaveToClientSource.includes(forbidden), 'finishSaveToClient must not reference ' + forbidden);
   }

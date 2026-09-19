@@ -992,6 +992,31 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
       "          }\n          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'processing_error' });\n          setState('error');",
       "          }\n          setState('error');"
     );
+  // Approved RELEASE POLISH patch: photoRec gains one additive,
+  // presentation-only nativeImage field (the full-resolution source
+  // photo's own already-created blob URL, reused as-is) for
+  // LegacyProfessionalEyeMap's higher-quality eye crop. Stripped from
+  // the tail before comparison — symmetric, same pattern as
+  // omitPhotoAnalyticsScanFailedFix above.
+  const omitReleasePolishNativeImageFix = tail => tail.replace(
+    "            faceShapeProfile,\n" +
+    "            // RELEASE POLISH — presentation-only, additive field. `url`\n" +
+    "            // is the SAME already-loaded blob URL `img` (the full,\n" +
+    "            // original-resolution source photo) was fetched from above\n" +
+    "            // -- reused as-is, never re-encoded, no new canvas/bitmap.\n" +
+    "            // Landmarks/imageWidth/imageHeight (the actual analysis\n" +
+    "            // input) stay in the existing downscaled `canvas` coordinate\n" +
+    "            // space, completely unchanged. Only LegacyProfessionalEyeMap\n" +
+    "            // (the PHOTO eye-crop renderer) reads this, to source-crop\n" +
+    "            // from full resolution instead of the small analysis canvas\n" +
+    "            // -- never persisted (buildVisitSnapshot only ever reads\n" +
+    "            // eyeProfile/iris/naturalLashProfile off `result`, see\n" +
+    "            // visit-snapshot.js), never logged, never sent anywhere.\n" +
+    "            nativeImage: url,\n" +
+    "          };",
+    "            faceShapeProfile,\n" +
+    "          };"
+  );
   const curHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length)));
   const prevHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length)));
   assert.strictEqual(curHead, prevHead, 'everything before the sharpness measurement (detection, headPose, leftMetrics/rightMetrics, physical-eye normalization, brightness sampling) must be byte-identical to git HEAD');
@@ -1132,8 +1157,8 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
     }
     return out;
   };
-  const curTail = omitPhotoQualityDebugTail(omitPhotoAnalyticsScanFailedFix(src.slice(curQualityIdx, curOuterEnd)));
-  const prevTail = omitPhotoQualityDebugTail(omitPhotoAnalyticsScanFailedFix(HEAD.slice(prevQualityIdx, prevOuterEnd)));
+  const curTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(src.slice(curQualityIdx, curOuterEnd))));
+  const prevTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(HEAD.slice(prevQualityIdx, prevOuterEnd))));
   const debugStart = '          let irisColorAuditForRec = null;';
   const debugEnd = '          const designs = rankDesigns(classified, lang);';
   const omitIrisDebugAudit = (tail) => {

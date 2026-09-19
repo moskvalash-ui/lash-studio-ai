@@ -166,7 +166,11 @@ test('responsive SVG scaling preserves normalized projection coordinates',()=>{
 test('rendering uses the retained image without presentation mirroring or eye swapping',()=>{
   const component=professionalEyeMapSource;
   assert.ok(component.includes('getPhysicalEyeLandmarks(result.landmarks,side).eye'));
-  assert.ok(component.includes('href={result.originalImage}'));
+  // RELEASE POLISH: source from the full-resolution nativeImage when
+  // present (Photo Analysis), falling back to the always-present
+  // originalImage otherwise (Live Scan) -- see index.html's own comment
+  // just above this <image> for why.
+  assert.ok(component.includes('href={result.nativeImage || result.originalImage}'));
   assert.ok(!/scaleX\s*\(\s*-1|rotateY\s*\(\s*180|transform[^\n]*mirror/i.test(component));
 });
 
@@ -205,8 +209,11 @@ test('canonical label priority follows PEAK > OUTER > INNER/BODY/TRANSITION > in
   assert.strictEqual(byKind('INNER').priority,3);
   assert.strictEqual(byKind('BODY').priority,3);
   assert.strictEqual(byKind('TRANSITION').priority,3);
-  const derived=labels.find(label=>label&&label.isDerived);
-  if(derived)assert.strictEqual(derived.priority,1);
+  // RELEASE POLISH: interpolation samples no longer receive their own
+  // numeric label at all (see selectProfessionalEyeLabels' own comment)
+  // -- confirm none is ever produced, not merely that IF one existed it
+  // would rank lowest.
+  assert.ok(labels.every(label=>!label||!label.isDerived),'no interpolation-only ("DERIVED") label may ever be produced');
 });
 
 test('canonical labels are never placed inside the reserved top band (the fixed edit-button overlay region)',()=>{
@@ -223,17 +230,19 @@ test('canonical labels are never placed inside the reserved top band (the fixed 
   for(const label of labels)if(label)assert.ok(label.y>=reservedTopY,`label must not sit above the reserved band: ${JSON.stringify(label)}`);
 });
 
-test('interpolation-only labels are suppressed rather than canonical labels when they would sit under the reserved band',()=>{
+test('RELEASE POLISH: interpolation-only (non-canonical) sample points NEVER receive a numeric label, regardless of position or collision — only the 5 canonical zone anchors ever do',()=>{
   const crop={x:0,y:0,width:100,height:60};
-  const reservedTopY=crop.y+crop.height*.16;
   const points=[
     {mapX:10,mapY:55,len:5,isKey:true,isPeak:false,label:'INNER',keyZoneIndex:0},
-    {mapX:40,mapY:5,len:9,isKey:false,isPeak:false,label:null,keyZoneIndex:null},
+    // Deliberately placed clear of the reserved band and far from every
+    // canonical point, so under the OLD "DERIVED" mechanism this sample
+    // would have received its own visible numeric label.
+    {mapX:40,mapY:55,len:9,isKey:false,isPeak:false,label:null,keyZoneIndex:null},
     {mapX:80,mapY:40,len:11,isKey:true,isPeak:true,label:'PEAK',keyZoneIndex:3},
     {mapX:95,mapY:45,len:10,isKey:true,isPeak:false,label:'OUTER',keyZoneIndex:4},
   ];
   const labels=selectProfessionalEyeLabels(points,crop);
-  assert.strictEqual(labels[1],null,'the interpolation sample whose natural position sits under the reserved band must be suppressed');
+  assert.strictEqual(labels[1],null,'a non-canonical interpolation sample must never receive a numeric label');
   assert.ok(labels[0]&&labels[2]&&labels[3],'all three canonical labels must still be present');
 });
 
@@ -247,9 +256,12 @@ test('PEAK label is mandatory and collision scheduling is deterministic',()=>{
   assert.ok(a[peakIndex].y<points[peakIndex].mapY);
 });
 
-test('PHOTO permanently labels all five source zones while retaining every marker',()=>{
+test('PHOTO permanently labels all five source zones, and ONLY those five, while retaining every marker',()=>{
   const mapped=project(leftEye),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
   assert.deepStrictEqual(labels.filter(label=>label&&!label.isDerived).map(label=>label.zone),['INNER','TRANSITION','BODY','PEAK','OUTER']);
+  // RELEASE POLISH: exactly 5 labels total now — no interpolation
+  // sample ever produces an additional numeric label alongside them.
+  assert.strictEqual(labels.filter(Boolean).length,5);
   assert.ok(professionalEyeMapSource.includes('{profilePoints.map((point,i)=>'));
   assert.ok(professionalEyeMapSource.includes('data-map-point={i}'));
   assert.ok(professionalEyeMapSource.includes('data-photo-label={label.kind}'));
@@ -289,7 +301,7 @@ test('PHOTO renders exactly one circular marker per sample and one engine PEAK t
   assert.ok(!professionalEyeMapSource.includes('diamond'));
 });
 
-test('plateau values do not produce redundant repeated labels',()=>{
+test('plateau values do not produce redundant repeated labels (trivially true now: only the 5 canonical zones are ever labelled)',()=>{
   const plateau=expandLashMapSectors([7,8,10,10,9],2,{zonePositions:[0,.2,.5,.7,1],plateauShape:'shoulder'});
   const mapped=buildProfessionalEyeProjection(leftEye,plateau,500,250),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
   const derivedTens=mapped.points.filter((point,index)=>point.len===10&&labels[index]?.isDerived);
@@ -297,12 +309,27 @@ test('plateau values do not produce redundant repeated labels',()=>{
   assert.strictEqual(labels.filter(label=>label&&!label.isDerived).length,5);
 });
 
-test('useful derived labels are exact expanded-sector values and explain the Fox transition',()=>{
+// RELEASE POLISH — was 'useful derived labels are exact expanded-sector
+// values and explain the Fox transition': real-device testing (exactly
+// this FOX zone set) found the 10 displayed numeric values (5 canonical
+// + 5 interpolation "DERIVED" labels) created visual clutter/collisions
+// around the peak. Only the 5 canonical zone anchors are labelled now —
+// this is the real-device-reported FOX scenario, now asserting the NEW,
+// intended behavior instead of the old clutter it replaces.
+test('RELEASE POLISH: PHOTO displays numeric labels for ONLY the 5 canonical zone anchors — verified against the real-device-reported FOX scenario (5 -> 5 -> 8 -> 11 -> 10)',()=>{
   const fox=DESIGN_CATALOG.find(entry=>entry.id==='fox'),items=expandLashMapSectors([5,5,8,11,10],3,curveFor(fox));
+  // Confirm this fixture still genuinely produces interpolation samples
+  // in between the 5 canonical zones (i.e. this test still exercises
+  // real intermediate points, not just the 5 key ones).
+  assert.ok(items.length>5,'expandLashMapSectors must still produce intermediate interpolation samples for this Fox zone set');
   const mapped=buildProfessionalEyeProjection(leftEye,items,500,250),points=buildProfessionalPhotoLine(leftEye,mapped.points).points,labels=selectProfessionalEyeLabels(points,mapped.crop);
   const displayed=points.filter((point,index)=>labels[index]).map(point=>point.len);
-  assert.deepStrictEqual(displayed,[5,5,6,7,8,9,10,11,10.5,10]);
-  assert.ok(displayed.every(value=>items.some(item=>item.len===value)));
+  assert.deepStrictEqual(displayed,[5,5,8,11,10],'only the 5 canonical zone anchor values may be displayed, matching the real-device-reported INNER->TRANSITION->BODY->PEAK->OUTER sequence');
+  // Every intermediate interpolation sample must still exist in the
+  // geometry/data (untouched) and still be a real point on the mapping
+  // engine's own output — just without its own visible numeric label.
+  assert.strictEqual(points.length,items.length);
+  assert.ok(items.some(item=>!item.isKey),'the mapping engine must still produce non-canonical interpolation samples');
 });
 
 test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{

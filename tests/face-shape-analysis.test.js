@@ -366,7 +366,11 @@ test('face shape is never derived from eyeShapeCategory or any other eyeProfile 
 
 test('faceShapeProfile is attached as a sibling field on rec/photoRec, never nested inside eyeProfile', () => {
   assert.ok(indexSource.includes('confidence: finalProfile.overallConfidence,\n            faceShapeProfile,\n          };'));
-  assert.ok(indexSource.includes('confidence: classified.overallConfidence,\n            faceShapeProfile,\n          };'));
+  // RELEASE POLISH: photoRec now also carries an additive nativeImage
+  // field after faceShapeProfile (see index.html's own comment on it) —
+  // this still proves faceShapeProfile is a bare sibling property
+  // (trailing comma, not nested inside another object).
+  assert.ok(indexSource.includes('confidence: classified.overallConfidence,\n            faceShapeProfile,\n'));
 });
 
 test('the face-shape pose gate never touches assessFrameQuality or the existing frame-acceptance decision', () => {

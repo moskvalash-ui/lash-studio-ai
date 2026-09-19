@@ -4411,23 +4411,17 @@
         const y=Math.max(reservedTopY,point.mapY-crop.height*(.032+lane*.016));
         result[index]={x:point.mapX,y,priority,kind,zone:kind,isDerived:false,lane};
       });
-      const placed=result.filter(Boolean),minX=crop.width*.038,minY=crop.height*.055;
-      let previousVisible=null;
-      points.forEach((point,index)=>{
-        if(result[index]){previousVisible=point.len;return;}
-        if(point.len===previousVisible)return;
-        const lane=index%2;
-        const y=point.mapY-crop.height*(.03+lane*.015);
-        // Canonical labels (PEAK/OUTER/INNER/BODY/TRANSITION) always
-        // outrank interpolation-only numeric labels: an interpolation
-        // label is suppressed, never a canonical one, whenever it would
-        // sit under the reserved button band or collide with anything
-        // already placed (canonical labels are placed first, above).
-        if(y<reservedTopY)return;
-        const candidate={x:point.mapX,y,priority:1,kind:'DERIVED',zone:null,isDerived:true,lane};
-        if(placed.some(label=>Math.abs(label.x-candidate.x)<minX&&Math.abs(label.y-candidate.y)<minY))return;
-        result[index]=candidate;placed.push(candidate);previousVisible=point.len;
-      });
+      // RELEASE POLISH — interpolation/sample points between the 5
+      // canonical zone anchors used to also receive their own numeric
+      // "DERIVED" text label whenever it didn't collide with anything
+      // already placed. Real-device testing found this created visual
+      // clutter/collisions around the peak (many close-together numeric
+      // values competing for space). Those samples still exist in
+      // `points` untouched (same t/len/mapX/mapY, still rendered as
+      // small dots by the caller) and still form the blue mapping line
+      // -- only their OWN numeric text label is no longer produced here.
+      // Every canonical zone (`point.isKey`) still gets its label from
+      // the pass above; nothing else in `result` is ever populated now.
       return result;
     }
 
@@ -9415,6 +9409,19 @@
             originalImage: canvas.toDataURL('image/jpeg', 0.92), landmarks: det.landmarks,
             imageWidth: canvas.width, imageHeight: canvas.height, confidence: classified.overallConfidence,
             faceShapeProfile,
+            // RELEASE POLISH — presentation-only, additive field. `url`
+            // is the SAME already-loaded blob URL `img` (the full,
+            // original-resolution source photo) was fetched from above
+            // -- reused as-is, never re-encoded, no new canvas/bitmap.
+            // Landmarks/imageWidth/imageHeight (the actual analysis
+            // input) stay in the existing downscaled `canvas` coordinate
+            // space, completely unchanged. Only LegacyProfessionalEyeMap
+            // (the PHOTO eye-crop renderer) reads this, to source-crop
+            // from full resolution instead of the small analysis canvas
+            // -- never persisted (buildVisitSnapshot only ever reads
+            // eyeProfile/iris/naturalLashProfile off `result`, see
+            // visit-snapshot.js), never logged, never sent anywhere.
+            nativeImage: url,
           };
           // Debug-only, additive field — absent entirely in normal mode.
           if (irisColorAuditForRec) photoRec.irisColorAudit = irisColorAuditForRec;
@@ -10368,7 +10375,18 @@
         <article className={`overflow-hidden rounded-xl border transition-colors ${active?'border-accent/60 bg-accent/[0.04]':'border-border bg-surface/70'}`}>
           <div role="button" tabIndex="0" onClick={onActivate} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onActivate();}}} className="relative block w-full aspect-[16/9] overflow-hidden text-left" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
             <svg ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
-              <image href={result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
+              {/* RELEASE POLISH — source from the full-resolution photo
+                  (result.nativeImage, Photo Analysis only) when present,
+                  falling back to the existing analysis-canvas image
+                  (result.originalImage, always present -- Live Scan's
+                  only source) otherwise. width/height/viewBox stay
+                  EXACTLY the analysis-space numbers they always were;
+                  the browser's own image scaling now downsamples from a
+                  much higher-resolution source into that same box, so
+                  the small cropped region the viewBox shows carries far
+                  more real detail than the old 900px-canvas source did.
+                  No landmark/ROI/crop-coordinate math changes at all. */}
+              <image href={result.nativeImage || result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
               <rect x={photoCrop.x} y={photoCrop.y} width={photoCrop.width} height={photoCrop.height} fill="rgba(2,6,11,.12)" />
               {/* Anatomical eyelid baseline: demoted to a subtle reference -- no longer the lash-length profile. */}
               <path id={`photo-map-line-${side}`} data-photo-map-line="true" d={workingLine.path} fill="none" stroke="rgba(244,247,250,.32)" strokeWidth={unit*.2} strokeDasharray={`${unit*.5} ${unit*.4}`} strokeLinecap="round" />

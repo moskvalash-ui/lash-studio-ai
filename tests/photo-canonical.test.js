@@ -97,7 +97,9 @@ test('Custom runtime maps, peaks, topology, and manual presentation state pass t
 test('PHOTO anatomical and mirror contract is explicit at the canonical wrapper and SVG boundary',()=>{
   const legacyRenderer=src.slice(src.indexOf('    function LegacyProfessionalEyeMap('),src.indexOf('\n    // Phase 2C consumer boundary:'));
   assert.ok(legacyRenderer.includes('getPhysicalEyeLandmarks(result.landmarks,side).eye'));
-  assert.ok(legacyRenderer.includes('href={result.originalImage}'));
+  // RELEASE POLISH: full-resolution nativeImage when present, falling
+  // back to originalImage (always present) otherwise.
+  assert.ok(legacyRenderer.includes('href={result.nativeImage || result.originalImage}'));
   assert.ok(!/scaleX\s*\(\s*-1|rotateY\s*\(\s*180|<svg[^>]+transform=|transform[^\n]*mirror/i.test(legacyRenderer));
   for(const side of ['left','right']){
     const sectors=expandLashMapSectors([6,7,9,12,10],3,curveFor(DESIGN_CATALOG[0]));

@@ -75,6 +75,12 @@ function buildRealClientDesign(overrides) {
 function buildRealResult(overrides) {
   return {
     originalImage: 'data:image/jpeg;base64,IGNORED_IN_THIS_TEST',
+    // RELEASE POLISH: production's photoRec now also carries this
+    // additive, presentation-only field (see index.html's own comment
+    // on it) — included here so Q2 below genuinely proves it, like
+    // originalImage, never reaches a stored Visit, not merely that the
+    // fixture happens not to have it yet.
+    nativeImage: 'blob:IGNORED_NATIVE_IMAGE_URL',
     landmarks: { positions: [{ x: 1, y: 1 }] },
     imageWidth: 800, imageHeight: 600,
     eyeProfile: { eyeShapeCategory: 'almond', eyeShapeConfidence: 0.8, tiltTendency: 'neutral', tiltConfidence: 0.7, tiltDegrees: 1, perEyeTiltDegrees: { left: 1, right: 1 }, eyelidCategory: 'none', eyelidCategoryConfidence: 0.6, eyelidType: 'standard', eyelidTypeConfidence: 0.6, eyelidSignalsConflict: false, creaseState: 'visible', hoodingState: 'none', eyeSetCategory: 'standard', eyeSizeCategory: 'medium', symmetryCategory: 'symmetric', compositeAsymmetry: 0.02, overallConfidence: 0.75 },
@@ -268,7 +274,7 @@ test('Q/R. VisitDetailScreen/VisitHistoryCard/visitDesignDiagramProps never refe
     src.match(/function VisitHistoryCard\(\{[\s\S]*?\n    \}\n/)[0],
     src.match(/function visitDesignDiagramProps\([\s\S]*?\n    \}\n/)[0],
   ];
-  for (const forbidden of ['originalImage', 'landmarks', 'base64', '.getContext(', 'photoId', '.debug']) {
+  for (const forbidden of ['originalImage', 'nativeImage', 'landmarks', 'base64', '.getContext(', 'photoId', '.debug']) {
     for (const block of blocks) assert.ok(!block.includes(forbidden), 'must not reference ' + forbidden);
   }
 });
@@ -279,7 +285,7 @@ test('Q2. a real stored Visit round-tripped through ClientStore contains no phot
   const snapshot = VisitSnapshot.buildVisitSnapshot({ result: buildRealResult(), activeDesign: buildRealClientDesign(), naturalLashProfile: null });
   const visit = await store.createVisit(client.id, snapshot);
   const raw = JSON.stringify(visit);
-  for (const forbidden of ['originalImage', 'IGNORED_IN_THIS_TEST', 'data:image', 'landmarks', 'base64']) {
+  for (const forbidden of ['originalImage', 'nativeImage', 'IGNORED_IN_THIS_TEST', 'IGNORED_NATIVE_IMAGE_URL', 'data:image', 'blob:', 'landmarks', 'base64']) {
     assert.ok(!raw.includes(forbidden));
   }
 });

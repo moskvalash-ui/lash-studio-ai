@@ -278,7 +278,11 @@ test('8. no forbidden data (pixels/base64/image URL/landmarks/raw box position) 
 // ------------------------------------------------------------
 // PART C — the exception branch.
 // ------------------------------------------------------------
-const catchKeywordMarker = "} catch (e) {\n          console.error('[Photo] PIPELINE ERROR', e);";
+// PHOTO SCAN VISUAL LAYER: the catch block now opens with one
+// additive unmount-safety guard (see tests/photo-scan-visual-layer
+// .test.js for the real, unmodified-code proof of it) before its
+// original, unmodified console.error.
+const catchKeywordMarker = "} catch (e) {\n          if (cancelledRef.current) return;\n          console.error('[Photo] PIPELINE ERROR', e);";
 const catchKeywordIdx = photoBlock.indexOf(catchKeywordMarker);
 assert.ok(catchKeywordIdx >= 0, 'exception diagnostic branch must be structurally extractable');
 // Depth-count from the catch block's own opening brace to its true
@@ -297,10 +301,16 @@ assert.ok(catchBody.includes("setPhotoQualityDebugInfo({") && catchBody.includes
 
 function runExceptionBranch(photoQualityDebugEnabled, err) {
   const calls = { setPhotoQualityDebugInfo: [], setState: [] };
-  const fn = new Function('photoQualityDebugEnabled', 'setPhotoQualityDebugInfo', 'setState', 'console', 'e',
+  // PHOTO SCAN VISUAL LAYER: catchBody now opens with a real
+  // `if (cancelledRef.current) return;` unmount-safety guard -- a
+  // plain, never-cancelled stub is the correct mock here, since this
+  // file's own job is proving the exception-diagnostic branch, not
+  // cancellation (already covered by tests/photo-scan-visual-layer
+  // .test.js).
+  const fn = new Function('photoQualityDebugEnabled', 'setPhotoQualityDebugInfo', 'setState', 'console', 'e', 'cancelledRef',
     catchBody);
   fn(photoQualityDebugEnabled, info => calls.setPhotoQualityDebugInfo.push(info), s => calls.setState.push(s),
-    { error: () => {} }, err);
+    { error: () => {} }, err, { current: false });
   return calls;
 }
 
@@ -337,7 +347,7 @@ test('10. every setPhotoQualityDebugInfo call site is inside an `if (photoQualit
   assert.ok(photoBlock.includes('if (photoQualityDebugEnabled) setPhotoQualityDebugInfo(null);'), 'reset call must be guarded');
   assert.ok(photoBlock.includes("if (!det) {\n            if (photoQualityDebugEnabled) {\n              setPhotoQualityDebugInfo({"), 'no-detection call must be guarded');
   assert.ok(photoBlock.includes('if (photoQualityDebugEnabled) {\n            // faceRatio here mirrors') && photoBlock.includes('setPhotoQualityDebugInfo(photoQualityDiag);'), 'quality-branch guard must open before the diagnostic is built and set');
-  assert.ok(photoBlock.includes("} catch (e) {\n          console.error('[Photo] PIPELINE ERROR', e);\n          if (photoQualityDebugEnabled) {") && photoBlock.includes("exceptionInfo: { name: (e && e.name)"), 'exception-branch guard must open right after the catch, before the diagnostic is built');
+  assert.ok(photoBlock.includes("} catch (e) {\n          if (cancelledRef.current) return;\n          console.error('[Photo] PIPELINE ERROR', e);\n          if (photoQualityDebugEnabled) {") && photoBlock.includes("exceptionInfo: { name: (e && e.name)"), 'exception-branch guard must open right after the catch, before the diagnostic is built');
 });
 
 test('11. the real hard-block decisions are unconditional — never gated behind the debug flag', () => {
@@ -352,7 +362,13 @@ test('11. the real hard-block decisions are unconditional — never gated behind
   // 'quality_rejected'}) event — still unconditional/ungated by the debug
   // flag, and the underlying setState('error') is unchanged.
   assert.ok(photoBlock.includes("if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }"), 'quality-rejection setState(error) must be unconditional and unchanged');
-  assert.ok(photoBlock.includes('onComplete(photoRec);'), 'success path onComplete must be unconditional and unchanged');
+  // PHOTO SCAN VISUAL LAYER: the success path now hands photoRec to
+  // analysisResultRef (read by the scan-animation effect, which calls
+  // the real, unmodified onComplete once the visual sequence is also
+  // done) instead of calling onComplete directly -- still unconditional
+  // and ungated by the debug flag either way; only WHEN onComplete
+  // fires changed, never whether this line itself is reached.
+  assert.ok(photoBlock.includes('analysisResultRef.current = photoRec;'), 'success path completion hand-off must be unconditional and unchanged');
 });
 
 test('12. the debug panel is only ever rendered gated on both the enable flag AND a populated diagnostic', () => {

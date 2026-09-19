@@ -52,7 +52,19 @@ test('paired audit measures real native blue evidence lost in a neutral resized 
 
 test('Photo native audit is debug-gated and cannot replace production iris values',()=>{
   const photo=src.slice(src.indexOf('    function PhotoAnalysisScreen('),src.indexOf('\n    function ReviewScreen('));
-  const gate=photo.indexOf('if (isDebugModeEnabled()) {'),native=photo.indexOf('debugBuildIrisNativeMapping('),complete=photo.indexOf('onComplete(photoRec)');
+  const gate=photo.indexOf('if (isDebugModeEnabled()) {'),native=photo.indexOf('debugBuildIrisNativeMapping(');
+  // PHOTO SCAN VISUAL LAYER: the real, unconditional success-path
+  // completion hand-off is now `analysisResultRef.current = photoRec;`
+  // (onComplete itself moved to the scan-animation effect's own
+  // finish() -- proven by tests/photo-scan-visual-layer.test.js).
+  // Searched via a real CODE anchor (regex, no leading whitespace
+  // requirement so it can't accidentally match this file's own prose)
+  // rather than a literal 'onComplete(photoRec)' string, which would
+  // now spuriously match this exact explanatory comment in the real
+  // source instead of any real code.
+  const completeMatch = /\n\s*analysisResultRef\.current = photoRec;/.exec(photo);
+  assert.ok(completeMatch, 'expected to find the real analysisResultRef.current = photoRec hand-off');
+  const complete = completeMatch.index;
   assert.ok(gate>=0&&native>gate&&complete>native);
   assert.ok(photo.includes('const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);'));
   assert.ok(photo.includes('const iris = combineIris(leftIris, rightIris);'));

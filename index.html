@@ -656,6 +656,11 @@
       photoSelect: {ru:'Выбрать фото', en:'Select Photo'},
       photoHint: {ru:'Фото анфас, хорошее освещение, оба глаза открыты', en:'Front-facing photo, good lighting, both eyes open'},
       photoAnalyzing: {ru:'Анализ изображения...', en:'Analyzing image...'},
+      // PHOTO SCAN visual layer: deliberately NOT reusing
+      // stageSubjectLocked ("ОБЪЕКТ ЗАФИКСИРОВАН"/"SUBJECT LOCKED") —
+      // that phrase implies continuous live tracking, which a static
+      // photo never does. This is the photo-appropriate equivalent.
+      photoFaceDetected: {ru:'ЛИЦО РАСПОЗНАНО', en:'FACE DETECTED'},
       photoErrorQuality: {ru:'Недостаточно качества для точного анализа. Используйте фото анфас при хорошем освещении, без сильного наклона головы и без перекрытия глаз.', en:'Image quality is insufficient for reliable analysis. Use a front-facing photo with good lighting and unobstructed eyes.'},
       photoTryAgain: {ru:'Выбрать другое фото', en:'Choose another photo'},
       cameraDenied: {ru:'Нет доступа к камере', en:'Camera access denied'},
@@ -5176,6 +5181,25 @@
       ctx.drawImage(video, dx, dy, dw, dh);
       ctx.restore();
     }
+    // PHOTO SCAN — static-image analog of drawVideoCover above, for
+    // PhotoAnalysisScreen's own scan-animation canvas. Same object-
+    // fit:cover math (scale = max(dispW/srcW, dispH/srcH), centered) as
+    // mapVideoPointToDisplay, so a photo painted here and points mapped
+    // through mapVideoPointToDisplay (using the SAME img.width/height as
+    // source) always agree pixel-for-pixel — the exact same contract
+    // drawVideoCover already guarantees for the live camera picture.
+    // Deliberately has NO mirrored parameter at all (unlike
+    // drawVideoCover): a normal uploaded photo must never inherit
+    // selfie-preview mirroring behavior. Pure presentation — never
+    // reads/writes any analysis state, never mutates `img`.
+    function drawImageCover(ctx, img, dispW, dispH) {
+      const iw = img.width, ih = img.height;
+      if (!iw || !ih) return;
+      const scale = Math.max(dispW / iw, dispH / ih);
+      const dw = iw * scale, dh = ih * scale;
+      const dx = (dispW - dw) / 2, dy = (dispH - dh) / 2;
+      ctx.drawImage(img, dx, dy, dw, dh);
+    }
     function drawCornerBracket(ctx, x, y, dirX, dirY, len) {
       ctx.beginPath();
       ctx.moveTo(x + dirX*len, y);
@@ -9079,11 +9103,60 @@
     // a reduced confidence multiplier and a `singleFrame` flag.
     function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {
       const lang = useLang();
+      // Same langRef pattern LiveScanScreen already uses (index.html,
+      // near its own draw loop) so the scan-animation loop below always
+      // reads the CURRENT language for its on-canvas label, not whatever
+      // it was when the animation effect started.
+      const langRef = useRef(lang);
+      useEffect(() => { langRef.current = lang; }, [lang]);
       const [state, setState] = useState('idle');
       const [previewUrl, setPreviewUrl] = useState(null);
       const fileInputRef = useRef(null);
       const photoQualityDebugEnabled = isPhotoQualityDebugEnabled();
       const [photoQualityDebugInfo, setPhotoQualityDebugInfo] = useState(null);
+
+      // PHOTO SCAN VISUAL LAYER — presentation only. Reuses the exact
+      // same top-level draw*/build* functions LiveScanScreen already
+      // uses (drawScanBeam, buildFaceMesh, drawFaceMeshV3, drawDust,
+      // drawScanFrame, drawSubjectLock, drawEyeTarget, drawIrisMicroScan,
+      // drawDataFlow/drawDataFlowFan, drawCenterLabel, mapVideoPointToDisplay)
+      // plus the new drawImageCover (index.html, right after
+      // drawVideoCover) for the static-photo background paint. Nothing
+      // here computes, reads back, or alters any analysis value — it
+      // only PAINTS values analyze() below already computed for its own
+      // real purposes. See scanDataRef's own comment for exactly what
+      // is shared and why that sharing is read-only-safe.
+      const scanCanvasRef = useRef(null);
+      const scanRafRef = useRef(null);
+      const cancelledRef = useRef(false);
+      const reduceMotionRef = useRef(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const scanStartRef = useRef(0);
+      // Populated by analyze() below as soon as each piece exists —
+      // `img` immediately after fetch (so the canvas can paint the real
+      // photo before detection even runs), the rest once detection
+      // succeeds. Every field is a DIRECT reference to a value analyze()
+      // already computed for real analysis purposes (det.landmarks'
+      // own getters, physicalLeft/physicalRight.eye, det.detection.box);
+      // the animation loop only ever READS this ref to paint pixels — it
+      // never writes analysis-shaped data back, and analyze() never
+      // reads anything the animation loop writes.
+      const scanDataRef = useRef(null);
+      // Set to the real, unmodified photoRec once analyze() finishes
+      // successfully. The animation loop calls the real onComplete only
+      // once this is set AND the minimum visual sequence has played —
+      // this delays WHEN onComplete fires, never WHAT it is called with.
+      const analysisResultRef = useRef(null);
+
+      // Unmount/navigate-away safety: cancelledRef is checked at every
+      // resume-from-await point in analyze() below and at the top of
+      // every animation frame, so neither can call setState/onComplete
+      // after this screen is gone.
+      useEffect(() => {
+        return () => {
+          cancelledRef.current = true;
+          if (scanRafRef.current) cancelAnimationFrame(scanRafRef.current);
+        };
+      }, []);
 
       const analyze = async (file) => {
         if (!file) return;
@@ -9093,6 +9166,11 @@
         setState('analyzing');
         try {
           const img = await faceapi.fetchImage(url);
+          if (cancelledRef.current) return;
+          // Photo is now decoded and paintable — the scan animation
+          // (started by the useEffect below, keyed on state==='analyzing')
+          // can show it immediately, before detection has even run.
+          scanDataRef.current = { img };
           // Builds the proportional analysis canvas/context for a given
           // width cap. Shared by the primary attempt and the bounded
           // no_detection fallback below so both reuse the exact same,
@@ -9108,6 +9186,7 @@
 
           let { canvas, ctx, scale } = buildAnalysisCanvas(900);
           let det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks();
+          if (cancelledRef.current) return;
 
           // PHOTO-ONLY NO_DETECTION FALLBACK — real-device evidence
           // (?photoQualityDebug=1) showed a real, large, frontal,
@@ -9135,6 +9214,7 @@
             const PHOTO_FALLBACK_MAX_W = 1600;
             const fb = buildAnalysisCanvas(PHOTO_FALLBACK_MAX_W);
             const fallbackDet = await faceapi.detectSingleFace(fb.canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.5 })).withFaceLandmarks();
+            if (cancelledRef.current) return;
             if (fallbackDet) {
               canvas = fb.canvas; ctx = fb.ctx; scale = fb.scale; det = fallbackDet;
             }
@@ -9166,6 +9246,32 @@
           const physicalLeft = getPhysicalEyeLandmarks(det.landmarks, 'left');
           const physicalRight = getPhysicalEyeLandmarks(det.landmarks, 'right');
           const leftEye = physicalLeft.eye, rightEye = physicalRight.eye;
+          // PHOTO SCAN VISUAL LAYER — presentation only, read-only.
+          // Every field below is either a DIRECT reference to a value
+          // already computed above for real analysis (physicalLeft.eye/
+          // physicalRight.eye) or a fresh call to one of det.landmarks'
+          // OWN getters (the identical object LiveScanScreen's tick
+          // reads via d.jaw/d.leftBrow/etc. for its own, equally
+          // read-only, buildFaceMesh call) — never a new measurement,
+          // never fed back into det/classified/anything below. `scale`
+          // is the SAME analysis-canvas-to-native-image ratio already
+          // established above (buildAnalysisCanvas); toNative lets the
+          // animation loop map these analysis-canvas-space points onto
+          // the native-resolution `img` it paints via drawImageCover.
+          scanDataRef.current = {
+            ...scanDataRef.current,
+            toNative: 1 / scale,
+            box: det.detection.box,
+            jaw: det.landmarks.getJawOutline(),
+            leftBrow: det.landmarks.getLeftEyeBrow(),
+            rightBrow: det.landmarks.getRightEyeBrow(),
+            nose: det.landmarks.getNose(),
+            leftEye: det.landmarks.getLeftEye(),
+            rightEye: det.landmarks.getRightEye(),
+            mouth: det.landmarks.getMouth(),
+            physicalLeftEye: physicalLeft.eye,
+            physicalRightEye: physicalRight.eye,
+          };
           const brightness = sampleBrightness(ctx, leftEye.concat(rightEye));
           // SHARPNESS FIX (Photo Analysis quality-gate regression).
           // estimateSharpness's algorithm and assessFrameQuality's
@@ -9452,8 +9558,17 @@
           };
           // Debug-only, additive field — absent entirely in normal mode.
           if (irisColorAuditForRec) photoRec.irisColorAudit = irisColorAuditForRec;
-          onComplete(photoRec);
+          // PHOTO SCAN VISUAL LAYER: onComplete(photoRec) is deliberately
+          // NOT called here anymore. photoRec itself is byte-for-byte
+          // the same, real, fully computed result as before this
+          // change — only WHEN the app navigates to Results changes.
+          // The scan-animation effect below owns calling the real,
+          // unmodified onComplete once both the real analysis (this
+          // ref) and the minimum visual sequence are done.
+          if (cancelledRef.current) return;
+          analysisResultRef.current = photoRec;
         } catch (e) {
+          if (cancelledRef.current) return;
           console.error('[Photo] PIPELINE ERROR', e);
           if (photoQualityDebugEnabled) {
             // Safe error type/message only — a generic JS Error's
@@ -9476,6 +9591,174 @@
         }
       };
 
+      // PHOTO SCAN VISUAL LAYER — presentation only. Starts exactly
+      // when analyze() puts this screen into 'analyzing' (never on
+      // 'idle'/'error'), stops on any transition away from it (error,
+      // or this screen unmounting because onComplete below navigated
+      // the app forward) via this effect's own cleanup / cancelledRef.
+      // Every draw* function called here is one of the exact same,
+      // unmodified, top-level functions LiveScanScreen already uses —
+      // see this file's own drawScanBeam/buildFaceMesh/etc. definitions
+      // above. This effect never reads/writes analyze()'s own analysis
+      // variables (classified/iris/designs/photoRec) — only
+      // scanDataRef (raw geometry, read-only) and analysisResultRef
+      // (the finished, real photoRec, read-only, used only to decide
+      // WHEN to call the real onComplete).
+      useEffect(() => {
+        if (state !== 'analyzing') return;
+        const reduceMotion = reduceMotionRef.current;
+        // ~2.9s of visual sequence + a short collapse lands the total
+        // in the requested ~2.8-3.2s window when real analysis is fast.
+        // Reduced motion never waits on a minimum duration -- it shows
+        // a stable, non-sweeping state and proceeds the instant real
+        // analysis is done, per this feature's own accessibility
+        // requirement.
+        // MIN_MS gates the overall minimum time before completion is
+        // even considered (matches the requested ~2.8-3.2s total when
+        // real analysis/detection is fast). REVEAL_MS is a SEPARATE
+        // floor measured from when real face geometry actually becomes
+        // available (geomStart below), not from animation start --
+        // detection latency varies by device; without this, a slow
+        // detection could make the choreography "catch up" to an
+        // already-elapsed clock and render every phase at full presence
+        // in the same frame instead of revealing progressively. Using
+        // BOTH floors together means: on a fast device (typical target
+        // hardware) REVEAL_MS is already satisfied well before MIN_MS,
+        // so total time matches the ~2.8-3.2s target; if detection is
+        // ever slow, the choreography still always gets to play out in
+        // full before the final hold/collapse, per "hold the final
+        // scanning state until analysis completes."
+        const MIN_MS = 2900, REVEAL_MS = 2200, COLLAPSE_MS = 260;
+        scanStartRef.current = performance.now();
+        let collapseStart = null;
+        let geomStart = null;
+
+        const finish = () => {
+          if (cancelledRef.current) return;
+          const rec = analysisResultRef.current;
+          // rec is only ever null here if the animation is somehow
+          // still running after a failure path already set state to
+          // 'error' elsewhere (state!=='analyzing' would have already
+          // cancelled this effect) -- defensive, not expected.
+          if (rec) onComplete(rec);
+        };
+
+        const frame = (time) => {
+          if (cancelledRef.current) return;
+          const canvas = scanCanvasRef.current;
+          const container = canvas && canvas.parentElement;
+          if (!canvas || !container) { scanRafRef.current = requestAnimationFrame(frame); return; }
+          const rect = container.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          const w = Math.max(1, Math.round(rect.width)), h = Math.max(1, Math.round(rect.height));
+          if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+            canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+          }
+          const ctx = canvas.getContext('2d');
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, w, h);
+
+          const data = scanDataRef.current;
+          if (data && data.img) drawImageCover(ctx, data.img, w, h);
+
+          const elapsed = time - scanStartRef.current;
+          const analysisDone = !!analysisResultRef.current;
+          const hasGeometry = !!(data && data.box);
+          if (hasGeometry && geomStart == null) geomStart = time;
+          // Choreography (lock/beam/mesh/eyes/iris reveal) is timed off
+          // geomElapsed -- always a full, smooth ~2.2s reveal starting
+          // the moment real geometry exists, independent of how long
+          // detection itself took. Only the completion GATE below still
+          // also checks the overall `elapsed` against MIN_MS.
+          const geomElapsed = geomStart != null ? time - geomStart : 0;
+
+          if (hasGeometry) {
+            const toNative = data.toNative;
+            const map = (pt) => mapVideoPointToDisplay(pt.x * toNative, pt.y * toNative, data.img.width, data.img.height, w, h);
+            const mapAll = (pts) => pts.map(map);
+            const tl = map({ x: data.box.x, y: data.box.y });
+            const br = map({ x: data.box.x + data.box.width, y: data.box.y + data.box.height });
+            const box = { x: Math.min(tl.x, br.x), y: Math.min(tl.y, br.y), width: Math.abs(br.x - tl.x), height: Math.abs(br.y - tl.y) };
+            const eyeOf = (pts) => {
+              const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+              const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+              const rx = (Math.max(...xs) - Math.min(...xs)) / 2 * 1.5 + 6, ry = (Math.max(...ys) - Math.min(...ys)) / 2 * 2.1 + 6;
+              return { center: { x: cx, y: cy }, rx, ry, inner: pts[0], outer: pts[3] };
+            };
+            const le = eyeOf(mapAll(data.physicalLeftEye)), re = eyeOf(mapAll(data.physicalRightEye));
+
+            if (reduceMotion) {
+              // Stable, non-animated state: frame + mesh + eye targets
+              // all shown at full presence, no sweep/particles/pulse.
+              drawScanFrame(ctx, box, 1, true);
+              const mesh = buildFaceMesh({ jaw: mapAll(data.jaw), leftBrow: mapAll(data.leftBrow), rightBrow: mapAll(data.rightBrow), nose: mapAll(data.nose), leftEye: mapAll(data.leftEye), rightEye: mapAll(data.rightEye), mouth: mapAll(data.mouth) });
+              drawFaceMeshV3(ctx, mesh, { revealMode: false, wavefrontY: box.y + box.height, beamY: -9999, presence: 1, boxCenter: { x: box.x + box.width / 2, y: box.y + box.height / 2 }, faceHalfW: Math.max(box.width, box.height) / 2 });
+              drawEyeTarget(ctx, le.center, le.rx, le.ry, le.inner, le.outer, 'L', 1, 1, time, false, 0);
+              drawEyeTarget(ctx, re.center, re.rx, re.ry, re.inner, re.outer, 'R', 1, 1, time, false, 0);
+              drawCenterLabel(ctx, box.x + box.width / 2, box.y - 14, t('photoFaceDetected', langRef.current), 200, 1, 1e9, 1);
+            } else {
+              const finishT = collapseStart != null ? clamp((time - collapseStart) / COLLAPSE_MS, 0, 1) : 0;
+              const collapse = collapseStart != null ? 1 - finishT : 1;
+              const presence = Math.min(1, geomElapsed / 300) * collapse;
+              const isolating = geomElapsed > 1700 && geomElapsed < 2600 && collapseStart == null;
+
+              drawSubjectLock(ctx, box, Math.min(1, geomElapsed / 500), false);
+              drawScanFrame(ctx, box, presence, geomElapsed > 550);
+
+              const revealMode = geomElapsed < 2200;
+              const wavefrontY = box.y + clamp((geomElapsed - 300) / 1600, 0, 1) * box.height;
+              const beamSoftness = collapseStart != null ? Math.max(0, 1 - finishT * 2) : (geomElapsed < 1700 ? 0.85 : 0);
+              const beamY = drawScanBeam(ctx, box, time, 1800, beamSoftness * presence, false);
+
+              // Computed once, reused by both drawFaceMeshV3 and the
+              // eye-targeting data-flow fan below -- same "one mesh per
+              // frame, shared by every consumer" pattern LiveScanScreen's
+              // own draw() already uses.
+              const mesh = buildFaceMesh({ jaw: mapAll(data.jaw), leftBrow: mapAll(data.leftBrow), rightBrow: mapAll(data.rightBrow), nose: mapAll(data.nose), leftEye: mapAll(data.leftEye), rightEye: mapAll(data.rightEye), mouth: mapAll(data.mouth) });
+              const meshPresence = clamp((geomElapsed - 600) / 900, 0, 1) * collapse;
+              if (meshPresence > 0.01) {
+                drawFaceMeshV3(ctx, mesh, { revealMode, wavefrontY, beamY, presence: meshPresence, boxCenter: { x: box.x + box.width / 2, y: box.y + box.height / 2 }, faceHalfW: Math.max(box.width, box.height) / 2 });
+              }
+              drawDust(ctx, box, beamY, isolating, time);
+
+              const eyePresence = clamp((geomElapsed - 1500) / 500, 0, 1) * collapse;
+              if (eyePresence > 0.01) {
+                const illum = (eye) => Math.max(0, 1 - Math.abs(beamY - eye.center.y) / 46);
+                drawEyeTarget(ctx, le.center, le.rx, le.ry, le.inner, le.outer, 'L', illum(le), eyePresence, time, isolating, 0);
+                drawEyeTarget(ctx, re.center, re.rx, re.ry, re.inner, re.outer, 'R', illum(re), eyePresence, time, isolating, 0);
+                if (isolating) {
+                  drawIrisMicroScan(ctx, le.center, le.rx, le.ry, time);
+                  drawIrisMicroScan(ctx, re.center, re.rx, re.ry, time);
+                }
+                const nodeCenter = { x: (le.center.x + re.center.x) / 2, y: Math.min(le.center.y, re.center.y) - Math.max(le.ry, re.ry) * 0.6 };
+                const flowT = (geomElapsed - 1900) / 650;
+                if (mesh) {
+                  drawDataFlowFan(ctx, le.center, [mesh.f1[0], mesh.nose[6], mesh.cheekAU, nodeCenter], flowT);
+                  drawDataFlowFan(ctx, re.center, [mesh.f1[4], mesh.nose[6], mesh.cheekBU, nodeCenter], flowT);
+                } else {
+                  drawDataFlow(ctx, le.center, re.center, nodeCenter, flowT);
+                }
+                drawCenterLabel(ctx, box.x + box.width / 2, box.y - 14, t('photoFaceDetected', langRef.current), geomElapsed - 560, 120, 2600, 250);
+              }
+            }
+          }
+
+          if (reduceMotion) {
+            if (analysisDone) { finish(); return; }
+          } else {
+            // Both floors must clear: the overall minimum (fast-device
+            // total duration target) AND the reveal's own natural
+            // completion (so a late-arriving geometry still always gets
+            // to play the full choreography before collapsing/holding).
+            if (collapseStart == null && analysisDone && elapsed >= MIN_MS && geomElapsed >= REVEAL_MS) collapseStart = time;
+            if (collapseStart != null && (time - collapseStart) >= COLLAPSE_MS) { finish(); return; }
+          }
+          scanRafRef.current = requestAnimationFrame(frame);
+        };
+        scanRafRef.current = requestAnimationFrame(frame);
+        return () => { if (scanRafRef.current) { cancelAnimationFrame(scanRafRef.current); scanRafRef.current = null; } };
+      }, [state]);
+
       return (
         <div className="h-full flex flex-col fade-in">
           <div className="p-4 flex justify-between items-center glass-strong">
@@ -9486,14 +9769,17 @@
           <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col items-center justify-center p-6">
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => analyze(e.target.files[0])} />
             <div className="w-full aspect-[4/5] rounded-lg bg-surface border border-border overflow-hidden flex items-center justify-center mb-6 relative">
-              {previewUrl ? <img src={previewUrl} className="w-full h-full object-cover" alt="preview" /> : (
+              {state === 'analyzing' ? (
+                // PHOTO SCAN VISUAL LAYER: the static photo AND the scan
+                // overlay are both painted on this one canvas (see the
+                // animation effect above) — no separate spinner/dim
+                // overlay while it's active; the photo itself stays
+                // fully visible under the scan graphics the whole time.
+                <canvas ref={scanCanvasRef} data-photo-scan-canvas="true" className="w-full h-full" />
+              ) : previewUrl ? (
+                <img src={previewUrl} className="w-full h-full object-cover" alt="preview" />
+              ) : (
                 <svg className="w-14 h-14 text-textMuted" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5l-4.5-4.5m0 0L7.5 7.5m4.5-4.5v13.5"/></svg>
-              )}
-              {state === 'analyzing' && (
-                <div className="absolute inset-0 bg-bg/80 flex flex-col items-center justify-center gap-3">
-                  <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-xs text-textSecondary uppercase tracking-wide">{t('photoAnalyzing', lang)}</p>
-                </div>
               )}
             </div>
             {state === 'error' && (

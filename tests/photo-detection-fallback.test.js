@@ -88,8 +88,15 @@ function makeMocks({ imgWidth, imgHeight, detectResults }) {
 
 async function runDetectionWithFallback(mocks) {
   const body = detectionBlock + '\nreturn { canvas, ctx, scale, det };';
-  const fn = new AsyncFunction('img', 'document', 'faceapi', body);
-  return fn(mocks.img, mocks.document, mocks.faceapi);
+  // PHOTO SCAN VISUAL LAYER: the real detection+fallback block now
+  // contains two `if (cancelledRef.current) return;` unmount-safety
+  // guards (see tests/photo-scan-visual-layer.test.js for the real,
+  // unmodified-code proof of those). This is a real reference this
+  // extracted snippet needs in scope -- a plain, never-cancelled stub
+  // is the correct mock here, since THIS file's own job is proving the
+  // fallback logic, not cancellation (already covered elsewhere).
+  const fn = new AsyncFunction('img', 'document', 'faceapi', 'cancelledRef', body);
+  return fn(mocks.img, mocks.document, mocks.faceapi, { current: false });
 }
 
 // A native iPhone-portrait-like source: wide enough that BOTH the

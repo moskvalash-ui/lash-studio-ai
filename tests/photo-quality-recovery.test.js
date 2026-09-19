@@ -322,8 +322,13 @@ test('14. existing primary Photo detection (900px/416) and bounded fallback (160
 // No bypass: a recovered photo continues through the SAME downstream
 // pipeline -- no duplicate code path, no synthetic landmarks.
 // ------------------------------------------------------------
-test('15. no duplicate/synthetic downstream path exists for a recovered photo -- there is exactly one real onComplete/classifyFeatures/rankDesigns call site in PhotoAnalysisScreen', () => {
-  assert.strictEqual((photoBlock.match(/^\s*onComplete\(photoRec\);\s*$/gm) || []).length, 1, 'exactly one real onComplete(photoRec) call -- no special recovered-photo path');
+test('15. no duplicate/synthetic downstream path exists for a recovered photo -- there is exactly one real completion/classifyFeatures/rankDesigns call site in PhotoAnalysisScreen', () => {
+  // PHOTO SCAN VISUAL LAYER: the real, unconditional success-path
+  // completion hand-off is now `analysisResultRef.current = photoRec;`
+  // (onComplete itself moved to the scan-animation effect's finish(),
+  // proven elsewhere by tests/photo-scan-visual-layer.test.js) -- still
+  // exactly one real hand-off, no special recovered-photo path.
+  assert.strictEqual((photoBlock.match(/^\s*analysisResultRef\.current = photoRec;\s*$/gm) || []).length, 1, 'exactly one real analysisResultRef.current = photoRec hand-off -- no special recovered-photo path');
   assert.strictEqual((photoBlock.match(/classifyFeatures\(aggregated,/g) || []).length, 1, 'exactly one real classifyFeatures call');
   assert.strictEqual((photoBlock.match(/rankDesigns\(classified, lang\)/g) || []).length, 1, 'exactly one real rankDesigns call');
   assert.ok(!photoBlock.includes('fabricat'), 'no fabricated-landmark/quality machinery must exist');

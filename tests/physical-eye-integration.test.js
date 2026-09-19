@@ -249,7 +249,13 @@ test('M. every remaining raw getLeftEye/getRightEye/getLeftEyeBrow/getRightEyeBr
   // Every legitimate raw-getter-using function outside the helper
   // itself must feed buildFaceMesh only, and must carry a doc comment
   // saying so (checked separately, not by fixed distance).
-  const DOCUMENTED_RAW_CONSUMERS = ['LiveScanScreen', 'ResultMeshOverlay'];
+  // PHOTO SCAN VISUAL LAYER: PhotoAnalysisScreen's scan-animation
+  // geometry population reads det.landmarks' own raw getters for the
+  // SAME reason LiveScanScreen's tick does (buildFaceMesh's topology
+  // needs raw/image-side points, not physically-normalized ones) --
+  // see index.html's own comment on scanDataRef right where these
+  // calls live. Purely presentation (painting), never analysis.
+  const DOCUMENTED_RAW_CONSUMERS = ['LiveScanScreen', 'ResultMeshOverlay', 'PhotoAnalysisScreen'];
   for (const m of allCalls) {
     const pos = m.index;
     const insideHelper = pos >= startIdx && pos < endIdx;

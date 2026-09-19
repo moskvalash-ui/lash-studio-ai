@@ -551,7 +551,12 @@ test('A1. LiveScanScreen attaches irisColorAudit to rec only when debugAvailable
   assert.ok(/if \(irisColorAuditForRec\) rec\.irisColorAudit = irisColorAuditForRec;/.test(finalizeSrc));
 });
 test('A2. PhotoAnalysisScreen attaches irisColorAudit to its rec only when isDebugModeEnabled(), using the SAME object already logged to console', () => {
-  const finalizeSrc = src.slice(src.indexOf('const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);'), src.indexOf('onComplete(photoRec);') + 'onComplete(photoRec);'.length);
+  // PHOTO SCAN VISUAL LAYER: the real, unconditional success-path
+  // completion hand-off is now `analysisResultRef.current = photoRec;`
+  // (onComplete itself moved to the scan-animation effect's own
+  // finish(), proven by tests/photo-scan-visual-layer.test.js) — same
+  // slice end point, new literal.
+  const finalizeSrc = src.slice(src.indexOf('const leftIris = sampleIrisColor(ctx, leftEye), rightIris = sampleIrisColor(ctx, rightEye);'), src.indexOf('analysisResultRef.current = photoRec;') + 'analysisResultRef.current = photoRec;'.length);
   assert.ok(/let irisColorAuditForRec = null;/.test(finalizeSrc));
   assert.ok(/if \(isDebugModeEnabled\(\)\) \{/.test(finalizeSrc));
   assert.ok(/console\.log\('\[Photo\] IRIS COLOR AUDIT \(debug shadow, not used in production\)', irisColorAuditForRec\);/.test(finalizeSrc));

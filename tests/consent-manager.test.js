@@ -1017,8 +1017,157 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
     "            faceShapeProfile,\n" +
     "          };"
   );
-  const curHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length)));
-  const prevHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length)));
+  // Approved PHOTO SCAN VISUAL LAYER patch: 6 small, precise additions
+  // to analyze() — real, unmodified-code proof of exactly these 6 (and
+  // nothing else) already lives in tests/photo-scan-visual-layer.test.js
+  // test A. Stripped from BOTH head and tail spans identically
+  // (symmetric — each .replace() is a no-op on whichever span, or on
+  // the HEAD side, doesn't contain it) so this stays a real guard
+  // against any OTHER, unrelated drift in analyze().
+  const omitPhotoScanVisualLayerFix = span => span
+    // Component-level prelude: langRef + its sync effect, and the 7
+    // scan-animation refs + their unmount-safety effect, all inserted
+    // between the existing useState/useRef declarations and analyze()
+    // itself. Real, unmodified-code proof that these are exactly what
+    // this patch added (and only these) already lives in
+    // tests/photo-scan-visual-layer.test.js.
+    .replace(
+      "      const lang = useLang();\n" +
+      "      // Same langRef pattern LiveScanScreen already uses (index.html,\n" +
+      "      // near its own draw loop) so the scan-animation loop below always\n" +
+      "      // reads the CURRENT language for its on-canvas label, not whatever\n" +
+      "      // it was when the animation effect started.\n" +
+      "      const langRef = useRef(lang);\n" +
+      "      useEffect(() => { langRef.current = lang; }, [lang]);\n" +
+      "      const [state, setState] = useState('idle');\n" +
+      "      const [previewUrl, setPreviewUrl] = useState(null);\n" +
+      "      const fileInputRef = useRef(null);\n" +
+      "      const photoQualityDebugEnabled = isPhotoQualityDebugEnabled();\n" +
+      "      const [photoQualityDebugInfo, setPhotoQualityDebugInfo] = useState(null);\n" +
+      "\n" +
+      "      // PHOTO SCAN VISUAL LAYER — presentation only. Reuses the exact\n" +
+      "      // same top-level draw*/build* functions LiveScanScreen already\n" +
+      "      // uses (drawScanBeam, buildFaceMesh, drawFaceMeshV3, drawDust,\n" +
+      "      // drawScanFrame, drawSubjectLock, drawEyeTarget, drawIrisMicroScan,\n" +
+      "      // drawDataFlow/drawDataFlowFan, drawCenterLabel, mapVideoPointToDisplay)\n" +
+      "      // plus the new drawImageCover (index.html, right after\n" +
+      "      // drawVideoCover) for the static-photo background paint. Nothing\n" +
+      "      // here computes, reads back, or alters any analysis value — it\n" +
+      "      // only PAINTS values analyze() below already computed for its own\n" +
+      "      // real purposes. See scanDataRef's own comment for exactly what\n" +
+      "      // is shared and why that sharing is read-only-safe.\n" +
+      "      const scanCanvasRef = useRef(null);\n" +
+      "      const scanRafRef = useRef(null);\n" +
+      "      const cancelledRef = useRef(false);\n" +
+      "      const reduceMotionRef = useRef(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);\n" +
+      "      const scanStartRef = useRef(0);\n" +
+      "      // Populated by analyze() below as soon as each piece exists —\n" +
+      "      // `img` immediately after fetch (so the canvas can paint the real\n" +
+      "      // photo before detection even runs), the rest once detection\n" +
+      "      // succeeds. Every field is a DIRECT reference to a value analyze()\n" +
+      "      // already computed for real analysis purposes (det.landmarks'\n" +
+      "      // own getters, physicalLeft/physicalRight.eye, det.detection.box);\n" +
+      "      // the animation loop only ever READS this ref to paint pixels — it\n" +
+      "      // never writes analysis-shaped data back, and analyze() never\n" +
+      "      // reads anything the animation loop writes.\n" +
+      "      const scanDataRef = useRef(null);\n" +
+      "      // Set to the real, unmodified photoRec once analyze() finishes\n" +
+      "      // successfully. The animation loop calls the real onComplete only\n" +
+      "      // once this is set AND the minimum visual sequence has played —\n" +
+      "      // this delays WHEN onComplete fires, never WHAT it is called with.\n" +
+      "      const analysisResultRef = useRef(null);\n" +
+      "\n" +
+      "      // Unmount/navigate-away safety: cancelledRef is checked at every\n" +
+      "      // resume-from-await point in analyze() below and at the top of\n" +
+      "      // every animation frame, so neither can call setState/onComplete\n" +
+      "      // after this screen is gone.\n" +
+      "      useEffect(() => {\n" +
+      "        return () => {\n" +
+      "          cancelledRef.current = true;\n" +
+      "          if (scanRafRef.current) cancelAnimationFrame(scanRafRef.current);\n" +
+      "        };\n" +
+      "      }, []);\n" +
+      "\n" +
+      "      const analyze = async (file) => {\n",
+      "      const lang = useLang();\n" +
+      "      const [state, setState] = useState('idle');\n" +
+      "      const [previewUrl, setPreviewUrl] = useState(null);\n" +
+      "      const fileInputRef = useRef(null);\n" +
+      "      const photoQualityDebugEnabled = isPhotoQualityDebugEnabled();\n" +
+      "      const [photoQualityDebugInfo, setPhotoQualityDebugInfo] = useState(null);\n" +
+      "\n" +
+      "      const analyze = async (file) => {\n"
+    )
+    .replace(
+      "          const img = await faceapi.fetchImage(url);\n" +
+      "          if (cancelledRef.current) return;\n" +
+      "          // Photo is now decoded and paintable — the scan animation\n" +
+      "          // (started by the useEffect below, keyed on state==='analyzing')\n" +
+      "          // can show it immediately, before detection has even run.\n" +
+      "          scanDataRef.current = { img };\n",
+      "          const img = await faceapi.fetchImage(url);\n"
+    )
+    .replace(
+      "          let det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks();\n" +
+      "          if (cancelledRef.current) return;\n",
+      "          let det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks();\n"
+    )
+    .replace(
+      "            const fallbackDet = await faceapi.detectSingleFace(fb.canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.5 })).withFaceLandmarks();\n" +
+      "            if (cancelledRef.current) return;\n",
+      "            const fallbackDet = await faceapi.detectSingleFace(fb.canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.5 })).withFaceLandmarks();\n"
+    )
+    .replace(
+      "          const leftEye = physicalLeft.eye, rightEye = physicalRight.eye;\n" +
+      "          // PHOTO SCAN VISUAL LAYER — presentation only, read-only.\n" +
+      "          // Every field below is either a DIRECT reference to a value\n" +
+      "          // already computed above for real analysis (physicalLeft.eye/\n" +
+      "          // physicalRight.eye) or a fresh call to one of det.landmarks'\n" +
+      "          // OWN getters (the identical object LiveScanScreen's tick\n" +
+      "          // reads via d.jaw/d.leftBrow/etc. for its own, equally\n" +
+      "          // read-only, buildFaceMesh call) — never a new measurement,\n" +
+      "          // never fed back into det/classified/anything below. `scale`\n" +
+      "          // is the SAME analysis-canvas-to-native-image ratio already\n" +
+      "          // established above (buildAnalysisCanvas); toNative lets the\n" +
+      "          // animation loop map these analysis-canvas-space points onto\n" +
+      "          // the native-resolution `img` it paints via drawImageCover.\n" +
+      "          scanDataRef.current = {\n" +
+      "            ...scanDataRef.current,\n" +
+      "            toNative: 1 / scale,\n" +
+      "            box: det.detection.box,\n" +
+      "            jaw: det.landmarks.getJawOutline(),\n" +
+      "            leftBrow: det.landmarks.getLeftEyeBrow(),\n" +
+      "            rightBrow: det.landmarks.getRightEyeBrow(),\n" +
+      "            nose: det.landmarks.getNose(),\n" +
+      "            leftEye: det.landmarks.getLeftEye(),\n" +
+      "            rightEye: det.landmarks.getRightEye(),\n" +
+      "            mouth: det.landmarks.getMouth(),\n" +
+      "            physicalLeftEye: physicalLeft.eye,\n" +
+      "            physicalRightEye: physicalRight.eye,\n" +
+      "          };\n",
+      "          const leftEye = physicalLeft.eye, rightEye = physicalRight.eye;\n"
+    )
+    .replace(
+      "          // PHOTO SCAN VISUAL LAYER: onComplete(photoRec) is deliberately\n" +
+      "          // NOT called here anymore. photoRec itself is byte-for-byte\n" +
+      "          // the same, real, fully computed result as before this\n" +
+      "          // change — only WHEN the app navigates to Results changes.\n" +
+      "          // The scan-animation effect below owns calling the real,\n" +
+      "          // unmodified onComplete once both the real analysis (this\n" +
+      "          // ref) and the minimum visual sequence are done.\n" +
+      "          if (cancelledRef.current) return;\n" +
+      "          analysisResultRef.current = photoRec;\n",
+      "          onComplete(photoRec);\n"
+    )
+    .replace(
+      "        } catch (e) {\n" +
+      "          if (cancelledRef.current) return;\n" +
+      "          console.error('[Photo] PIPELINE ERROR', e);\n",
+      "        } catch (e) {\n" +
+      "          console.error('[Photo] PIPELINE ERROR', e);\n"
+    );
+  const curHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(omitPhotoScanVisualLayerFix(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length))));
+  const prevHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(omitPhotoScanVisualLayerFix(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length))));
   assert.strictEqual(curHead, prevHead, 'everything before the sharpness measurement (detection, headPose, leftMetrics/rightMetrics, physical-eye normalization, brightness sampling) must be byte-identical to git HEAD');
 
   // (b) everything from the quality-gate call onward. outerEnd now also
@@ -1157,8 +1306,60 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
     }
     return out;
   };
-  const curTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(src.slice(curQualityIdx, curOuterEnd))));
-  const prevTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(HEAD.slice(prevQualityIdx, prevOuterEnd))));
+  // Approved PHOTO SCAN VISUAL LAYER patch: the entire new scan-
+  // animation useEffect (photo-cover paint + subject-lock/scan-beam/
+  // face-mesh/eye-target/iris-micro-scan choreography, calling only the
+  // real, unmodified draw*/build* functions — real, unmodified-code
+  // proof already lives in tests/photo-scan-visual-layer.test.js) sits
+  // entirely between analyze()'s closing brace and the JSX return, with
+  // no HEAD counterpart at all — removed by marker span (same dynamic-
+  // slice technique omitPhotoQualityDebugTail above already uses for
+  // the iris-debug helper block), not a hardcoded multi-hundred-line
+  // string. A no-op on the HEAD side, which has neither marker.
+  const omitScanAnimationEffect = (span) => {
+    const startMarker = '      // PHOTO SCAN VISUAL LAYER — presentation only. Starts exactly';
+    const start = span.indexOf(startMarker);
+    if (start === -1) return span;
+    // Consumes BOTH the effect's own closing line and the one blank
+    // line after it, since `start` above already begins right after
+    // analyze()'s own closing `};` + exactly one blank line — this
+    // reconstructs back to exactly one blank line before `return (`,
+    // matching HEAD's original spacing precisely.
+    const endMarker = '\n      }, [state]);\n\n';
+    const end = span.indexOf(endMarker, start);
+    assert.ok(end !== -1, 'expected to find the end of the scan-animation effect');
+    return span.slice(0, start) + span.slice(end + endMarker.length);
+  };
+  // Approved PHOTO SCAN VISUAL LAYER patch: the render swaps the plain
+  // <img>+spinner-overlay for a <canvas> while state==='analyzing' (the
+  // animation effect above paints both the photo and the scan overlay
+  // onto it) — <img>/idle-svg fallback for every other state is
+  // unchanged. Symmetric — a no-op on the HEAD side.
+  const omitPhotoScanCanvasRender = (span) => span.replace(
+    "              {state === 'analyzing' ? (\n" +
+    "                // PHOTO SCAN VISUAL LAYER: the static photo AND the scan\n" +
+    "                // overlay are both painted on this one canvas (see the\n" +
+    "                // animation effect above) — no separate spinner/dim\n" +
+    "                // overlay while it's active; the photo itself stays\n" +
+    "                // fully visible under the scan graphics the whole time.\n" +
+    '                <canvas ref={scanCanvasRef} data-photo-scan-canvas="true" className="w-full h-full" />\n' +
+    "              ) : previewUrl ? (\n" +
+    '                <img src={previewUrl} className="w-full h-full object-cover" alt="preview" />\n' +
+    "              ) : (\n" +
+    '                <svg className="w-14 h-14 text-textMuted" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5l-4.5-4.5m0 0L7.5 7.5m4.5-4.5v13.5"/></svg>\n' +
+    '              )}\n',
+    "              {previewUrl ? <img src={previewUrl} className=\"w-full h-full object-cover\" alt=\"preview\" /> : (\n" +
+    '                <svg className="w-14 h-14 text-textMuted" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5l-4.5-4.5m0 0L7.5 7.5m4.5-4.5v13.5"/></svg>\n' +
+    "              )}\n" +
+    "              {state === 'analyzing' && (\n" +
+    '                <div className="absolute inset-0 bg-bg/80 flex flex-col items-center justify-center gap-3">\n' +
+    '                  <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>\n' +
+    "                  <p className=\"text-xs text-textSecondary uppercase tracking-wide\">{t('photoAnalyzing', lang)}</p>\n" +
+    '                </div>\n' +
+    '              )}\n'
+  );
+  const curTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(omitPhotoScanCanvasRender(omitScanAnimationEffect(omitPhotoScanVisualLayerFix(src.slice(curQualityIdx, curOuterEnd)))))));
+  const prevTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(omitPhotoScanCanvasRender(omitScanAnimationEffect(omitPhotoScanVisualLayerFix(HEAD.slice(prevQualityIdx, prevOuterEnd)))))));
   const debugStart = '          let irisColorAuditForRec = null;';
   const debugEnd = '          const designs = rankDesigns(classified, lang);';
   const omitIrisDebugAudit = (tail) => {

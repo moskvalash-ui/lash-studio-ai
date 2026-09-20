@@ -86,21 +86,15 @@ async function runRealPhotoAnalysisToIrisResult(page, fixturePath) {
   await eyeProfileToggle.click();
 
   // 6) The real, user-visible Iris Color row on HeroScreen, now that the
-  // section containing it is expanded. Scoped to the row's own
-  // EyeProfileRow wrapper class + its label text, rather than a bare
-  // page-wide exact-text match -- HeroScreen also renders a SECOND,
-  // always-visible "Цвет радужки" label now (the compact iris indicator
-  // on the non-collapsible photo card, added to fix the reported "iris
-  // color not visible" symptom; see
-  // tests/results-hero-iris-indicator.test.js /
-  // tests/e2e/results-hero-iris-indicator.spec.js for its own coverage),
-  // so a bare page-wide getByText('Цвет радужки', {exact:true}) is no
-  // longer unique. The EyeProfileRow wrapper class below is exclusive to
-  // the collapsible row list (the new indicator uses a differently-
-  // classed wrapper), so this still resolves to exactly the one row a
-  // sighted user reads inside "AI Eye Profile" specifically.
-  const irisRow = page.locator('div.flex.justify-between.items-start.gap-3.py-3', { hasText: 'Цвет радужки' });
-  await expect(irisRow, 'the real HeroScreen must render the Iris Color row once AI Eye Profile is expanded').toBeVisible({ timeout: 10_000 });
+  // section containing it is expanded. Scoped to the specific row's own
+  // container (via its label text) rather than a bare page-wide text
+  // match, since other rows on the same screen could in principle repeat
+  // category-like words -- this keeps the selector semantically tied to
+  // "the Iris Color row" specifically, the same real DOM structure a
+  // sighted user reads visually.
+  const irisLabel = page.getByText('Цвет радужки', { exact: true });
+  await expect(irisLabel, 'the real HeroScreen must render the Iris Color row label once AI Eye Profile is expanded').toBeVisible({ timeout: 10_000 });
+  const irisRow = page.locator('div.flex.justify-between.items-start.gap-3.py-3', { has: irisLabel });
   const irisValue = irisRow.locator('span').first();
 
   return { irisValue, pageErrors };

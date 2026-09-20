@@ -10327,32 +10327,9 @@
               <div className="absolute top-4 left-4 px-3 py-1 rounded-md bg-bg/60 border border-border backdrop-blur">
                 <span className="text-[10px] font-semibold tracking-wider text-textPrimary uppercase">{result.source==='photo' ? t('photoSource', lang) : t('liveSource', lang)}</span>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 p-6 flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="label-tech mb-1">{t('eyeProfileTitle', lang)}</p>
-                  <h2 className="text-2xl font-bold text-textPrimary text-glow">{labels.shape}</h2>
-                </div>
-                {/* IRIS COLOR — compact, always-visible indicator (audit
-                    finding: the "AI Eye Profile" Section below, which
-                    already renders this SAME result.iris value via its
-                    own EyeProfileRow, has been collapsed by default since
-                    d813aef "Improve Results Hero hierarchy" -- this does
-                    NOT reopen or duplicate that Section (still exactly 6
-                    EyeProfileRow entries, unchanged); it surfaces the
-                    exact same, already-computed labels.irisCompositionLabel
-                    (built from result.iris by eyeProfileLabels above,
-                    completely unchanged) in this always-visible card
-                    instead. No new classification/mapping/threshold --
-                    reuses result.iris.hex/labels.irisCompositionLabel
-                    exactly as the existing EyeProfileRow/DetailsScreen
-                    iris displays already do. */}
-                <div data-hero-iris-indicator="1" className="flex-shrink-0 px-2.5 py-1.5 rounded-md bg-bg/60 border border-border backdrop-blur text-right">
-                  <p className="text-[8px] font-semibold tracking-wider text-textMuted uppercase mb-1">{t('irisColorLabel', lang)}</p>
-                  <div className="flex items-center justify-end gap-1.5">
-                    {result.iris?.hex && <span style={{background: result.iris.hex}} className="w-2 h-2 rounded-full border border-white/30 flex-shrink-0"></span>}
-                    <span className="text-[11px] font-semibold text-textPrimary leading-none">{labels.irisCompositionLabel}</span>
-                  </div>
-                </div>
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <p className="label-tech mb-1">{t('eyeProfileTitle', lang)}</p>
+                <h2 className="text-2xl font-bold text-textPrimary text-glow">{labels.shape}</h2>
               </div>
               {typeof result.confidence === 'number' && (
                 <div className={`absolute top-4 right-4 px-3 py-1 rounded-md border backdrop-blur ${result.confidence >= 0.6 ? 'bg-bg/60 border-cyan/30' : 'bg-bg/60 border-peak/30'}`}>

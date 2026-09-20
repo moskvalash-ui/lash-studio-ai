@@ -336,9 +336,12 @@ test('I7. the consent banner/settings wrapper divs position themselves via inlin
 // switched to inline-style, unlike ConsentPanel — see I7) and contains
 // both the privacy icon and the language toggle.
 test('I8. the header (RU/EN + privacy icon) row keeps its original plain-className positioning (never switched to inline-style like ConsentPanel) and contains both ConsentIconButton and LangToggle', () => {
-  const cur = extractSpan(src, "            {screen !== 'scan' && screen !== 'lashscan' && (\n              <div className=\"absolute top-3 right-3 z-30 flex items-center gap-2\">", '\n            )}\n            {screen === \'home\'');
+  // PHASE 2 (Arabic RTL): right-3 -> end-3 (logical inset property, so
+  // this corner cluster correctly moves to the opposite side under
+  // RTL) -- still a plain Tailwind className, still not inline-style.
+  const cur = extractSpan(src, "            {screen !== 'scan' && screen !== 'lashscan' && (\n              <div className=\"absolute top-3 end-3 z-30 flex items-center gap-2\">", '\n            )}\n            {screen === \'home\'');
   assert.ok(cur, 'expected to locate the current header row block');
-  assert.ok(cur.includes('className="absolute top-3 right-3 z-30 flex items-center gap-2"'), 'the header row must keep its original plain Tailwind className positioning verbatim');
+  assert.ok(cur.includes('className="absolute top-3 end-3 z-30 flex items-center gap-2"'), 'the header row must keep its original plain Tailwind className positioning verbatim');
   assert.ok(!cur.includes('style={{ position:'), 'the header row must NOT use inline-style positioning — that pattern is reserved for the new ConsentPanel wrappers (see I7), not this pre-existing div');
   assert.ok(cur.includes('<ConsentIconButton'), 'expected the privacy/settings icon button to be present');
   assert.ok(cur.includes('<LangToggle'), 'expected the pre-existing LangToggle to remain present');
@@ -347,7 +350,8 @@ test('I8. the header (RU/EN + privacy icon) row keeps its original plain-classNa
 // ---- byte-identity: the scan pipeline itself is untouched ----
 let HEAD;
 try {
-  HEAD = execSync('git show HEAD:index.html', { cwd: repoRoot }).toString();
+  // PHASE 2: index.html crossed Node's execSync default 1MB maxBuffer.
+  HEAD = execSync('git show HEAD:index.html', { cwd: repoRoot, maxBuffer: 1024 * 1024 * 20 }).toString();
 } catch (e) {
   HEAD = null;
 }
@@ -861,11 +865,23 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
     "          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'live', reason_code: 'processing_error' });\n          decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');",
     "          decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');"
   );
+  // Approved PHASE 2 (Arabic RTL) fix: dir="ltr" added directly to
+  // LiveScanScreen's own <video>/<canvas> elements (presentation-only
+  // geometry isolation, see the Phase 2 geometry-isolation tests).
+  // Symmetric on both sides (same reasoning as omitAnalyticsScanFailedLiveFix
+  // above), since HEAD predates this fix entirely.
+  // NaturalLashScanScreen sits inside this same extracted span (between
+  // LiveScanScreen and PhotoAnalysisScreen) and ALSO got a dir="ltr"
+  // addition on its own <video>/<canvas> -- replaceAll so both sites
+  // are normalized, not just LiveScanScreen's own.
+  const omitPhase2DirLtr = span => span
+    .split('<video dir="ltr" ref={videoRef}').join('<video ref={videoRef}')
+    .split('<canvas dir="ltr" ref={overlayCanvasRef}').join('<canvas ref={overlayCanvasRef}');
   // omitCloseFaceRecoveryFix runs FIRST (innermost): it must revert to the
   // Issue-B post-diagnostic form (decideStage/decideHint, REASON_MESSAGES-
   // based hint lookup) BEFORE undoIssueB looks for that exact form to
   // revert further back to true pre-Issue-B HEAD text.
-  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(omitCameraRetryFix(omitAnalyticsScanFailedLiveFix(span)))))))))))));
+  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(omitCameraRetryFix(omitPhase2DirLtr(omitAnalyticsScanFailedLiveFix(span))))))))))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
@@ -1358,8 +1374,15 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
     '                </div>\n' +
     '              )}\n'
   );
-  const curTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(omitPhotoScanCanvasRender(omitScanAnimationEffect(omitPhotoScanVisualLayerFix(src.slice(curQualityIdx, curOuterEnd)))))));
-  const prevTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(omitPhotoScanCanvasRender(omitScanAnimationEffect(omitPhotoScanVisualLayerFix(HEAD.slice(prevQualityIdx, prevOuterEnd)))))));
+  // Approved PHASE 2 (Arabic RTL) fix: dir="ltr" added directly to this
+  // screen's own scan <canvas> (presentation-only geometry isolation,
+  // see the Phase 2 geometry-isolation tests). Stripped FIRST
+  // (innermost), before omitPhotoScanCanvasRender's own literal match,
+  // which otherwise pre-dates and is unaware of this attribute. Symmetric
+  // (a no-op on the HEAD side, which never has it).
+  const omitPhase2DirLtr = (span) => span.split('<canvas dir="ltr" ref={scanCanvasRef}').join('<canvas ref={scanCanvasRef}');
+  const curTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(omitPhotoScanCanvasRender(omitScanAnimationEffect(omitPhotoScanVisualLayerFix(omitPhase2DirLtr(src.slice(curQualityIdx, curOuterEnd))))))));
+  const prevTail = omitPhotoQualityDebugTail(omitReleasePolishNativeImageFix(omitPhotoAnalyticsScanFailedFix(omitPhotoScanCanvasRender(omitScanAnimationEffect(omitPhotoScanVisualLayerFix(omitPhase2DirLtr(HEAD.slice(prevQualityIdx, prevOuterEnd))))))));
   const debugStart = '          let irisColorAuditForRec = null;';
   const debugEnd = '          const designs = rankDesigns(classified, lang);';
   const omitIrisDebugAudit = (tail) => {

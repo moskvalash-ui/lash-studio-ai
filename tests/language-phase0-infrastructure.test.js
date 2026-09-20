@@ -179,21 +179,30 @@ test('7b. the initial lang useState reader falls back to \'ru\' for any value ou
 // ------------------------------------------------------------
 // 3 & 4. <html lang> dynamically reflects the real language state.
 // ------------------------------------------------------------
-test('3 & 4. the real <html lang> sync effect sets document.documentElement.lang to \'ru\' and to \'en\' correctly, proven against the ACTUAL production effect body', () => {
-  const marker = 'useEffect(() => {\n        document.documentElement.lang = lang;\n      }, [lang]);';
-  assert.ok(src.includes(marker), 'expected to find the exact <html lang> sync effect');
+test('3 & 4. the real <html lang>/<html dir> sync effect sets document.documentElement.lang/dir to \'ru\'/\'ltr\', \'en\'/\'ltr\', and \'ar\'/\'rtl\' correctly, proven against the ACTUAL production effect body (real extraction+eval, not a reimplementation)', () => {
+  // PHASE 2: extract the REAL effect body (both statements) out of
+  // index.html and eval it directly, rather than hand-reimplementing
+  // the assignment -- the established pattern this repo uses
+  // throughout (see CLAUDE.md's Testing section).
+  const marker = "useEffect(() => {\n        document.documentElement.lang = lang;\n        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';\n      }, [lang]);";
+  assert.ok(src.includes(marker), 'expected to find the exact <html lang>/<html dir> sync effect');
+  const effectBody = "document.documentElement.lang = lang;\n        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';";
   const runEffect = (lang) => {
-    const documentElement = { lang: 'stale' };
+    const documentElement = { lang: 'stale', dir: 'stale' };
     const document = { documentElement };
-    new Function('document', 'lang', 'document.documentElement.lang = lang;')(document, lang);
-    return documentElement.lang;
+    new Function('document', 'lang', effectBody)(document, lang);
+    return { lang: documentElement.lang, dir: documentElement.dir };
   };
-  assert.strictEqual(runEffect('ru'), 'ru');
-  assert.strictEqual(runEffect('en'), 'en');
+  assert.deepStrictEqual(runEffect('ru'), { lang: 'ru', dir: 'ltr' });
+  assert.deepStrictEqual(runEffect('en'), { lang: 'en', dir: 'ltr' });
+  assert.deepStrictEqual(runEffect('ar'), { lang: 'ar', dir: 'rtl' });
 });
 
-test('the <html lang> effect is keyed on [lang] (re-runs on every language change) and is additive -- it does not touch any other App()-level effect', () => {
-  const idx = appBlock.indexOf('useEffect(() => {\n        document.documentElement.lang = lang;\n      }, [lang]);');
+test('the <html lang>/<html dir> effect is keyed on [lang] (re-runs on every language change) and is additive -- it does not touch any other App()-level effect', () => {
+  // PHASE 2 (Arabic RTL): the same effect now also sets dir, keyed off
+  // the identical [lang] dependency -- lang and dir can never drift out
+  // of sync, since they are set together in one effect body.
+  const idx = appBlock.indexOf("useEffect(() => {\n        document.documentElement.lang = lang;\n        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';\n      }, [lang]);");
   assert.ok(idx >= 0, 'expected the effect inside App()');
 });
 
@@ -212,10 +221,27 @@ function stripLineComments(s) {
   }).join('\n');
 }
 
-test('no dir/RTL attribute is actually set in real CODE anywhere by this phase -- only `lang` is touched (comments explaining this as future work are expected and excluded from this check)', () => {
+// PHASE 2 (Arabic RTL) superseded this Phase-0-era guard: dir IS now
+// legitimately set by App()'s lang effect, and static dir="ltr"
+// geometry-isolation attributes ARE now present on SVG/canvas/video
+// elements (see the dedicated Phase 2 geometry-isolation tests). What
+// this test still protects, unchanged in spirit: no literal dir="rtl"
+// is ever hardcoded anywhere in real code -- RTL is reachable ONLY via
+// the single dynamic `lang === 'ar' ? 'rtl' : 'ltr'` computation keyed
+// off App()'s own lang state, never as a hardcoded attribute on any
+// component, and never as a second, independent RTL signal.
+test('document.documentElement.dir is set exactly once, dynamically, keyed off lang === \'ar\' -- no literal dir="rtl" is ever hardcoded anywhere in real code', () => {
   const code = stripLineComments(src);
-  assert.ok(!code.includes('documentElement.dir'), 'Phase 0 must not set document.documentElement.dir');
-  assert.ok(!code.includes('dir="rtl"') && !code.includes("dir: 'rtl'") && !code.includes('dir={'), 'Phase 0 must not introduce any dir attribute anywhere in real code');
+  const dirAssignments = (code.match(/documentElement\.dir\s*=/g) || []).length;
+  assert.strictEqual(dirAssignments, 1, 'expected exactly one document.documentElement.dir assignment, in the App() lang effect');
+  assert.ok(code.includes("document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';"), 'expected the dir assignment to be dynamically keyed off lang === \'ar\', not a hardcoded value');
+  assert.ok(!code.includes('dir="rtl"'), 'no component may hardcode a literal dir="rtl" attribute -- RTL must only ever come from the single dynamic App()-level effect');
+  assert.ok(!code.includes("dir: 'rtl'"), 'no component may hardcode dir:\'rtl\' in an inline style object either');
+});
+test('static dir="ltr" geometry-isolation attributes exist on SVG/canvas/video elements (Phase 2), and are always the literal string "ltr", never dynamic or "rtl"', () => {
+  const code = stripLineComments(src);
+  const ltrAttrs = (code.match(/dir="ltr"/g) || []).length;
+  assert.ok(ltrAttrs >= 5, `expected at least 5 dir="ltr" geometry-isolation sites (SVG diagram/photo-map roots + video/canvas pairs), found ${ltrAttrs}`);
 });
 
 // ------------------------------------------------------------

@@ -95,9 +95,13 @@ test('5. existing canonical strings from this phase (saveToClientButton) and fro
   // viewAllDesignsEntry. Left in place rather than removed (harmless
   // unused localization constants; removing them is out of this
   // phase's scope and not required by the audit).
-  assert.deepStrictEqual(STRINGS.viewMap, { ru: 'ОТКРЫТЬ КАРТУ →', en: 'VIEW MAP →', ar: 'فتح الخريطة →' });
+  // PHASE 2 (Arabic RTL): the ar values' trailing arrow was corrected
+  // from → to ← (these strings weren't RTL-reviewed when Phase 1 wrote
+  // their content) -- a forward/disclosure arrow points toward reading
+  // end, which is left in Arabic, not right. ru/en are untouched.
+  assert.deepStrictEqual(STRINGS.viewMap, { ru: 'ОТКРЫТЬ КАРТУ →', en: 'VIEW MAP →', ar: 'فتح الخريطة ←' });
   assert.deepStrictEqual(STRINGS.recommendedDesigns, { ru: 'Рекомендуемые дизайны', en: 'Recommended designs', ar: 'التصاميم الموصى بها' });
-  assert.deepStrictEqual(STRINGS.allDesigns, { ru: 'Все дизайны →', en: 'All designs →', ar: 'جميع التصاميم →' });
+  assert.deepStrictEqual(STRINGS.allDesigns, { ru: 'Все дизайны →', en: 'All designs →', ar: 'جميع التصاميم ←' });
 });
 
 test('5b. RESULTS DESIGN DISCOVERY: new moreDesignsForYou/viewAllDesignsEntry STRINGS keys exist with the exact required RU/EN text', () => {

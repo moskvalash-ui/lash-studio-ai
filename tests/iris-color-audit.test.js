@@ -728,7 +728,8 @@ test('I3. the low-light-ambiguous fix\'s contract holds NOW (durable, HEAD-indep
 // ================================================================
 test('J. Hooding V2 Stage 1/2B core span is byte-identical to the pre-turn committed HEAD', () => {
   const { execSync } = require('child_process');
-  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..') }).toString();
+  // PHASE 2: index.html crossed Node's execSync default 1MB maxBuffer.
+  const head = execSync('git show HEAD:index.html', { cwd: path.join(__dirname, '..'), maxBuffer: 1024 * 1024 * 20 }).toString();
   function extractSpan(s, startMarker, endMarker) {
     const st = s.indexOf(startMarker);
     const en = s.indexOf(endMarker, st);

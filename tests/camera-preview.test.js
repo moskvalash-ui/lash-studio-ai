@@ -164,11 +164,17 @@ test('source guard: no CSS mirror is applied to either overlay <canvas> (only <v
 // mechanism — these tests must keep proving that isolation.
 // ------------------------------------------------------------
 test('source guard: LiveScanScreen video is no longer CSS-mirrored — exactly ONE CSS-mirrored <video> remains (NaturalLashScanScreen, untouched)', () => {
-  const videoMirrors = [...src.matchAll(/<video ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
+  // PHASE 2 (Arabic RTL): every geometry-bearing <video>/<canvas> now
+  // also carries a presentation-only dir="ltr" attribute (see the Phase
+  // 2 geometry-isolation tests) -- the pattern below tolerates that
+  // optional attribute between the tag name and ref={videoRef} without
+  // weakening what this guard actually protects (the CSS mirror count).
+  const videoMirrors = [...src.matchAll(/<video (?:dir="ltr" )?ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
   assert.strictEqual(videoMirrors.length, 1, `expected exactly 1 CSS-mirrored <video> (NaturalLashScanScreen only), found ${videoMirrors.length}`);
 });
 test('source guard: LiveScanScreen video is invisible (opacity:0) and non-interactive — the canvas is now the only visible surface', () => {
-  assert.ok(src.includes("<video ref={videoRef} className=\"absolute inset-0 w-full h-full object-cover\" style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted />"),
+  // PHASE 2 (Arabic RTL): this <video> now also carries dir="ltr".
+  assert.ok(src.includes("<video dir=\"ltr\" ref={videoRef} className=\"absolute inset-0 w-full h-full object-cover\" style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted />"),
     'expected LiveScanScreen\'s <video> to be hidden via opacity:0, not display:none (which can pause decoding on some browsers)');
 });
 test('source guard: drawVideoCover mirrors via a canvas transform scoped to save/restore, never a persistent canvas-element CSS transform', () => {
@@ -200,7 +206,8 @@ test('source guard: LiveScanScreen\'s video-paint and overlay-graphics mirroring
   assert.ok(drawLoopBody.includes('mirrored ? { x: w - p.x, y: p.y } : p'));
 });
 test('source guard: the vignette + loading-state overlays still render on top of the (now canvas-painted) live picture', () => {
-  const canvasIdx = src.indexOf('<canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />');
+  // PHASE 2 (Arabic RTL): the overlay canvas now also carries dir="ltr".
+  const canvasIdx = src.indexOf('<canvas dir="ltr" ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />');
   const vignetteIdx = src.indexOf("radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)");
   assert.ok(canvasIdx > 0 && vignetteIdx > canvasIdx, 'the vignette div must come AFTER the overlay canvas in DOM order, or it would be painted over and become invisible');
 });
@@ -223,7 +230,11 @@ test('source guard: the vignette + loading-state overlays still render on top of
 // ============================================================
 const repoRoot = path.join(__dirname, '..');
 let HEAD_SRC = null;
-try { HEAD_SRC = execSync('git show HEAD:index.html', { cwd: repoRoot }).toString(); } catch (e) { HEAD_SRC = null; }
+// PHASE 2: index.html crossed Node's execSync default 1MB maxBuffer as
+// the file grew — same fix already established elsewhere in this repo
+// (e.g. tests/language-phase1-arabic-content.test.js), not a Phase 2
+// RTL-specific concern.
+try { HEAD_SRC = execSync('git show HEAD:index.html', { cwd: repoRoot, maxBuffer: 1024 * 1024 * 20 }).toString(); } catch (e) { HEAD_SRC = null; }
 
 test('LiveScanScreen requests an explicit ideal width of 1280', () => {
   assert.ok(
@@ -322,7 +333,17 @@ test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisib
     "          if (debugAvailable) { console.log('[NLS DIAG]', diagSnapshot); setDiag(diagSnapshot); }",
     "          console.log('[NLS DIAG]', diagSnapshot);\n          if (debugAvailable) setDiag(diagSnapshot);"
   );
-  assert.strictEqual(omitSecurity2ADiagGate(cur), omitSecurity2ADiagGate(prev), 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
+  // PHASE 2 (Arabic RTL): a second, narrowly-scoped approved diff —
+  // dir="ltr" was added directly to NaturalLashScanScreen's <video>/
+  // <canvas> elements (presentation-only geometry isolation, see the
+  // Phase 2 geometry-isolation tests) — normalized the same way as the
+  // SECURITY-2A gate above, so this guard keeps proving CAMERA_ATTEMPTS/
+  // effectiveVisibleWidth negotiation is untouched by EITHER approved
+  // change, while still failing loudly on any other, unapproved drift.
+  const omitPhase2DirLtr = span => span
+    .replace('<video dir="ltr" ref={videoRef}', '<video ref={videoRef}')
+    .replace('<canvas dir="ltr" ref={overlayCanvasRef}', '<canvas ref={overlayCanvasRef}');
+  assert.strictEqual(omitPhase2DirLtr(omitSecurity2ADiagGate(cur)), omitSecurity2ADiagGate(prev), 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate and the approved Phase 2 dir="ltr" additions — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
 });
 
 test('NaturalLashScanScreen preview-mirror behavior is untouched by the LiveScanScreen presentation fix: still exactly 1 CSS-mirrored <video>, keyed on facingMode only', () => {
@@ -331,8 +352,9 @@ test('NaturalLashScanScreen preview-mirror behavior is untouched by the LiveScan
   // fix intentionally moved LiveScanScreen's mirroring to a canvas
   // transform (see the dedicated source-guard tests above) — this test
   // now confirms NaturalLashScanScreen's own, separate mirroring is
-  // completely unaffected.
-  const videoMirrors = [...src.matchAll(/<video ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
+  // completely unaffected. PHASE 2: tolerates the optional dir="ltr"
+  // attribute the same way the first mirror-count test above does.
+  const videoMirrors = [...src.matchAll(/<video (?:dir="ltr" )?ref=\{videoRef\}[^>]*style=\{[^}]*scaleX\(-1\)[^}]*\}/g)];
   assert.strictEqual(videoMirrors.length, 1, 'expected exactly 1 CSS-mirrored <video> (NaturalLashScanScreen), unchanged by the camera-zoom fix');
   assert.ok(!/getUserMedia\([^)]*scaleX/.test(src), 'the getUserMedia constraints object must never itself reference mirroring');
 });

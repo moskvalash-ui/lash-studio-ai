@@ -488,7 +488,7 @@ test('mobile editing has large hit targets, pointer capture, constrained PEAK, a
 });
 
 test('mobile PHOTO places EDIT MAP visibly inside the image overlay and exposes RESET/DONE only while editing',()=>{
-  const controlsIndex=professionalEyeMapSource.indexOf('data-photo-edit-controls="true"'),svgIndex=professionalEyeMapSource.indexOf('<svg ref={svgRef}'),summaryIndex=professionalEyeMapSource.indexOf('<div className="border-t border-white/[.07] p-3">'),controls=professionalEyeMapSource.slice(controlsIndex,summaryIndex);
+  const controlsIndex=professionalEyeMapSource.indexOf('data-photo-edit-controls="true"'),svgIndex=professionalEyeMapSource.indexOf('<svg dir="ltr" ref={svgRef}'),summaryIndex=professionalEyeMapSource.indexOf('<div className="border-t border-white/[.07] p-3">'),controls=professionalEyeMapSource.slice(controlsIndex,summaryIndex);
   assert.ok(svgIndex>=0&&controlsIndex>svgIndex&&summaryIndex>controlsIndex,'controls must be inside PHOTO image area before summary panel');
   assert.ok(controls.includes('className="absolute inset-x-3 top-3 z-20'));
   assert.ok(controls.includes("editing?t('lashMapEditing',lang)"));

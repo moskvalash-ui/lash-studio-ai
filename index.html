@@ -598,10 +598,10 @@
       depthLabel: {ru:'Посадка (глубина)', en:'Depth', ar:'العمق'},
       depthDisclaimer: {ru:'Недостаточно данных для надёжной оценки глубины посадки по фронтальной 2D-камере. Параметр не используется при ранжировании дизайнов.', en:'Insufficient data to reliably assess eye depth from a frontal 2D camera. This parameter is not used in design ranking.', ar:'لا تتوفر بيانات كافية لتقييم عمق العين بدقة من كاميرا أمامية ثنائية الأبعاد. لا يُستخدم هذا المعيار في ترتيب التصاميم.'},
       insufficientData: {ru:'Недостаточно данных', en:'Insufficient data', ar:'بيانات غير كافية'},
-      moreDetails: {ru:'Подробные метрики →', en:'Detailed metrics →', ar:'مزيد من التفاصيل →'},
+      moreDetails: {ru:'Подробные метрики →', en:'Detailed metrics →', ar:'مزيد من التفاصيل ←'},
       recommendedDesigns: {ru:'Рекомендуемые дизайны', en:'Recommended designs', ar:'التصاميم الموصى بها'},
-      allDesigns: {ru:'Все дизайны →', en:'All designs →', ar:'جميع التصاميم →'},
-      viewMap: {ru:'ОТКРЫТЬ КАРТУ →', en:'VIEW MAP →', ar:'فتح الخريطة →'},
+      allDesigns: {ru:'Все дизайны →', en:'All designs →', ar:'جميع التصاميم ←'},
+      viewMap: {ru:'ОТКРЫТЬ КАРТУ →', en:'VIEW MAP →', ar:'فتح الخريطة ←'},
       // RESULTS DESIGN DISCOVERY — additive only, see HeroScreen's
       // alternatives carousel below. moreDesignsForYou is the carousel's
       // own section heading (distinct from recommendedDesigns above,
@@ -6048,7 +6048,7 @@
     function ConsentToggleRow({ label, desc, checked, disabled, onChange }) {
       return (
         <div className="flex items-start justify-between gap-3 py-3 border-b border-border last:border-b-0">
-          <div className="flex-1 pr-2">
+          <div className="flex-1 pe-2">
             <p className="text-[13px] font-semibold text-textPrimary mb-0.5">{label}</p>
             <p className="text-[12px] text-textSecondary leading-relaxed">{desc}</p>
           </div>
@@ -6060,7 +6060,13 @@
             onClick={() => !disabled && onChange(!checked)}
             className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${disabled ? 'bg-white/10 opacity-60 cursor-not-allowed' : (checked ? 'bg-accent' : 'bg-white/15')}`}
           >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : ''}`} />
+            {/* RTL: rest position uses logical `start-0.5` (right edge in
+                RTL, left edge in LTR); translate-x is a physical CSS
+                transform with no logical equivalent, so the checked
+                state needs an explicit rtl: variant to move the knob
+                toward the (now-opposite) end edge instead of off the
+                track. */}
+            <span className={`absolute top-0.5 start-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5 rtl:-translate-x-5' : ''}`} />
           </button>
         </div>
       );
@@ -6229,9 +6235,14 @@
     }
 
     function BackButton({ onBack }) {
+      // RTL: "back" is a directional navigation affordance (points toward
+      // reading-start), not a fixed physical/anatomical direction, so it
+      // mirrors under RTL -- purely a CSS transform on this decorative
+      // chevron path; never touches any analytical SVG/canvas coordinate
+      // system, since this icon has nothing to do with eye/lash geometry.
       return (
         <button onClick={onBack} className="w-10 h-10 rounded-full glass flex items-center justify-center text-white">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" d="M15 19l-7-7 7-7"/></svg>
+          <svg className="w-5 h-5 rtl:-scale-x-100" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
       );
     }
@@ -8707,8 +8718,8 @@
                 viewfinder. Processing (tickImplRef) still reads this
                 same <video> element directly via a plain, untransformed
                 ctx.drawImage — completely unaffected by any of this. */}
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted />
-            <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+            <video dir="ltr" ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted />
+            <canvas dir="ltr" ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
             <div className="absolute inset-0 pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.5) 100%)'}}></div>
             {!modelsLoaded && <div className="absolute inset-0 flex items-center justify-center bg-black/80"><p className="text-sm text-textSecondary">{t('modelsLoading', lang)}</p></div>}
             {/* EYELID CREASE V2 — DEBUG SHADOW MODE. Purely additive,
@@ -9224,9 +9235,9 @@
                 face-api/lash-detection pipeline reads the raw <video>
                 frame via canvas drawImage, which ignores this CSS
                 transform entirely — this changes only what's on screen. */}
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} playsInline muted />
+            <video dir="ltr" ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} playsInline muted />
             <div className="absolute inset-0 pointer-events-none" style={{background: 'radial-gradient(ellipse at center, transparent 38%, rgba(0,0,0,0.55) 100%)'}}></div>
-            <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+            <canvas dir="ltr" ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
             <div className="absolute top-16 left-0 right-0 z-10 flex flex-col items-center pointer-events-none">
               <span className="label-tech mb-1">{t('natLashScanTitle', lang)}</span>
               <span className="text-sm font-semibold text-textPrimary uppercase tracking-wide">{sideLabel}</span>
@@ -9998,7 +10009,7 @@
                 // animation effect above) — no separate spinner/dim
                 // overlay while it's active; the photo itself stays
                 // fully visible under the scan graphics the whole time.
-                <canvas ref={scanCanvasRef} data-photo-scan-canvas="true" className="w-full h-full" />
+                <canvas dir="ltr" ref={scanCanvasRef} data-photo-scan-canvas="true" className="w-full h-full" />
               ) : previewUrl ? (
                 <img src={previewUrl} className="w-full h-full object-cover" alt="preview" />
               ) : (
@@ -10145,7 +10156,7 @@
               {sublabel && <p className="text-[11px] text-textMuted leading-snug">{sublabel}</p>}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1 flex-shrink-0 max-w-[42%] text-right">
+          <div className="flex flex-col items-end gap-1 flex-shrink-0 max-w-[42%] text-end">
             <span className="text-sm font-semibold text-cyan leading-snug">{value}</span>
             {/* Phase C3d: valueDetail (e.g. the Iris percentage
                 breakdown) replaces the bare confidence% for the one row
@@ -10332,7 +10343,7 @@
       }, [landmarks, imageWidth, imageHeight]);
       return (
         <div ref={containerRef} className="absolute inset-0 pointer-events-none">
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+          <canvas dir="ltr" ref={canvasRef} className="absolute inset-0 w-full h-full" />
         </div>
       );
     }
@@ -10489,7 +10500,7 @@
                     key={d.id}
                     data-alt-design-id={d.id}
                     onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: d.id, origin: 'results_carousel' }); onViewMap(d.clientDesign); }}
-                    className="glass rounded-lg p-4 text-left press-scale flex-shrink-0"
+                    className="glass rounded-lg p-4 text-start press-scale flex-shrink-0"
                     style={{ width: '78%', scrollSnapAlign: 'start' }}
                   >
                     <span className="text-[10px] font-bold tracking-wider uppercase text-textMuted block mb-1.5">{tierBadge(rank, d.score, d.category, lang)}</span>
@@ -10498,7 +10509,7 @@
                       <span className="text-lg font-bold text-textPrimary">{d.score}%</span>
                       <MatchBar score={d.score} />
                     </div>
-                    <span className="text-[11px] text-accent font-semibold uppercase tracking-wide">{t('openLabel', lang)} →</span>
+                    <span className="text-[11px] text-accent font-semibold uppercase tracking-wide">{t('openLabel', lang)} <span className="inline-block rtl:-scale-x-100">→</span></span>
                   </button>
                 );
               })}
@@ -10507,7 +10518,7 @@
               {t('viewAllDesignsEntry', lang)}
             </button>
 
-            <button onClick={naturalLashProfile ? onViewLashProfile : onScanLashes} className="w-full glass rounded-lg p-4 mb-6 flex items-center justify-between text-left press-scale">
+            <button onClick={naturalLashProfile ? onViewLashProfile : onScanLashes} className="w-full glass rounded-lg p-4 mb-6 flex items-center justify-between text-start press-scale">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-md bg-white/[0.03] border border-border flex items-center justify-center flex-shrink-0">
                   <ParamIcon name="iris" className="w-4 h-4 text-accent" />
@@ -10524,7 +10535,7 @@
               <img src={result.originalImage} className="w-full h-full object-cover" alt="client" />
               <ResultMeshOverlay landmarks={result.landmarks} imageWidth={result.imageWidth} imageHeight={result.imageHeight} />
               <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/10 to-transparent"></div>
-              <div className="absolute top-4 left-4 px-3 py-1 rounded-md bg-bg/60 border border-border backdrop-blur">
+              <div className="absolute top-4 start-4 px-3 py-1 rounded-md bg-bg/60 border border-border backdrop-blur">
                 <span className="text-[10px] font-semibold tracking-wider text-textPrimary uppercase">{result.source==='photo' ? t('photoSource', lang) : t('liveSource', lang)}</span>
               </div>
               <div className="absolute bottom-0 left-0 right-0 p-6">
@@ -10532,7 +10543,7 @@
                 <h2 className="text-2xl font-bold text-textPrimary text-glow">{labels.shape}</h2>
               </div>
               {typeof result.confidence === 'number' && (
-                <div className={`absolute top-4 right-4 px-3 py-1 rounded-md border backdrop-blur ${result.confidence >= 0.6 ? 'bg-bg/60 border-cyan/30' : 'bg-bg/60 border-peak/30'}`}>
+                <div className={`absolute top-4 end-4 px-3 py-1 rounded-md border backdrop-blur ${result.confidence >= 0.6 ? 'bg-bg/60 border-cyan/30' : 'bg-bg/60 border-peak/30'}`}>
                   <span className={`text-xs font-medium ${result.confidence >= 0.6 ? 'text-cyan' : 'text-peak'}`}>{t('analysisConfidence', lang)} {(result.confidence*100).toFixed(0)}%</span>
                 </div>
               )}
@@ -10602,14 +10613,14 @@
                   <div key={d.id} className="rounded-md border border-border bg-white/[0.02] p-3">
                     <div className="flex justify-between items-center mb-1.5">
                       <h4 className="text-sm font-semibold text-textPrimary">{String(i+1).padStart(2,'0')} · {d.name.toUpperCase()}</h4>
-                      <span className="text-[10px] font-semibold text-accent uppercase tracking-wide flex-shrink-0 ml-2">{d.suitability}</span>
+                      <span className="text-[10px] font-semibold text-accent uppercase tracking-wide flex-shrink-0 ms-2">{d.suitability}</span>
                     </div>
                     <p className="text-xs text-textSecondary leading-relaxed mb-2">{d.visualGoal}</p>
                     <div className="grid grid-cols-2 gap-2 text-[11px] mb-2">
-                      <div><span className="text-textMuted">{t('ldcPeak',lang)}: </span><span className="text-textPrimary font-medium">{d.peakZone}</span></div>
-                      <div><span className="text-textMuted">{t('ldcCurl',lang)}: </span><span className="text-textPrimary font-medium">{d.curls.join(' / ')}</span></div>
+                      <div><span className="text-textMuted">{t('ldcPeak',lang)}: </span><bdi className="text-textPrimary font-medium">{d.peakZone}</bdi></div>
+                      <div><span className="text-textMuted">{t('ldcCurl',lang)}: </span><bdi className="text-textPrimary font-medium">{d.curls.join(' / ')}</bdi></div>
                     </div>
-                    <p className="text-[11px] text-textMuted mb-1">{t('ldcLength',lang)}: <span className="text-textSecondary">{d.lengthDistribution}</span></p>
+                    <p className="text-[11px] text-textMuted mb-1">{t('ldcLength',lang)}: <bdi className="text-textSecondary">{d.lengthDistribution}</bdi></p>
                     {d.cautions.length > 0 && <p className="text-[11px] text-peak/90 mb-1">{t('ldcCautions',lang)}: {d.cautions[0]}</p>}
                     <p className="text-[11px] text-textMuted">{t('ldcLR',lang)}: <span className="text-textSecondary">{d.lrNote}</span></p>
                   </div>
@@ -10640,10 +10651,10 @@
                   {all.filter(d => d.category === cat).map((d) => {
                     const rank = all.findIndex(x=>x.id===d.id);
                     return (
-                      <button key={d.id} onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: d.id, origin: 'all_designs' }); onSelect(d.clientDesign); }} className="w-full glass rounded-lg p-4 text-left press-scale block">
+                      <button key={d.id} onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: d.id, origin: 'all_designs' }); onSelect(d.clientDesign); }} className="w-full glass rounded-lg p-4 text-start press-scale block">
                         <div className="flex justify-between items-start mb-1.5">
                           <h4 className="text-sm font-semibold text-textPrimary">{d.name.toUpperCase()}</h4>
-                          <span className={`text-sm font-bold flex-shrink-0 ml-2 ${rank===0 ? 'text-accent' : 'text-textPrimary'}`}>{d.score}%</span>
+                          <span className={`text-sm font-bold flex-shrink-0 ms-2 ${rank===0 ? 'text-accent' : 'text-textPrimary'}`}>{d.score}%</span>
                         </div>
                         <p className="text-xs text-textSecondary leading-relaxed mb-2 line-clamp-2">{d.whyItWorks}</p>
                         <div className="flex items-center justify-between">
@@ -10651,7 +10662,7 @@
                             <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-border text-textMuted">{CATEGORY_LABELS[cat][lang] || CATEGORY_LABELS[cat].ru}</span>
                             {d.texture && <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-cyan/25 text-cyan">{d.texture.pattern}</span>}
                           </div>
-                          <span className="text-[10px] text-accent font-semibold uppercase tracking-wide">{t('openLabel', lang)} →</span>
+                          <span className="text-[10px] text-accent font-semibold uppercase tracking-wide">{t('openLabel', lang)} <span className="inline-block rtl:-scale-x-100">→</span></span>
                         </div>
                       </button>
                     );
@@ -10772,7 +10783,14 @@
       const profileLine=profilePoints.map(p=>`${p.x},${p.y}`).join(' L ');
       const profileFill=`${profilePoints[0].x},${LASH_LENGTH_PROFILE_BASELINE_Y} L ${profileLine} L ${profilePoints.at(-1).x},${LASH_LENGTH_PROFILE_BASELINE_Y} Z`;
       return <>
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+      {/* RTL geometry isolation (Phase 2): dir="ltr" here is presentation-
+          only isolation for this analytical SVG's own text-rendering/bidi
+          resolution -- it does not touch, and is never read by, xAt/
+          upperY/lowerY or any other coordinate formula above. The
+          protected mirror formula defined a few lines up is completely
+          unaffected by dir. See diagram-canonical.test.js /
+          lash-map-diagram-mirror.test.js, which stay green either way. */}
+      <svg dir="ltr" className="absolute inset-0 h-full w-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
         <defs>
           <radialGradient id="diagramEyeBg" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="rgba(10,140,255,.07)"/><stop offset="100%" stopColor="rgba(2,6,11,0)"/></radialGradient>
           <linearGradient id="diagramLashProfileFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgba(83,199,255,.38)"/><stop offset="100%" stopColor="rgba(83,199,255,.02)"/></linearGradient>
@@ -10914,8 +10932,11 @@
       const handlePoints={inner:workingLine.points[0],peak:workingLine.points.find(point=>point.isPeak),outer:workingLine.points.at(-1)};
       return (
         <article className={`overflow-hidden rounded-xl border transition-colors ${active?'border-accent/60 bg-accent/[0.04]':'border-border bg-surface/70'}`}>
-          <div role="button" tabIndex="0" onClick={onActivate} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onActivate();}}} className="relative block w-full aspect-[16/9] overflow-hidden text-left" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
-            <svg ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
+          <div role="button" tabIndex="0" onClick={onActivate} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onActivate();}}} className="relative block w-full aspect-[16/9] overflow-hidden text-start" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
+            {/* RTL geometry isolation (Phase 2): dir="ltr" is presentation-
+                only; the crop/drag/adjustment coordinate math below never
+                reads dir/lang. */}
+            <svg dir="ltr" ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
               {/* RELEASE POLISH — source from the full-resolution photo
                   (result.nativeImage, Photo Analysis only) when present,
                   falling back to the existing analysis-canvas image
@@ -10956,11 +10977,11 @@
           <div className="border-t border-white/[.07] p-3">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div><p className="text-sm font-semibold text-textPrimary">{design.name}</p><p className="text-[10px] uppercase tracking-widest text-textMuted">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</p></div>
-              <div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{t('visitDetailPeakLabel',lang)}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div>
+              <div className="text-end"><p className="text-[9px] uppercase tracking-widest text-textMuted">{t('visitDetailPeakLabel',lang)}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div>
             </div>
             <dl className="grid grid-cols-3 gap-2 border-y border-white/[.06] py-2.5">
-              <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapCurl',lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{curlSpec}</dd></div>
-              <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapLength',lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{Math.min(...zones)}–{Math.max(...zones)} mm</dd></div>
+              <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapCurl',lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary"><bdi>{curlSpec}</bdi></dd></div>
+              <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapLength',lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary"><bdi>{Math.min(...zones)}–{Math.max(...zones)} mm</bdi></dd></div>
               <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapTexture',lang)}</dt><dd className="mt-0.5 truncate text-xs font-medium text-textPrimary">{textureLabel}</dd></div>
             </dl>
             <div className="mt-2.5 grid grid-cols-5 gap-1">
@@ -11260,9 +11281,9 @@
                   {plan.spikePlan && (
                     <PlanSection num={String(planNum.next()).padStart(2,'0')} icon="lashmap" title={t('spikePlanTitle', lang)}>
                       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-                        <div className="glass rounded-md p-2"><p className="text-textMuted text-[10px] uppercase">{t('spikeBaseLabel',lang)}</p><p className="font-semibold text-textPrimary">{plan.spikePlan.base}</p></div>
-                        <div className="glass rounded-md p-2"><p className="text-textMuted text-[10px] uppercase">{t('spikeSpikesLabel',lang)}</p><p className="font-semibold text-textPrimary">{plan.spikePlan.spikes}</p></div>
-                        <div className="glass rounded-md p-2"><p className="text-textMuted text-[10px] uppercase">{t('spikeDiffLabel',lang)}</p><p className="font-semibold text-textPrimary">{plan.spikePlan.diff}</p></div>
+                        <div className="glass rounded-md p-2"><p className="text-textMuted text-[10px] uppercase">{t('spikeBaseLabel',lang)}</p><p className="font-semibold text-textPrimary"><bdi>{plan.spikePlan.base}</bdi></p></div>
+                        <div className="glass rounded-md p-2"><p className="text-textMuted text-[10px] uppercase">{t('spikeSpikesLabel',lang)}</p><p className="font-semibold text-textPrimary"><bdi>{plan.spikePlan.spikes}</bdi></p></div>
+                        <div className="glass rounded-md p-2"><p className="text-textMuted text-[10px] uppercase">{t('spikeDiffLabel',lang)}</p><p className="font-semibold text-textPrimary"><bdi>{plan.spikePlan.diff}</bdi></p></div>
                         <div className="glass rounded-md p-2"><p className="text-textMuted text-[10px] uppercase">{t('spikeCountLabel',lang)}</p><p className="font-semibold text-textPrimary">{plan.spikePlan.count}</p></div>
                       </div>
                       <div className="space-y-1.5">
@@ -11327,7 +11348,7 @@
             <div key={k} className="flex items-center gap-2">
               <span className="text-[9px] text-textMuted w-28 flex-shrink-0">{k}</span>
               <div className="flex-1 h-1 bg-surface rounded-full overflow-hidden"><div className="h-full bg-cyan" style={{width:`${(v*100).toFixed(0)}%`}}></div></div>
-              <span className="text-[9px] text-textMuted w-8 text-right">{(v*100).toFixed(0)}%</span>
+              <span className="text-[9px] text-textMuted w-8 text-end">{(v*100).toFixed(0)}%</span>
             </div>
           ))}
         </div>
@@ -11455,7 +11476,7 @@
                   <div key={k} className="flex items-center gap-3">
                     <span className="text-xs w-24 capitalize text-textSecondary">{k === 'round' ? t('detailsShapeTendencyRound', lang) : k === 'almond' ? t('detailsShapeTendencyAlmond', lang) : t('detailsShapeTendencyElongated', lang)}</span>
                     <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden"><div className="h-full bg-accent" style={{width: `${(v*100).toFixed(0)}%`}}></div></div>
-                    <span className="text-xs w-9 text-right text-textMuted">{(v*100).toFixed(0)}%</span>
+                    <span className="text-xs w-9 text-end text-textMuted">{(v*100).toFixed(0)}%</span>
                   </div>
                 ))}
               </div>
@@ -11482,12 +11503,12 @@
                   <h3 className="label-tech">{t('detailsAsymHeader', lang)}</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-y-2 text-xs">
-                  <span className="text-textSecondary">{t('detailsAsymWidth', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.width*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{t('detailsAsymHeight', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.height*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{t('detailsAsymCornerAngle', lang)}</span><span className="text-right text-textPrimary">{p.asymmetryBreakdown.tilt.toFixed(1)}°</span>
-                  <span className="text-textSecondary">{t('detailsAsymOpenness', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.openness*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{t('detailsAsymLidVisibility', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.hooding*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{t('detailsAsymVerticalPosition', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.vertical*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymWidth', lang)}</span><span className="text-end text-textPrimary">{(p.asymmetryBreakdown.width*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymHeight', lang)}</span><span className="text-end text-textPrimary">{(p.asymmetryBreakdown.height*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymCornerAngle', lang)}</span><span className="text-end text-textPrimary">{p.asymmetryBreakdown.tilt.toFixed(1)}°</span>
+                  <span className="text-textSecondary">{t('detailsAsymOpenness', lang)}</span><span className="text-end text-textPrimary">{(p.asymmetryBreakdown.openness*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymLidVisibility', lang)}</span><span className="text-end text-textPrimary">{(p.asymmetryBreakdown.hooding*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymVerticalPosition', lang)}</span><span className="text-end text-textPrimary">{(p.asymmetryBreakdown.vertical*100).toFixed(1)}%</span>
                 </div>
               </div>
             )}
@@ -11559,7 +11580,7 @@
       return (
         <div className="flex justify-between text-[9px] gap-2">
           <span className="text-textMuted">{label}</span>
-          <span className="text-lime-300 font-mono text-right break-all">{value}</span>
+          <span className="text-lime-300 font-mono text-end break-all">{value}</span>
         </div>
       );
     }
@@ -11690,10 +11711,10 @@
               <div key={label} className="text-[9px]">
                 <div className="flex justify-between gap-2">
                   <span className="text-textMuted">{label}</span>
-                  <span className="text-lime-300 font-mono text-right break-all">{nls2CompareValueText(raw)}</span>
+                  <span className="text-lime-300 font-mono text-end break-all">{nls2CompareValueText(raw)}</span>
                 </div>
                 {label !== 'occupancy dead zone' && (
-                  <div className="text-right text-cyan-300">{nls2CompareStatus(raw)}</div>
+                  <div className="text-end text-cyan-300">{nls2CompareStatus(raw)}</div>
                 )}
               </div>
             ))}
@@ -11803,7 +11824,7 @@
             {rows.map(([label, value], i) => (
               <div key={i} className="flex justify-between items-center py-1.5 border-b border-border/60 last:border-0">
                 <span className="text-xs text-textSecondary">{label}</span>
-                <span className="text-sm font-medium text-cyan text-right">{value}</span>
+                <span className="text-sm font-medium text-cyan text-end">{value}</span>
               </div>
             ))}
           </div>
@@ -12091,21 +12112,21 @@
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 hide-scrollbar">
             {items.map(item => (
-              <button key={item.id} type="button" onClick={() => onSelect(item.id)} className="w-full text-left glass rounded-lg p-4 press-scale active:bg-surfaceHover">
+              <button key={item.id} type="button" onClick={() => onSelect(item.id)} className="w-full text-start glass rounded-lg p-4 press-scale active:bg-surfaceHover">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
                     <div className="text-[15px] font-bold text-textPrimary truncate">{item.name}</div>
                     {item.isDraft && <span className="inline-block mt-1 text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-peak/30 text-peak">{t('lashMapLibraryUnderReview', lang)}</span>}
                   </div>
-                  <span className="text-textMuted text-lg leading-none shrink-0">›</span>
+                  <span className="text-textMuted text-lg leading-none shrink-0 inline-block rtl:-scale-x-100">›</span>
                 </div>
                 <div className="rounded-md overflow-hidden border border-border/60 bg-surface/60 aspect-[16/9] mb-2">
                   <ProLibraryReferenceTemplateSide canonicalId={item.id} side="left" lang={lang} />
                 </div>
                 {item.summary && <p className="text-[12px] text-textSecondary leading-relaxed mb-2 line-clamp-2">{item.summary}</p>}
                 <div className="flex gap-3 text-[11px] text-textSecondary">
-                  {item.curl && <span>{t('lashMapCurl', lang)}: <span className="text-textPrimary font-medium">{item.curl}</span></span>}
-                  {item.lengthRange && <span>{t('lashMapLength', lang)}: <span className="text-textPrimary font-medium">{item.lengthRange}</span></span>}
+                  {item.curl && <span>{t('lashMapCurl', lang)}: <bdi className="text-textPrimary font-medium">{item.curl}</bdi></span>}
+                  {item.lengthRange && <span>{t('lashMapLength', lang)}: <bdi className="text-textPrimary font-medium">{item.lengthRange}</bdi></span>}
                 </div>
               </button>
             ))}
@@ -12155,7 +12176,7 @@
                 {orderedBase.map((z, i) => (
                   <div key={i} className="flex items-center justify-between py-1 border-b border-border/60 last:border-0 text-[13px]">
                     <span className="text-textSecondary">{zoneLabel(z.position, lang)}</span>
-                    <span className="text-textPrimary font-medium">{plDisplayMm(z)} mm{z.curl ? ` · ${z.curl}` : ''}</span>
+                    <bdi className="text-textPrimary font-medium">{plDisplayMm(z)} mm{z.curl ? ` · ${z.curl}` : ''}</bdi>
                   </div>
                 ))}
               </div>
@@ -12163,7 +12184,7 @@
             {orderedSpikes && (
               <div className="glass rounded-lg p-4 mb-3">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-cyan mb-2">{t('lashMapLibraryRaysLabel', lang)}</div>
-                <p className="text-[13px] text-textPrimary font-medium">{orderedSpikes.map(plDisplayMm).join(' / ')} mm</p>
+                <p className="text-[13px] text-textPrimary font-medium"><bdi>{orderedSpikes.map(plDisplayMm).join(' / ')} mm</bdi></p>
               </div>
             )}
             <div className="glass rounded-lg p-4 mb-3">
@@ -12282,7 +12303,7 @@
     function ClientListCard({ client, stats, lang, onOpen, disabled }) {
       const age = client.dateOfBirth ? ClientStore.calculateAge(client.dateOfBirth) : null;
       return (
-        <button disabled={!!disabled} onClick={() => onOpen(client.id)} className="w-full glass rounded-lg p-3 mb-2.5 flex items-center gap-3 text-left press-scale disabled:opacity-60">
+        <button disabled={!!disabled} onClick={() => onOpen(client.id)} className="w-full glass rounded-lg p-3 mb-2.5 flex items-center gap-3 text-start press-scale disabled:opacity-60">
           <div className="w-12 h-12 rounded-full bg-white/[0.05] border border-border flex items-center justify-center flex-shrink-0">
             <ClientsIcon className="w-6 h-6 text-textMuted" />
           </div>
@@ -12296,7 +12317,7 @@
               {' · '}{t('clientTotalVisitsLabel', lang)}: {stats.totalVisits}
             </p>
           </div>
-          <svg className="w-4 h-4 text-textMuted flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6"/></svg>
+          <svg className="w-4 h-4 text-textMuted flex-shrink-0 rtl:-scale-x-100" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6"/></svg>
         </button>
       );
     }
@@ -12506,18 +12527,18 @@
       const curl = (design && design.curl.global) || null;
       const notePreview = visit.artistNote ? (visit.artistNote.length > 80 ? visit.artistNote.slice(0, 80) + '…' : visit.artistNote) : null;
       return (
-        <button type="button" onClick={onOpen} className="w-full text-left rounded-md border border-border bg-white/[0.02] p-3 press-scale">
+        <button type="button" onClick={onOpen} className="w-full text-start rounded-md border border-border bg-white/[0.02] p-3 press-scale">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-textPrimary truncate">{name || t('visitDetailNotAvailable', lang)}</p>
               <p className="text-[11px] text-textMuted mt-0.5">{formatClientDate(visit.visitDate, lang)}</p>
             </div>
-            <svg className="w-4 h-4 text-textMuted flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
+            <svg className="w-4 h-4 text-textMuted flex-shrink-0 mt-0.5 rtl:-scale-x-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
           </div>
           {(curl || lengthRange) && (
             <div className="flex gap-3 mt-2 text-[11px] text-textSecondary">
-              {curl && <span>{t('lashMapCurl', lang)}: <span className="text-textPrimary font-medium">{curl}</span></span>}
-              {lengthRange && <span>{t('lashMapLength', lang)}: <span className="text-textPrimary font-medium">{lengthRange}</span></span>}
+              {curl && <span>{t('lashMapCurl', lang)}: <bdi className="text-textPrimary font-medium">{curl}</bdi></span>}
+              {lengthRange && <span>{t('lashMapLength', lang)}: <bdi className="text-textPrimary font-medium">{lengthRange}</bdi></span>}
             </div>
           )}
           {notePreview && <p className="text-[11px] text-textMuted mt-1.5 truncate">{notePreview}</p>}
@@ -12765,9 +12786,9 @@
                         </div>
                       )}
                       <dl className="grid grid-cols-3 gap-2 text-center border-t border-white/[.06] pt-2.5">
-                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapCurl', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{design.curl.global || na}</dd></div>
-                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapLength', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{hasZones ? `${Math.min(...eye.finalMm)}–${Math.max(...eye.finalMm)} mm` : na}</dd></div>
-                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('visitDetailCorrectionLabel', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{design.correction && Number.isFinite(design.correction[side]?.correctionMm) ? `${design.correction[side].correctionMm} mm` : na}</dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapCurl', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary"><bdi>{design.curl.global || na}</bdi></dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapLength', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary"><bdi>{hasZones ? `${Math.min(...eye.finalMm)}–${Math.max(...eye.finalMm)} mm` : na}</bdi></dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('visitDetailCorrectionLabel', lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary"><bdi>{design.correction && Number.isFinite(design.correction[side]?.correctionMm) ? `${design.correction[side].correctionMm} mm` : na}</bdi></dd></div>
                       </dl>
                     </div>
                   );
@@ -13642,7 +13663,7 @@
                 type="button"
                 data-pl-identity-id={item.canonicalId}
                 onClick={() => onSelect(item.canonicalId)}
-                className="w-full text-left glass rounded-lg p-4 press-scale active:bg-surfaceHover"
+                className="w-full text-start glass rounded-lg p-4 press-scale active:bg-surfaceHover"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -13671,7 +13692,7 @@
                       type="button"
                       data-pl-candidate-id={item.canonicalId}
                       onClick={() => onSelect(item.canonicalId)}
-                      className="w-full text-left glass rounded-lg p-4 press-scale active:bg-surfaceHover border border-dashed border-peak/30"
+                      className="w-full text-start glass rounded-lg p-4 press-scale active:bg-surfaceHover border border-dashed border-peak/30"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -14384,7 +14405,7 @@
               {g.accentHowTo.rows.map((r, i) => (
                 <div key={i} className="flex justify-between gap-3 text-[12px]">
                   <span className="text-textMuted shrink-0">{r.label}</span>
-                  <span className="text-textPrimary text-right">{r.value}</span>
+                  <span className="text-textPrimary text-end">{r.value}</span>
                 </div>
               ))}
             </div>
@@ -14461,7 +14482,13 @@
       return (
         <div data-pl-reference-map-side={side} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border/60 bg-surface/60">
           <LegacyLashMapDiagram {...diagramProps} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} lang={lang} />
-          <span className="absolute top-2 left-2 text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-border/70 bg-bg/80 text-textSecondary">
+          {/* RTL: this badge's own corner position is a pure visual
+              placement choice, fully independent of LegacyLashMapDiagram's
+              own coordinate system (a separate sibling element, never
+              touched here). Its text is driven by the anatomical `side`
+              prop, not by visual position or language -- that mapping is
+              intentionally unaffected by this. */}
+          <span className="absolute top-2 start-2 text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-border/70 bg-bg/80 text-textSecondary">
             {side === 'left' ? t('leftEye', lang) : t('rightEye', lang)}
           </span>
         </div>
@@ -14548,6 +14575,20 @@
       // unexpected localStorage value (e.g. left over from a future
       // build, or edited by hand).
       const [lang, setLangState] = useState(() => {
+        // PHASE 2 (Arabic RTL) -- controlled internal/test-only
+        // activation, exactly analogous to the existing
+        // window.__BOOT_WATCHDOG_MS override (see the boot-fallback
+        // script's own comment): lets Playwright/test harnesses force
+        // lang='ar' via page.addInitScript so RTL can be exercised
+        // end-to-end in a real browser, WITHOUT any user-reachable path
+        // ever producing 'ar' -- LangToggle still renders only
+        // SUPPORTED_LANGUAGES (['ru','en']) below, and setLang() still
+        // rejects anything outside SUPPORTED_LANGUAGES. This override is
+        // read only once, here, at initial mount -- never re-checked
+        // afterward, and never persisted to localStorage.
+        try {
+          if (window.__FORCE_LANG === 'ar') return 'ar';
+        } catch (e) {}
         try {
           const stored = localStorage.getItem('lashStudioLang');
           return stored && SUPPORTED_LANGUAGES.includes(stored) ? stored : 'ru';
@@ -14561,13 +14602,17 @@
       };
       // PHASE 0: keeps the document's own <html lang> attribute (index.html:2,
       // previously static "ru", never updated even for EN) in sync with
-      // the real language state. Required infrastructure for a future
-      // RTL language -- dir="rtl" will need to key off this same state,
-      // and correct lang+dir together are required for accessibility
-      // and font-fallback behavior -- but this effect only ever sets
-      // `lang`; no dir/RTL attribute is touched in this phase.
+      // the real language state.
+      // PHASE 2: dir now keys off the exact same lang state -- 'ar' is
+      // RTL, every other (production-reachable) language stays 'ltr'.
+      // This is presentation ONLY: dir/lang are never read by any
+      // analytical/geometry/recommendation code path (see the Phase 2
+      // geometry-isolation tests) -- they only ever affect document
+      // rendering (text direction, logical-property CSS resolution,
+      // accessibility, font fallback).
       useEffect(() => {
         document.documentElement.lang = lang;
+        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
       }, [lang]);
 
       // ------------------------------------------------------------
@@ -14911,7 +14956,7 @@
         <LangContext.Provider value={lang}>
           <div className="app-container">
             {screen !== 'scan' && screen !== 'lashscan' && (
-              <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+              <div className="absolute top-3 end-3 z-30 flex items-center gap-2">
                 <ConsentIconButton lang={lang} onClick={() => setConsentSettingsOpen(true)} />
                 <LangToggle lang={lang} setLang={setLang} />
               </div>

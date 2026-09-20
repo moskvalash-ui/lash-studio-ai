@@ -269,14 +269,22 @@ test('I. Photo Scan\'s scan-animation effect (choreography constants + all geome
 // ------------------------------------------------------------
 // J. Live Scan behavior remains unchanged.
 // ------------------------------------------------------------
-test('J. LiveScanScreen is byte-identical to Phase 0 HEAD -- Phase 1 never touched Live Scan', () => {
+test('J. LiveScanScreen is byte-identical to Phase 0 HEAD -- Phase 1 never touched Live Scan, and Phase 2 touches only 2 presentation-only dir="ltr" attributes', () => {
   const marker = '    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {';
   const curStart = src.indexOf(marker);
   const prevStart = HEAD.indexOf(marker);
   assert.ok(curStart >= 0 && prevStart >= 0);
   const curEnd = src.indexOf('\n    function ', curStart + 10);
   const prevEnd = HEAD.indexOf('\n    function ', prevStart + 10);
-  assert.strictEqual(src.slice(curStart, curEnd), HEAD.slice(prevStart, prevEnd), 'LiveScanScreen must be byte-identical to HEAD');
+  // PHASE 2 (Arabic RTL): the only approved diff is dir="ltr" added
+  // directly to LiveScanScreen's own <video>/<canvas> elements
+  // (presentation-only geometry isolation -- see the Phase 2
+  // geometry-isolation tests). Normalized out here so this guard keeps
+  // proving nothing ELSE in LiveScanScreen changed.
+  const omitPhase2DirLtr = span => span
+    .replace('<video dir="ltr" ref={videoRef}', '<video ref={videoRef}')
+    .replace('<canvas dir="ltr" ref={overlayCanvasRef}', '<canvas ref={overlayCanvasRef}');
+  assert.strictEqual(omitPhase2DirLtr(src.slice(curStart, curEnd)), HEAD.slice(prevStart, prevEnd), 'LiveScanScreen must be byte-identical to HEAD outside the approved Phase 2 dir="ltr" additions');
 });
 
 // ------------------------------------------------------------

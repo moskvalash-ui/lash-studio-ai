@@ -291,6 +291,22 @@
     // ============================================================
     const LangContext = createContext('ru');
     const useLang = () => useContext(LangContext);
+    // PHASE 0 — ARABIC LOCALIZATION INFRASTRUCTURE (audit-approved
+    // architecture prep only; no Arabic content, no RTL, nothing
+    // user-visible changes). SUPPORTED_LANGUAGES is the single source
+    // of truth for which languages are actually selectable/visible/
+    // persistable today -- LangToggle renders exactly this list, and
+    // App()'s setLang (and its initial localStorage read) reject
+    // anything outside it, so no user action or stale storage value can
+    // put the app into an unfinished language. LANGUAGE_LABELS is a
+    // superset that already carries Arabic's native-script label, so a
+    // later phase can enable Arabic by adding 'ar' to
+    // SUPPORTED_LANGUAGES alone -- no further LangToggle change needed.
+    // 'ar' has no translated STRINGS content yet (t() already falls
+    // back to .ru for any missing key) and no dir="rtl"/RTL layout
+    // support -- both remain explicit future phases.
+    const SUPPORTED_LANGUAGES = ['ru', 'en'];
+    const LANGUAGE_LABELS = { ru: 'RU', en: 'EN', ar: 'العربية' };
     const STRINGS = {
       appName: {ru:'Lash Studio AI', en:'Lash Studio AI'},
       tagline: {ru:'Профессиональный AI-анализ и персональные схемы наращивания', en:'Professional AI analysis and personalized lash mapping'},
@@ -5828,8 +5844,16 @@
     function LangToggle({ lang, setLang }) {
       return (
         <div className="flex rounded-full bg-surface p-0.5 text-[11px] font-semibold">
-          {['ru','en'].map(l => (
-            <button key={l} onClick={() => setLang(l)} className={`px-2.5 py-1 rounded-full transition-all ${lang===l ? 'bg-white/15 text-white' : 'text-textSecondary'}`}>{l.toUpperCase()}</button>
+          {/* PHASE 0: renders exactly SUPPORTED_LANGUAGES (still just
+              Russian and English) -- Arabic is intentionally absent here
+              even though LANGUAGE_LABELS.ar already exists, so it cannot
+              be selected. Label now comes from LANGUAGE_LABELS instead of
+              l.toUpperCase() specifically because 'ar'.toUpperCase()
+              would render "AR", not the required "العربية", when a
+              future phase adds 'ar' to SUPPORTED_LANGUAGES -- for 'ru'/
+              'en' this produces the exact same 'RU'/'EN' text as before. */}
+          {SUPPORTED_LANGUAGES.map(l => (
+            <button key={l} onClick={() => setLang(l)} className={`px-2.5 py-1 rounded-full transition-all ${lang===l ? 'bg-white/15 text-white' : 'text-textSecondary'}`}>{LANGUAGE_LABELS[l]}</button>
           ))}
         </div>
       );
@@ -14356,14 +14380,34 @@
     }
 
     function App() {
+      // PHASE 0: both the initial read and setLang below are guarded by
+      // the exact same SUPPORTED_LANGUAGES check, so the app can never
+      // actually run in (or persist) a language that isn't fully
+      // shipped -- not from a user action, and not from a stale/
+      // unexpected localStorage value (e.g. left over from a future
+      // build, or edited by hand).
       const [lang, setLangState] = useState(() => {
-        try { return localStorage.getItem('lashStudioLang') || 'ru'; } catch (e) { return 'ru'; }
+        try {
+          const stored = localStorage.getItem('lashStudioLang');
+          return stored && SUPPORTED_LANGUAGES.includes(stored) ? stored : 'ru';
+        } catch (e) { return 'ru'; }
       });
       const setLang = (l) => {
+        if (!SUPPORTED_LANGUAGES.includes(l)) return;
         if (typeof Analytics !== 'undefined') Analytics.track('language_changed', { lang: l });
         setLangState(l);
         try { localStorage.setItem('lashStudioLang', l); } catch (e) {}
       };
+      // PHASE 0: keeps the document's own <html lang> attribute (index.html:2,
+      // previously static "ru", never updated even for EN) in sync with
+      // the real language state. Required infrastructure for a future
+      // RTL language -- dir="rtl" will need to key off this same state,
+      // and correct lang+dir together are required for accessibility
+      // and font-fallback behavior -- but this effect only ever sets
+      // `lang`; no dir/RTL attribute is touched in this phase.
+      useEffect(() => {
+        document.documentElement.lang = lang;
+      }, [lang]);
 
       // ------------------------------------------------------------
       // CONSENT — Phase 1: consent foundation only. `consent` is the

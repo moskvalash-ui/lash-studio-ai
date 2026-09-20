@@ -130,7 +130,7 @@ test('production and all legacy Wet consumers remain byte-identical',()=>{
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
-  assert.strictEqual(digest(indexSource),'9695ce36c54febc34d10122bb620830509626f2a00bf7bcc3bf63f33b3fe37ff');
+  assert.strictEqual(digest(indexSource),'597771a446ae8e95df80dbef0ebf890d39ce034d7b14754d868c00f631efb503');
   assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();

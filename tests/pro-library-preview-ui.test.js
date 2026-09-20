@@ -371,7 +371,12 @@ test('Kim K master guide: RU is fully populated and EN is an independent, natura
 });
 
 test('Kim K master guide: default app language remains ru, unaffected by this phase',()=>{
-  assert.ok(indexSource.includes("localStorage.getItem('lashStudioLang') || 'ru'"));
+  // PHASE 0 (Arabic localization infrastructure): the initial lang
+  // useState reader now also guards against a stale/unsupported stored
+  // value (see tests/language-phase0-infrastructure.test.js), but the
+  // fallback default is still, and must remain, 'ru'.
+  assert.ok(indexSource.includes("localStorage.getItem('lashStudioLang');"));
+  assert.ok(indexSource.includes("return stored && SUPPORTED_LANGUAGES.includes(stored) ? stored : 'ru';"));
 });
 
 test('Kim K master guide: 2–4mm is labeled a common working range, never a mandatory standard',()=>{

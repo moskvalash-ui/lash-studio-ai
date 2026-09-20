@@ -80,14 +80,14 @@ test('3. heroDesignDisplayName never mutates its input object (d.id/d.name untou
 // untouched.
 // ------------------------------------------------------------
 test('4. new Hero STRINGS keys exist with the exact required RU/EN text', () => {
-  assert.deepStrictEqual(STRINGS.heroBestDesignTitle, { ru: 'ВАШ ЛУЧШИЙ ДИЗАЙН', en: 'YOUR BEST DESIGN' });
-  assert.deepStrictEqual(STRINGS.heroMatchLabel, { ru: 'совпадение', en: 'match' });
-  assert.deepStrictEqual(STRINGS.heroOpenLashMap, { ru: 'ОТКРЫТЬ LASH MAP', en: 'OPEN LASH MAP' });
+  assert.deepStrictEqual(STRINGS.heroBestDesignTitle, { ru: 'ВАШ ЛУЧШИЙ ДИЗАЙН', en: 'YOUR BEST DESIGN', ar: 'أفضل تصميم لك' });
+  assert.deepStrictEqual(STRINGS.heroMatchLabel, { ru: 'совпадение', en: 'match', ar: 'تطابق' });
+  assert.deepStrictEqual(STRINGS.heroOpenLashMap, { ru: 'ОТКРЫТЬ LASH MAP', en: 'OPEN LASH MAP', ar: 'فتح Lash Map' });
 });
 
 test('5. existing canonical strings from this phase (saveToClientButton) and from Results Design Discovery (openLabel) remain untouched', () => {
-  assert.deepStrictEqual(STRINGS.saveToClientButton, { ru: 'Сохранить клиентке', en: 'Save to client' });
-  assert.deepStrictEqual(STRINGS.openLabel, { ru: 'Открыть', en: 'Open' });
+  assert.deepStrictEqual(STRINGS.saveToClientButton, { ru: 'Сохранить клиентке', en: 'Save to client', ar: 'حفظ لدى العميلة' });
+  assert.deepStrictEqual(STRINGS.openLabel, { ru: 'Открыть', en: 'Open', ar: 'فتح' });
   // viewMap/recommendedDesigns/allDesigns STRINGS entries are left
   // defined with unchanged values even though HeroScreen no longer
   // references any of them -- see RESULTS DESIGN DISCOVERY below,
@@ -95,14 +95,14 @@ test('5. existing canonical strings from this phase (saveToClientButton) and fro
   // viewAllDesignsEntry. Left in place rather than removed (harmless
   // unused localization constants; removing them is out of this
   // phase's scope and not required by the audit).
-  assert.deepStrictEqual(STRINGS.viewMap, { ru: 'ОТКРЫТЬ КАРТУ →', en: 'VIEW MAP →' });
-  assert.deepStrictEqual(STRINGS.recommendedDesigns, { ru: 'Рекомендуемые дизайны', en: 'Recommended designs' });
-  assert.deepStrictEqual(STRINGS.allDesigns, { ru: 'Все дизайны →', en: 'All designs →' });
+  assert.deepStrictEqual(STRINGS.viewMap, { ru: 'ОТКРЫТЬ КАРТУ →', en: 'VIEW MAP →', ar: 'فتح الخريطة →' });
+  assert.deepStrictEqual(STRINGS.recommendedDesigns, { ru: 'Рекомендуемые дизайны', en: 'Recommended designs', ar: 'التصاميم الموصى بها' });
+  assert.deepStrictEqual(STRINGS.allDesigns, { ru: 'Все дизайны →', en: 'All designs →', ar: 'جميع التصاميم →' });
 });
 
 test('5b. RESULTS DESIGN DISCOVERY: new moreDesignsForYou/viewAllDesignsEntry STRINGS keys exist with the exact required RU/EN text', () => {
-  assert.deepStrictEqual(STRINGS.moreDesignsForYou, { ru: 'Ещё подходящие дизайны', en: 'More designs for you' });
-  assert.deepStrictEqual(STRINGS.viewAllDesignsEntry, { ru: 'Смотреть все дизайны', en: 'View all designs' });
+  assert.deepStrictEqual(STRINGS.moreDesignsForYou, { ru: 'Ещё подходящие дизайны', en: 'More designs for you', ar: 'تصاميم أخرى تناسبك' });
+  assert.deepStrictEqual(STRINGS.viewAllDesignsEntry, { ru: 'Смотреть все дизайны', en: 'View all designs', ar: 'عرض جميع التصاميم' });
 });
 
 // ------------------------------------------------------------

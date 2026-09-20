@@ -308,139 +308,139 @@
     const SUPPORTED_LANGUAGES = ['ru', 'en'];
     const LANGUAGE_LABELS = { ru: 'RU', en: 'EN', ar: 'العربية' };
     const STRINGS = {
-      appName: {ru:'Lash Studio AI', en:'Lash Studio AI'},
-      tagline: {ru:'Профессиональный AI-анализ и персональные схемы наращивания', en:'Professional AI analysis and personalized lash mapping'},
-      heroHeadingL1: {ru:'AI-АНАЛИЗ ДЛЯ', en:'AI ANALYSIS FOR'},
-      heroHeadingL2: {ru:'ИДЕАЛЬНОГО', en:'THE PERFECT'},
-      heroHeadingL3: {ru:'НАРАЩИВАНИЯ', en:'LASH DESIGN'},
-      heroSubtext: {ru:'Анализируем особенности глаз и лица, чтобы предложить профессиональные варианты наращивания.', en:'Analyze eye and facial features to generate professional lash extension recommendations.'},
-      liveScanBtn: {ru:'Начать Live Scan', en:'Start Live Scan'},
-      photoBtn: {ru:'Анализ по фото', en:'Photo Analysis'},
+      appName: {ru:'Lash Studio AI', en:'Lash Studio AI', ar:'Lash Studio AI'},
+      tagline: {ru:'Профессиональный AI-анализ и персональные схемы наращивания', en:'Professional AI analysis and personalized lash mapping', ar:'تحليل احترافي بالذكاء الاصطناعي وخرائط رموش مخصصة'},
+      heroHeadingL1: {ru:'AI-АНАЛИЗ ДЛЯ', en:'AI ANALYSIS FOR', ar:'تحليل بالذكاء الاصطناعي'},
+      heroHeadingL2: {ru:'ИДЕАЛЬНОГО', en:'THE PERFECT', ar:'من أجل'},
+      heroHeadingL3: {ru:'НАРАЩИВАНИЯ', en:'LASH DESIGN', ar:'تصميم رموش مثالي'},
+      heroSubtext: {ru:'Анализируем особенности глаз и лица, чтобы предложить профессиональные варианты наращивания.', en:'Analyze eye and facial features to generate professional lash extension recommendations.', ar:'نحلل خصائص العين والوجه لنقترح عليك خيارات احترافية لتركيب الرموش.'},
+      liveScanBtn: {ru:'Начать Live Scan', en:'Start Live Scan', ar:'بدء المسح المباشر'},
+      photoBtn: {ru:'Анализ по фото', en:'Photo Analysis', ar:'تحليل بالصورة'},
       // SECURITY-1 privacy disclosure: describes CURRENT, audited data
       // flow only (photo/camera analysis is on-device; only software
       // libraries/models are fetched from external CDNs — never the
       // user's photos/frames/results). Do not strengthen this wording
       // without re-verifying it against actual current behavior first.
-      onDeviceAnalysisDisclosure: {ru:'Фото и видео с камеры обрабатываются на вашем устройстве и не отправляются на наши серверы. Для работы анализа приложение загружает программные библиотеки и модели с внешних CDN, но ваши фото, кадры камеры и результаты анализа им не передаются.', en:'Photos and camera video are processed on your device and are not sent to our servers. The app loads software libraries and analysis models from external CDNs, but your photos, camera frames, and analysis results are not sent to them.'},
-      recentSessions: {ru:'Недавние сеансы', en:'Recent sessions'},
-      noSessions: {ru:'Сеансов пока нет', en:'No sessions yet'},
-      modelsLoading: {ru:'Загрузка AI-моделей...', en:'Loading AI models...'},
-      modelsError: {ru:'AI-модели не загружены', en:'AI models not loaded'},
-      modelsLoadFailed: {ru:'Не удалось загрузить AI-модели. Проверьте соединение и повторите попытку.', en:'Could not load AI models. Check your connection and try again.'},
-      retry: {ru:'Повторить попытку', en:'Retry'},
-      stageSearching: {ru:'Поиск лица', en:'Searching for face'},
-      stageFaceDetected: {ru:'Лицо обнаружено', en:'Face detected'},
-      stageAligning: {ru:'Выравнивание', en:'Aligning'},
-      stageTracking: {ru:'Отслеживание глаз', en:'Tracking eyes'},
-      stageMapping: {ru:'Построение геометрии', en:'Mapping geometry'},
-      stageEyelids: {ru:'Анализ век', en:'Analyzing eyelids'},
-      stageIris: {ru:'Анализ радужки', en:'Analyzing iris'},
-      stageSymmetry: {ru:'Проверка симметрии', en:'Checking symmetry'},
-      stageCalculating: {ru:'Расчёт дизайнов', en:'Calculating designs'},
-      stageComplete: {ru:'Сканирование завершено', en:'Scan complete'},
-      stageLost: {ru:'Лицо потеряно', en:'Face lost'},
-      stageStabilizing: {ru:'Стабилизация измерений', en:'Stabilizing measurements'},
-      stageNoCamera: {ru:'Нет доступа к камере', en:'Camera unavailable'},
-      stageCameraStopped: {ru:'Камера остановлена', en:'Camera stopped'},
-      stageScanError: {ru:'Ошибка сканирования', en:'Scan error'},
-      hintRestartScan: {ru:'Попробуйте запустить сканирование снова.', en:'Please start the scan again.'},
-      holdSteady: {ru:'Держите лицо неподвижно в кадре', en:'Hold your face steady in frame'},
+      onDeviceAnalysisDisclosure: {ru:'Фото и видео с камеры обрабатываются на вашем устройстве и не отправляются на наши серверы. Для работы анализа приложение загружает программные библиотеки и модели с внешних CDN, но ваши фото, кадры камеры и результаты анализа им не передаются.', en:'Photos and camera video are processed on your device and are not sent to our servers. The app loads software libraries and analysis models from external CDNs, but your photos, camera frames, and analysis results are not sent to them.', ar:'تتم معالجة الصور ومقاطع الفيديو من الكاميرا على جهازك ولا تُرسل إلى خوادمنا. يحمّل التطبيق مكتبات ونماذج برمجية من مزودي CDN خارجيين لتشغيل التحليل، لكن صورك ولقطات الكاميرا ونتائج التحليل لا تُرسل إليهم.'},
+      recentSessions: {ru:'Недавние сеансы', en:'Recent sessions', ar:'الجلسات الأخيرة'},
+      noSessions: {ru:'Сеансов пока нет', en:'No sessions yet', ar:'لا توجد جلسات حتى الآن'},
+      modelsLoading: {ru:'Загрузка AI-моделей...', en:'Loading AI models...', ar:'جارٍ تحميل نماذج الذكاء الاصطناعي...'},
+      modelsError: {ru:'AI-модели не загружены', en:'AI models not loaded', ar:'لم يتم تحميل نماذج الذكاء الاصطناعي'},
+      modelsLoadFailed: {ru:'Не удалось загрузить AI-модели. Проверьте соединение и повторите попытку.', en:'Could not load AI models. Check your connection and try again.', ar:'تعذّر تحميل نماذج الذكاء الاصطناعي. تحقق من الاتصال وحاول مرة أخرى.'},
+      retry: {ru:'Повторить попытку', en:'Retry', ar:'إعادة المحاولة'},
+      stageSearching: {ru:'Поиск лица', en:'Searching for face', ar:'جارٍ البحث عن الوجه'},
+      stageFaceDetected: {ru:'Лицо обнаружено', en:'Face detected', ar:'تم رصد الوجه'},
+      stageAligning: {ru:'Выравнивание', en:'Aligning', ar:'جارٍ المحاذاة'},
+      stageTracking: {ru:'Отслеживание глаз', en:'Tracking eyes', ar:'تتبّع العينين'},
+      stageMapping: {ru:'Построение геометрии', en:'Mapping geometry', ar:'بناء الهندسة'},
+      stageEyelids: {ru:'Анализ век', en:'Analyzing eyelids', ar:'تحليل الجفون'},
+      stageIris: {ru:'Анализ радужки', en:'Analyzing iris', ar:'تحليل القزحية'},
+      stageSymmetry: {ru:'Проверка симметрии', en:'Checking symmetry', ar:'فحص التماثل'},
+      stageCalculating: {ru:'Расчёт дизайнов', en:'Calculating designs', ar:'حساب التصاميم'},
+      stageComplete: {ru:'Сканирование завершено', en:'Scan complete', ar:'اكتمل المسح'},
+      stageLost: {ru:'Лицо потеряно', en:'Face lost', ar:'تم فقدان الوجه'},
+      stageStabilizing: {ru:'Стабилизация измерений', en:'Stabilizing measurements', ar:'جارٍ تثبيت القياسات'},
+      stageNoCamera: {ru:'Нет доступа к камере', en:'Camera unavailable', ar:'لا يمكن الوصول إلى الكاميرا'},
+      stageCameraStopped: {ru:'Камера остановлена', en:'Camera stopped', ar:'تم إيقاف الكاميرا'},
+      stageScanError: {ru:'Ошибка сканирования', en:'Scan error', ar:'خطأ في المسح'},
+      hintRestartScan: {ru:'Попробуйте запустить сканирование снова.', en:'Please start the scan again.', ar:'يرجى بدء المسح من جديد.'},
+      holdSteady: {ru:'Держите лицо неподвижно в кадре', en:'Hold your face steady in frame', ar:'حافظي على ثبات وجهك داخل الإطار'},
       // RELEASE FIX #1 — camera acquisition failure/permission-denial
       // guidance, distinct from the generic holdSteady/hintRestartScan
       // strings above (neither applies when there is no camera feed at
       // all). Never shows e.name/e.message — only these two fixed,
       // localized messages.
-      hintCameraPermissionDenied: {ru:'Нет доступа к камере. Разрешите доступ в настройках браузера и повторите попытку.', en:'Camera access is required. Please allow camera access and try again.'},
-      hintCameraUnavailable: {ru:'Не удалось подключиться к камере. Проверьте, что она не используется другим приложением, и повторите попытку.', en:'Couldn’t access the camera. Make sure it isn’t being used by another app, then try again.'},
-      retryCameraButton: {ru:'Повторить попытку', en:'Retry Camera'},
-      hintLowConf: {ru:'Лицо видно нечётко — улучшите освещение', en:'Face unclear — improve lighting'},
-      hintLookStraight: {ru:'Смотрите прямо', en:'Look straight ahead'},
-      hintEyesClosed: {ru:'Не закрывайте глаза', en:'Keep both eyes visible'},
-      hintTooDark: {ru:'Недостаточно света', en:'More light is needed'},
-      hintTooBright: {ru:'Слишком яркий свет', en:'Too much light'},
-      hintBlurry: {ru:'Держите камеру устойчивее', en:'Hold your camera steady'},
-      hintTooFar: {ru:'Поднесите лицо ближе', en:'Move closer'},
-      hintTooClose: {ru:'Отодвиньтесь немного', en:'Move back a little'},
-      hintCenterFace: {ru:'Расположите лицо по центру', en:'Center your face'},
-      stageAlignedBadge: {ru:'ВЫРОВНЕНО', en:'ALIGNED'},
-      stageSubjectLocked: {ru:'ОБЪЕКТ ЗАФИКСИРОВАН', en:'SUBJECT LOCKED'},
-      stageRealigning: {ru:'ПЕРЕВЫРАВНИВАНИЕ', en:'RE-ALIGNING'},
-      irisAcquired: {ru:'ОБРАЗЕЦ РАДУЖКИ ПОЛУЧЕН', en:'IRIS SAMPLE ACQUIRED'},
-      eyeLockL: {ru:'Л // ЗАХВАТ', en:'L // LOCK'},
-      eyeLockR: {ru:'П // ЗАХВАТ', en:'R // LOCK'},
-      tagTilt: {ru:'УГОЛ', en:'TILT'},
-      tagLid: {ru:'ВЕКО', en:'LID'},
-      tagIris: {ru:'РАДУЖКА', en:'IRIS'},
-      tagSymmetry: {ru:'СИММЕТРИЯ', en:'SYMMETRY'},
-      railFace: {ru:'ЛИЦО', en:'FACE'},
-      railAlign: {ru:'ПОЗИЦИЯ', en:'ALIGN'},
-      railEyes: {ru:'ГЛАЗА', en:'EYES'},
-      railLids: {ru:'ВЕКИ', en:'LIDS'},
-      railIris: {ru:'РАДУЖКА', en:'IRIS'},
-      railSymmetry: {ru:'СИММЕТРИЯ', en:'SYMMETRY'},
-      railDesign: {ru:'ДИЗАЙН', en:'DESIGN'},
-      sideFaceLocked: {ru:'ЛИЦО // ЗАФИКСИРОВАНО', en:'FACE // LOCKED'},
-      sideEyesTracking: {ru:'ГЛАЗА // ОТСЛЕЖИВАНИЕ', en:'EYES // TRACKING'},
-      sideFrames: {ru:'КАДРЫ', en:'FRAMES'},
-      sideStabilityTracking: {ru:'СТАБИЛЬНОСТЬ // ОТСЛЕЖИВАНИЕ', en:'STABILITY // TRACKING'},
-      sideStabilityLocked: {ru:'СТАБИЛЬНОСТЬ // ЗАФИКСИРОВАНА', en:'STABILITY // LOCKED'},
-      analyzingGeometry: {ru:'АНАЛИЗ ГЕОМЕТРИИ', en:'ANALYZING GEOMETRY'},
-      applicationPlanTitle: {ru:'ПЛАН НАРАЩИВАНИЯ', en:'LASH APPLICATION PLAN'},
-      preparationTitle: {ru:'ПОДГОТОВКА', en:'PREPARATION'},
-      stepsTitle: {ru:'ПОШАГОВЫЙ ПЛАН', en:'APPLICATION STEPS'},
-      spikePlanTitle: {ru:'РАБОТА С ЛУЧИКАМИ', en:'SPIKE / RAY PLAN'},
-      artistNotesTitle: {ru:'ВАЖНО ДЛЯ МАСТЕРА', en:'ARTIST NOTES'},
-      zoningTitle: {ru:'ЗОНИРОВАНИЕ', en:'ZONING'},
-      asymAdjustTitle: {ru:'КОРРЕКЦИЯ АСИММЕТРИИ', en:'ASYMMETRY ADJUSTMENT'},
-      legendTitle: {ru:'ЛЕГЕНДА', en:'LEGEND'},
-      legendBase: {ru:'BASE — основная линия', en:'BASE — main lash line'},
-      legendSpike: {ru:'SPIKE / RAY — лучик', en:'SPIKE / RAY — accent spike'},
-      legendPeak: {ru:'PEAK — максимальная зона', en:'PEAK — maximum-length zone'},
-      legendInner: {ru:'INNER — внутренний угол', en:'INNER — inner corner'},
-      legendOuter: {ru:'OUTER — внешний угол', en:'OUTER — outer corner'},
-      stepMappingTitle: {ru:'ШАГ 1 — РАЗМЕТКА', en:'STEP 1 — MAPPING'},
-      stepInnerTitle: {ru:'ШАГ 2 — ВНУТРЕННИЙ УГОЛ', en:'STEP 2 — INNER CORNER'},
-      stepBodyTitle: {ru:'ШАГ 3 — ПЕРЕХОД / ОСНОВНАЯ ЗОНА', en:'STEP 3 — TRANSITION / BODY'},
-      stepPeakTitle: {ru:'ШАГ 4 — ПИК', en:'STEP 4 — PEAK'},
-      stepOuterTitle: {ru:'ШАГ 5 — ВНЕШНЯЯ', en:'STEP 5 — OUTER'},
-      stepFinalTitle: {ru:'ШАГ 6 — ФИНАЛЬНАЯ ПРОВЕРКА', en:'STEP 6 — FINAL CHECK'},
-      spikeBaseLabel: {ru:'BASE', en:'BASE'},
-      spikeSpikesLabel: {ru:'SPIKES', en:'SPIKES'},
-      spikeDiffLabel: {ru:'РАЗНИЦА', en:'DIFFERENCE'},
-      spikeCountLabel: {ru:'КОЛИЧЕСТВО', en:'COUNT'},
-      spikePatternLabel: {ru:'ПАТТЕРН', en:'PATTERN'},
-      spikesToggle: {ru:'Лучики / Spikes', en:'Rays / Spikes'},
-      spikesOnLabel: {ru:'Вкл', en:'On'},
-      spikesOffLabel: {ru:'Выкл', en:'Off'},
-      spikeCountCtrl: {ru:'Количество лучей', en:'Spike count'},
-      spikeDiffCtrl: {ru:'Разница с базой', en:'Height difference'},
-      spikeSpacingCtrl: {ru:'Частота', en:'Frequency'},
-      spacingSparse: {ru:'Редко', en:'Sparse'},
-      spacingMedium2: {ru:'Средне', en:'Medium'},
-      spacingDense: {ru:'Часто', en:'Dense'},
-      backBtn: {ru:'Назад', en:'Back'},
-      resultTitle: {ru:'Результаты анализа', en:'Results'},
-      liveSource: {ru:'LIVE SCAN', en:'LIVE SCAN'},
-      photoSource: {ru:'PHOTO ANALYSIS', en:'PHOTO ANALYSIS'},
-      analysisConfidence: {ru:'Уверенность анализа', en:'Analysis confidence'},
+      hintCameraPermissionDenied: {ru:'Нет доступа к камере. Разрешите доступ в настройках браузера и повторите попытку.', en:'Camera access is required. Please allow camera access and try again.', ar:'يلزم الوصول إلى الكاميرا. يرجى السماح بالوصول والمحاولة مرة أخرى.'},
+      hintCameraUnavailable: {ru:'Не удалось подключиться к камере. Проверьте, что она не используется другим приложением, и повторите попытку.', en:'Couldn’t access the camera. Make sure it isn’t being used by another app, then try again.', ar:'تعذّر الوصول إلى الكاميرا. تأكدي من أنها غير مستخدمة في تطبيق آخر، ثم حاولي مرة أخرى.'},
+      retryCameraButton: {ru:'Повторить попытку', en:'Retry Camera', ar:'إعادة محاولة الكاميرا'},
+      hintLowConf: {ru:'Лицо видно нечётко — улучшите освещение', en:'Face unclear — improve lighting', ar:'الوجه غير واضح — حسّني الإضاءة'},
+      hintLookStraight: {ru:'Смотрите прямо', en:'Look straight ahead', ar:'انظري إلى الأمام مباشرة'},
+      hintEyesClosed: {ru:'Не закрывайте глаза', en:'Keep both eyes visible', ar:'أبقي العينين مفتوحتين'},
+      hintTooDark: {ru:'Недостаточно света', en:'More light is needed', ar:'الإضاءة غير كافية'},
+      hintTooBright: {ru:'Слишком яркий свет', en:'Too much light', ar:'الإضاءة شديدة جدًا'},
+      hintBlurry: {ru:'Держите камеру устойчивее', en:'Hold your camera steady', ar:'ثبّتي الكاميرا أكثر'},
+      hintTooFar: {ru:'Поднесите лицо ближе', en:'Move closer', ar:'قرّبي وجهك أكثر'},
+      hintTooClose: {ru:'Отодвиньтесь немного', en:'Move back a little', ar:'ابتعدي قليلًا'},
+      hintCenterFace: {ru:'Расположите лицо по центру', en:'Center your face', ar:'ضعي وجهك في المنتصف'},
+      stageAlignedBadge: {ru:'ВЫРОВНЕНО', en:'ALIGNED', ar:'تمت المحاذاة'},
+      stageSubjectLocked: {ru:'ОБЪЕКТ ЗАФИКСИРОВАН', en:'SUBJECT LOCKED', ar:'تم تثبيت الهدف'},
+      stageRealigning: {ru:'ПЕРЕВЫРАВНИВАНИЕ', en:'RE-ALIGNING', ar:'إعادة المحاذاة'},
+      irisAcquired: {ru:'ОБРАЗЕЦ РАДУЖКИ ПОЛУЧЕН', en:'IRIS SAMPLE ACQUIRED', ar:'تم الحصول على عيّنة القزحية'},
+      eyeLockL: {ru:'Л // ЗАХВАТ', en:'L // LOCK', ar:'يسار // تثبيت'},
+      eyeLockR: {ru:'П // ЗАХВАТ', en:'R // LOCK', ar:'يمين // تثبيت'},
+      tagTilt: {ru:'УГОЛ', en:'TILT', ar:'الميل'},
+      tagLid: {ru:'ВЕКО', en:'LID', ar:'الجفن'},
+      tagIris: {ru:'РАДУЖКА', en:'IRIS', ar:'القزحية'},
+      tagSymmetry: {ru:'СИММЕТРИЯ', en:'SYMMETRY', ar:'التماثل'},
+      railFace: {ru:'ЛИЦО', en:'FACE', ar:'الوجه'},
+      railAlign: {ru:'ПОЗИЦИЯ', en:'ALIGN', ar:'المحاذاة'},
+      railEyes: {ru:'ГЛАЗА', en:'EYES', ar:'العينان'},
+      railLids: {ru:'ВЕКИ', en:'LIDS', ar:'الجفون'},
+      railIris: {ru:'РАДУЖКА', en:'IRIS', ar:'القزحية'},
+      railSymmetry: {ru:'СИММЕТРИЯ', en:'SYMMETRY', ar:'التماثل'},
+      railDesign: {ru:'ДИЗАЙН', en:'DESIGN', ar:'التصميم'},
+      sideFaceLocked: {ru:'ЛИЦО // ЗАФИКСИРОВАНО', en:'FACE // LOCKED', ar:'الوجه // تم التثبيت'},
+      sideEyesTracking: {ru:'ГЛАЗА // ОТСЛЕЖИВАНИЕ', en:'EYES // TRACKING', ar:'العينان // تتبّع'},
+      sideFrames: {ru:'КАДРЫ', en:'FRAMES', ar:'الإطارات'},
+      sideStabilityTracking: {ru:'СТАБИЛЬНОСТЬ // ОТСЛЕЖИВАНИЕ', en:'STABILITY // TRACKING', ar:'الاستقرار // تتبّع'},
+      sideStabilityLocked: {ru:'СТАБИЛЬНОСТЬ // ЗАФИКСИРОВАНА', en:'STABILITY // LOCKED', ar:'الاستقرار // تم التثبيت'},
+      analyzingGeometry: {ru:'АНАЛИЗ ГЕОМЕТРИИ', en:'ANALYZING GEOMETRY', ar:'تحليل الهندسة'},
+      applicationPlanTitle: {ru:'ПЛАН НАРАЩИВАНИЯ', en:'LASH APPLICATION PLAN', ar:'خطة تركيب الرموش'},
+      preparationTitle: {ru:'ПОДГОТОВКА', en:'PREPARATION', ar:'التحضير'},
+      stepsTitle: {ru:'ПОШАГОВЫЙ ПЛАН', en:'APPLICATION STEPS', ar:'خطوات التنفيذ'},
+      spikePlanTitle: {ru:'РАБОТА С ЛУЧИКАМИ', en:'SPIKE / RAY PLAN', ar:'خطة SPIKE / RAY'},
+      artistNotesTitle: {ru:'ВАЖНО ДЛЯ МАСТЕРА', en:'ARTIST NOTES', ar:'ملاحظات مهمة للأخصائية'},
+      zoningTitle: {ru:'ЗОНИРОВАНИЕ', en:'ZONING', ar:'تقسيم المناطق'},
+      asymAdjustTitle: {ru:'КОРРЕКЦИЯ АСИММЕТРИИ', en:'ASYMMETRY ADJUSTMENT', ar:'تعديل عدم التماثل'},
+      legendTitle: {ru:'ЛЕГЕНДА', en:'LEGEND', ar:'دليل الرموز'},
+      legendBase: {ru:'BASE — основная линия', en:'BASE — main lash line', ar:'BASE — الخط الأساسي'},
+      legendSpike: {ru:'SPIKE / RAY — лучик', en:'SPIKE / RAY — accent spike', ar:'SPIKE / RAY — شوكة بارزة'},
+      legendPeak: {ru:'PEAK — максимальная зона', en:'PEAK — maximum-length zone', ar:'PEAK — منطقة أقصى طول'},
+      legendInner: {ru:'INNER — внутренний угол', en:'INNER — inner corner', ar:'INNER — الزاوية الداخلية'},
+      legendOuter: {ru:'OUTER — внешний угол', en:'OUTER — outer corner', ar:'OUTER — الزاوية الخارجية'},
+      stepMappingTitle: {ru:'ШАГ 1 — РАЗМЕТКА', en:'STEP 1 — MAPPING', ar:'الخطوة 1 — التخطيط'},
+      stepInnerTitle: {ru:'ШАГ 2 — ВНУТРЕННИЙ УГОЛ', en:'STEP 2 — INNER CORNER', ar:'الخطوة 2 — الزاوية الداخلية'},
+      stepBodyTitle: {ru:'ШАГ 3 — ПЕРЕХОД / ОСНОВНАЯ ЗОНА', en:'STEP 3 — TRANSITION / BODY', ar:'الخطوة 3 — الانتقال / المنطقة الأساسية'},
+      stepPeakTitle: {ru:'ШАГ 4 — ПИК', en:'STEP 4 — PEAK', ar:'الخطوة 4 — القمة'},
+      stepOuterTitle: {ru:'ШАГ 5 — ВНЕШНЯЯ', en:'STEP 5 — OUTER', ar:'الخطوة 5 — الخارجية'},
+      stepFinalTitle: {ru:'ШАГ 6 — ФИНАЛЬНАЯ ПРОВЕРКА', en:'STEP 6 — FINAL CHECK', ar:'الخطوة 6 — الفحص النهائي'},
+      spikeBaseLabel: {ru:'BASE', en:'BASE', ar:'BASE'},
+      spikeSpikesLabel: {ru:'SPIKES', en:'SPIKES', ar:'SPIKES'},
+      spikeDiffLabel: {ru:'РАЗНИЦА', en:'DIFFERENCE', ar:'الفرق'},
+      spikeCountLabel: {ru:'КОЛИЧЕСТВО', en:'COUNT', ar:'العدد'},
+      spikePatternLabel: {ru:'ПАТТЕРН', en:'PATTERN', ar:'النمط'},
+      spikesToggle: {ru:'Лучики / Spikes', en:'Rays / Spikes', ar:'لمسات بارزة / Spikes'},
+      spikesOnLabel: {ru:'Вкл', en:'On', ar:'تشغيل'},
+      spikesOffLabel: {ru:'Выкл', en:'Off', ar:'إيقاف'},
+      spikeCountCtrl: {ru:'Количество лучей', en:'Spike count', ar:'عدد اللمسات البارزة'},
+      spikeDiffCtrl: {ru:'Разница с базой', en:'Height difference', ar:'فرق الارتفاع عن الأساس'},
+      spikeSpacingCtrl: {ru:'Частота', en:'Frequency', ar:'التكرار'},
+      spacingSparse: {ru:'Редко', en:'Sparse', ar:'متباعد'},
+      spacingMedium2: {ru:'Средне', en:'Medium', ar:'متوسط'},
+      spacingDense: {ru:'Часто', en:'Dense', ar:'متقارب'},
+      backBtn: {ru:'Назад', en:'Back', ar:'رجوع'},
+      resultTitle: {ru:'Результаты анализа', en:'Results', ar:'نتائج التحليل'},
+      liveSource: {ru:'LIVE SCAN', en:'LIVE SCAN', ar:'المسح المباشر'},
+      photoSource: {ru:'PHOTO ANALYSIS', en:'PHOTO ANALYSIS', ar:'تحليل الصورة'},
+      analysisConfidence: {ru:'Уверенность анализа', en:'Analysis confidence', ar:'مستوى الثقة بالتحليل'},
       // IRIS COLOR — DEBUG-ONLY Copy button on ResultsScreen. Only ever
       // rendered when isDebugModeEnabled() — see CopyIrisDebugButton.
-      copyIrisDebugJson: {ru:'СКОПИРОВАТЬ IRIS DEBUG JSON', en:'COPY IRIS DEBUG JSON'},
-      copyIrisDebugJsonCopied: {ru:'СКОПИРОВАНО', en:'COPIED'},
-      copyIrisDebugJsonUnavailable: {ru:'IRIS DEBUG ДАННЫЕ НЕДОСТУПНЫ — аудит не был создан для этого результата (debug-режим мог быть выключен во время сканирования)', en:'IRIS DEBUG DATA UNAVAILABLE — no audit was produced for this result (debug mode may have been off during the scan)'},
-      copyIrisDebugJsonError: {ru:'Не удалось скопировать — буфер обмена недоступен', en:'Copy failed — clipboard unavailable'},
-      singleFrameNote: {ru:'Оценка по одному фото — для максимальной точности используйте живое сканирование', en:'Estimated from a single photo — use Live Scan for maximum accuracy'},
-      eyeProfileTitle: {ru:'AI Eye Profile', en:'AI Eye Profile'},
-      shapeLabel: {ru:'Форма глаза', en:'Eye shape'},
-      tiltLabel: {ru:'Направление внешних уголков', en:'Outer corner direction'},
-      lidLabel: {ru:'Тип века', en:'Eyelid type'},
-      spacingLabel: {ru:'Посадка глаз', en:'Eye spacing'},
-      symmetryLabel: {ru:'Симметрия', en:'Symmetry'},
-      irisLabel: {ru:'Радужка', en:'Iris'},
+      copyIrisDebugJson: {ru:'СКОПИРОВАТЬ IRIS DEBUG JSON', en:'COPY IRIS DEBUG JSON', ar:'نسخ IRIS DEBUG JSON'},
+      copyIrisDebugJsonCopied: {ru:'СКОПИРОВАНО', en:'COPIED', ar:'تم النسخ'},
+      copyIrisDebugJsonUnavailable: {ru:'IRIS DEBUG ДАННЫЕ НЕДОСТУПНЫ — аудит не был создан для этого результата (debug-режим мог быть выключен во время сканирования)', en:'IRIS DEBUG DATA UNAVAILABLE — no audit was produced for this result (debug mode may have been off during the scan)', ar:'بيانات IRIS DEBUG غير متوفرة — لم يتم إنشاء سجل تدقيق لهذه النتيجة (قد يكون وضع التصحيح كان مُعطّلًا أثناء المسح)'},
+      copyIrisDebugJsonError: {ru:'Не удалось скопировать — буфер обмена недоступен', en:'Copy failed — clipboard unavailable', ar:'تعذّر النسخ — الحافظة غير متاحة'},
+      singleFrameNote: {ru:'Оценка по одному фото — для максимальной точности используйте живое сканирование', en:'Estimated from a single photo — use Live Scan for maximum accuracy', ar:'تقدير من صورة واحدة — استخدمي المسح المباشر لأعلى دقة'},
+      eyeProfileTitle: {ru:'AI Eye Profile', en:'AI Eye Profile', ar:'AI Eye Profile'},
+      shapeLabel: {ru:'Форма глаза', en:'Eye shape', ar:'شكل العين'},
+      tiltLabel: {ru:'Направление внешних уголков', en:'Outer corner direction', ar:'اتجاه الزاوية الخارجية'},
+      lidLabel: {ru:'Тип века', en:'Eyelid type', ar:'نوع الجفن'},
+      spacingLabel: {ru:'Посадка глаз', en:'Eye spacing', ar:'تباعد العينين'},
+      symmetryLabel: {ru:'Симметрия', en:'Symmetry', ar:'التماثل'},
+      irisLabel: {ru:'Радужка', en:'Iris', ar:'القزحية'},
       // Results-screen-only label (kept separate from irisLabel above,
       // which DetailsScreen also uses) so this wording change never
       // touches any other screen.
-      irisColorLabel: {ru:'Цвет радужки', en:'Iris color'},
+      irisColorLabel: {ru:'Цвет радужки', en:'Iris color', ar:'لون القزحية'},
 
       // ------------------------------------------------------------
       // FACE SHAPE ANALYSIS — Results-screen label + category names.
@@ -449,28 +449,28 @@
       // quality flags — those limitations live in code comments and
       // tests, not in the artist-facing UI.
       // ------------------------------------------------------------
-      faceShapeLabel: {ru:'Форма лица', en:'Face shape'},
-      faceShape_oval: {ru:'Овальная', en:'Oval'},
-      faceShape_round: {ru:'Круглая', en:'Round'},
-      faceShape_square: {ru:'Квадратная', en:'Square'},
-      faceShape_oblong: {ru:'Вытянутая', en:'Oblong'},
-      faceShape_heart: {ru:'Сердцевидная', en:'Heart'},
-      faceShape_diamond: {ru:'Ромбовидная', en:'Diamond'},
-      faceShape_uncertain: {ru:'Не удалось надёжно определить', en:'Could not determine reliably'},
-      eyelidPronounced: {ru:'Выраженное нависание', en:'Pronounced hooding'},
-      eyelidModerate: {ru:'Умеренное нависание', en:'Moderate hooding'},
-      eyelidMild: {ru:'Лёгкое нависание', en:'Mild hooding'},
-      eyelidOpen: {ru:'Открытое веко', en:'Open eyelid'},
-      eyelidUncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation'},
-      eyelidTypeLabel: {ru:'Тип складки века', en:'Crease type'},
-      eyelidTypeSubLabel: {ru:'Пиксельный анализ видимости складки', en:'Pixel-based crease visibility'},
-      eyelidTypeOpenCrease: {ru:'Открытая складка (видна чётко)', en:'Visible / open crease'},
-      eyelidTypeHooded: {ru:'Нависшее веко (складка скрыта)', en:'Hooded eyelid'},
-      eyelidTypeMonolid: {ru:'Монолид (складка не выявлена)', en:'Monolid / no visible crease'},
-      eyelidTypeUncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation'},
-      eyelidConflictPrefix: {ru:'Наиболее вероятный вариант:', en:'Most likely:'},
-      eyelidConflictExplain: {ru:'Пиксельный и геометрический анализ расходятся — результат нужно подтвердить визуально.', en:'Pixel-based and geometric analysis disagree — please confirm visually.'},
-      eyeHighlightTitle: {ru:'О ваших глазах', en:'Eye highlight'},
+      faceShapeLabel: {ru:'Форма лица', en:'Face shape', ar:'شكل الوجه'},
+      faceShape_oval: {ru:'Овальная', en:'Oval', ar:'بيضاوي'},
+      faceShape_round: {ru:'Круглая', en:'Round', ar:'مستدير'},
+      faceShape_square: {ru:'Квадратная', en:'Square', ar:'مربع'},
+      faceShape_oblong: {ru:'Вытянутая', en:'Oblong', ar:'مستطيل'},
+      faceShape_heart: {ru:'Сердцевидная', en:'Heart', ar:'قلبي'},
+      faceShape_diamond: {ru:'Ромбовидная', en:'Diamond', ar:'ماسي'},
+      faceShape_uncertain: {ru:'Не удалось надёжно определить', en:'Could not determine reliably', ar:'تعذّر التحديد بدقة'},
+      eyelidPronounced: {ru:'Выраженное нависание', en:'Pronounced hooding', ar:'ترهل واضح'},
+      eyelidModerate: {ru:'Умеренное нависание', en:'Moderate hooding', ar:'ترهل متوسط'},
+      eyelidMild: {ru:'Лёгкое нависание', en:'Mild hooding', ar:'ترهل خفيف'},
+      eyelidOpen: {ru:'Открытое веко', en:'Open eyelid', ar:'جفن مفتوح'},
+      eyelidUncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation', ar:'يحتاج إلى تأكيد بصري'},
+      eyelidTypeLabel: {ru:'Тип складки века', en:'Crease type', ar:'نوع ثنية الجفن'},
+      eyelidTypeSubLabel: {ru:'Пиксельный анализ видимости складки', en:'Pixel-based crease visibility', ar:'تحليل بالبكسل لوضوح الثنية'},
+      eyelidTypeOpenCrease: {ru:'Открытая складка (видна чётко)', en:'Visible / open crease', ar:'ثنية واضحة / مفتوحة'},
+      eyelidTypeHooded: {ru:'Нависшее веко (складка скрыта)', en:'Hooded eyelid', ar:'جفن مترهل (الثنية مخفية)'},
+      eyelidTypeMonolid: {ru:'Монолид (складка не выявлена)', en:'Monolid / no visible crease', ar:'جفن أحادي (بلا ثنية ظاهرة)'},
+      eyelidTypeUncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation', ar:'يحتاج إلى تأكيد بصري'},
+      eyelidConflictPrefix: {ru:'Наиболее вероятный вариант:', en:'Most likely:', ar:'الاحتمال الأرجح:'},
+      eyelidConflictExplain: {ru:'Пиксельный и геометрический анализ расходятся — результат нужно подтвердить визуально.', en:'Pixel-based and geometric analysis disagree — please confirm visually.', ar:'يختلف التحليل بالبكسل عن التحليل الهندسي — يلزم تأكيد النتيجة بصريًا.'},
+      eyeHighlightTitle: {ru:'О ваших глазах', en:'Eye highlight', ar:'عن عينيك'},
 
       // ---- creaseState / hoodingState — PRODUCT SEMANTICS SPLIT ----
       // Two independent rows (crease visibility vs. hooding), replacing
@@ -482,110 +482,126 @@
       // wording, which intentionally differs from the results-screen
       // "needs confirmation" wording below for the same underlying
       // uncertain state (a form-option label vs. a display label).
-      creaseStateLabel: {ru:'Складка века', en:'Eyelid crease'},
-      creaseStateSubLabel: {ru:'Видимость складки века', en:'Crease visibility'},
-      creaseStateVisible: {ru:'Видимая складка', en:'Visible crease'},
-      creaseStateAbsent: {ru:'Складка не выявлена', en:'No visible crease'},
-      creaseStateUncertain: {ru:'Требует подтверждения', en:'Needs confirmation'},
-      hoodingStateLabel: {ru:'Нависание века', en:'Eyelid hooding'},
-      hoodingStateSubLabel: {ru:'По результатам подтверждения мастера', en:'Based on artist confirmation'},
-      hoodingStateUncertain: {ru:'Требует подтверждения', en:'Needs confirmation'},
-      hoodingOptionHooded: {ru:'Нависшее', en:'Hooded'},
-      hoodingOptionNonHooded: {ru:'Без выраженного нависания', en:'No obvious hooding'},
-      hoodingOptionUnsure: {ru:'Не уверена', en:'Unsure'},
-      reviewHoodingLabel: {ru:'Нависание века', en:'Eyelid hooding'},
+      creaseStateLabel: {ru:'Складка века', en:'Eyelid crease', ar:'ثنية الجفن'},
+      creaseStateSubLabel: {ru:'Видимость складки века', en:'Crease visibility', ar:'وضوح ثنية الجفن'},
+      creaseStateVisible: {ru:'Видимая складка', en:'Visible crease', ar:'ثنية واضحة'},
+      creaseStateAbsent: {ru:'Складка не выявлена', en:'No visible crease', ar:'لا توجد ثنية ظاهرة'},
+      creaseStateUncertain: {ru:'Требует подтверждения', en:'Needs confirmation', ar:'يحتاج إلى تأكيد'},
+      hoodingStateLabel: {ru:'Нависание века', en:'Eyelid hooding', ar:'ترهل الجفن'},
+      hoodingStateSubLabel: {ru:'По результатам подтверждения мастера', en:'Based on artist confirmation', ar:'استنادًا إلى تأكيد الأخصائية'},
+      hoodingStateUncertain: {ru:'Требует подтверждения', en:'Needs confirmation', ar:'يحتاج إلى تأكيد'},
+      hoodingOptionHooded: {ru:'Нависшее', en:'Hooded', ar:'مترهل'},
+      hoodingOptionNonHooded: {ru:'Без выраженного нависания', en:'No obvious hooding', ar:'بلا ترهل واضح'},
+      hoodingOptionUnsure: {ru:'Не уверена', en:'Unsure', ar:'غير متأكدة'},
+      reviewHoodingLabel: {ru:'Нависание века', en:'Eyelid hooding', ar:'ترهل الجفن'},
 
-      shape_round: {ru:'Округлая', en:'Round'},
-      shape_almond: {ru:'Миндалевидная', en:'Almond'},
-      shape_elongatedAlmond: {ru:'Удлинённо-миндалевидная', en:'Elongated Almond'},
-      shape_narrow: {ru:'Узкая', en:'Narrow'},
-      shape_uncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation'},
-      eyeSet_close: {ru:'Близко посаженные', en:'Close-set'},
-      eyeSet_balanced: {ru:'Сбалансированная', en:'Balanced / Average'},
-      eyeSet_wide: {ru:'Широко посаженные', en:'Wide-set'},
-      eyeSizeLabel: {ru:'Размер глаз', en:'Eye size'},
-      eyeSizeSubLabel: {ru:'Относительно пропорций лица', en:'Relative to face proportions'},
-      eyeSize_small: {ru:'Небольшой', en:'Small'},
-      eyeSize_medium: {ru:'Средний', en:'Medium'},
-      eyeSize_large: {ru:'Крупный', en:'Large'},
-      symmetry_balanced: {ru:'Сбалансированная', en:'Balanced'},
-      symmetry_mild: {ru:'Лёгкая природная асимметрия', en:'Mild natural asymmetry'},
-      symmetry_noticeable: {ru:'Заметная асимметрия', en:'Noticeable asymmetry'},
-      symmetry_uncertain: {ru:'Требует подтверждения', en:'Needs confirmation'},
-      lashCorrectionOpportunityTitle: {ru:'Возможность визуальной коррекции', en:'Lash correction opportunity'},
-      confidenceHigh: {ru:'Высокая уверенность', en:'High confidence'},
-      confidenceModerate: {ru:'Средняя уверенность', en:'Moderate confidence'},
-      confidenceLow: {ru:'Низкая уверенность', en:'Low confidence'},
-      lashDesignConsiderationsTitle: {ru:'Рекомендации для дизайна', en:'Lash Design Considerations'},
-      lashDesignConsiderationsIntro: {ru:'AI предлагает несколько направлений на основе формы, посадки, века и симметрии ваших глаз. Финальный выбор остаётся за мастером.', en:'AI suggests several directions based on your eye shape, set, eyelid and symmetry. The final choice remains with the artist.'},
-      ldcSuitability: {ru:'Подходит', en:'Suitability'},
-      ldcVisualGoal: {ru:'Визуальная цель', en:'Visual goal'},
-      ldcPeak: {ru:'Рекомендуемый пик', en:'Suggested peak'},
-      ldcLength: {ru:'Распределение длины', en:'Length distribution'},
-      ldcCurl: {ru:'Подходящие изгибы', en:'Suitable curls'},
-      ldcCautions: {ru:'На что обратить внимание', en:'Cautions'},
-      ldcLR: {ru:'Коррекция L/R', en:'L/R correction'},
-      debugModeTitle: {ru:'Debug / Explainability', en:'Debug / Explainability'},
-      debugToggle: {ru:'Показать debug-данные', en:'Show debug data'},
+      shape_round: {ru:'Округлая', en:'Round', ar:'مستديرة'},
+      shape_almond: {ru:'Миндалевидная', en:'Almond', ar:'لوزية'},
+      shape_elongatedAlmond: {ru:'Удлинённо-миндалевидная', en:'Elongated Almond', ar:'لوزية ممتدة'},
+      shape_narrow: {ru:'Узкая', en:'Narrow', ar:'ضيقة'},
+      shape_uncertain: {ru:'Требует визуального подтверждения', en:'Needs visual confirmation', ar:'يحتاج إلى تأكيد بصري'},
+      detailsShapeTendencyRound: {ru:'Округлая', en:'Round', ar:'مستديرة'},
+      detailsShapeTendencyAlmond: {ru:'Миндалевидная', en:'Almond', ar:'لوزية'},
+      detailsShapeTendencyElongated: {ru:'Вытянутая', en:'Elongated', ar:'ممتدة'},
+      detailsAsymHeader: {ru:'Асимметрия L/R', en:'L/R Asymmetry', ar:'عدم تماثل اليسار/اليمين'},
+      detailsAsymWidth: {ru:'Ширина', en:'Width', ar:'العرض'},
+      detailsAsymHeight: {ru:'Высота', en:'Height', ar:'الارتفاع'},
+      detailsAsymCornerAngle: {ru:'Угол уголков', en:'Corner angle', ar:'زاوية الأركان'},
+      detailsAsymOpenness: {ru:'Раскрытие глаз', en:'Openness', ar:'مدى انفتاح العين'},
+      detailsAsymLidVisibility: {ru:'Видимость века', en:'Lid visibility', ar:'ظهور الجفن'},
+      detailsAsymVerticalPosition: {ru:'Верт. позиция', en:'Vertical position', ar:'الوضع الرأسي'},
+      detailsIrisConfidenceLabel: {ru:'Уверенность', en:'Confidence', ar:'مستوى الثقة'},
+      detailsIrisLightingNote: {ru:'освещение влияет на результат', en:'lighting affects the result', ar:'الإضاءة تؤثر على النتيجة'},
+      detailsOtherHeader: {ru:'Прочее', en:'Other', ar:'أخرى'},
+      detailsSpacingClose: {ru:'Близкое', en:'Close', ar:'متقارب'},
+      detailsSpacingWide: {ru:'Широкое', en:'Wide', ar:'متباعد'},
+      detailsSpacingBalanced: {ru:'Среднее', en:'Balanced', ar:'متوسط'},
+      eyeSet_close: {ru:'Близко посаженные', en:'Close-set', ar:'متقاربتان'},
+      eyeSet_balanced: {ru:'Сбалансированная', en:'Balanced / Average', ar:'متوازنة / متوسطة'},
+      eyeSet_wide: {ru:'Широко посаженные', en:'Wide-set', ar:'متباعدتان'},
+      eyeSizeLabel: {ru:'Размер глаз', en:'Eye size', ar:'حجم العين'},
+      eyeSizeSubLabel: {ru:'Относительно пропорций лица', en:'Relative to face proportions', ar:'نسبةً إلى تناسق الوجه'},
+      eyeSize_small: {ru:'Небольшой', en:'Small', ar:'صغير'},
+      eyeSize_medium: {ru:'Средний', en:'Medium', ar:'متوسط'},
+      eyeSize_large: {ru:'Крупный', en:'Large', ar:'كبير'},
+      symmetry_balanced: {ru:'Сбалансированная', en:'Balanced', ar:'متوازن'},
+      symmetry_mild: {ru:'Лёгкая природная асимметрия', en:'Mild natural asymmetry', ar:'عدم تماثل طبيعي خفيف'},
+      symmetry_noticeable: {ru:'Заметная асимметрия', en:'Noticeable asymmetry', ar:'عدم تماثل ملحوظ'},
+      symmetry_uncertain: {ru:'Требует подтверждения', en:'Needs confirmation', ar:'يحتاج إلى تأكيد'},
+      lashCorrectionOpportunityTitle: {ru:'Возможность визуальной коррекции', en:'Lash correction opportunity', ar:'فرصة تصحيح بصري'},
+      confidenceHigh: {ru:'Высокая уверенность', en:'High confidence', ar:'ثقة عالية'},
+      confidenceModerate: {ru:'Средняя уверенность', en:'Moderate confidence', ar:'ثقة متوسطة'},
+      confidenceLow: {ru:'Низкая уверенность', en:'Low confidence', ar:'ثقة منخفضة'},
+      lashDesignConsiderationsTitle: {ru:'Рекомендации для дизайна', en:'Lash Design Considerations', ar:'توصيات التصميم'},
+      lashDesignConsiderationsIntro: {ru:'AI предлагает несколько направлений на основе формы, посадки, века и симметрии ваших глаз. Финальный выбор остаётся за мастером.', en:'AI suggests several directions based on your eye shape, set, eyelid and symmetry. The final choice remains with the artist.', ar:'يقترح الذكاء الاصطناعي عدة اتجاهات بناءً على شكل عينيك وتباعدهما والجفن والتماثل. القرار النهائي يبقى للأخصائية.'},
+      ldcSuitability: {ru:'Подходит', en:'Suitability', ar:'الملاءمة'},
+      ldcVisualGoal: {ru:'Визуальная цель', en:'Visual goal', ar:'الهدف البصري'},
+      ldcPeak: {ru:'Рекомендуемый пик', en:'Suggested peak', ar:'القمة المقترحة'},
+      ldcLength: {ru:'Распределение длины', en:'Length distribution', ar:'توزيع الطول'},
+      ldcCurl: {ru:'Подходящие изгибы', en:'Suitable curls', ar:'الانحناءات المناسبة'},
+      ldcCautions: {ru:'На что обратить внимание', en:'Cautions', ar:'ما يجب الانتباه إليه'},
+      ldcLR: {ru:'Коррекция L/R', en:'L/R correction', ar:'تصحيح L/R'},
+      debugModeTitle: {ru:'Debug / Explainability', en:'Debug / Explainability', ar:'Debug / Explainability'},
+      debugToggle: {ru:'Показать debug-данные', en:'Show debug data', ar:'إظهار بيانات التصحيح'},
 
-      natLashScanBtn: {ru:'Провести анализ натуральных ресниц', en:'Scan Natural Lashes'},
-      natLashScanTitle: {ru:'Скан натуральных ресниц', en:'Natural Lash Scan'},
-      natLashIntroBody: {ru:'При полном лице обычная камера не позволяет честно рассмотреть отдельные ресницы. Этот отдельный близкий скан даёт более точную визуальную оценку — по одному глазу за раз.', en:'At full-face distance, a regular camera can’t honestly resolve individual lashes. This separate close-up scan gives a more accurate visual read — one eye at a time.'},
-      natLashStart: {ru:'Начать скан', en:'Start scan'},
-      natLashMoveLeftCloser: {ru:'Приблизьте левый глаз к камере', en:'Move your left eye closer to the camera'},
-      natLashMoveRightCloser: {ru:'Приблизьте правый глаз к камере', en:'Move your right eye closer to the camera'},
-      natLashLeftEyeLabel: {ru:'Левый глаз', en:'Left eye'},
-      natLashRightEyeLabel: {ru:'Правый глаз', en:'Right eye'},
-      natLashLineLocked: {ru:'Линия роста зафиксирована', en:'Lash line locked'},
-      natLashSearching: {ru:'Поиск глаза', en:'Searching for eye'},
-      natLashScanningStatus: {ru:'Сканирование ресниц', en:'Scanning lashes'},
-      natLashMoveCloserHint: {ru:'Поднесите глаз ближе для более точного анализа', en:'Move closer for a more accurate lash scan'},
-      natLashInsufficientResolutionHint: {ru:'Недостаточно деталей для анализа ресниц. Держите телефон неподвижно и обеспечьте хорошее освещение.', en:'Not enough detail for lash analysis. Hold the phone steady and use good lighting.'},
-      natLashEyeClosedHint: {ru:'Не закрывайте глаз', en:'Keep the eye open'},
-      natLashBlurryHint: {ru:'Слишком размыто — держите камеру устойчивее', en:'Too blurry — hold the camera steadier'},
-      natLashTooDarkHint: {ru:'Недостаточно света', en:'More light is needed'},
-      natLashTooBrightHint: {ru:'Слишком яркий свет', en:'Too much light'},
-      natLashNoEyeHint: {ru:'Не удаётся найти глаз в кадре', en:'Can’t find the eye in frame'},
-      natLashHoldSteady: {ru:'Держите глаз неподвижно в кадре', en:'Hold your eye steady in frame'},
-      natLashContinueToRight: {ru:'Далее: правый глаз', en:'Next: right eye'},
-      natLashViewProfile: {ru:'Смотреть профиль', en:'View profile'},
-      natLashProfileTitle: {ru:'Профиль натуральных ресниц', en:'Natural Lash Profile'},
-      natLashConfidenceLabel: {ru:'Достоверность оценки', en:'Confidence'},
-      natLashVisualDensity: {ru:'Визуальная густота', en:'Visual density'},
-      natLashDistribution: {ru:'Равномерность линии роста', en:'Lash line distribution'},
-      natLashDirection: {ru:'Направление роста', en:'Growth direction'},
-      natLashRelLength: {ru:'Относительная длина', en:'Relative length'},
-      natLashScanQuality: {ru:'Качество скана', en:'Scan quality'},
-      natLashComparisonTitle: {ru:'Сравнение L/R', en:'L/R comparison'},
-      natLashCharacteristicsTitle: {ru:'Визуальные характеристики', en:'Visual lash characteristics'},
-      natLashZoneInner: {ru:'Inner', en:'Inner'},
-      natLashZoneCenter: {ru:'Center', en:'Center'},
-      natLashZoneOuter: {ru:'Outer', en:'Outer'},
-      lashNoLoadClaim: {ru:'AI оценивает только визуальные характеристики. Финальную технику, толщину и допустимую нагрузку мастер определяет после очной оценки натуральных ресниц.', en:'AI evaluates visual characteristics only. Final technique, thickness and appropriate load should be determined by the lash artist after an in-person assessment.'},
-      lashObservationsTitle: {ru:'Натуральные ресницы', en:'Natural Lash Observations'},
-      lashConsiderationsTitle: {ru:'Как учесть при наращивании', en:'Application Considerations'},
-      natLashDoneBtn: {ru:'Готово', en:'Done'},
-      natLashRetryEye: {ru:'Повторить скан', en:'Retry scan'},
-      qualityHigh: {ru:'Высокое', en:'High'},
-      qualityMedium: {ru:'Среднее', en:'Medium'},
-      qualityLow: {ru:'Низкое', en:'Low'},
-      tiltUpturned: {ru:'Приподнятые', en:'Upturned'},
-      tiltNeutral: {ru:'Нейтральные', en:'Neutral'},
-      tiltDownturned: {ru:'Опущенные', en:'Downturned'},
-      tiltUncertain: {ru:'Требует подтверждения', en:'Needs confirmation'},
-      shapeSubLabel: {ru:'Анализ геометрии', en:'Geometry analysis'},
-      tiltSubLabel: {ru:'Положение внешнего уголка относительно внутреннего', en:'Outer corner position relative to the inner corner'},
-      lidSubLabel: {ru:'Складка и нависание', en:'Fold and hooding'},
-      spacingSubLabel: {ru:'Межглазное расстояние', en:'Inter-eye distance'},
-      symmetrySubLabel: {ru:'Левый / правый глаз', en:'Left / right eye'},
-      irisSubLabel: {ru:'Цвет и оттенок', en:'Color and tone'},
-      depthLabel: {ru:'Посадка (глубина)', en:'Depth'},
-      depthDisclaimer: {ru:'Недостаточно данных для надёжной оценки глубины посадки по фронтальной 2D-камере. Параметр не используется при ранжировании дизайнов.', en:'Insufficient data to reliably assess eye depth from a frontal 2D camera. This parameter is not used in design ranking.'},
-      insufficientData: {ru:'Недостаточно данных', en:'Insufficient data'},
-      moreDetails: {ru:'Подробные метрики →', en:'Detailed metrics →'},
-      recommendedDesigns: {ru:'Рекомендуемые дизайны', en:'Recommended designs'},
-      allDesigns: {ru:'Все дизайны →', en:'All designs →'},
-      viewMap: {ru:'ОТКРЫТЬ КАРТУ →', en:'VIEW MAP →'},
+      natLashScanBtn: {ru:'Провести анализ натуральных ресниц', en:'Scan Natural Lashes', ar:'مسح الرموش الطبيعية'},
+      natLashScanTitle: {ru:'Скан натуральных ресниц', en:'Natural Lash Scan', ar:'مسح الرموش الطبيعية'},
+      natLashIntroBody: {ru:'При полном лице обычная камера не позволяет честно рассмотреть отдельные ресницы. Этот отдельный близкий скан даёт более точную визуальную оценку — по одному глазу за раз.', en:'At full-face distance, a regular camera can’t honestly resolve individual lashes. This separate close-up scan gives a more accurate visual read — one eye at a time.', ar:'عند التقاط الوجه كاملًا، لا تستطيع الكاميرا العادية إظهار الرموش الفردية بدقة. يوفّر هذا المسح القريب المنفصل تقييمًا بصريًا أدق — لعين واحدة في كل مرة.'},
+      natLashStart: {ru:'Начать скан', en:'Start scan', ar:'بدء المسح'},
+      natLashMoveLeftCloser: {ru:'Приблизьте левый глаз к камере', en:'Move your left eye closer to the camera', ar:'قرّبي عينك اليسرى من الكاميرا'},
+      natLashMoveRightCloser: {ru:'Приблизьте правый глаз к камере', en:'Move your right eye closer to the camera', ar:'قرّبي عينك اليمنى من الكاميرا'},
+      natLashLeftEyeLabel: {ru:'Левый глаз', en:'Left eye', ar:'العين اليسرى'},
+      natLashRightEyeLabel: {ru:'Правый глаз', en:'Right eye', ar:'العين اليمنى'},
+      natLashLineLocked: {ru:'Линия роста зафиксирована', en:'Lash line locked', ar:'تم تثبيت خط نمو الرموش'},
+      natLashSearching: {ru:'Поиск глаза', en:'Searching for eye', ar:'جارٍ البحث عن العين'},
+      natLashScanningStatus: {ru:'Сканирование ресниц', en:'Scanning lashes', ar:'جارٍ مسح الرموش'},
+      natLashMoveCloserHint: {ru:'Поднесите глаз ближе для более точного анализа', en:'Move closer for a more accurate lash scan', ar:'قرّبي العين أكثر لتحليل أدق'},
+      natLashInsufficientResolutionHint: {ru:'Недостаточно деталей для анализа ресниц. Держите телефон неподвижно и обеспечьте хорошее освещение.', en:'Not enough detail for lash analysis. Hold the phone steady and use good lighting.', ar:'التفاصيل غير كافية لتحليل الرموش. ثبّتي الهاتف واحرصي على إضاءة جيدة.'},
+      natLashEyeClosedHint: {ru:'Не закрывайте глаз', en:'Keep the eye open', ar:'أبقي العين مفتوحة'},
+      natLashBlurryHint: {ru:'Слишком размыто — держите камеру устойчивее', en:'Too blurry — hold the camera steadier', ar:'الصورة ضبابية جدًا — ثبّتي الكاميرا أكثر'},
+      natLashTooDarkHint: {ru:'Недостаточно света', en:'More light is needed', ar:'الإضاءة غير كافية'},
+      natLashTooBrightHint: {ru:'Слишком яркий свет', en:'Too much light', ar:'الإضاءة شديدة جدًا'},
+      natLashNoEyeHint: {ru:'Не удаётся найти глаз в кадре', en:'Can’t find the eye in frame', ar:'تعذّر العثور على العين داخل الإطار'},
+      natLashHoldSteady: {ru:'Держите глаз неподвижно в кадре', en:'Hold your eye steady in frame', ar:'حافظي على ثبات عينك داخل الإطار'},
+      natLashContinueToRight: {ru:'Далее: правый глаз', en:'Next: right eye', ar:'التالي: العين اليمنى'},
+      natLashViewProfile: {ru:'Смотреть профиль', en:'View profile', ar:'عرض الملف'},
+      natLashProfileTitle: {ru:'Профиль натуральных ресниц', en:'Natural Lash Profile', ar:'ملف الرموش الطبيعية'},
+      natLashConfidenceLabel: {ru:'Достоверность оценки', en:'Confidence', ar:'موثوقية التقييم'},
+      natLashVisualDensity: {ru:'Визуальная густота', en:'Visual density', ar:'الكثافة البصرية'},
+      natLashDistribution: {ru:'Равномерность линии роста', en:'Lash line distribution', ar:'انتظام خط نمو الرموش'},
+      natLashDirection: {ru:'Направление роста', en:'Growth direction', ar:'اتجاه النمو'},
+      natLashRelLength: {ru:'Относительная длина', en:'Relative length', ar:'الطول النسبي'},
+      natLashScanQuality: {ru:'Качество скана', en:'Scan quality', ar:'جودة المسح'},
+      natLashComparisonTitle: {ru:'Сравнение L/R', en:'L/R comparison', ar:'مقارنة L/R'},
+      natLashCharacteristicsTitle: {ru:'Визуальные характеристики', en:'Visual lash characteristics', ar:'الخصائص البصرية'},
+      natLashZoneInner: {ru:'Inner', en:'Inner', ar:'Inner'},
+      natLashZoneCenter: {ru:'Center', en:'Center', ar:'Center'},
+      natLashZoneOuter: {ru:'Outer', en:'Outer', ar:'Outer'},
+      lashNoLoadClaim: {ru:'AI оценивает только визуальные характеристики. Финальную технику, толщину и допустимую нагрузку мастер определяет после очной оценки натуральных ресниц.', en:'AI evaluates visual characteristics only. Final technique, thickness and appropriate load should be determined by the lash artist after an in-person assessment.', ar:'يقيّم الذكاء الاصطناعي الخصائص البصرية فقط. يجب أن تحدد الأخصائية التقنية النهائية والسماكة والحمل المناسب بعد تقييم حضوري للرموش الطبيعية.'},
+      lashObservationsTitle: {ru:'Натуральные ресницы', en:'Natural Lash Observations', ar:'ملاحظات الرموش الطبيعية'},
+      lashConsiderationsTitle: {ru:'Как учесть при наращивании', en:'Application Considerations', ar:'كيفية المراعاة عند التركيب'},
+      natLashDoneBtn: {ru:'Готово', en:'Done', ar:'تم'},
+      natLashRetryEye: {ru:'Повторить скан', en:'Retry scan', ar:'إعادة المسح'},
+      qualityHigh: {ru:'Высокое', en:'High', ar:'عالية'},
+      qualityMedium: {ru:'Среднее', en:'Medium', ar:'متوسطة'},
+      qualityLow: {ru:'Низкое', en:'Low', ar:'منخفضة'},
+      tiltUpturned: {ru:'Приподнятые', en:'Upturned', ar:'مرفوعة'},
+      tiltNeutral: {ru:'Нейтральные', en:'Neutral', ar:'محايدة'},
+      tiltDownturned: {ru:'Опущенные', en:'Downturned', ar:'منخفضة'},
+      tiltUncertain: {ru:'Требует подтверждения', en:'Needs confirmation', ar:'يحتاج إلى تأكيد'},
+      shapeSubLabel: {ru:'Анализ геометрии', en:'Geometry analysis', ar:'تحليل الهندسة'},
+      tiltSubLabel: {ru:'Положение внешнего уголка относительно внутреннего', en:'Outer corner position relative to the inner corner', ar:'موضع الزاوية الخارجية نسبةً إلى الداخلية'},
+      lidSubLabel: {ru:'Складка и нависание', en:'Fold and hooding', ar:'الثنية والترهل'},
+      spacingSubLabel: {ru:'Межглазное расстояние', en:'Inter-eye distance', ar:'المسافة بين العينين'},
+      symmetrySubLabel: {ru:'Левый / правый глаз', en:'Left / right eye', ar:'العين اليسرى / اليمنى'},
+      irisSubLabel: {ru:'Цвет и оттенок', en:'Color and tone', ar:'اللون والدرجة'},
+      depthLabel: {ru:'Посадка (глубина)', en:'Depth', ar:'العمق'},
+      depthDisclaimer: {ru:'Недостаточно данных для надёжной оценки глубины посадки по фронтальной 2D-камере. Параметр не используется при ранжировании дизайнов.', en:'Insufficient data to reliably assess eye depth from a frontal 2D camera. This parameter is not used in design ranking.', ar:'لا تتوفر بيانات كافية لتقييم عمق العين بدقة من كاميرا أمامية ثنائية الأبعاد. لا يُستخدم هذا المعيار في ترتيب التصاميم.'},
+      insufficientData: {ru:'Недостаточно данных', en:'Insufficient data', ar:'بيانات غير كافية'},
+      moreDetails: {ru:'Подробные метрики →', en:'Detailed metrics →', ar:'مزيد من التفاصيل →'},
+      recommendedDesigns: {ru:'Рекомендуемые дизайны', en:'Recommended designs', ar:'التصاميم الموصى بها'},
+      allDesigns: {ru:'Все дизайны →', en:'All designs →', ar:'جميع التصاميم →'},
+      viewMap: {ru:'ОТКРЫТЬ КАРТУ →', en:'VIEW MAP →', ar:'فتح الخريطة →'},
       // RESULTS DESIGN DISCOVERY — additive only, see HeroScreen's
       // alternatives carousel below. moreDesignsForYou is the carousel's
       // own section heading (distinct from recommendedDesigns above,
@@ -593,8 +609,8 @@
       // entry below the carousel into the EXISTING AllDesignsScreen
       // (same destination as the allDesigns key above, just a second,
       // more discoverable entry point) — never a new screen.
-      moreDesignsForYou: {ru:'Ещё подходящие дизайны', en:'More designs for you'},
-      viewAllDesignsEntry: {ru:'Смотреть все дизайны', en:'View all designs'},
+      moreDesignsForYou: {ru:'Ещё подходящие дизайны', en:'More designs for you', ar:'تصاميم أخرى تناسبك'},
+      viewAllDesignsEntry: {ru:'Смотреть все дизайны', en:'View all designs', ar:'عرض جميع التصاميم'},
       // RESULTS HERO V1 — additive only, no existing key renamed/reused
       // for a different meaning. heroMatchLabel pairs with the existing
       // numeric d.score (e.g. "77% совпадение" / "77% match"); the CTA
@@ -602,32 +618,32 @@
       // `viewMap`/`saveToClientButton` text (both of which are reused
       // verbatim elsewhere) since the brief calls for this exact wording
       // on the featured Hero's primary action specifically.
-      heroBestDesignTitle: {ru:'ВАШ ЛУЧШИЙ ДИЗАЙН', en:'YOUR BEST DESIGN'},
-      heroMatchLabel: {ru:'совпадение', en:'match'},
-      heroOpenLashMap: {ru:'ОТКРЫТЬ LASH MAP', en:'OPEN LASH MAP'},
-      openLabel: {ru:'Открыть', en:'Open'},
-      selectDesign: {ru:'Выбрать дизайн', en:'Select design'},
-      lashMapTitle: {ru:'Профессиональная Lash Map', en:'Professional Lash Map'},
-      leftEye: {ru:'ЛЕВЫЙ ГЛАЗ', en:'LEFT EYE'},
-      rightEye: {ru:'ПРАВЫЙ ГЛАЗ', en:'RIGHT EYE'},
-      lashMapEdit: {ru:'НАСТРОИТЬ СХЕМУ', en:'EDIT MAP'},
-      lashMapEditing: {ru:'НАСТРОЙКА СХЕМЫ', en:'EDITING MAP'},
-      lashMapReset: {ru:'СБРОСИТЬ', en:'RESET'},
-      lashMapDone: {ru:'ГОТОВО', en:'DONE'},
-      zoneInner: {ru:'ВНУТРЕННЯЯ', en:'INNER'},
-      zoneTransition: {ru:'ПЕРЕХОД', en:'TRANSITION'},
-      zoneBody: {ru:'ОСНОВНАЯ ЗОНА', en:'BODY'},
-      zonePeak: {ru:'ПИК', en:'PEAK'},
-      zoneOuter: {ru:'ВНЕШНЯЯ', en:'OUTER'},
+      heroBestDesignTitle: {ru:'ВАШ ЛУЧШИЙ ДИЗАЙН', en:'YOUR BEST DESIGN', ar:'أفضل تصميم لك'},
+      heroMatchLabel: {ru:'совпадение', en:'match', ar:'تطابق'},
+      heroOpenLashMap: {ru:'ОТКРЫТЬ LASH MAP', en:'OPEN LASH MAP', ar:'فتح Lash Map'},
+      openLabel: {ru:'Открыть', en:'Open', ar:'فتح'},
+      selectDesign: {ru:'Выбрать дизайн', en:'Select design', ar:'اختيار التصميم'},
+      lashMapTitle: {ru:'Профессиональная Lash Map', en:'Professional Lash Map', ar:'خريطة الرموش الاحترافية (Lash Map)'},
+      leftEye: {ru:'ЛЕВЫЙ ГЛАЗ', en:'LEFT EYE', ar:'العين اليسرى'},
+      rightEye: {ru:'ПРАВЫЙ ГЛАЗ', en:'RIGHT EYE', ar:'العين اليمنى'},
+      lashMapEdit: {ru:'НАСТРОИТЬ СХЕМУ', en:'EDIT MAP', ar:'تخصيص الخريطة'},
+      lashMapEditing: {ru:'НАСТРОЙКА СХЕМЫ', en:'EDITING MAP', ar:'جارٍ تخصيص الخريطة'},
+      lashMapReset: {ru:'СБРОСИТЬ', en:'RESET', ar:'إعادة تعيين'},
+      lashMapDone: {ru:'ГОТОВО', en:'DONE', ar:'تم'},
+      zoneInner: {ru:'ВНУТРЕННЯЯ', en:'INNER', ar:'الداخلية'},
+      zoneTransition: {ru:'ПЕРЕХОД', en:'TRANSITION', ar:'الانتقالية'},
+      zoneBody: {ru:'ОСНОВНАЯ ЗОНА', en:'BODY', ar:'الأساسية'},
+      zonePeak: {ru:'ПИК', en:'PEAK', ar:'القمة'},
+      zoneOuter: {ru:'ВНЕШНЯЯ', en:'OUTER', ar:'الخارجية'},
       // Phase 1S: additional physical-zone labels used only by the
       // Professional Lash Map Library renderer adapter (referenceTemplate
       // zone/position tokens with 6+ zones) -- never read by any existing
       // 5-zone DESIGN_CATALOG design.
-      zoneInnerBody: {ru:'ВНУТРЕННЯЯ-ОСНОВНАЯ', en:'INNER-BODY'},
-      zonePrePeak: {ru:'ПРЕДПИК', en:'PRE-PEAK'},
-      zonePreOuter: {ru:'ПРЕДВНЕШНЯЯ', en:'PRE-OUTER'},
-      zoneOuterTransition: {ru:'ВНЕШНИЙ ПЕРЕХОД', en:'OUTER TRANSITION'},
-      zoneOuterTip: {ru:'ВНЕШНИЙ КОНЧИК', en:'OUTER TIP'},
+      zoneInnerBody: {ru:'ВНУТРЕННЯЯ-ОСНОВНАЯ', en:'INNER-BODY', ar:'الداخلية-الأساسية'},
+      zonePrePeak: {ru:'ПРЕДПИК', en:'PRE-PEAK', ar:'ما قبل القمة'},
+      zonePreOuter: {ru:'ПРЕДВНЕШНЯЯ', en:'PRE-OUTER', ar:'ما قبل الخارجية'},
+      zoneOuterTransition: {ru:'ВНЕШНИЙ ПЕРЕХОД', en:'OUTER TRANSITION', ar:'الانتقال الخارجي'},
+      zoneOuterTip: {ru:'ВНЕШНИЙ КОНЧИК', en:'OUTER TIP', ar:'الطرف الخارجي'},
       // Label-readability fix: short display-only forms for the four
       // Phase 1S tokens long enough to collide at tight zone spacing (6-7
       // zone referenceTemplates). Semantic position tokens in
@@ -635,58 +651,59 @@
       // presentation strings, consumed only by zoneLabelCompact() inside
       // LegacyLashMapDiagram, never by zoneLabel() itself (PHOTO/
       // Application Plan text keep using the full words, unaffected).
-      zoneInnerBodyCompact: {ru:'ВН-ОСН', en:'IN-BODY'},
-      zonePreOuterCompact: {ru:'ПРЕДВНЕШ', en:'PRE-OUT'},
-      zoneOuterTransitionCompact: {ru:'ВНЕШ.ПЕРЕХ', en:'OUT.TRANS'},
-      zoneOuterTipCompact: {ru:'ВН.КОНЧИК', en:'OUT.TIP'},
-      lashMapCurl: {ru:'ИЗГИБ', en:'Curl'},
-      lashMapLength: {ru:'ДЛИНА', en:'Length'},
-      lashMapTexture: {ru:'ТЕКСТУРА', en:'Texture'},
-      curlLabel: {ru:'Изгиб', en:'Curl'},
-      maxLengthLabel: {ru:'Макс. длина', en:'Max length'},
-      designLabel: {ru:'Дизайн', en:'Design'},
-      techniqueLabel: {ru:'Технология', en:'Technique'},
-      curlCatalogLabel: {ru:'Изгиб ресниц', en:'Lash curl'},
-      densityLabel: {ru:'Плотность / объём', en:'Density / volume'},
-      light: {ru:'Лёгкая', en:'Light'},
-      medium: {ru:'Средняя', en:'Medium'},
-      full: {ru:'Полная', en:'Full'},
-      recommendedDiameter: {ru:'рекомендуемый диаметр', en:'recommended diameter'},
-      aiDesignTab: {ru:'AI-дизайн', en:'AI Design'},
-      customTab: {ru:'Своя схема', en:'Custom Map'},
-      customMapTitle: {ru:'СОБСТВЕННАЯ СХЕМА', en:'CUSTOM MAP'},
-      customMapHint: {ru:'Задайте длину каждой зоны вручную', en:'Set each zone length manually'},
-      masterRecTitle: {ru:'Рекомендации мастеру', en:'Lash Artist Recommendations'},
-      asymBanner: {ru:'LEFT ≠ RIGHT — дифференциальная карта', en:'LEFT ≠ RIGHT — differential map'},
-      detailsTitle: {ru:'Детали анализа', en:'Analysis details'},
-      allDesignsTitle: {ru:'Все дизайны', en:'All Designs'},
-      recommendedByAi: {ru:'РЕКОМЕНДОВАНО AI', en:'RECOMMENDED BY AI'},
-      suitable: {ru:'ПОДХОДИТ', en:'SUITABLE'},
-      useWithCaution: {ru:'С ОСТОРОЖНОСТЬЮ', en:'USE WITH CAUTION'},
-      bestMatch: {ru:'ЛУЧШЕЕ СОВПАДЕНИЕ', en:'BEST MATCH'},
-      highlySuitable: {ru:'ОТЛИЧНО ПОДХОДИТ', en:'HIGHLY SUITABLE'},
-      texturedOption: {ru:'ТЕКСТУРНЫЙ ВАРИАНТ', en:'TEXTURED OPTION'},
-      creativeOption: {ru:'КРЕАТИВНЫЙ ВАРИАНТ', en:'CREATIVE OPTION'},
-      primaryCurl: {ru:'Рекомендуемый изгиб', en:'Recommended curl'},
-      alternativeCurls: {ru:'Альтернативы', en:'Alternatives'},
-      photoSelect: {ru:'Выбрать фото', en:'Select Photo'},
-      photoHint: {ru:'Фото анфас, хорошее освещение, оба глаза открыты', en:'Front-facing photo, good lighting, both eyes open'},
-      photoAnalyzing: {ru:'Анализ изображения...', en:'Analyzing image...'},
+      zoneInnerBodyCompact: {ru:'ВН-ОСН', en:'IN-BODY', ar:'داخلي-أساسي'},
+      zonePreOuterCompact: {ru:'ПРЕДВНЕШ', en:'PRE-OUT', ar:'قبل-خارجي'},
+      zoneOuterTransitionCompact: {ru:'ВНЕШ.ПЕРЕХ', en:'OUT.TRANS', ar:'انتقال.خارجي'},
+      zoneOuterTipCompact: {ru:'ВН.КОНЧИК', en:'OUT.TIP', ar:'طرف.خارجي'},
+      lashMapCurl: {ru:'ИЗГИБ', en:'Curl', ar:'الانحناء'},
+      lashMapLength: {ru:'ДЛИНА', en:'Length', ar:'الطول'},
+      lashMapTexture: {ru:'ТЕКСТУРА', en:'Texture', ar:'الملمس'},
+      lashMapTextureSmooth: {ru:'Гладкая', en:'Smooth', ar:'ناعم'},
+      curlLabel: {ru:'Изгиб', en:'Curl', ar:'الانحناء'},
+      maxLengthLabel: {ru:'Макс. длина', en:'Max length', ar:'أقصى طول'},
+      designLabel: {ru:'Дизайн', en:'Design', ar:'التصميم'},
+      techniqueLabel: {ru:'Технология', en:'Technique', ar:'التقنية'},
+      curlCatalogLabel: {ru:'Изгиб ресниц', en:'Lash curl', ar:'انحناء الرموش'},
+      densityLabel: {ru:'Плотность / объём', en:'Density / volume', ar:'الكثافة / الحجم'},
+      light: {ru:'Лёгкая', en:'Light', ar:'خفيفة'},
+      medium: {ru:'Средняя', en:'Medium', ar:'متوسطة'},
+      full: {ru:'Полная', en:'Full', ar:'كاملة'},
+      recommendedDiameter: {ru:'рекомендуемый диаметр', en:'recommended diameter', ar:'القطر الموصى به'},
+      aiDesignTab: {ru:'AI-дизайн', en:'AI Design', ar:'تصميم AI'},
+      customTab: {ru:'Своя схема', en:'Custom Map', ar:'خريطة مخصصة'},
+      customMapTitle: {ru:'СОБСТВЕННАЯ СХЕМА', en:'CUSTOM MAP', ar:'خريطة مخصصة'},
+      customMapHint: {ru:'Задайте длину каждой зоны вручную', en:'Set each zone length manually', ar:'حددي طول كل منطقة يدويًا'},
+      masterRecTitle: {ru:'Рекомендации мастеру', en:'Lash Artist Recommendations', ar:'توصيات لأخصائية الرموش'},
+      asymBanner: {ru:'LEFT ≠ RIGHT — дифференциальная карта', en:'LEFT ≠ RIGHT — differential map', ar:'LEFT ≠ RIGHT — خريطة تفاضلية'},
+      detailsTitle: {ru:'Детали анализа', en:'Analysis details', ar:'تفاصيل التحليل'},
+      allDesignsTitle: {ru:'Все дизайны', en:'All Designs', ar:'جميع التصاميم'},
+      recommendedByAi: {ru:'РЕКОМЕНДОВАНО AI', en:'RECOMMENDED BY AI', ar:'موصى به من الذكاء الاصطناعي'},
+      suitable: {ru:'ПОДХОДИТ', en:'SUITABLE', ar:'مناسب'},
+      useWithCaution: {ru:'С ОСТОРОЖНОСТЬЮ', en:'USE WITH CAUTION', ar:'استخدام بحذر'},
+      bestMatch: {ru:'ЛУЧШЕЕ СОВПАДЕНИЕ', en:'BEST MATCH', ar:'أفضل تطابق'},
+      highlySuitable: {ru:'ОТЛИЧНО ПОДХОДИТ', en:'HIGHLY SUITABLE', ar:'مناسب جدًا'},
+      texturedOption: {ru:'ТЕКСТУРНЫЙ ВАРИАНТ', en:'TEXTURED OPTION', ar:'خيار بملمس مميز'},
+      creativeOption: {ru:'КРЕАТИВНЫЙ ВАРИАНТ', en:'CREATIVE OPTION', ar:'خيار إبداعي'},
+      primaryCurl: {ru:'Рекомендуемый изгиб', en:'Recommended curl', ar:'الانحناء الموصى به'},
+      alternativeCurls: {ru:'Альтернативы', en:'Alternatives', ar:'بدائل'},
+      photoSelect: {ru:'Выбрать фото', en:'Select Photo', ar:'اختيار صورة'},
+      photoHint: {ru:'Фото анфас, хорошее освещение, оба глаза открыты', en:'Front-facing photo, good lighting, both eyes open', ar:'صورة أمامية، إضاءة جيدة، العينان مفتوحتان'},
+      photoAnalyzing: {ru:'Анализ изображения...', en:'Analyzing image...', ar:'جارٍ تحليل الصورة...'},
       // PHOTO SCAN visual layer: deliberately NOT reusing
       // stageSubjectLocked ("ОБЪЕКТ ЗАФИКСИРОВАН"/"SUBJECT LOCKED") —
       // that phrase implies continuous live tracking, which a static
       // photo never does. This is the photo-appropriate equivalent.
-      photoFaceDetected: {ru:'ЛИЦО РАСПОЗНАНО', en:'FACE DETECTED'},
-      photoErrorQuality: {ru:'Недостаточно качества для точного анализа. Используйте фото анфас при хорошем освещении, без сильного наклона головы и без перекрытия глаз.', en:'Image quality is insufficient for reliable analysis. Use a front-facing photo with good lighting and unobstructed eyes.'},
-      photoTryAgain: {ru:'Выбрать другое фото', en:'Choose another photo'},
-      cameraDenied: {ru:'Нет доступа к камере', en:'Camera access denied'},
-      reviewTitle: {ru:'Подтверждение анализа', en:'Confirm analysis'},
-      reviewIntro: {ru:'Проверьте результат AI и при необходимости исправьте его перед расчётом схем.', en:'Review the AI result and correct it before calculating lash designs.'},
-      reviewAiValue: {ru:'AI-значение', en:'AI value'},
-      reviewArtistValue: {ru:'Подтверждение мастера', en:'Artist confirmation'},
-      reviewConfirm: {ru:'Подтвердить и построить схемы', en:'Confirm and build designs'},
-      reviewRescan: {ru:'Повторить анализ', en:'Rescan'},
-      reviewUncertain: {ru:'Нужна ручная проверка', en:'Manual check recommended'},
+      photoFaceDetected: {ru:'ЛИЦО РАСПОЗНАНО', en:'FACE DETECTED', ar:'تم رصد الوجه'},
+      photoErrorQuality: {ru:'Недостаточно качества для точного анализа. Используйте фото анфас при хорошем освещении, без сильного наклона головы и без перекрытия глаз.', en:'Image quality is insufficient for reliable analysis. Use a front-facing photo with good lighting and unobstructed eyes.', ar:'جودة الصورة غير كافية للتحليل الدقيق. استخدمي صورة أمامية بإضاءة جيدة، دون إمالة كبيرة للرأس ودون حجب العينين.'},
+      photoTryAgain: {ru:'Выбрать другое фото', en:'Choose another photo', ar:'اختيار صورة أخرى'},
+      cameraDenied: {ru:'Нет доступа к камере', en:'Camera access denied', ar:'لا يمكن الوصول إلى الكاميرا'},
+      reviewTitle: {ru:'Подтверждение анализа', en:'Confirm analysis', ar:'تأكيد التحليل'},
+      reviewIntro: {ru:'Проверьте результат AI и при необходимости исправьте его перед расчётом схем.', en:'Review the AI result and correct it before calculating lash designs.', ar:'راجعي نتيجة الذكاء الاصطناعي وصححيها عند الحاجة قبل حساب الخرائط.'},
+      reviewAiValue: {ru:'AI-значение', en:'AI value', ar:'قيمة الذكاء الاصطناعي'},
+      reviewArtistValue: {ru:'Подтверждение мастера', en:'Artist confirmation', ar:'تأكيد الأخصائية'},
+      reviewConfirm: {ru:'Подтвердить и построить схемы', en:'Confirm and build designs', ar:'تأكيد وبناء الخرائط'},
+      reviewRescan: {ru:'Повторить анализ', en:'Rescan', ar:'إعادة التحليل'},
+      reviewUncertain: {ru:'Нужна ручная проверка', en:'Manual check recommended', ar:'يوصى بالمراجعة اليدوية'},
 
       // ------------------------------------------------------------
       // CONSENT — Phase 1: consent foundation. Copy for the first-visit
@@ -694,113 +711,241 @@
       // SDK exists yet in this phase; this text only explains the
       // OPTIONAL analytics choice itself, never scan data.
       // ------------------------------------------------------------
-      consentBannerTitle: {ru:'Аналитика использования', en:'Usage analytics'},
-      consentBannerBody: {ru:'Мы хотим собирать анонимную статистику использования LASH STUDIO AI (например, что сканирование запущено или завершилось), чтобы улучшать приложение. Мы никогда не отправляем фото, кадры камеры, изображения глаз или радужки, ключевые точки лица и другие результаты сканирования — они остаются только на вашем устройстве. Отказ никак не ограничивает сканирование и результаты.', en:'We’d like to collect anonymous usage statistics for LASH STUDIO AI (e.g. that a scan was started or completed) to improve the app. We never send photos, camera frames, eye or iris images, facial landmarks, or any other scan results — those stay on your device only. Declining does not limit scanning or your results in any way.'},
-      consentAccept: {ru:'Принять аналитику', en:'Accept analytics'},
-      consentReject: {ru:'Отказаться', en:'Reject'},
-      consentCustomize: {ru:'Настроить', en:'Customize'},
-      consentSave: {ru:'Сохранить выбор', en:'Save choice'},
-      consentClose: {ru:'Закрыть', en:'Close'},
-      consentSettingsTitle: {ru:'Настройки данных и аналитики', en:'Data & analytics settings'},
-      consentAnalyticsLabel: {ru:'Продуктовая аналитика (необязательно)', en:'Product analytics (optional)'},
-      consentAnalyticsDesc: {ru:'Анонимные события использования приложения (например, запуск сканирования, просмотр результатов). Никогда не включает фото, кадры камеры, изображения глаз/радужки, ключевые точки лица или иные измерения со сканирования.', en:'Anonymous product-usage events (e.g. scan started, results viewed). Never includes photos, camera frames, eye/iris images, facial landmarks, or any other scan measurements.'},
-      consentEssentialLabel: {ru:'Необходимое техническое хранение', en:'Necessary technical storage'},
-      consentEssentialDesc: {ru:'Язык интерфейса и режим разработчика хранятся локально на устройстве для работы приложения. Это не аналитика и не требует согласия — отключить нельзя, так как без этого приложение не сможет запомнить ваш выбор языка.', en:'Interface language and developer debug mode are stored locally on your device so the app functions. This is not analytics and does not require consent — it cannot be turned off, since without it the app could not remember your language choice.'},
-      consentStatusOn: {ru:'Сейчас: включено', en:'Currently: on'},
-      consentStatusOff: {ru:'Сейчас: отключено', en:'Currently: off'},
-      consentStatusUndecided: {ru:'Выбор ещё не сделан', en:'No choice made yet'},
-      consentChangeLaterNote: {ru:'Вы можете изменить или отозвать согласие в любой момент — нажмите на значок конфиденциальности вверху экрана.', en:'You can change or withdraw your consent at any time — tap the privacy icon at the top of the screen.'},
-      consentOpenSettingsAria: {ru:'Настройки конфиденциальности и аналитики', en:'Privacy and analytics settings'},
-      consentUpdatedAt: {ru:'Обновлено', en:'Updated'},
+      consentBannerTitle: {ru:'Аналитика использования', en:'Usage analytics', ar:'تحليلات الاستخدام'},
+      consentBannerBody: {ru:'Мы хотим собирать анонимную статистику использования LASH STUDIO AI (например, что сканирование запущено или завершилось), чтобы улучшать приложение. Мы никогда не отправляем фото, кадры камеры, изображения глаз или радужки, ключевые точки лица и другие результаты сканирования — они остаются только на вашем устройстве. Отказ никак не ограничивает сканирование и результаты.', en:'We’d like to collect anonymous usage statistics for LASH STUDIO AI (e.g. that a scan was started or completed) to improve the app. We never send photos, camera frames, eye or iris images, facial landmarks, or any other scan results — those stay on your device only. Declining does not limit scanning or your results in any way.', ar:'نود جمع إحصاءات استخدام مجهولة المصدر لتطبيق LASH STUDIO AI (مثل بدء المسح أو اكتماله) لتحسين التطبيق. لا نرسل أبدًا الصور أو لقطات الكاميرا أو صور العين أو القزحية أو معالم الوجه أو أي نتائج مسح أخرى — تبقى هذه البيانات على جهازك فقط. الرفض لا يحد بأي شكل من المسح أو النتائج.'},
+      consentAccept: {ru:'Принять аналитику', en:'Accept analytics', ar:'قبول التحليلات'},
+      consentReject: {ru:'Отказаться', en:'Reject', ar:'رفض'},
+      consentCustomize: {ru:'Настроить', en:'Customize', ar:'تخصيص'},
+      consentSave: {ru:'Сохранить выбор', en:'Save choice', ar:'حفظ الاختيار'},
+      consentClose: {ru:'Закрыть', en:'Close', ar:'إغلاق'},
+      consentSettingsTitle: {ru:'Настройки данных и аналитики', en:'Data & analytics settings', ar:'إعدادات البيانات والتحليلات'},
+      consentAnalyticsLabel: {ru:'Продуктовая аналитика (необязательно)', en:'Product analytics (optional)', ar:'تحليلات المنتج (اختياري)'},
+      consentAnalyticsDesc: {ru:'Анонимные события использования приложения (например, запуск сканирования, просмотр результатов). Никогда не включает фото, кадры камеры, изображения глаз/радужки, ключевые точки лица или иные измерения со сканирования.', en:'Anonymous product-usage events (e.g. scan started, results viewed). Never includes photos, camera frames, eye/iris images, facial landmarks, or any other scan measurements.', ar:'أحداث استخدام مجهولة المصدر للتطبيق (مثل بدء المسح، عرض النتائج). لا تشمل أبدًا الصور أو لقطات الكاميرا أو صور العين/القزحية أو معالم الوجه أو أي قياسات مسح أخرى.'},
+      consentEssentialLabel: {ru:'Необходимое техническое хранение', en:'Necessary technical storage', ar:'التخزين التقني الضروري'},
+      consentEssentialDesc: {ru:'Язык интерфейса и режим разработчика хранятся локально на устройстве для работы приложения. Это не аналитика и не требует согласия — отключить нельзя, так как без этого приложение не сможет запомнить ваш выбор языка.', en:'Interface language and developer debug mode are stored locally on your device so the app functions. This is not analytics and does not require consent — it cannot be turned off, since without it the app could not remember your language choice.', ar:'تُخزَّن لغة الواجهة ووضع التصحيح على الجهاز محليًا لتشغيل التطبيق. هذا ليس تحليلات ولا يتطلب موافقة — لا يمكن إيقافه لأن التطبيق بدونه لن يستطيع تذكّر لغتك المختارة.'},
+      consentStatusOn: {ru:'Сейчас: включено', en:'Currently: on', ar:'الحالة الآن: مفعّل'},
+      consentStatusOff: {ru:'Сейчас: отключено', en:'Currently: off', ar:'الحالة الآن: معطّل'},
+      consentStatusUndecided: {ru:'Выбор ещё не сделан', en:'No choice made yet', ar:'لم يتم الاختيار بعد'},
+      consentChangeLaterNote: {ru:'Вы можете изменить или отозвать согласие в любой момент — нажмите на значок конфиденциальности вверху экрана.', en:'You can change or withdraw your consent at any time — tap the privacy icon at the top of the screen.', ar:'يمكنك تغيير موافقتك أو سحبها في أي وقت — اضغطي على أيقونة الخصوصية أعلى الشاشة.'},
+      consentOpenSettingsAria: {ru:'Настройки конфиденциальности и аналитики', en:'Privacy and analytics settings', ar:'إعدادات الخصوصية والتحليلات'},
+      consentUpdatedAt: {ru:'Обновлено', en:'Updated', ar:'آخر تحديث'},
 
       // ------------------------------------------------------------
       // CLIENT CARD — Phase 2: production Clients section. Copy only —
       // no technical property names, enums, or internal identifiers
       // (ClientVisit, dateOfBirth, desiredLook, etc.) ever appear here.
       // ------------------------------------------------------------
-      clientsNavLabel: {ru:'Клиенты', en:'Clients'},
-      clientsSearchPlaceholder: {ru:'Поиск по имени', en:'Search by name'},
-      clientsNewButton: {ru:'+ Новый клиент', en:'+ New client'},
-      clientsEmptyTitle: {ru:'Пока нет ни одной карточки', en:'No clients yet'},
-      clientsEmptyBody: {ru:'Добавьте первую карточку клиентки, чтобы начать вести историю визитов.', en:'Add your first client card to start keeping a visit history.'},
-      clientsNoResults: {ru:'Никого не найдено', en:'No matches found'},
-      clientLastVisitLabel: {ru:'Последний визит', en:'Last visit'},
-      clientTotalVisitsLabel: {ru:'Визитов', en:'Visits'},
-      clientNoVisitsYet: {ru:'Визитов ещё не было', en:'No visits yet'},
+      clientsNavLabel: {ru:'Клиенты', en:'Clients', ar:'العميلات'},
+      clientsSearchPlaceholder: {ru:'Поиск по имени', en:'Search by name', ar:'البحث بالاسم'},
+      clientsNewButton: {ru:'+ Новый клиент', en:'+ New client', ar:'+ عميلة جديدة'},
+      clientsEmptyTitle: {ru:'Пока нет ни одной карточки', en:'No clients yet', ar:'لا توجد بطاقات بعد'},
+      clientsEmptyBody: {ru:'Добавьте первую карточку клиентки, чтобы начать вести историю визитов.', en:'Add your first client card to start keeping a visit history.', ar:'أضيفي أول بطاقة عميلة لبدء تسجيل سجل الزيارات.'},
+      clientsNoResults: {ru:'Никого не найдено', en:'No matches found', ar:'لم يتم العثور على نتائج'},
+      clientLastVisitLabel: {ru:'Последний визит', en:'Last visit', ar:'آخر زيارة'},
+      clientTotalVisitsLabel: {ru:'Визитов', en:'Visits', ar:'عدد الزيارات'},
+      clientNoVisitsYet: {ru:'Визитов ещё не было', en:'No visits yet', ar:'لا توجد زيارات بعد'},
 
-      clientFormNewTitle: {ru:'Новая клиентка', en:'New client'},
-      clientFormEditTitle: {ru:'Редактировать клиентку', en:'Edit client'},
-      clientFieldFullName: {ru:'Имя и фамилия', en:'Full name'},
-      clientFieldDob: {ru:'Дата рождения', en:'Date of birth'},
-      clientFieldAgeComputed: {ru:'Возраст', en:'Age'},
-      clientFieldPhone: {ru:'Телефон / контакт', en:'Phone / contact'},
-      clientFieldDesiredLook: {ru:'Желаемый результат', en:'Desired look'},
-      clientFieldPreferredEffects: {ru:'Любимые эффекты', en:'Preferred effects'},
-      clientFieldPreferredEffectsHint: {ru:'Через запятую, например: Kim K, Wispy', en:'Comma-separated, e.g. Kim K, Wispy'},
-      clientFieldRequestNotes: {ru:'Пожелания клиентки', en:'Client requests'},
-      clientFieldArtistNotes: {ru:'Заметки мастера', en:'Artist notes'},
-      clientFormSave: {ru:'Сохранить', en:'Save'},
-      clientFormCancel: {ru:'Отмена', en:'Cancel'},
-      clientPhotoPlaceholderHint: {ru:'Фото клиентки появится в следующем обновлении', en:'Client photos are coming in a future update'},
-      clientFullNameRequiredError: {ru:'Введите имя клиентки', en:'Enter the client’s name'},
+      clientFormNewTitle: {ru:'Новая клиентка', en:'New client', ar:'عميلة جديدة'},
+      clientFormEditTitle: {ru:'Редактировать клиентку', en:'Edit client', ar:'تعديل بيانات العميلة'},
+      clientFieldFullName: {ru:'Имя и фамилия', en:'Full name', ar:'الاسم الكامل'},
+      clientFieldDob: {ru:'Дата рождения', en:'Date of birth', ar:'تاريخ الميلاد'},
+      clientFieldAgeComputed: {ru:'Возраст', en:'Age', ar:'العمر'},
+      clientFieldPhone: {ru:'Телефон / контакт', en:'Phone / contact', ar:'الهاتف / وسيلة التواصل'},
+      clientFieldDesiredLook: {ru:'Желаемый результат', en:'Desired look', ar:'المظهر المطلوب'},
+      clientFieldPreferredEffects: {ru:'Любимые эффекты', en:'Preferred effects', ar:'التأثيرات المفضلة'},
+      clientFieldPreferredEffectsHint: {ru:'Через запятую, например: Kim K, Wispy', en:'Comma-separated, e.g. Kim K, Wispy', ar:'مفصولة بفواصل، مثال: Kim K, Wispy'},
+      clientFieldRequestNotes: {ru:'Пожелания клиентки', en:'Client requests', ar:'طلبات العميلة'},
+      clientFieldArtistNotes: {ru:'Заметки мастера', en:'Artist notes', ar:'ملاحظات الأخصائية'},
+      clientFormSave: {ru:'Сохранить', en:'Save', ar:'حفظ'},
+      clientFormCancel: {ru:'Отмена', en:'Cancel', ar:'إلغاء'},
+      clientPhotoPlaceholderHint: {ru:'Фото клиентки появится в следующем обновлении', en:'Client photos are coming in a future update', ar:'ستتوفر صور العميلات في تحديث قادم'},
+      clientFullNameRequiredError: {ru:'Введите имя клиентки', en:'Enter the client’s name', ar:'أدخلي اسم العميلة'},
 
-      clientCardFirstVisit: {ru:'Первый визит', en:'First visit'},
-      clientCardLastVisit: {ru:'Последний визит', en:'Last visit'},
-      clientCardTotalVisits: {ru:'Всего визитов', en:'Total visits'},
-      clientCardPreferencesTitle: {ru:'Предпочтения', en:'Preferences'},
-      clientCardDesiredLook: {ru:'Желаемый результат', en:'Desired look'},
-      clientCardPreferredEffects: {ru:'Любимые эффекты', en:'Preferred effects'},
-      clientCardRequestNotes: {ru:'Пожелания клиентки', en:'Client requests'},
-      clientCardArtistNotesTitle: {ru:'Заметки мастера', en:'Artist notes'},
-      clientCardHistoryTitle: {ru:'История визитов', en:'Visit History'},
-      clientCardHistoryEmpty: {ru:'История визитов пока пуста', en:'No visits yet'},
-      clientCardNewVisit: {ru:'Новый визит', en:'New visit'},
-      clientCardNewVisitComingSoon: {ru:'Сохранение визита появится в следующем обновлении.', en:'Saving a visit will be available in a future update.'},
-      clientCardEdit: {ru:'Редактировать', en:'Edit'},
-      clientCardDelete: {ru:'Удалить клиентку', en:'Delete client'},
-      clientCardDeleteConfirmTitle: {ru:'Удалить карточку клиентки?', en:'Delete this client card?'},
-      clientCardDeleteConfirmBody: {ru:'Будут удалены карточка клиентки и вся история визитов. Это действие нельзя отменить.', en:'This will delete the client card and their entire visit history. This cannot be undone.'},
-      clientCardDeleteConfirmYes: {ru:'Удалить', en:'Delete'},
-      clientCardDeleteConfirmNo: {ru:'Отмена', en:'Cancel'},
-      clientCardNotFound: {ru:'Клиентка не найдена', en:'Client not found'},
+      clientCardFirstVisit: {ru:'Первый визит', en:'First visit', ar:'أول زيارة'},
+      clientCardLastVisit: {ru:'Последний визит', en:'Last visit', ar:'آخر زيارة'},
+      clientCardTotalVisits: {ru:'Всего визитов', en:'Total visits', ar:'إجمالي الزيارات'},
+      clientCardPreferencesTitle: {ru:'Предпочтения', en:'Preferences', ar:'التفضيلات'},
+      clientCardDesiredLook: {ru:'Желаемый результат', en:'Desired look', ar:'المظهر المطلوب'},
+      clientCardPreferredEffects: {ru:'Любимые эффекты', en:'Preferred effects', ar:'التأثيرات المفضلة'},
+      clientCardRequestNotes: {ru:'Пожелания клиентки', en:'Client requests', ar:'طلبات العميلة'},
+      clientCardArtistNotesTitle: {ru:'Заметки мастера', en:'Artist notes', ar:'ملاحظات الأخصائية'},
+      clientCardHistoryTitle: {ru:'История визитов', en:'Visit History', ar:'سجل الزيارات'},
+      clientCardHistoryEmpty: {ru:'История визитов пока пуста', en:'No visits yet', ar:'سجل الزيارات فارغ حتى الآن'},
+      clientCardNewVisit: {ru:'Новый визит', en:'New visit', ar:'زيارة جديدة'},
+      clientCardNewVisitComingSoon: {ru:'Сохранение визита появится в следующем обновлении.', en:'Saving a visit will be available in a future update.', ar:'سيتوفر حفظ الزيارات في تحديث قادم.'},
+      clientCardEdit: {ru:'Редактировать', en:'Edit', ar:'تعديل'},
+      clientCardDelete: {ru:'Удалить клиентку', en:'Delete client', ar:'حذف العميلة'},
+      clientCardDeleteConfirmTitle: {ru:'Удалить карточку клиентки?', en:'Delete this client card?', ar:'هل تريدين حذف بطاقة العميلة؟'},
+      clientCardDeleteConfirmBody: {ru:'Будут удалены карточка клиентки и вся история визитов. Это действие нельзя отменить.', en:'This will delete the client card and their entire visit history. This cannot be undone.', ar:'سيتم حذف بطاقة العميلة وكامل سجل زياراتها. لا يمكن التراجع عن هذا الإجراء.'},
+      clientCardDeleteConfirmYes: {ru:'Удалить', en:'Delete', ar:'حذف'},
+      clientCardDeleteConfirmNo: {ru:'Отмена', en:'Cancel', ar:'إلغاء'},
+      clientCardNotFound: {ru:'Клиентка не найдена', en:'Client not found', ar:'لم يتم العثور على العميلة'},
       // CLIENT-4: Visit History / Visit Detail. Reuses existing shape_*/
       // eyeSet_*/eyeSize_*/symmetry_*/tilt*/leftEye/rightEye/lashMapCurl/
       // lashMapLength/irisColorLabel/shapeLabel/spacingLabel/tiltLabel/
       // symmetryLabel/eyeSizeLabel keys wherever the same concept already
       // has a localized label — these are only the genuinely new strings.
-      visitDetailTitle: {ru:'Визит', en:'Visit'},
-      visitDetailDesignTitle: {ru:'Эффект', en:'Design'},
-      visitDetailPeakLabel: {ru:'Пик', en:'Peak'},
-      visitDetailCorrectionLabel: {ru:'Коррекция', en:'Correction'},
-      visitDetailAnalysisTitle: {ru:'Анализ', en:'Analysis'},
-      visitDetailNaturalLashLabel: {ru:'Натуральные ресницы', en:'Natural lashes'},
-      visitDetailNotAvailable: {ru:'Нет данных', en:'Not available'},
-      visitArtistNoteTitle: {ru:'Заметка мастера', en:'Artist note'},
+      visitDetailTitle: {ru:'Визит', en:'Visit', ar:'الزيارة'},
+      visitDetailDesignTitle: {ru:'Эффект', en:'Design', ar:'التصميم'},
+      visitDetailPeakLabel: {ru:'Пик', en:'Peak', ar:'القمة'},
+      visitDetailCorrectionLabel: {ru:'Коррекция', en:'Correction', ar:'التصحيح'},
+      visitDetailAnalysisTitle: {ru:'Анализ', en:'Analysis', ar:'التحليل'},
+      visitDetailNaturalLashLabel: {ru:'Натуральные ресницы', en:'Natural lashes', ar:'الرموش الطبيعية'},
+      visitDetailNotAvailable: {ru:'Нет данных', en:'Not available', ar:'لا توجد بيانات'},
+      visitArtistNoteTitle: {ru:'Заметка мастера', en:'Artist note', ar:'ملاحظة الأخصائية'},
 
       // LASH MAP LIBRARY — production UI. Reuses leftEye/rightEye/
       // lashMapCurl/lashMapLength/visitDetailPeakLabel wherever the same
       // concept already has a localized label; these are only the
       // genuinely new strings.
-      lashMapLibraryNavLabel: {ru:'Библиотека Lash Map', en:'Lash Map Library'},
-      lashMapLibraryUnderReview: {ru:'На проверке', en:'Under review'},
-      lashMapLibraryBaseLabel: {ru:'База', en:'Base'},
-      lashMapLibraryRaysLabel: {ru:'Лучи', en:'Rays'},
-      lashMapLibraryTechniqueTitle: {ru:'Как выполнить', en:'How to execute'},
-      lashMapLibraryMapTitle: {ru:'Карта Lash Map', en:'Lash Map'},
-      lashMapLibraryNotFound: {ru:'Эффект не найден', en:'Effect not found'},
+      lashMapLibraryNavLabel: {ru:'Библиотека Lash Map', en:'Lash Map Library', ar:'مكتبة Lash Map'},
+      lashMapLibraryUnderReview: {ru:'На проверке', en:'Under review', ar:'قيد المراجعة'},
+      lashMapLibraryBaseLabel: {ru:'База', en:'Base', ar:'الأساس'},
+      lashMapLibraryRaysLabel: {ru:'Лучи', en:'Rays', ar:'الأشعة'},
+      lashMapLibraryTechniqueTitle: {ru:'Как выполнить', en:'How to execute', ar:'طريقة التنفيذ'},
+      lashMapLibraryMapTitle: {ru:'Карта Lash Map', en:'Lash Map', ar:'خريطة Lash Map'},
+      lashMapLibraryNotFound: {ru:'Эффект не найден', en:'Effect not found', ar:'التأثير غير موجود'},
+      lashMapLibraryCountTemplate: {ru:'{count} профессиональных карт', en:'{count} professional maps', ar:'{count} خريطة احترافية'},
+      lashMapLibraryNoteElongating: {ru:'Длина постепенно нарастает от внутреннего уголка к внешней зоне, создавая эффект удлинения.', en:'Length builds progressively from the inner corner toward the outer zone for an elongated silhouette.', ar:'يزداد الطول تدريجيًا من الزاوية الداخلية إلى المنطقة الخارجية لإنشاء صورة ممدودة.'},
+      lashMapLibraryNoteInnerFocus: {ru:'Длина сосредоточена у внутреннего уголка и снижается к внешнему краю — это корректирует привычный акцент на внешний уголок.', en:'Length is concentrated toward the inner corner and eases outward, correcting the outer emphasis of a standard map.', ar:'يتركز الطول عند الزاوية الداخلية ويتراجع تدريجيًا نحو الخارج، لتصحيح التركيز المعتاد على الزاوية الخارجية.'},
+      lashMapLibraryNoteSpikeLayer: {ru:'Поверх базовой карты выполняется отдельный слой лучей — сначала выставляется база, затем в отмеченных зонах добавляются более длинные акцентные лучи.', en:'A distinct spike/ray layer sits on top of the base map — set the base lengths first, then add the longer accent rays at their marked zones.', ar:'توجد طبقة منفصلة من اللمسات البارزة فوق الخريطة الأساسية — حددي الأطوال الأساسية أولاً، ثم أضيفي اللمسات الأطول في المناطق المحددة.'},
+      lashMapLibraryNoteCurlVaries: {ru:'Изгиб меняется по зонам — сверяйте изгиб каждой зоны с картой, а не используйте один изгиб на весь глаз.', en:'Curl changes from zone to zone — confirm each zone\'s curl against the map instead of using one curl across the whole eye.', ar:'يتغيّر الانحناء من منطقة إلى أخرى — تحققي من انحناء كل منطقة وفق الخريطة بدلاً من استخدام انحناء واحد للعين بأكملها.'},
+      lashMapLibraryNoteTaper: {ru:'После пика длина мягко снижается к внешнему уголку для более деликатного завершения.', en:'Length tapers back down after the peak toward the outer corner for a softer finish.', ar:'يتراجع الطول تدريجيًا بعد القمة باتجاه الزاوية الخارجية للحصول على إنهاء أكثر نعومة.'},
+      lashMapLibraryNotePeakTemplate: {ru:'Пик длины расположен в зоне «{peakName}» — именно здесь сосредоточен визуальный акцент схемы.', en:'Peak length sits at the {peakName} zone — this is where the design\'s visual emphasis is concentrated.', ar:'يقع أقصى طول في منطقة {peakName} — وهنا يتركز التأثير البصري الرئيسي للتصميم.'},
 
-      clientConsentPromptTitle: {ru:'Хранение данных клиентки', en:'Storing client data'},
-      clientConsentPromptBody: {ru:'Имя, дата рождения, контакты и заметки клиентки будут сохранены локально на этом устройстве — они никуда не отправляются. Вы, как мастер, отвечаете за согласие клиентки на хранение её данных.', en:'The client’s name, date of birth, contact details, and notes will be stored locally on this device only — nothing is sent anywhere. As the artist, you are responsible for your client’s consent to store their data.'},
-      clientConsentPromptAccept: {ru:'Сохранять данные на этом устройстве', en:'Store data on this device'},
-      clientConsentPromptDecline: {ru:'Не сейчас', en:'Not now'},
+      clientConsentPromptTitle: {ru:'Хранение данных клиентки', en:'Storing client data', ar:'تخزين بيانات العميلة'},
+      clientConsentPromptBody: {ru:'Имя, дата рождения, контакты и заметки клиентки будут сохранены локально на этом устройстве — они никуда не отправляются. Вы, как мастер, отвечаете за согласие клиентки на хранение её данных.', en:'The client’s name, date of birth, contact details, and notes will be stored locally on this device only — nothing is sent anywhere. As the artist, you are responsible for your client’s consent to store their data.', ar:'سيتم حفظ اسم العميلة وتاريخ ميلادها وبيانات التواصل والملاحظات محليًا على هذا الجهاز فقط — لن تُرسل إلى أي مكان. بصفتك الأخصائية، أنتِ مسؤولة عن الحصول على موافقة العميلة على تخزين بياناتها.'},
+      clientConsentPromptAccept: {ru:'Сохранять данные на этом устройстве', en:'Store data on this device', ar:'حفظ البيانات على هذا الجهاز'},
+      clientConsentPromptDecline: {ru:'Не сейчас', en:'Not now', ar:'ليس الآن'},
 
       // CLIENT-3: Save to Client wiring. Copy only, same no-raw-
       // identifier rule as the rest of this client-facing block.
-      saveToClientButton: {ru:'Сохранить клиентке', en:'Save to client'},
-      chooseClientTitle: {ru:'Выберите клиентку', en:'Choose a client'},
-      visitSavedToast: {ru:'Визит сохранён', en:'Visit saved'},
-      visitSavedTemporaryToast: {ru:'Визит сохранён временно — может не сохраниться после перезапуска', en:'Visit saved temporarily — may not survive a restart'},
-      visitSaveErrorToast: {ru:'Не удалось сохранить визит. Попробуйте ещё раз.', en:'Could not save the visit. Please try again.'},
+      saveToClientButton: {ru:'Сохранить клиентке', en:'Save to client', ar:'حفظ لدى العميلة'},
+      chooseClientTitle: {ru:'Выберите клиентку', en:'Choose a client', ar:'اختاري عميلة'},
+      visitSavedToast: {ru:'Визит сохранён', en:'Visit saved', ar:'تم حفظ الزيارة'},
+      visitSavedTemporaryToast: {ru:'Визит сохранён временно — может не сохраниться после перезапуска', en:'Visit saved temporarily — may not survive a restart', ar:'تم حفظ الزيارة مؤقتًا — قد لا تبقى محفوظة بعد إعادة التشغيل'},
+      visitSaveErrorToast: {ru:'Не удалось сохранить визит. Попробуйте ещё раз.', en:'Could not save the visit. Please try again.', ar:'تعذّر حفظ الزيارة. حاولي مرة أخرى.'},
+      // PHASE 1 (Arabic localization) — additions below migrate specific
+      // scattered lang==='en'?X:Y / (const en=...; en?X:Y) binary
+      // ternaries onto this centralized STRINGS/t() architecture (see
+      // each call site's own migration comment). ru/en values are
+      // byte-identical to what the ternary previously returned.
+      lashDensityHigh: {ru:'Высокая', en:'High', ar:'عالية'},
+      lashDensityMedium: {ru:'Средняя', en:'Medium', ar:'متوسطة'},
+      lashDensityLow: {ru:'Низкая', en:'Low', ar:'منخفضة'},
+      lashDirectionUpward: {ru:'Вверх', en:'Upward', ar:'نحو الأعلى'},
+      lashDirectionSlightlyDownward: {ru:'Слегка вниз', en:'Slightly downward', ar:'مائل قليلاً نحو الأسفل'},
+      lashDirectionStraightUpward: {ru:'Прямо / вверх', en:'Straight / upward', ar:'مستقيم / نحو الأعلى'},
+      lashNotEnoughData: {ru:'Недостаточно данных', en:'Not enough data', ar:'بيانات غير كافية'},
+      lashLengthLong: {ru:'Длинные', en:'Long', ar:'طويلة'},
+      lashLengthMedium: {ru:'Средние', en:'Medium', ar:'متوسطة'},
+      lashLengthShort: {ru:'Короткие', en:'Short', ar:'قصيرة'},
+      lashLengthMixed: {ru:'Смешанные', en:'Mixed', ar:'مختلطة'},
+      lashDistributionEven: {ru:'В целом равномерная по линии роста', en:'Mostly even along the lash line', ar:'منتظمة إلى حد كبير على طول خط الرموش'},
+      lashZoneInnerThird: {ru:'внутренней трети', en:'inner third', ar:'الثلث الداخلي'},
+      lashZoneCentralZone: {ru:'центральной зоне', en:'central zone', ar:'المنطقة الوسطى'},
+      lashZoneOuterThird: {ru:'внешней трети', en:'outer third', ar:'الثلث الخارجي'},
+      lashZonesConjunction: {ru:' и ', en:' and ', ar:' و '},
+      lashDistributionUnevenTemplate: {ru:'Небольшая неоднородность в {zones}', en:'Slightly less even in the {zones}', ar:'توزيع أقل انتظامًا قليلاً في {zones}'},
+      suitabilityStrongFit: {ru:'Хорошо подходит', en:'Strong fit', ar:'ملاءمة قوية'},
+      suitabilityWorthConsidering: {ru:'Можно рассмотреть', en:'Worth considering', ar:'يستحق النظر'},
+      suitabilitySituational: {ru:'Ситуативно', en:'Situational', ar:'حسب الحالة'},
+      lrNoteDiffers: {ru:'Пиковая длина слегка скорректирована между левым/правым ({maxLeft}мм / {maxRight}мм) для компенсации измеренной разницы.', en:'Peak length is adjusted slightly between left/right ({maxLeft}mm / {maxRight}mm) to compensate for the measured difference.', ar:'يُعدَّل طول القمة قليلاً بين اليسار/اليمين ({maxLeft}مم / {maxRight}مم) للتعويض عن الفرق المقاس.'},
+      lrNoteNoneNeeded: {ru:'Коррекция L/R не требуется — обе стороны используют одинаковые длины зон.', en:'No L/R correction needed — both sides use the same zone lengths.', ar:'لا حاجة لتصحيح L/R — يستخدم الجانبان نفس أطوال المناطق.'},
+      correctionAxisWidth: {ru:'ширине глаза', en:'eye width', ar:'عرض العين'},
+      correctionAxisHeight: {ru:'высоте раскрытия глаза', en:'eye opening height', ar:'ارتفاع فتحة العين'},
+      correctionAxisHooding: {ru:'покрытию века', en:'eyelid coverage', ar:'تغطية الجفن'},
+      lashCorrectionOpportunityTemplate: {ru:'Наиболее заметное различие между левым и правым глазом — по {axisText}. Небольшая корректировка положения пика или длины может визуально сбалансировать это — мягкая, необязательная настройка, а не требование.', en:'The most noticeable difference between your left and right eye is in {axisText}. A slightly adjusted peak position or length can visually balance this — a soft, optional refinement, not a requirement.', ar:'أبرز فرق بين عينك اليسرى واليمنى يكمن في {axisText}. يمكن لتعديل بسيط في موضع القمة أو الطول موازنة ذلك بصريًا — تحسين ناعم واختياري، وليس ضرورة.'},
+      // PHASE 1 (Arabic localization) continued -- generateLashApplicationNotes migration.
+      lashSideLeftCap: {ru:'Левый', en:'Left', ar:'اليسرى'},
+      lashSideRightCap: {ru:'Правый', en:'Right', ar:'اليمنى'},
+      lashObsInsufficientTemplate: {ru:'{side} глаз: качество скана было недостаточным для надёжной оценки.', en:'{side} eye: scan quality was insufficient for a reliable read.', ar:'العين {side}: جودة المسح لم تكن كافية لقراءة موثوقة.'},
+      lashSideEyeLeft: {ru:'Левый глаз', en:'Left eye', ar:'العين اليسرى'},
+      lashSideEyeRight: {ru:'Правый глаз', en:'Right eye', ar:'العين اليمنى'},
+      lashDensityWord: {ru:'густота', en:'density', ar:'الكثافة'},
+      lashDistributionWord: {ru:'распределение', en:'distribution', ar:'التوزيع'},
+      lashZoneInnerLower: {ru:'внутренней', en:'inner', ar:'الداخلية'},
+      lashZoneCentralLower: {ru:'центральной', en:'central', ar:'المركزية'},
+      lashZoneOuterLower: {ru:'внешней', en:'outer', ar:'الخارجية'},
+      lashSideLeftLower: {ru:'левого', en:'left', ar:'اليسرى'},
+      lashSideRightLower: {ru:'правого', en:'right', ar:'اليمنى'},
+      lashMapAsymSideLeft: {ru:'левого', en:'Left', ar:'اليسرى'},
+      lashMapAsymSideRight: {ru:'правого', en:'Right', ar:'اليمنى'},
+      lashMapAsymBannerTemplate: {ru:'Карта {side} глаза скорректирована на {mm} мм по измеренной многофакторной асимметрии.', en:'{side} eye map was adjusted by {mm} mm from the measured multi-axis asymmetry.', ar:'تم تعديل خريطة العين {side} بمقدار {mm} مم وفق عدم التماثل متعدد المحاور المُقاس.'},
+      lashComparisonNoteTemplate: {ru:'В {zoneName} зоне визуальная густота {side} глаза немного ниже. Мастер может учесть эту разницу при построении схемы.', en:'Visual density in the {zoneName} zone is a little lower on the {side} eye. The artist can factor this difference in when building the map.', ar:'الكثافة البصرية في المنطقة {zoneName} أقل قليلاً في العين {side}. يمكن للأخصائية مراعاة هذا الفرق عند بناء الخريطة.'},
+      lashDensityReviewTemplate: {ru:'AI предлагает проверить плотность размещения ресниц в отмеченных зонах {side} глаза перед финализацией схемы.', en:'AI suggests reviewing lash placement density in the noted zone(s) of the {side} eye before finalizing the map.', ar:'يقترح الذكاء الاصطناعي مراجعة كثافة توزيع الرموش في المنطقة/المناطق المحددة للعين {side} قبل إنهاء الخريطة.'},
+      lashDirectionDownwardTemplate: {ru:'Направление натуральных ресниц {side} глаза местами визуально направлено вниз — выбор итогового изгиба рекомендуется подтвердить очно.', en:'Natural lash direction looks slightly downward in part of the {side} eye — it\'s recommended to confirm the final curl choice in person.', ar:'يبدو اتجاه نمو الرموش الطبيعية مائلاً قليلاً نحو الأسفل في جزء من العين {side} — يُنصح بتأكيد اختيار الانحناء النهائي حضوريًا.'},
+      // PHASE 1 (Arabic localization) continued -- designNarrative migration.
+      narrativeSquirrel: {ru:'Длина постепенно увеличивается до пика во внешней трети, а затем немного уменьшается к внешнему углу — мягкий лифтинг без утяжеления уголка.', en:'Length builds gradually toward the peak in the outer third, then eases back slightly toward the outer corner — a soft lift without weighing the corner down.', ar:'يزداد الطول تدريجيًا حتى القمة في الثلث الخارجي، ثم يتراجع قليلاً نحو الزاوية الخارجية — رفع ناعم دون إثقال الزاوية.'},
+      narrativeCat: {ru:'Длина постепенно вытягивается к внешнему сектору, создавая классический эффект вытянутого взгляда.', en:'Length elongates progressively toward the outer sector for a classic elongated look.', ar:'يتزايد الطول تدريجيًا نحو القطاع الخارجي لإعطاء مظهر ممدود كلاسيكي.'},
+      narrativeDoll: {ru:'Максимальная длина расположена ближе к центральной области, визуально открывая взгляд.', en:'Maximum length sits closer to the central zone, visually opening the eye.', ar:'يقع أقصى طول أقرب إلى المنطقة المركزية، مما يفتح العين بصريًا.'},
+      narrativeFox: {ru:'Выраженное горизонтальное вытяжение к виску. При недостаточно подходящем наклоне уголков эффект может выглядеть неестественно — сверьтесь с профилем глаз перед стартом.', en:'Pronounced horizontal elongation toward the temple. With a tilt that doesn’t support this direction, the effect can look unnatural — double-check against the eye profile first.', ar:'امتداد أفقي واضح نحو الصدغ. مع ميل لا يدعم هذا الاتجاه، قد يبدو التأثير غير طبيعي — راجعي ملف تحليل العين أولاً.'},
+      narrativeReverse: {ru:'Геометрия противоположна классическому cat-eye: пик смещён к внутренне-центральной зоне, балансируя уже выраженный внешний подъём.', en:'Geometry is the mirror of a classic cat-eye: the peak sits toward the inner-central zone to balance an already prominent outer lift.', ar:'الهندسة معكوسة مقارنة بتأثير القطة الكلاسيكي: تقع القمة نحو المنطقة الداخلية-المركزية لموازنة الرفع الخارجي الواضح أصلًا.'},
+      narrativeTextured: {ru:'Схема состоит из двух слоёв — базовой карты длин (BASE) и слоя лучей (SPIKE) поверх неё (см. раздел «Работа с лучиками» ниже).', en:'The map is built from two layers — a base length map, and a spike/ray layer on top of it (see the Spike/Ray Plan below).', ar:'تتكوّن الخريطة من طبقتين — خريطة الأطوال الأساسية (BASE)، وطبقة اللمسات البارزة (SPIKE) فوقها (انظري خطة SPIKE / RAY أدناه).'},
+      narrativeCategoryNatural: {ru:'Длина мягко нарастает к умеренному центральному пику, оставаясь близко к естественной геометрии глаза.', en:'Length increases gently toward a moderate central peak, staying close to the eye’s natural geometry.', ar:'يزداد الطول بلطف نحو قمة مركزية معتدلة، مع البقاء قريبًا من الهندسة الطبيعية للعين.'},
+      narrativeCategoryOpening: {ru:'Длина нарастает к пику ближе к центру, визуально открывая взгляд.', en:'Length builds toward a peak near the center, opening the eye visually.', ar:'يزداد الطول نحو قمة قريبة من المركز، مما يفتح العين بصريًا.'},
+      narrativeCategoryLifting: {ru:'Длина нарастает к пику во внешней трети для мягкого лифтинг-эффекта.', en:'Length builds toward the peak in the outer third for a gentle lift.', ar:'يزداد الطول نحو القمة في الثلث الخارجي لإحداث تأثير رفع ناعم.'},
+      narrativeCategoryElongating: {ru:'Длина последовательно нарастает к внешней трети для максимального вытяжения к виску.', en:'Length builds steadily toward the outer third for maximum elongation toward the temple.', ar:'يزداد الطول باطراد نحو الثلث الخارجي لأقصى امتداد نحو الصدغ.'},
+      narrativeCategoryWet: {ru:'Плотность остаётся намеренно разреженной — эффект строится на глянце и текстуре, а не на контрасте длины.', en:'Density stays deliberately sparse — the effect relies on gloss and texture, not on length contrast.', ar:'تبقى الكثافة خفيفة عمدًا — يعتمد التأثير على اللمعان والملمس، وليس على تباين الطول.'},
+      narrativeCategoryCreative: {ru:'Контраст длины подчёркнуто выражен для смелого графичного образа.', en:'Length contrast is deliberately pronounced for a bold, graphic look.', ar:'يكون تباين الطول واضحًا بشكل متعمد لإطلالة جريئة وجرافيكية.'},
+      narrativeCategoryCorrection: {ru:'Длины зон скорректированы индивидуально для баланса левого и правого глаза.', en:'Zone lengths are adjusted individually to balance the left and right eye.', ar:'يتم ضبط أطوال المناطق بشكل فردي لموازنة العين اليسرى واليمنى.'},
+      // PHASE 1 (Arabic localization) continued -- generateLegacyApplicationPlan migration.
+      planPrepConfirmEffect: {ru:'Подтвердите с клиентом выбранный эффект и желаемую интенсивность.', en:'Confirm the selected effect and desired intensity with the client.', ar:'أكدي مع العميلة التأثير المختار والشدة المطلوبة.'},
+      planPrepAssessLashes: {ru:'Оцените состояние натуральных ресниц перед процедурой.', en:'Assess the condition of the natural lashes before starting.', ar:'قيّمي حالة الرموش الطبيعية قبل بدء الإجراء.'},
+      planPrepCleanse: {ru:'Очистите ресницы и межресничную зону от косметики и загрязнений.', en:'Cleanse the lashes and lash line of makeup and residue.', ar:'نظّفي الرموش وخط الرموش من المكياج والشوائب.'},
+      planPrepIsolate: {ru:'Подготовьте рабочую зону и изолируйте нижние ресницы.', en:'Prepare the work area and isolate the lower lashes.', ar:'جهّزي منطقة العمل واعزلي الرموش السفلية.'},
+      planPrepPatches: {ru:'Проверьте положение патчей.', en:'Check patch placement.', ar:'تحققي من وضع اللصقات.'},
+      planPrepMarkZonesTemplate: {ru:'Выполните разметку зон: {zones}.', en:'Mark the zones: {zones}.', ar:'حددي المناطق: {zones}.'},
+      planPrepConfirmMaxLengthTemplate: {ru:'Сверьте максимальную длину ({maxLen} mm) и изгиб ({curl}) с выбранной схемой.', en:'Confirm max length ({maxLen} mm) and curl ({curl}) against the selected map.', ar:'تأكدي من الطول الأقصى ({maxLen} مم) والانحناء ({curl}) مقارنةً بالخريطة المختارة.'},
+      planPrepPrepareTrays: {ru:'Подготовьте необходимые палетки длин и изгибов.', en:'Prepare the required length and curl trays.', ar:'جهّزي لوحات الأطوال والانحناءات اللازمة.'},
+      planPrepAsymmetryDetected: {ru:'Обнаружена асимметрия — перед началом отдельно разметьте peak для левого и правого глаза.', en:'Asymmetry detected — mark the peak separately for the left and right eye before starting.', ar:'تم رصد عدم تماثل — قبل البدء، حددي القمة لكل عين على حدة (يسرى ويمنى).'},
+      planPrepSpikePositions: {ru:'До начала работы отметьте позиции основных лучей/spikes.', en:'Before starting, mark the positions of the main spikes/rays.', ar:'قبل البدء، حددي مواضع اللمسات البارزة الرئيسية.'},
+      planPrepAiDisclaimer: {ru:'AI-анализ не заменяет визуальный осмотр состояния ресниц и кожи века мастером — при признаках раздражения или повреждения проконсультируйтесь со специалистом перед процедурой.', en:'AI analysis does not replace the artist’s own visual inspection of lash and lid condition — if you notice irritation or damage, refer the client to a specialist before proceeding.', ar:'لا يغني تحليل الذكاء الاصطناعي عن الفحص البصري للأخصائية لحالة الرموش والجفن — عند ملاحظة تهيج أو تلف، أحيلي العميلة إلى مختص قبل المتابعة.'},
+      planStepMappingTemplate: {ru:'Разделите lash line по пяти контрольным зонам ({zoneList}) и отображаемой плавной последовательности: {sequence}.', en:'Divide the lash line using the five control zones ({zoneList}) and the displayed smooth sequence: {sequence}.', ar:'قسّمي خط الرموش وفق المناطق الخمس ({zoneList}) والتسلسل السلس المعروض: {sequence}.'},
+      planStepInnerTemplate: {ru:'Внутренний угол: {innerLen}mm, изгиб {curl}. Начинайте переход плавно{closeSetNote}.', en:'Inner corner: {innerLen}mm, curl {curl}. Start the transition gently{closeSetNote}.', ar:'الزاوية الداخلية: {innerLen}مم، انحناء {curl}. ابدئي الانتقال بلطف{closeSetNote}.'},
+      planStepInnerCloseSetNote: {ru:' — глаза близко посажены, не добавляйте здесь длину', en:' — eyes are close-set, avoid adding extra length here', ar:' — العينان متقاربتان، تجنبي إضافة طول هنا'},
+      planStepPeakTemplate: {ru:'Пиковая зона: {zoneName}, {peakLen}mm. Здесь сосредоточена коррекционная задача дизайна — не переносите пик дальше отмеченной позиции.{limitationNote}', en:'Peak zone: {zoneName}, {peakLen}mm. This is where the design\'s correction goal is concentrated — avoid shifting it further out or in than the mapped position.{limitationNote}', ar:'منطقة القمة: {zoneName}، {peakLen}مم. هنا يتركز الهدف التصحيحي للتصميم — لا تُحرّكي القمة أبعد من الموضع المحدد على الخريطة.{limitationNote}'},
+      planStepPeakLimitationTemplate: {ru:' Примечание: {limitation}', en:' Note: {limitation}', ar:' ملاحظة: {limitation}'},
+      planStepOuterTemplate: {ru:'Внешний сектор: {outerLen}mm{dropNote}. Этот сектор выполняет коррекционную задачу дизайна: {correctionGoal}', en:'Outer sector: {outerLen}mm{dropNote}. This sector carries the design\'s correction goal: {correctionGoal}', ar:'القطاع الخارجي: {outerLen}مم{dropNote}. يؤدي هذا القطاع الهدف التصحيحي للتصميم: {correctionGoal}'},
+      planStepOuterDropTemplate: {ru:', снижение на {drop}mm после пика', en:', a {drop}mm drop after the peak', ar:'، انخفاض بمقدار {drop}مم بعد القمة'},
+      planStepFinalTemplate: {ru:'Проверьте плавность переходов, направление ресниц и соответствие результата correction goal.{asymNote}', en:'Check the smoothness of transitions, verify direction, and confirm the result matches the correction goal.{asymNote}', ar:'تحققي من انسيابية الانتقالات، اتجاه النمو، ومطابقة النتيجة للهدف التصحيحي.{asymNote}'},
+      planStepFinalAsymNote: {ru:' Обнаружена асимметрия — сравните позицию пика левого и правого глаза напрямую, не полагаясь на зеркальность.', en:' Asymmetry was detected — compare the left and right peak position directly rather than assuming a mirrored result.', ar:' تم رصد عدم تماثل — قارني موضع القمة بين العين اليسرى واليمنى مباشرة، دون افتراض تطابق مرآوي.'},
+      planStepFinalCompareNote: {ru:' Сравните левый и правый глаз на предмет единообразия.', en:' Compare left and right for consistency.', ar:' قارني العين اليسرى واليمنى للتأكد من التناسق.'},
+      planSpikeMainZoneTemplate: {ru:'Основной луч рекомендуется располагать в зоне {zone}, совпадая с пиком карты.', en:'Recommended to place the main spike in the {zone} zone, aligned with the map\'s peak.', ar:'يُنصح بوضع اللمسة البارزة الرئيسية في منطقة {zone}، بما يتوافق مع قمة الخريطة.'},
+      planSpikeRhythm: {ru:'Сохраняйте единый ритм чередования базовых и акцентных ресниц по всей линии.', en:'Keep a consistent rhythm alternating base and accent lashes across the line.', ar:'حافظي على إيقاع ثابت لتناوب الرموش الأساسية واللمسات البارزة على طول الخط.'},
+      planSpikeKimContrast: {ru:'Проверьте контраст между базой и лучами перед заполнением — он должен оставаться заметным.', en:'Check the base-to-spike contrast before filling in — it should stay clearly visible.', ar:'تحققي من التباين بين القاعدة واللمسات البارزة قبل الإكمال — يجب أن يبقى واضحًا.'},
+      planSpikeMangaDirection: {ru:'Направление лучей — ключевой элемент образа; сверьте его перед заполнением базы.', en:'Spike direction is a key part of this look — confirm it before filling in the base.', ar:'اتجاه اللمسات البارزة عنصر أساسي في هذه الإطلالة؛ تأكدي منه قبل إكمال القاعدة.'},
+      planSpikeUniformIrregular: {ru:'Лучи могут располагаться не строго регулярно — это часть эффекта.', en:'Spikes don’t need to be perfectly regular — that irregularity is part of the effect.', ar:'لا يلزم أن تكون اللمسات البارزة منتظمة تمامًا — فهذا التفاوت جزء من التأثير.'},
+      planNoteCloseSet: {ru:'Рекомендуется не перегружать внутренний угол.', en:'Recommended: avoid overloading the inner corner.', ar:'يُنصح بعدم إثقال الزاوية الداخلية.'},
+      planNoteWideSet: {ru:'AI предлагает распределить длину равномерно по всей линии роста.', en:'AI suggests distributing length evenly across the lash line.', ar:'يقترح الذكاء الاصطناعي توزيع الطول بالتساوي على طول خط الرموش.'},
+      planNoteDownturned: {ru:'При опущенных уголках рекомендуется не делать максимальную длину в крайнем наружном секторе.', en:'With downturned corners, it’s recommended to avoid maximum length in the extreme outer sector.', ar:'مع الزوايا المنخفضة، يُنصح بتجنب أقصى طول في القطاع الخارجي المتطرف.'},
+      planNoteSpikeCheck: {ru:'Для данной карты предусмотрена проверка направления лучей перед заполнением базы.', en:'For this map, checking spike direction before filling in the base is recommended.', ar:'لهذه الخريطة، يُنصح بالتحقق من اتجاه اللمسات البارزة قبل إكمال القاعدة.'},
+      planNoteAsymCorrection: {ru:'При выраженной асимметрии не рекомендуется делать одинаковую коррекцию для левого и правого глаза.', en:'With pronounced asymmetry, applying identical correction to LEFT and RIGHT is not recommended.', ar:'مع عدم التماثل الواضح، لا يُنصح بتطبيق نفس التصحيح على العينين اليسرى واليمنى.'},
+      planNoteInnerLight: {ru:'Рекомендуется сохранять лёгкость во внутреннем уголке.', en:'Recommended: keep the inner corner light.', ar:'يُنصح بالحفاظ على خفة الزاوية الداخلية.'},
+      planNoteFinalDecision: {ru:'Финальное профессиональное решение остаётся за мастером.', en:'The final professional decision remains with the artist.', ar:'يبقى القرار المهني النهائي بيد الأخصائية.'},
+      // PHASE 1 (Arabic localization) continued -- generateEyeHighlight migration.
+      eyeHighlightAsymAlmond: {ru:'У ваших глаз гармоничная миндалевидная форма с небольшой индивидуальной асимметрией левого и правого глаза — мастер может использовать эту особенность при персонализации схемы.', en:'Your eyes have a naturally harmonious almond shape, with some individual left/right asymmetry — the artist can use it to personalize the design.', ar:'تتميز عيناك بشكل لوزي متناسق بطبيعته، مع قدر بسيط من عدم التماثل الفردي بين اليسرى واليمنى — يمكن للأخصائية الاستفادة من هذه الخاصية لتخصيص التصميم.'},
+      eyeHighlightAsymRound: {ru:'У округлых, открытых глаз есть небольшая природная индивидуальность левого и правого глаза — мастер может использовать её для тонкой балансировки схемы.', en:'Your round, open eyes carry a touch of natural left/right individuality — the artist can use it to fine-tune the balance of the design.', ar:'تحمل عيناك المستديرتان والواسعتان لمسة طبيعية من التفرد بين اليسرى واليمنى — يمكن للأخصائية الاستفادة منها لضبط توازن التصميم بدقة.'},
+      eyeHighlightAsymElongatedAlmond: {ru:'У вытянуто-миндалевидных глаз есть небольшая природная индивидуальность левого и правого глаза — мастер может использовать её для точной настройки положения пика с каждой стороны.', en:'Your elongated almond eyes show a bit of natural left/right individuality — the artist can use it to fine-tune peak position on each side.', ar:'تُظهر عيناك اللوزيتان الممتدتان قدرًا من التفرد الطبيعي بين اليسرى واليمنى — يمكن للأخصائية الاستفادة منه لضبط موضع القمة بدقة لكل جانب.'},
+      eyeHighlightAsymNarrow: {ru:'У глаз деликатное, узкое раскрытие с небольшой природной индивидуальностью левого и правого — мастер может учесть это в сбалансированной схеме.', en:'Your eyes have a delicate, narrow opening with some natural left/right individuality — the artist can factor that into a balanced design.', ar:'تتميز عيناك بفتحة رقيقة وضيقة مع قدر من التفرد الطبيعي بين اليسرى واليمنى — يمكن للأخصائية مراعاة ذلك في تصميم متوازن.'},
+      eyeHighlightAsymFallback: {ru:'У глаз есть естественная индивидуальная асимметрия — мастер может использовать её при персонализации схемы.', en:'There’s a natural, individual asymmetry between your eyes — the artist can use it to personalize the lash design.', ar:'هناك عدم تماثل طبيعي وفردي بين عينيك — يمكن للأخصائية الاستفادة منه لتخصيص تصميم الرموش.'},
+      eyeHighlightAlmondUpturned: {ru:'Миндалевидная форма глаз сочетается с естественным подъёмом внешнего уголка — эту выразительную особенность легко красиво подчеркнуть направлением схемы.', en:'Your almond eye shape pairs with a natural upward lift at the outer corner — an expressive combination the lash design can beautifully echo.', ar:'يقترن شكل عينيك اللوزي برفع طبيعي في الزاوية الخارجية — مزيج معبّر يمكن لتصميم الرموش إبرازه بجمال.'},
+      eyeHighlightAlmondNeutral: {ru:'У ваших глаз очень гармоничная миндалевидная форма. Она хорошо поддерживает как натуральные, так и более выразительные схемы наращивания.', en:'Your eyes have a very harmonious almond shape — it supports both natural and more expressive lash designs equally well.', ar:'تتميز عيناك بشكل لوزي متناسق جدًا — وهو يناسب التصاميم الطبيعية والتصاميم الأكثر تعبيرًا على حدٍّ سواء.'},
+      eyeHighlightAlmondDownturned: {ru:'Миндалевидные глаза с мягким, спокойным внешним уголком — схема с акцентом на подъём во внешней трети добавит элегантный штрих.', en:'Your almond eyes have a soft, gentle outer corner — a design with a lift toward the outer third can add an elegant accent.', ar:'تتميز عيناك اللوزيتان بزاوية خارجية ناعمة وهادئة — يمكن لتصميم يركز على الرفع في الثلث الخارجي أن يضيف لمسة أنيقة.'},
+      eyeHighlightRoundUpturned: {ru:'Округлые глаза с естественно приподнятым внешним уголком — взгляд от природы открытый и живой.', en:'Your round eyes have a naturally lifted outer corner, giving the gaze an open, lively character.', ar:'تتميز عيناك المستديرتان بزاوية خارجية مرفوعة طبيعيًا، مما يمنح النظرة طابعًا منفتحًا وحيويًا.'},
+      eyeHighlightRoundNeutral: {ru:'У глаз мягкая округлая форма с естественно широким взглядом — отличная основа для схемы с лёгким визуальным удлинением.', en:'Your eyes have a soft, round shape with a naturally wide-open look — a great base for a design that adds gentle elongation.', ar:'تتميز عيناك بشكل مستدير ناعم ونظرة واسعة طبيعيًا — أساس رائع لتصميم يضيف امتدادًا بصريًا لطيفًا.'},
+      eyeHighlightRoundDownturned: {ru:'Округлые глаза со спокойным, мягким внешним уголком — лёгкий подъём в схеме добавит деликатный акцент.', en:'Your round eyes have a gentle, relaxed outer corner — a subtle lift in the design can add a soft lifted accent.', ar:'تتميز عيناك المستديرتان بزاوية خارجية هادئة ومسترخية — يمكن لرفع خفيف في التصميم أن يضيف لمسة رفع ناعمة.'},
+      eyeHighlightElongatedAlmondUpturned: {ru:'Вытянуто-миндалевидные глаза с естественно приподнятым уголком придают взгляду выразительную, кошачью элегантность.', en:'Your elongated almond eyes with a naturally upturned corner give the gaze a striking, feline elegance.', ar:'تمنح عيناك اللوزيتان الممتدتان، مع زاوية مرفوعة طبيعيًا، النظرةَ أناقةً لافتة أقرب إلى شكل عين القطة.'},
+      eyeHighlightElongatedAlmondNeutral: {ru:'У ваших глаз красивая вытянуто-миндалевидная форма со сбалансированными пропорциями — универсальная, эффектная основа для самых разных схем.', en:'Your eyes have a beautifully elongated almond shape with balanced proportions — a very versatile, editorial-looking base.', ar:'تتميز عيناك بشكل لوزي ممتد وجميل بنسب متوازنة — أساس متعدد الاستخدامات بمظهر أنيق يناسب تصاميم متنوعة.'},
+      eyeHighlightElongatedAlmondDownturned: {ru:'Вытянуто-миндалевидные глаза с мягко опущенным внешним уголком — схема с подъёмом к виску красиво сбалансирует взгляд.', en:'Your elongated almond eyes have a softly dropped outer corner — a design with lift toward the temple can beautifully balance the look.', ar:'تتميز عيناك اللوزيتان الممتدتان بزاوية خارجية منخفضة قليلاً بلطف — يمكن لتصميم برفع نحو الصدغ أن يوازن الإطلالة بجمال.'},
+      eyeHighlightNarrowUpturned: {ru:'У глаз деликатное, узкое раскрытие с естественным подъёмом внешнего уголка — деликатная удлиняющая схема красиво откроет взгляд.', en:'Your eyes have a delicate, narrow opening with a natural lift at the outer corner — a refined, elongating design can beautifully open the gaze.', ar:'تتميز عيناك بفتحة رقيقة وضيقة مع رفع طبيعي في الزاوية الخارجية — يمكن لتصميم رقيق وممدود أن يفتح النظرة بجمال.'},
+      eyeHighlightNarrowNeutral: {ru:'У глаз деликатное, узкое раскрытие — схема с мягким акцентом в центре добавит выразительный объём.', en:'Your eyes have a delicate, narrow opening — a design that gently opens the eye along the center can add expressive volume.', ar:'تتميز عيناك بفتحة رقيقة وضيقة — يمكن لتصميم يفتح العين بلطف من المنتصف أن يضيف حجمًا معبّرًا.'},
+      eyeHighlightNarrowDownturned: {ru:'У глаз деликатное, узкое раскрытие с мягким опущенным уголком — лёгкий подъём во внешней зоне добавит эффект визуального открытия.', en:'Your eyes have a delicate, narrow opening with a gentle downward corner — a soft outer lift can add a subtle opening effect.', ar:'تتميز عيناك بفتحة رقيقة وضيقة مع زاوية منخفضة بلطف — يمكن لرفع خارجي ناعم أن يضيف تأثير انفتاح بصري خفيف.'},
+      eyeHighlightUncertainUpturned: {ru:'У глаз естественно приподнятый внешний уголок — эту особенность можно красиво обыграть в схеме.', en:'Your eyes have a naturally lifted outer corner — a distinctive feature the design can play up.', ar:'تتميز عيناك بزاوية خارجية مرفوعة طبيعيًا — سمة مميزة يمكن للتصميم إبرازها بجمال.'},
+      eyeHighlightUncertainNeutral: {ru:'У ваших глаз сбалансированные, гармоничные пропорции — они хорошо сочетаются с самыми разными схемами наращивания.', en:'Your eyes have balanced, harmonious proportions that work well with a wide range of lash designs.', ar:'تتميز عيناك بنسب متوازنة ومتناسقة تناسب مجموعة واسعة من تصاميم الرموش.'},
+      eyeHighlightUncertainDownturned: {ru:'У глаз мягкий, спокойный внешний уголок — лёгкий подъём в схеме добавит красивый акцент.', en:'Your eyes have a soft, relaxed outer corner — a gentle lift in the design can add a lovely lifted accent.', ar:'تتميز عيناك بزاوية خارجية ناعمة ومسترخية — يمكن لرفع لطيف في التصميم أن يضيف لمسة جميلة.'},
+      eyeHighlightSizeLarge: {ru:' Их пропорция относительно лица от природы выразительна.', en:' Their proportion relative to the face is naturally striking.', ar:' تتميز نسبتهما إلى الوجه بجاذبية طبيعية لافتة.'},
+      eyeHighlightSizeSmall: {ru:' Схема с мягким центральным пиком добавит взгляду дополнительную открытость.', en:' A design with a soft central peak can add extra openness to the gaze.', ar:' يمكن لتصميم بقمة مركزية ناعمة أن يضيف انفتاحًا إضافيًا للنظرة.'},
     };
     function t(key, lang) { const e = STRINGS[key]; if (!e) return key; return e[lang] || e.ru; }
 
@@ -2386,14 +2531,14 @@
     }
 
     const IRIS_NAMES = {
-      dark: {ru:'Тёмно-карие', en:'Dark Brown'}, brown: {ru:'Карие', en:'Brown'},
-      hazel: {ru:'Ореховые (hazel)', en:'Hazel'}, amber: {ru:'Янтарные', en:'Amber'},
-      green: {ru:'Зелёные', en:'Green'}, blue: {ru:'Голубые', en:'Blue'},
-      gray: {ru:'Серые', en:'Gray'}, mixed: {ru:'Смешанный оттенок', en:'Mixed'},
+      dark: {ru:'Тёмно-карие', en:'Dark Brown', ar:'بني داكن جدًا'}, brown: {ru:'Карие', en:'Brown', ar:'بني'},
+      hazel: {ru:'Ореховые (hazel)', en:'Hazel', ar:'بندقي (hazel)'}, amber: {ru:'Янтарные', en:'Amber', ar:'كهرماني'},
+      green: {ru:'Зелёные', en:'Green', ar:'أخضر'}, blue: {ru:'Голубые', en:'Blue', ar:'أزرق'},
+      gray: {ru:'Серые', en:'Gray', ar:'رمادي'}, mixed: {ru:'Смешанный оттенок', en:'Mixed', ar:'درجة لون مختلطة'},
       // `uncertain` is a COLOR-classification outcome after a capture has
       // already passed assessFrameQuality; it is not a capture-quality
       // failure and must not tell the user to retry a valid scan.
-      uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'},
+      uncertain: {ru:'Оттенок не определён', en:'Color inconclusive', ar:'لم يتم تحديد اللون'},
     };
     // Phase C3d composition model — additive label vocabulary only, never
     // consumed by classifyIrisColor/combineIris/analyzeIrisSample above.
@@ -2402,20 +2547,20 @@
     // distinct from IRIS_NAMES' plural "eyes are ___" wording above,
     // which reads wrong in a per-family percentage list).
     const IRIS_FAMILY_NAMES = {
-      green: {ru:'Зелёный', en:'Green'}, blue: {ru:'Голубой', en:'Blue'},
-      gray: {ru:'Серый', en:'Gray'}, brown: {ru:'Карий', en:'Brown'},
-      amber: {ru:'Янтарный', en:'Amber'},
+      green: {ru:'Зелёный', en:'Green', ar:'أخضر'}, blue: {ru:'Голубой', en:'Blue', ar:'أزرق'},
+      gray: {ru:'Серый', en:'Gray', ar:'رمادي'}, brown: {ru:'Карий', en:'Brown', ar:'بني'},
+      amber: {ru:'Янтарный', en:'Amber', ar:'كهرماني'},
     };
     // IRIS_COMBO_NAMES: the new two-family primary labels. Deliberately
     // does NOT redefine 'mixed'/'uncertain' here -- those keep using the
     // existing, already-tested IRIS_NAMES.mixed/uncertain entries above
     // verbatim.
     const IRIS_COMBO_NAMES = {
-      blueGray: {ru:'Сине-серый оттенок', en:'Blue-gray'},
-      grayGreen: {ru:'Серо-зелёный оттенок', en:'Gray-green'},
-      greenBrown: {ru:'Зелёно-карий оттенок', en:'Green-brown'},
-      greenAmber: {ru:'Зелёно-янтарный оттенок', en:'Green-amber'},
-      brownAmber: {ru:'Коричнево-янтарный оттенок', en:'Brown-amber'},
+      blueGray: {ru:'Сине-серый оттенок', en:'Blue-gray', ar:'مزيج أزرق-رمادي'},
+      grayGreen: {ru:'Серо-зелёный оттенок', en:'Gray-green', ar:'مزيج رمادي-أخضر'},
+      greenBrown: {ru:'Зелёно-карий оттенок', en:'Green-brown', ar:'مزيج أخضر-بني'},
+      greenAmber: {ru:'Зелёно-янтарный оттенок', en:'Green-amber', ar:'مزيج أخضر-كهرماني'},
+      brownAmber: {ru:'Коричнево-янтарный оттенок', en:'Brown-amber', ar:'مزيج بني-كهرماني'},
     };
     // Resolves any deriveIrisColorCompositionLabel() key to its {ru,en}
     // display string, checking the combo table first, then falling back
@@ -4154,21 +4299,27 @@
     // since the functions are still plain globals.
     const LASH_ZONE_KEYS = ['lashInner', 'lashCenter', 'lashOuter'];
 
+    // PHASE 1 (Arabic localization) — migrated off scattered binary
+    // lang==='en'?X:Y ternaries onto the centralized STRINGS/t()
+    // architecture so a third language only ever needs new STRINGS
+    // entries, never a new ternary branch anywhere in this file. Every
+    // ru/en pair below is byte-identical to what these functions
+    // returned before this migration.
     function lashDensityLabel(d, lang) {
-      return d==='high' ? (lang==='en'?'High':'Высокая') : d==='medium' ? (lang==='en'?'Medium':'Средняя') : (lang==='en'?'Low':'Низкая');
+      return d==='high' ? t('lashDensityHigh', lang) : d==='medium' ? t('lashDensityMedium', lang) : t('lashDensityLow', lang);
     }
     function lashDirectionLabel(d, lang) {
-      return d==='upward' ? (lang==='en'?'Upward':'Вверх') : d==='downward' ? (lang==='en'?'Slightly downward':'Слегка вниз') : d==='straight' ? (lang==='en'?'Straight / upward':'Прямо / вверх') : (lang==='en'?'Not enough data':'Недостаточно данных');
+      return d==='upward' ? t('lashDirectionUpward', lang) : d==='downward' ? t('lashDirectionSlightlyDownward', lang) : d==='straight' ? t('lashDirectionStraightUpward', lang) : t('lashNotEnoughData', lang);
     }
     function lashLengthLabel(l, lang) {
-      return l==='long' ? (lang==='en'?'Long':'Длинные') : l==='medium' ? (lang==='en'?'Medium':'Средние') : l==='short' ? (lang==='en'?'Short':'Короткие') : l==='mixed' ? (lang==='en'?'Mixed':'Смешанные') : (lang==='en'?'Not enough data':'Недостаточно данных');
+      return l==='long' ? t('lashLengthLong', lang) : l==='medium' ? t('lashLengthMedium', lang) : l==='short' ? t('lashLengthShort', lang) : l==='mixed' ? t('lashLengthMixed', lang) : t('lashNotEnoughData', lang);
     }
     function lashDistributionText(obs, lang) {
-      if (!obs.hasData) return lang==='en' ? 'Not enough data' : 'Недостаточно данных';
-      if (obs.gapZones.length === 0) return lang==='en' ? 'Mostly even along the lash line' : 'В целом равномерная по линии роста';
-      const zoneName = (i) => [lang==='en'?'inner third':'внутренней трети', lang==='en'?'central zone':'центральной зоне', lang==='en'?'outer third':'внешней трети'][i];
-      const zones = obs.gapZones.map(zoneName).join(lang==='en' ? ' and ' : ' и ');
-      return lang==='en' ? `Slightly less even in the ${zones}` : `Небольшая неоднородность в ${zones}`;
+      if (!obs.hasData) return t('lashNotEnoughData', lang);
+      if (obs.gapZones.length === 0) return t('lashDistributionEven', lang);
+      const zoneName = (i) => [t('lashZoneInnerThird', lang), t('lashZoneCentralZone', lang), t('lashZoneOuterThird', lang)][i];
+      const zones = obs.gapZones.map(zoneName).join(t('lashZonesConjunction', lang));
+      return t('lashDistributionUnevenTemplate', lang).replace('{zones}', zones);
     }
 
     // AI-advisory text for the Application Plan — Parts 21-22. Always
@@ -4176,55 +4327,59 @@
     // command, and always tied to the actually-computed observations
     // above (nothing here is templated independent of the real scan
     // result).
+    // PHASE 1 (Arabic localization) — migrated off scattered binary
+    // en?X:Y ternaries onto the centralized STRINGS/t() architecture.
+    // Every ru/en sentence produced below is byte-identical to what
+    // this function returned before the migration; only the mechanism
+    // (t() + {placeholder} substitution instead of an inline ternary)
+    // changed. Consumes obs.visualDensity/obs.gapZones/obs.zoneDirection/
+    // comparison.notableZone -- all already computed elsewhere -- and
+    // never recomputes or alters any of them.
     function generateLashApplicationNotes(left, right, comparison, lang) {
-      const en = lang === 'en';
       const observations = [];
       const considerations = [];
       [['left', left], ['right', right]].forEach(([side, obs]) => {
         if (!obs || !obs.hasData) {
-          observations.push(en ? `${side==='left'?'Left':'Right'} eye: scan quality was insufficient for a reliable read.` : `${side==='left'?'Левый':'Правый'} глаз: качество скана было недостаточным для надёжной оценки.`);
+          const sideCap = side === 'left' ? t('lashSideLeftCap', lang) : t('lashSideRightCap', lang);
+          observations.push(t('lashObsInsufficientTemplate', lang).replace('{side}', sideCap));
           return;
         }
-        const sideName = en ? (side==='left'?'Left eye':'Right eye') : (side==='left'?'Левый глаз':'Правый глаз');
+        const sideName = side === 'left' ? t('lashSideEyeLeft', lang) : t('lashSideEyeRight', lang);
         // NLS-1 count-safety fix: no lash-count-like number in
         // master-facing text — occupancy (visualDensity) + distribution
         // are the visible-base representation (see requirement 6).
-        observations.push(`${sideName}: ${en?'density':'густота'} — ${lashDensityLabel(obs.visualDensity, lang).toLowerCase()}, ${en?'distribution':'распределение'} — ${lashDistributionText(obs, lang).toLowerCase()}.`);
+        observations.push(`${sideName}: ${t('lashDensityWord', lang)} — ${lashDensityLabel(obs.visualDensity, lang).toLowerCase()}, ${t('lashDistributionWord', lang)} — ${lashDistributionText(obs, lang).toLowerCase()}.`);
       });
       if (comparison?.hasComparison && comparison.notableZone !== null) {
-        const zoneName = [en?'inner':'внутренней', en?'central':'центральной', en?'outer':'внешней'][comparison.notableZone];
-        const side = comparison.notableZoneLowerSide === 'left' ? (en?'left':'левого') : (en?'right':'правого');
-        considerations.push(en
-          ? `Visual density in the ${zoneName} zone is a little lower on the ${side} eye. The artist can factor this difference in when building the map.`
-          : `В ${zoneName} зоне визуальная густота ${side} глаза немного ниже. Мастер может учесть эту разницу при построении схемы.`);
+        const zoneName = [t('lashZoneInnerLower', lang), t('lashZoneCentralLower', lang), t('lashZoneOuterLower', lang)][comparison.notableZone];
+        const side = comparison.notableZoneLowerSide === 'left' ? t('lashSideLeftLower', lang) : t('lashSideRightLower', lang);
+        considerations.push(t('lashComparisonNoteTemplate', lang).replace('{zoneName}', zoneName).replace('{side}', side));
       }
       [['left', left], ['right', right]].forEach(([side, obs]) => {
         if (!obs?.hasData) return;
         if (obs.gapZones.length > 0) {
-          considerations.push(en
-            ? `AI suggests reviewing lash placement density in the noted zone(s) of the ${side} eye before finalizing the map.`
-            : `AI предлагает проверить плотность размещения ресниц в отмеченных зонах ${side==='left'?'левого':'правого'} глаза перед финализацией схемы.`);
+          const sideLower = side === 'left' ? t('lashSideLeftLower', lang) : t('lashSideRightLower', lang);
+          considerations.push(t('lashDensityReviewTemplate', lang).replace('{side}', sideLower));
         }
         const dirs = obs.zoneDirection.filter(d => d !== 'unknown');
         if (dirs.includes('downward')) {
-          considerations.push(en
-            ? `Natural lash direction looks slightly downward in part of the ${side} eye — it's recommended to confirm the final curl choice in person.`
-            : `Направление натуральных ресниц ${side==='left'?'левого':'правого'} глаза местами визуально направлено вниз — выбор итогового изгиба рекомендуется подтвердить очно.`);
+          const sideLower = side === 'left' ? t('lashSideLeftLower', lang) : t('lashSideRightLower', lang);
+          considerations.push(t('lashDirectionDownwardTemplate', lang).replace('{side}', sideLower));
         }
       });
-      considerations.push(en ? t('lashNoLoadClaim', 'en') : t('lashNoLoadClaim', 'ru'));
+      considerations.push(t('lashNoLoadClaim', lang));
       return { observations, considerations };
     }
 
     const CURL_CATALOG = [
-      { id:'J', liftStrength:1, geometry:{ru:'почти прямой, минимальный подъём',en:'nearly straight, minimal lift'}, suitable:{ru:'очень прямые натуральные ресницы, минимальная коррекция',en:'very straight natural lashes, minimal correction'} },
-      { id:'B', liftStrength:2, geometry:{ru:'лёгкий изгиб',en:'gentle curve'}, suitable:{ru:'мягкая естественная коррекция',en:'soft natural correction'} },
-      { id:'C', liftStrength:3, geometry:{ru:'универсальный изгиб средней силы',en:'universal medium-strength curve'}, suitable:{ru:'большинство форм глаз, базовый выбор',en:'most eye shapes, default choice'} },
-      { id:'CC', liftStrength:4, geometry:{ru:'выраженный подъём',en:'pronounced lift'}, suitable:{ru:'опущенные уголки, лёгкое нависание',en:'downturned corners, mild hooding'} },
-      { id:'D', liftStrength:5, geometry:{ru:'сильный драматичный подъём',en:'strong dramatic lift'}, suitable:{ru:'глубоко посаженные, очень прямые натуральные ресницы',en:'deep-set eyes, very straight natural lashes'} },
-      { id:'L', liftStrength:4, geometry:{ru:'плоское основание с резким подъёмом у кончика',en:'flat base with a sharp lift near the tip'}, suitable:{ru:'нависшее веко, ресницы растут вниз',en:'hooded eyelids, downward-growing natural lashes'} },
-      { id:'L+', liftStrength:5, geometry:{ru:'усиленный вариант L с более выраженным плоским основанием',en:'stronger L variant with a more pronounced flat base'}, suitable:{ru:'выраженное нависание века',en:'pronounced eyelid hooding'} },
-      { id:'M', liftStrength:4.5, geometry:{ru:'похож на L, но с более мягким переходом',en:'similar to L with a softer transition'}, suitable:{ru:'нависание, если нужен менее резкий подъём чем у L',en:'hooding, when a less abrupt lift than L is preferred'} },
+      { id:'J', liftStrength:1, geometry:{ru:'почти прямой, минимальный подъём',en:'nearly straight, minimal lift',ar:'شبه مستقيم، رفع طفيف جدًا'}, suitable:{ru:'очень прямые натуральные ресницы, минимальная коррекция',en:'very straight natural lashes, minimal correction',ar:'رموش طبيعية مستقيمة جدًا، تصحيح طفيف'} },
+      { id:'B', liftStrength:2, geometry:{ru:'лёгкий изгиб',en:'gentle curve',ar:'انحناء لطيف'}, suitable:{ru:'мягкая естественная коррекция',en:'soft natural correction',ar:'تصحيح طبيعي ناعم'} },
+      { id:'C', liftStrength:3, geometry:{ru:'универсальный изгиб средней силы',en:'universal medium-strength curve',ar:'انحناء متوسط القوة وشامل الاستخدام'}, suitable:{ru:'большинство форм глаз, базовый выбор',en:'most eye shapes, default choice',ar:'معظم أشكال العيون، الخيار الافتراضي'} },
+      { id:'CC', liftStrength:4, geometry:{ru:'выраженный подъём',en:'pronounced lift',ar:'رفع واضح'}, suitable:{ru:'опущенные уголки, лёгкое нависание',en:'downturned corners, mild hooding',ar:'زوايا منخفضة، ترهل خفيف'} },
+      { id:'D', liftStrength:5, geometry:{ru:'сильный драматичный подъём',en:'strong dramatic lift',ar:'رفع قوي وجريء'}, suitable:{ru:'глубоко посаженные, очень прямые натуральные ресницы',en:'deep-set eyes, very straight natural lashes',ar:'عيون غائرة، رموش طبيعية مستقيمة جدًا'} },
+      { id:'L', liftStrength:4, geometry:{ru:'плоское основание с резким подъёмом у кончика',en:'flat base with a sharp lift near the tip',ar:'قاعدة مسطحة مع رفع حاد قرب الطرف'}, suitable:{ru:'нависшее веко, ресницы растут вниз',en:'hooded eyelids, downward-growing natural lashes',ar:'جفون مترهلة، رموش طبيعية تنمو نحو الأسفل'} },
+      { id:'L+', liftStrength:5, geometry:{ru:'усиленный вариант L с более выраженным плоским основанием',en:'stronger L variant with a more pronounced flat base',ar:'نسخة أقوى من L بقاعدة مسطحة أكثر وضوحًا'}, suitable:{ru:'выраженное нависание века',en:'pronounced eyelid hooding',ar:'ترهل واضح في الجفن'} },
+      { id:'M', liftStrength:4.5, geometry:{ru:'похож на L, но с более мягким переходом',en:'similar to L with a softer transition',ar:'يشبه L لكن بانتقال أكثر نعومة'}, suitable:{ru:'нависание, если нужен менее резкий подъём чем у L',en:'hooding, when a less abrupt lift than L is preferred',ar:'الترهل، عند تفضيل رفع أقل حدة من L'} },
     ];
     function recommendCurl(c, design, lang) {
       let primary = design.baseCurl;
@@ -4573,10 +4728,10 @@
     }
 
     const CATEGORY_LABELS = {
-      natural:{ru:'Натуральные',en:'Natural'}, opening:{ru:'Открывающие',en:'Opening'},
-      lifting:{ru:'Лифтинг',en:'Lifting'}, elongating:{ru:'Вытягивающие',en:'Elongating'},
-      textured:{ru:'Текстурные',en:'Textured'}, wet:{ru:'Wet / Defined',en:'Wet / Defined'},
-      creative:{ru:'Аниме / Креатив',en:'Anime / Creative'}, correction:{ru:'Коррекция',en:'Correction'},
+      natural: {ru:'Натуральные', en:'Natural', ar:'طبيعي'}, opening: {ru:'Открывающие', en:'Opening', ar:'موسّع للعين'},
+      lifting: {ru:'Лифтинг', en:'Lifting', ar:'تأثير رافع'}, elongating: {ru:'Вытягивающие', en:'Elongating', ar:'مطيل'},
+      textured: {ru:'Текстурные', en:'Textured', ar:'بملمس مميز'}, wet: {ru:'Wet / Defined', en:'Wet / Defined', ar:'Wet / Defined'},
+      creative: {ru:'Аниме / Креатив', en:'Anime / Creative', ar:'أنيمي / إبداعي'}, correction: {ru:'Коррекция', en:'Correction', ar:'تصحيح'},
     };
 
     const DESIGN_CATALOG = [
@@ -4923,10 +5078,9 @@
     // side by side instead of one "correct" design.
     const LASH_DESIGN_CONSIDERATION_IDS = ['natural', 'squirrel', 'softcat', 'doll', 'wispy'];
     function suitabilityLabel(score, lang) {
-      const en = lang === 'en';
-      if (score >= 65) return en ? 'Strong fit' : 'Хорошо подходит';
-      if (score >= 45) return en ? 'Worth considering' : 'Можно рассмотреть';
-      return en ? 'Situational' : 'Ситуативно';
+      if (score >= 65) return t('suitabilityStrongFit', lang);
+      if (score >= 45) return t('suitabilityWorthConsidering', lang);
+      return t('suitabilitySituational', lang);
     }
     function generateLashDesignConsiderations(result, lang) {
       const c = result.eyeProfile;
@@ -4938,12 +5092,13 @@
         const maxLeft = Math.max(...d.leftZones), maxRight = Math.max(...d.rightZones);
         const lrDiffers = Math.abs(maxLeft - maxRight) >= 1 || d.leftZones.some((v,i) => Math.abs(v - d.rightZones[i]) >= 1);
         const lrNote = lrDiffers
-          ? (lang==='en' ? `Peak length is adjusted slightly between left/right (${maxLeft}mm / ${maxRight}mm) to compensate for the measured difference.` : `Пиковая длина слегка скорректирована между левым/правым (${maxLeft}мм / ${maxRight}мм) для компенсации измеренной разницы.`)
-          : (lang==='en' ? 'No L/R correction needed — both sides use the same zone lengths.' : 'Коррекция L/R не требуется — обе стороны используют одинаковые длины зон.');
+          ? t('lrNoteDiffers', lang).replace('{maxLeft}', maxLeft).replace('{maxRight}', maxRight)
+          : t('lrNoteNoneNeeded', lang);
+        const lengthUnit = lang === 'en' ? 'mm' : lang === 'ar' ? 'مم' : 'мм';
         return {
           id: d.id, name: d.name, score: d.score, suitability: suitabilityLabel(d.score, lang),
           visualGoal: d.whyItWorks, peakZone: zoneLabel(ZONE_NAMES[d.peakZone], lang),
-          lengthDistribution: lang==='en' ? `${ZONE_NAMES[0]} ${d.leftZones[0]}mm → ${ZONE_NAMES[d.peakZone]} ${maxLeft}mm → ${ZONE_NAMES[4]} ${d.leftZones[4]}mm` : `${zoneLabel(ZONE_NAMES[0],lang)} ${d.leftZones[0]}мм → ${zoneLabel(ZONE_NAMES[d.peakZone],lang)} ${maxLeft}мм → ${zoneLabel(ZONE_NAMES[4],lang)} ${d.leftZones[4]}мм`,
+          lengthDistribution: lang==='en' ? `${ZONE_NAMES[0]} ${d.leftZones[0]}mm → ${ZONE_NAMES[d.peakZone]} ${maxLeft}mm → ${ZONE_NAMES[4]} ${d.leftZones[4]}mm` : `${zoneLabel(ZONE_NAMES[0],lang)} ${d.leftZones[0]}${lengthUnit} → ${zoneLabel(ZONE_NAMES[d.peakZone],lang)} ${maxLeft}${lengthUnit} → ${zoneLabel(ZONE_NAMES[4],lang)} ${d.leftZones[4]}${lengthUnit}`,
           curls: [d.curlRec.primary, ...d.curlRec.alternatives].filter((v,i,a)=>a.indexOf(v)===i),
           cautions: d.limitations, lrNote,
         };
@@ -4957,17 +5112,14 @@
     // CAN use, and never shown when the read itself is uncertain.
     function generateLashCorrectionOpportunity(c, lang) {
       if (c.symmetryCategory === 'balanced' || c.symmetryCategory === 'uncertain') return null;
-      const en = lang === 'en';
       const b = c.asymmetryBreakdown;
       const axis = Object.entries({ width: b.width, height: b.height, hooding: b.hooding }).sort((x,y)=>y[1]-x[1])[0][0];
       const axisText = {
-        width: en ? 'eye width' : 'ширине глаза',
-        height: en ? 'eye opening height' : 'высоте раскрытия глаза',
-        hooding: en ? 'eyelid coverage' : 'покрытию века',
+        width: t('correctionAxisWidth', lang),
+        height: t('correctionAxisHeight', lang),
+        hooding: t('correctionAxisHooding', lang),
       }[axis];
-      return en
-        ? `The most noticeable difference between your left and right eye is in ${axisText}. A slightly adjusted peak position or length can visually balance this — a soft, optional refinement, not a requirement.`
-        : `Наиболее заметное различие между левым и правым глазом — по ${axisText}. Небольшая корректировка положения пика или длины может визуально сбалансировать это — мягкая, необязательная настройка, а не требование.`;
+      return t('lashCorrectionOpportunityTemplate', lang).replace('{axisText}', axisText);
     }
 
     function tierBadge(rank, score, category, lang) {
@@ -5028,32 +5180,46 @@
     // — the artist makes the final call. No medical/diagnostic
     // claims are made anywhere in this function.
     // ------------------------------------------------------------
+    // PHASE 1 (Arabic localization) — migrated off scattered binary
+    // en?X:Y ternaries onto t(). design.id/design.texture/design.category
+    // are already-computed identity fields (never re-derived here); this
+    // function only SELECTS which pre-written narrative sentence to
+    // display for that already-chosen design -- it never computes score,
+    // geometry, or any recommendation output.
     function designNarrative(design, lang) {
-      const en = lang === 'en';
       const byId = {
-        squirrel: { body: en ? 'Length builds gradually toward the peak in the outer third, then eases back slightly toward the outer corner — a soft lift without weighing the corner down.' : 'Длина постепенно увеличивается до пика во внешней трети, а затем немного уменьшается к внешнему углу — мягкий лифтинг без утяжеления уголка.' },
-        cat: { body: en ? 'Length elongates progressively toward the outer sector for a classic elongated look.' : 'Длина постепенно вытягивается к внешнему сектору, создавая классический эффект вытянутого взгляда.' },
-        doll: { body: en ? 'Maximum length sits closer to the central zone, visually opening the eye.' : 'Максимальная длина расположена ближе к центральной области, визуально открывая взгляд.' },
-        fox: { body: en ? 'Pronounced horizontal elongation toward the temple. With a tilt that doesn’t support this direction, the effect can look unnatural — double-check against the eye profile first.' : 'Выраженное горизонтальное вытяжение к виску. При недостаточно подходящем наклоне уголков эффект может выглядеть неестественно — сверьтесь с профилем глаз перед стартом.' },
-        reverse: { body: en ? 'Geometry is the mirror of a classic cat-eye: the peak sits toward the inner-central zone to balance an already prominent outer lift.' : 'Геометрия противоположна классическому cat-eye: пик смещён к внутренне-центральной зоне, балансируя уже выраженный внешний подъём.' },
+        squirrel: { body: t('narrativeSquirrel', lang) },
+        cat: { body: t('narrativeCat', lang) },
+        doll: { body: t('narrativeDoll', lang) },
+        fox: { body: t('narrativeFox', lang) },
+        reverse: { body: t('narrativeReverse', lang) },
       };
       if (byId[design.id]) return byId[design.id];
-      if (design.texture) return { body: en ? 'The map is built from two layers — a base length map, and a spike/ray layer on top of it (see the Spike/Ray Plan below).' : 'Схема состоит из двух слоёв — базовой карты длин (BASE) и слоя лучей (SPIKE) поверх неё (см. раздел «Работа с лучиками» ниже).' };
+      if (design.texture) return { body: t('narrativeTextured', lang) };
       const byCategory = {
-        natural: en ? 'Length increases gently toward a moderate central peak, staying close to the eye’s natural geometry.' : 'Длина мягко нарастает к умеренному центральному пику, оставаясь близко к естественной геометрии глаза.',
-        opening: en ? 'Length builds toward a peak near the center, opening the eye visually.' : 'Длина нарастает к пику ближе к центру, визуально открывая взгляд.',
-        lifting: en ? 'Length builds toward the peak in the outer third for a gentle lift.' : 'Длина нарастает к пику во внешней трети для мягкого лифтинг-эффекта.',
-        elongating: en ? 'Length builds steadily toward the outer third for maximum elongation toward the temple.' : 'Длина последовательно нарастает к внешней трети для максимального вытяжения к виску.',
-        wet: en ? 'Density stays deliberately sparse — the effect relies on gloss and texture, not on length contrast.' : 'Плотность остаётся намеренно разреженной — эффект строится на глянце и текстуре, а не на контрасте длины.',
-        creative: en ? 'Length contrast is deliberately pronounced for a bold, graphic look.' : 'Контраст длины подчёркнуто выражен для смелого графичного образа.',
-        correction: en ? 'Zone lengths are adjusted individually to balance the left and right eye.' : 'Длины зон скорректированы индивидуально для баланса левого и правого глаза.',
+        natural: t('narrativeCategoryNatural', lang),
+        opening: t('narrativeCategoryOpening', lang),
+        lifting: t('narrativeCategoryLifting', lang),
+        elongating: t('narrativeCategoryElongating', lang),
+        wet: t('narrativeCategoryWet', lang),
+        creative: t('narrativeCategoryCreative', lang),
+        correction: t('narrativeCategoryCorrection', lang),
       };
       return { body: byCategory[design.category] || byCategory.natural };
     }
 
+    // PHASE 1 (Arabic localization) — migrated off the scattered
+    // en?X:Y push() pattern and inline template ternaries onto t() +
+    // {placeholder} substitution. Every ru/en sentence produced below
+    // (including every interpolated number/zone-name/conditional
+    // fragment) is byte-identical to what this function returned
+    // before the migration -- only the STATIC text portions moved into
+    // STRINGS; zones/curl/design.limitations/design.correctionGoal/
+    // c.isCloseSet/c.isWideSet/c.tiltTendency/asym/spikeGeom are all
+    // already-computed values, read here exactly as before, never
+    // recomputed.
     function generateLegacyApplicationPlan(c, design, technique, curl, zones, otherZones, spikeGeom, curve, lang) {
-      const en = lang === 'en';
-      const push = (arr, ru, enS) => arr.push(en ? enS : ru);
+      const push = (arr, key) => arr.push(t(key, lang));
       const peakIdx = zones.indexOf(Math.max(...zones));
       const peakLen = zones[peakIdx];
       const innerLen = zones[0], outerLen = zones[4];
@@ -5064,39 +5230,43 @@
 
       // -------- PREPARATION --------
       const preparation = [];
-      push(preparation, 'Подтвердите с клиентом выбранный эффект и желаемую интенсивность.', 'Confirm the selected effect and desired intensity with the client.');
-      push(preparation, 'Оцените состояние натуральных ресниц перед процедурой.', 'Assess the condition of the natural lashes before starting.');
-      push(preparation, 'Очистите ресницы и межресничную зону от косметики и загрязнений.', 'Cleanse the lashes and lash line of makeup and residue.');
-      push(preparation, 'Подготовьте рабочую зону и изолируйте нижние ресницы.', 'Prepare the work area and isolate the lower lashes.');
-      push(preparation, 'Проверьте положение патчей.', 'Check patch placement.');
-      push(preparation, `Выполните разметку зон: ${ZONE_NAMES.map(z=>zoneLabel(z,lang)).join(' / ')}.`, `Mark the zones: ${ZONE_NAMES.join(' / ')}.`);
-      push(preparation, `Сверьте максимальную длину (${Math.max(...zones)} mm) и изгиб (${curl}) с выбранной схемой.`, `Confirm max length (${Math.max(...zones)} mm) and curl (${curl}) against the selected map.`);
-      push(preparation, 'Подготовьте необходимые палетки длин и изгибов.', 'Prepare the required length and curl trays.');
-      if (asym) push(preparation, 'Обнаружена асимметрия — перед началом отдельно разметьте peak для левого и правого глаза.', 'Asymmetry detected — mark the peak separately for the left and right eye before starting.');
-      if (spikeGeom) push(preparation, 'До начала работы отметьте позиции основных лучей/spikes.', 'Before starting, mark the positions of the main spikes/rays.');
+      push(preparation, 'planPrepConfirmEffect');
+      push(preparation, 'planPrepAssessLashes');
+      push(preparation, 'planPrepCleanse');
+      push(preparation, 'planPrepIsolate');
+      push(preparation, 'planPrepPatches');
+      const zoneList = lang === 'en' ? ZONE_NAMES.join(' / ') : ZONE_NAMES.map(z=>zoneLabel(z,lang)).join(' / ');
+      preparation.push(t('planPrepMarkZonesTemplate', lang).replace('{zones}', zoneList));
+      preparation.push(t('planPrepConfirmMaxLengthTemplate', lang).replace('{maxLen}', Math.max(...zones)).replace('{curl}', curl));
+      push(preparation, 'planPrepPrepareTrays');
+      if (asym) push(preparation, 'planPrepAsymmetryDetected');
+      if (spikeGeom) push(preparation, 'planPrepSpikePositions');
       // Hooding removed as a recommendation input — the isHooded-gated
       // preparation note that used to sit here is deleted, not replaced.
-      push(preparation, 'AI-анализ не заменяет визуальный осмотр состояния ресниц и кожи века мастером — при признаках раздражения или повреждения проконсультируйтесь со специалистом перед процедурой.', 'AI analysis does not replace the artist’s own visual inspection of lash and lid condition — if you notice irritation or damage, refer the client to a specialist before proceeding.');
+      push(preparation, 'planPrepAiDisclaimer');
 
       // -------- APPLICATION STEPS --------
       const dropAfterPeak = Math.round((peakLen - outerLen) * 10) / 10;
+      // PHASE 1 (Arabic localization): mmUnit added so a third language
+      // gets its own correct unit glyph instead of inheriting the
+      // Cyrillic 'мм' literal the non-English branch previously always
+      // used -- for RU specifically this still evaluates to the exact
+      // same literal 'мм' text as before, byte-identical output.
+      const mmUnit = lang === 'en' ? 'mm' : lang === 'ar' ? 'مم' : 'мм';
+      const mappingZoneList = lang === 'en' ? zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}mm`).join(', ') : zones.map((v,i)=>`${zoneLabel(ZONE_NAMES[i],lang)} ${v}${mmUnit}`).join(', ');
+      const closeSetNote = c.isCloseSet ? t('planStepInnerCloseSetNote', lang) : '';
+      const peakZoneName = lang === 'en' ? ZONE_NAMES[peakIdx] : zoneLabel(ZONE_NAMES[peakIdx], lang);
+      const limitationNote = design.limitations && design.limitations[0] ? t('planStepPeakLimitationTemplate', lang).replace('{limitation}', design.limitations[0]) : '';
+      const dropNote = dropAfterPeak > 0 ? t('planStepOuterDropTemplate', lang).replace('{drop}', dropAfterPeak) : '';
+      const correctionGoalLower = design.correctionGoal.charAt(0).toLowerCase()+design.correctionGoal.slice(1);
+      const asymFinalNote = asym ? t('planStepFinalAsymNote', lang) : t('planStepFinalCompareNote', lang);
       const steps = [
-        { title: t('stepMappingTitle', lang), body: en
-          ? `Divide the lash line using the five control zones (${zones.map((v,i)=>`${ZONE_NAMES[i]} ${v}mm`).join(', ')}) and the displayed smooth sequence: ${displaySequence}.`
-          : `Разделите lash line по пяти контрольным зонам (${zones.map((v,i)=>`${zoneLabel(ZONE_NAMES[i],lang)} ${v}мм`).join(', ')}) и отображаемой плавной последовательности: ${displaySequence}.` },
-        { title: t('stepInnerTitle', lang), body: en
-          ? `Inner corner: ${innerLen}mm, curl ${curl}. Start the transition gently${c.isCloseSet ? ' — eyes are close-set, avoid adding extra length here' : ''}.`
-          : `Внутренний угол: ${innerLen}mm, изгиб ${curl}. Начинайте переход плавно${c.isCloseSet ? ' — глаза близко посажены, не добавляйте здесь длину' : ''}.` },
+        { title: t('stepMappingTitle', lang), body: t('planStepMappingTemplate', lang).replace('{zoneList}', mappingZoneList).replace('{sequence}', displaySequence) },
+        { title: t('stepInnerTitle', lang), body: t('planStepInnerTemplate', lang).replace('{innerLen}', innerLen).replace('{curl}', curl).replace('{closeSetNote}', closeSetNote) },
         { title: t('stepBodyTitle', lang), body: narrative.body },
-        { title: t('stepPeakTitle', lang), body: en
-          ? `Peak zone: ${ZONE_NAMES[peakIdx]}, ${peakLen}mm. This is where the design's correction goal is concentrated — avoid shifting it further out or in than the mapped position.${design.limitations && design.limitations[0] ? ' Note: ' + design.limitations[0] : ''}`
-          : `Пиковая зона: ${zoneLabel(ZONE_NAMES[peakIdx],lang)}, ${peakLen}mm. Здесь сосредоточена коррекционная задача дизайна — не переносите пик дальше отмеченной позиции.${design.limitations && design.limitations[0] ? ' Примечание: ' + design.limitations[0] : ''}` },
-        { title: t('stepOuterTitle', lang), body: en
-          ? `Outer sector: ${outerLen}mm${dropAfterPeak > 0 ? `, a ${dropAfterPeak}mm drop after the peak` : ''}. This sector carries the design's correction goal: ${design.correctionGoal.charAt(0).toLowerCase()+design.correctionGoal.slice(1)}`
-          : `Внешний сектор: ${outerLen}mm${dropAfterPeak > 0 ? `, снижение на ${dropAfterPeak}mm после пика` : ''}. Этот сектор выполняет коррекционную задачу дизайна: ${design.correctionGoal.charAt(0).toLowerCase()+design.correctionGoal.slice(1)}` },
-        { title: t('stepFinalTitle', lang), body: en
-          ? `Check the smoothness of transitions, verify direction, and confirm the result matches the correction goal.${asym ? ' Asymmetry was detected — compare the left and right peak position directly rather than assuming a mirrored result.' : ' Compare left and right for consistency.'}`
-          : `Проверьте плавность переходов, направление ресниц и соответствие результата correction goal.${asym ? ' Обнаружена асимметрия — сравните позицию пика левого и правого глаза напрямую, не полагаясь на зеркальность.' : ' Сравните левый и правый глаз на предмет единообразия.'}` },
+        { title: t('stepPeakTitle', lang), body: t('planStepPeakTemplate', lang).replace('{zoneName}', peakZoneName).replace('{peakLen}', peakLen).replace('{limitationNote}', limitationNote) },
+        { title: t('stepOuterTitle', lang), body: t('planStepOuterTemplate', lang).replace('{outerLen}', outerLen).replace('{dropNote}', dropNote).replace('{correctionGoal}', correctionGoalLower) },
+        { title: t('stepFinalTitle', lang), body: t('planStepFinalTemplate', lang).replace('{asymNote}', asymFinalNote) },
       ];
 
       // -------- SPIKE / RAY PLAN --------
@@ -5111,24 +5281,25 @@
           pattern: design.name,
           notes: [],
         };
-        push(spikePlan.notes, `Основной луч рекомендуется располагать в зоне ${zoneLabel(spikeGeom.mainSpikeZone,lang)}, совпадая с пиком карты.`, `Recommended to place the main spike in the ${spikeGeom.mainSpikeZone} zone, aligned with the map's peak.`);
-        push(spikePlan.notes, 'Сохраняйте единый ритм чередования базовых и акцентных ресниц по всей линии.', 'Keep a consistent rhythm alternating base and accent lashes across the line.');
-        if (spikeGeom.pattern === 'kim') push(spikePlan.notes, 'Проверьте контраст между базой и лучами перед заполнением — он должен оставаться заметным.', 'Check the base-to-spike contrast before filling in — it should stay clearly visible.');
-        if (spikeGeom.pattern === 'manga') push(spikePlan.notes, 'Направление лучей — ключевой элемент образа; сверьте его перед заполнением базы.', 'Spike direction is a key part of this look — confirm it before filling in the base.');
-        if (spikeGeom.pattern === 'uniform') push(spikePlan.notes, 'Лучи могут располагаться не строго регулярно — это часть эффекта.', 'Spikes don’t need to be perfectly regular — that irregularity is part of the effect.');
+        const mainZoneName = lang === 'en' ? spikeGeom.mainSpikeZone : zoneLabel(spikeGeom.mainSpikeZone, lang);
+        spikePlan.notes.push(t('planSpikeMainZoneTemplate', lang).replace('{zone}', mainZoneName));
+        push(spikePlan.notes, 'planSpikeRhythm');
+        if (spikeGeom.pattern === 'kim') push(spikePlan.notes, 'planSpikeKimContrast');
+        if (spikeGeom.pattern === 'manga') push(spikePlan.notes, 'planSpikeMangaDirection');
+        if (spikeGeom.pattern === 'uniform') push(spikePlan.notes, 'planSpikeUniformIrregular');
       }
 
       // -------- ARTIST NOTES (advisory, not prescriptive) --------
       const artistNotes = [];
-      if (c.isCloseSet) push(artistNotes, 'Рекомендуется не перегружать внутренний угол.', 'Recommended: avoid overloading the inner corner.');
-      if (c.isWideSet) push(artistNotes, 'AI предлагает распределить длину равномерно по всей линии роста.', 'AI suggests distributing length evenly across the lash line.');
+      if (c.isCloseSet) push(artistNotes, 'planNoteCloseSet');
+      if (c.isWideSet) push(artistNotes, 'planNoteWideSet');
       // Hooding removed as a recommendation input — the isHooded-gated
       // artist note that used to sit here is deleted, not replaced.
-      if (c.tiltTendency === 'downturned') push(artistNotes, 'При опущенных уголках рекомендуется не делать максимальную длину в крайнем наружном секторе.', 'With downturned corners, it’s recommended to avoid maximum length in the extreme outer sector.');
-      if (spikeGeom) push(artistNotes, 'Для данной карты предусмотрена проверка направления лучей перед заполнением базы.', 'For this map, checking spike direction before filling in the base is recommended.');
-      if (asym) push(artistNotes, 'При выраженной асимметрии не рекомендуется делать одинаковую коррекцию для левого и правого глаза.', 'With pronounced asymmetry, applying identical correction to LEFT and RIGHT is not recommended.');
-      else push(artistNotes, 'Рекомендуется сохранять лёгкость во внутреннем уголке.', 'Recommended: keep the inner corner light.');
-      push(artistNotes, 'Финальное профессиональное решение остаётся за мастером.', 'The final professional decision remains with the artist.');
+      if (c.tiltTendency === 'downturned') push(artistNotes, 'planNoteDownturned');
+      if (spikeGeom) push(artistNotes, 'planNoteSpikeCheck');
+      if (asym) push(artistNotes, 'planNoteAsymCorrection');
+      else push(artistNotes, 'planNoteInnerLight');
+      push(artistNotes, 'planNoteFinalDecision');
 
       return { preparation, steps, spikePlan, artistNotes, displaySectors };
     }
@@ -10030,18 +10201,18 @@
       const spacing = t('eyeSet_' + p.eyeSetCategory, lang);
       const eyeSize = t('eyeSize_' + p.eyeSizeCategory, lang);
       const symmetry = t('symmetry_' + p.symmetryCategory, lang);
-      const irisName = iris?.name ? (lang==='en' ? IRIS_NAMES[iris.name].en : IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);
+      const irisName = iris?.name ? (IRIS_NAMES[iris.name][lang] || IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);
       // Phase C3d: additive display fields, computed from iris's own
       // compositionLabel/colorComposition (see combineIrisColorComposition/
       // deriveIrisColorCompositionLabel) -- irisName above is kept
       // completely unchanged for any existing consumer.
-      const irisCompositionLabel = iris?.compositionLabel ? (lang==='en' ? resolveIrisColorLabel(iris.compositionLabel).en : resolveIrisColorLabel(iris.compositionLabel).ru) : irisName;
+      const irisCompositionLabel = iris?.compositionLabel ? (resolveIrisColorLabel(iris.compositionLabel)[lang] || resolveIrisColorLabel(iris.compositionLabel).ru) : irisName;
       // Breakdown is suppressed whenever the underlying evidence is
       // uncertain -- showing e.g. "Карий 56% · Янтарный 40%" directly
       // under "Оттенок не определён" would contradict the very label it
       // sits beneath.
       const irisCompositionBreakdown = iris?.colorComposition && iris.compositionLabel !== 'uncertain'
-        ? formatIrisColorCompositionBreakdown(iris.colorComposition).map(([family, pct]) => `${lang==='en' ? IRIS_FAMILY_NAMES[family].en : IRIS_FAMILY_NAMES[family].ru} ${pct}%`).join(' · ')
+        ? formatIrisColorCompositionBreakdown(iris.colorComposition).map(([family, pct]) => `${IRIS_FAMILY_NAMES[family][lang] || IRIS_FAMILY_NAMES[family].ru} ${pct}%`).join(' · ')
         : '';
       return { shape, tilt, hooding, eyelidTypeLabel, eyelidTypeRawLabel, creaseStateLabel, hoodingStateLabel, spacing, eyeSize, symmetry, irisName, irisCompositionLabel, irisCompositionBreakdown };
     }
@@ -10054,39 +10225,44 @@
     // medical claim. Picks the most specific template it has real
     // evidence for; falls back to a generic-but-still-derived line when
     // shape/tilt are themselves uncertain.
+    // PHASE 1 (Arabic localization) — migrated off scattered binary
+    // en?X:Y ternaries onto t(). shape/tilt/c.compositeAsymmetry/
+    // c.eyeSizeCategory/c.eyeSizeConfidence are all already-computed
+    // classification fields, read here exactly as before to SELECT
+    // which pre-written sentence to show -- nothing is reclassified or
+    // recomputed by this migration.
     function generateEyeHighlight(c, lang) {
-      const en = lang === 'en';
       const shape = c.eyeShapeCategory || 'uncertain';
       const tiltKnown = c.tiltConfidence >= TILT_CONFIDENCE_FLOOR;
       const tilt = tiltKnown ? c.tiltTendency : 'neutral';
 
       if (c.compositeAsymmetry > 0.09) {
         const asymBase = {
-          almond: [en ? 'Your eyes have a naturally harmonious almond shape, with some individual left/right asymmetry — the artist can use it to personalize the design.' : 'У ваших глаз гармоничная миндалевидная форма с небольшой индивидуальной асимметрией левого и правого глаза — мастер может использовать эту особенность при персонализации схемы.'],
-          round: [en ? 'Your round, open eyes carry a touch of natural left/right individuality — the artist can use it to fine-tune the balance of the design.' : 'У округлых, открытых глаз есть небольшая природная индивидуальность левого и правого глаза — мастер может использовать её для тонкой балансировки схемы.'],
-          elongatedAlmond: [en ? 'Your elongated almond eyes show a bit of natural left/right individuality — the artist can use it to fine-tune peak position on each side.' : 'У вытянуто-миндалевидных глаз есть небольшая природная индивидуальность левого и правого глаза — мастер может использовать её для точной настройки положения пика с каждой стороны.'],
-          narrow: [en ? 'Your eyes have a delicate, narrow opening with some natural left/right individuality — the artist can factor that into a balanced design.' : 'У глаз деликатное, узкое раскрытие с небольшой природной индивидуальностью левого и правого — мастер может учесть это в сбалансированной схеме.'],
+          almond: [t('eyeHighlightAsymAlmond', lang)],
+          round: [t('eyeHighlightAsymRound', lang)],
+          elongatedAlmond: [t('eyeHighlightAsymElongatedAlmond', lang)],
+          narrow: [t('eyeHighlightAsymNarrow', lang)],
         };
-        return (asymBase[shape] || [en ? 'There’s a natural, individual asymmetry between your eyes — the artist can use it to personalize the lash design.' : 'У глаз есть естественная индивидуальная асимметрия — мастер может использовать её при персонализации схемы.'])[0];
+        return (asymBase[shape] || [t('eyeHighlightAsymFallback', lang)])[0];
       }
 
       const key = shape + '_' + tilt;
       const templates = {
-        almond_upturned: [en ? 'Your almond eye shape pairs with a natural upward lift at the outer corner — an expressive combination the lash design can beautifully echo.' : 'Миндалевидная форма глаз сочетается с естественным подъёмом внешнего уголка — эту выразительную особенность легко красиво подчеркнуть направлением схемы.'],
-        almond_neutral: [en ? 'Your eyes have a very harmonious almond shape — it supports both natural and more expressive lash designs equally well.' : 'У ваших глаз очень гармоничная миндалевидная форма. Она хорошо поддерживает как натуральные, так и более выразительные схемы наращивания.'],
-        almond_downturned: [en ? 'Your almond eyes have a soft, gentle outer corner — a design with a lift toward the outer third can add an elegant accent.' : 'Миндалевидные глаза с мягким, спокойным внешним уголком — схема с акцентом на подъём во внешней трети добавит элегантный штрих.'],
-        round_upturned: [en ? 'Your round eyes have a naturally lifted outer corner, giving the gaze an open, lively character.' : 'Округлые глаза с естественно приподнятым внешним уголком — взгляд от природы открытый и живой.'],
-        round_neutral: [en ? 'Your eyes have a soft, round shape with a naturally wide-open look — a great base for a design that adds gentle elongation.' : 'У глаз мягкая округлая форма с естественно широким взглядом — отличная основа для схемы с лёгким визуальным удлинением.'],
-        round_downturned: [en ? 'Your round eyes have a gentle, relaxed outer corner — a subtle lift in the design can add a soft lifted accent.' : 'Округлые глаза со спокойным, мягким внешним уголком — лёгкий подъём в схеме добавит деликатный акцент.'],
-        elongatedAlmond_upturned: [en ? 'Your elongated almond eyes with a naturally upturned corner give the gaze a striking, feline elegance.' : 'Вытянуто-миндалевидные глаза с естественно приподнятым уголком придают взгляду выразительную, кошачью элегантность.'],
-        elongatedAlmond_neutral: [en ? 'Your eyes have a beautifully elongated almond shape with balanced proportions — a very versatile, editorial-looking base.' : 'У ваших глаз красивая вытянуто-миндалевидная форма со сбалансированными пропорциями — универсальная, эффектная основа для самых разных схем.'],
-        elongatedAlmond_downturned: [en ? 'Your elongated almond eyes have a softly dropped outer corner — a design with lift toward the temple can beautifully balance the look.' : 'Вытянуто-миндалевидные глаза с мягко опущенным внешним уголком — схема с подъёмом к виску красиво сбалансирует взгляд.'],
-        narrow_upturned: [en ? 'Your eyes have a delicate, narrow opening with a natural lift at the outer corner — a refined, elongating design can beautifully open the gaze.' : 'У глаз деликатное, узкое раскрытие с естественным подъёмом внешнего уголка — деликатная удлиняющая схема красиво откроет взгляд.'],
-        narrow_neutral: [en ? 'Your eyes have a delicate, narrow opening — a design that gently opens the eye along the center can add expressive volume.' : 'У глаз деликатное, узкое раскрытие — схема с мягким акцентом в центре добавит выразительный объём.'],
-        narrow_downturned: [en ? 'Your eyes have a delicate, narrow opening with a gentle downward corner — a soft outer lift can add a subtle opening effect.' : 'У глаз деликатное, узкое раскрытие с мягким опущенным уголком — лёгкий подъём во внешней зоне добавит эффект визуального открытия.'],
-        uncertain_upturned: [en ? 'Your eyes have a naturally lifted outer corner — a distinctive feature the design can play up.' : 'У глаз естественно приподнятый внешний уголок — эту особенность можно красиво обыграть в схеме.'],
-        uncertain_neutral: [en ? 'Your eyes have balanced, harmonious proportions that work well with a wide range of lash designs.' : 'У ваших глаз сбалансированные, гармоничные пропорции — они хорошо сочетаются с самыми разными схемами наращивания.'],
-        uncertain_downturned: [en ? 'Your eyes have a soft, relaxed outer corner — a gentle lift in the design can add a lovely lifted accent.' : 'У глаз мягкий, спокойный внешний уголок — лёгкий подъём в схеме добавит красивый акцент.'],
+        almond_upturned: [t('eyeHighlightAlmondUpturned', lang)],
+        almond_neutral: [t('eyeHighlightAlmondNeutral', lang)],
+        almond_downturned: [t('eyeHighlightAlmondDownturned', lang)],
+        round_upturned: [t('eyeHighlightRoundUpturned', lang)],
+        round_neutral: [t('eyeHighlightRoundNeutral', lang)],
+        round_downturned: [t('eyeHighlightRoundDownturned', lang)],
+        elongatedAlmond_upturned: [t('eyeHighlightElongatedAlmondUpturned', lang)],
+        elongatedAlmond_neutral: [t('eyeHighlightElongatedAlmondNeutral', lang)],
+        elongatedAlmond_downturned: [t('eyeHighlightElongatedAlmondDownturned', lang)],
+        narrow_upturned: [t('eyeHighlightNarrowUpturned', lang)],
+        narrow_neutral: [t('eyeHighlightNarrowNeutral', lang)],
+        narrow_downturned: [t('eyeHighlightNarrowDownturned', lang)],
+        uncertain_upturned: [t('eyeHighlightUncertainUpturned', lang)],
+        uncertain_neutral: [t('eyeHighlightUncertainNeutral', lang)],
+        uncertain_downturned: [t('eyeHighlightUncertainDownturned', lang)],
       };
       let line = (templates[key] || templates.uncertain_neutral)[0];
 
@@ -10097,9 +10273,9 @@
       // hidden from the artist as a raw UI row, but this phase does not
       // remove it from recommendation/advisory logic.
       if (c.eyeSizeCategory === 'large' && c.eyeSizeConfidence > 0.45) {
-        line += en ? ' Their proportion relative to the face is naturally striking.' : ' Их пропорция относительно лица от природы выразительна.';
+        line += t('eyeHighlightSizeLarge', lang);
       } else if (c.eyeSizeCategory === 'small' && c.eyeSizeConfidence > 0.45) {
-        line += en ? ' A design with a soft central peak can add extra openness to the gaze.' : ' Схема с мягким центральным пиком добавит взгляду дополнительную открытость.';
+        line += t('eyeHighlightSizeSmall', lang);
       }
       return line;
     }
@@ -10232,8 +10408,8 @@
     // localization layer. Every other design/screen (the cards below,
     // AllDesignsScreen, LashMapScreen) continues to show d.name unchanged.
     function heroDesignDisplayName(d, lang) {
-      if (lang === 'en') return d.name;
-      return d.id === 'fox' ? 'Лисий' : d.name;
+      if (lang === 'ru' && d.id === 'fox') return 'Лисий';
+      return d.name;
     }
 
     function HeroScreen({ result, naturalLashProfile, onViewMap, onDetails, onAllDesigns, onScanLashes, onViewLashProfile, onBack, onSaveToClient }) {
@@ -10459,7 +10635,7 @@
           <div className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-6">
             {categories.map(cat => (
               <div key={cat}>
-                <h3 className="label-tech mb-2">{lang==='en'?CATEGORY_LABELS[cat].en:CATEGORY_LABELS[cat].ru}</h3>
+                <h3 className="label-tech mb-2">{CATEGORY_LABELS[cat][lang] || CATEGORY_LABELS[cat].ru}</h3>
                 <div className="space-y-2">
                   {all.filter(d => d.category === cat).map((d) => {
                     const rank = all.findIndex(x=>x.id===d.id);
@@ -10472,7 +10648,7 @@
                         <p className="text-xs text-textSecondary leading-relaxed mb-2 line-clamp-2">{d.whyItWorks}</p>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-border text-textMuted">{lang==='en'?CATEGORY_LABELS[cat].en:CATEGORY_LABELS[cat].ru}</span>
+                            <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-border text-textMuted">{CATEGORY_LABELS[cat][lang] || CATEGORY_LABELS[cat].ru}</span>
                             {d.texture && <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-cyan/25 text-cyan">{d.texture.pattern}</span>}
                           </div>
                           <span className="text-[10px] text-accent font-semibold uppercase tracking-wide">{t('openLabel', lang)} →</span>
@@ -10712,7 +10888,7 @@
       const profileLinePath=profilePoints.map((p,i)=>`${i?'L':'M'} ${p.mapX} ${p.mapY}`).join(' ');
       const profileFillPath=`M ${profilePoints.map(p=>`${p.mapX},${p.mapY}`).join(' L ')} L ${[...workingLine.points].reverse().map(p=>`${p.mapX},${p.mapY}`).join(' L ')} Z`;
       const unit=Math.max(photoCrop.width,photoCrop.height)/100;
-      const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : (lang==='en'?'Smooth':'Гладкая');
+      const textureLabel=texture ? ({wispy:'Wispy',kim:'Kim',manga:'Manga'}[texture.pattern]||texture.pattern) : t('lashMapTextureSmooth',lang);
       const peak=points.find(p=>p.isPeak);
       const curlSpec=[curl,...design.curlRec.alternatives.filter(v=>v!==curl)].slice(0,2).join(' / ');
       const svgPoint=event=>{const svg=svgRef.current,matrix=svg&&svg.getScreenCTM();if(!svg||!matrix)return null;const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;return point.matrixTransform(matrix.inverse());};
@@ -10780,7 +10956,7 @@
           <div className="border-t border-white/[.07] p-3">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div><p className="text-sm font-semibold text-textPrimary">{design.name}</p><p className="text-[10px] uppercase tracking-widest text-textMuted">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</p></div>
-              <div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{lang==='en'?'Peak':'Пик'}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div>
+              <div className="text-right"><p className="text-[9px] uppercase tracking-widest text-textMuted">{t('visitDetailPeakLabel',lang)}</p><p className="text-sm font-semibold text-cyan">{Math.round((peak?.t||0)*100)}%</p></div>
             </div>
             <dl className="grid grid-cols-3 gap-2 border-y border-white/[.06] py-2.5">
               <div><dt className="text-[9px] uppercase tracking-wider text-textMuted">{t('lashMapCurl',lang)}</dt><dd className="mt-0.5 text-xs font-medium text-textPrimary">{curlSpec}</dd></div>
@@ -10929,9 +11105,9 @@
                 <div className="glass rounded-md p-3 mb-3 border-peak/25">
                   <p className="text-xs text-peak font-medium mb-1 uppercase tracking-wide">{t('asymBanner', lang)}</p>
                   <p className="text-xs text-textSecondary">
-                    {lang==='en'
-                      ? `${(design.leftCorrectionMm || 0) > 0 ? 'Left' : 'Right'} eye map was adjusted by ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} mm from the measured multi-axis asymmetry.`
-                      : `Карта ${(design.leftCorrectionMm || 0) > 0 ? 'левого' : 'правого'} глаза скорректирована на ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} мм по измеренной многофакторной асимметрии.`}
+                    {t('lashMapAsymBannerTemplate', lang)
+                      .replace('{side}', (design.leftCorrectionMm || 0) > 0 ? t('lashMapAsymSideLeft', lang) : t('lashMapAsymSideRight', lang))
+                      .replace('{mm}', Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0))}
                   </p>
                 </div>
               )}
@@ -11100,9 +11276,9 @@
                   {asym && (
                     <PlanSection num={String(planNum.next()).padStart(2,'0')} icon="asymmetry" title={t('asymAdjustTitle', lang)}>
                       <p className="text-sm text-textSecondary leading-relaxed">
-                        {lang==='en'
-                          ? `${(design.leftCorrectionMm || 0) > 0 ? 'Left' : 'Right'} eye map was adjusted by ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} mm from the measured multi-axis asymmetry.`
-                          : `Карта ${(design.leftCorrectionMm || 0) > 0 ? 'левого' : 'правого'} глаза скорректирована на ${Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0)} мм по измеренной многофакторной асимметрии.`}
+                        {t('lashMapAsymBannerTemplate', lang)
+                          .replace('{side}', (design.leftCorrectionMm || 0) > 0 ? t('lashMapAsymSideLeft', lang) : t('lashMapAsymSideRight', lang))
+                          .replace('{mm}', Math.max(design.leftCorrectionMm || 0, design.rightCorrectionMm || 0))}
                       </p>
                     </PlanSection>
                   )}
@@ -11250,11 +11426,11 @@
       const debugAvailable = isDebugModeEnabled();
       const p = result.eyeProfile;
       const iris = result.iris || {};
-      const irisName = iris.name ? (lang==='en'?IRIS_NAMES[iris.name].en:IRIS_NAMES[iris.name].ru) : null;
+      const irisName = iris.name ? (IRIS_NAMES[iris.name][lang] || IRIS_NAMES[iris.name].ru) : null;
       // Phase C3d: additive display fields (see eyeProfileLabels' identical pattern).
-      const irisCompositionLabel = iris.compositionLabel ? (lang==='en' ? resolveIrisColorLabel(iris.compositionLabel).en : resolveIrisColorLabel(iris.compositionLabel).ru) : irisName;
+      const irisCompositionLabel = iris.compositionLabel ? (resolveIrisColorLabel(iris.compositionLabel)[lang] || resolveIrisColorLabel(iris.compositionLabel).ru) : irisName;
       const irisCompositionBreakdown = iris.colorComposition && iris.compositionLabel !== 'uncertain'
-        ? formatIrisColorCompositionBreakdown(iris.colorComposition).map(([family, pct]) => `${lang==='en' ? IRIS_FAMILY_NAMES[family].en : IRIS_FAMILY_NAMES[family].ru} ${pct}%`).join(' · ')
+        ? formatIrisColorCompositionBreakdown(iris.colorComposition).map(([family, pct]) => `${IRIS_FAMILY_NAMES[family][lang] || IRIS_FAMILY_NAMES[family].ru} ${pct}%`).join(' · ')
         : '';
       return (
         <div className="h-full flex flex-col fade-in">
@@ -11277,7 +11453,7 @@
               <div className="space-y-2">
                 {Object.entries(p.shapeTendencies).sort((a,b)=>b[1]-a[1]).map(([k,v]) => (
                   <div key={k} className="flex items-center gap-3">
-                    <span className="text-xs w-24 capitalize text-textSecondary">{k === 'round' ? (lang==='en'?'Round':'Округлая') : k === 'almond' ? (lang==='en'?'Almond':'Миндалевидная') : (lang==='en'?'Elongated':'Вытянутая')}</span>
+                    <span className="text-xs w-24 capitalize text-textSecondary">{k === 'round' ? t('detailsShapeTendencyRound', lang) : k === 'almond' ? t('detailsShapeTendencyAlmond', lang) : t('detailsShapeTendencyElongated', lang)}</span>
                     <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden"><div className="h-full bg-accent" style={{width: `${(v*100).toFixed(0)}%`}}></div></div>
                     <span className="text-xs w-9 text-right text-textMuted">{(v*100).toFixed(0)}%</span>
                   </div>
@@ -11303,15 +11479,15 @@
               <div className="glass rounded-lg p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <ParamIcon name="asymmetry" className="w-4 h-4 text-accent" />
-                  <h3 className="label-tech">{lang==='en'?'L/R Asymmetry':'Асимметрия L/R'}</h3>
+                  <h3 className="label-tech">{t('detailsAsymHeader', lang)}</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-y-2 text-xs">
-                  <span className="text-textSecondary">{lang==='en'?'Width':'Ширина'}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.width*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{lang==='en'?'Height':'Высота'}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.height*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{lang==='en'?'Corner angle':'Угол уголков'}</span><span className="text-right text-textPrimary">{p.asymmetryBreakdown.tilt.toFixed(1)}°</span>
-                  <span className="text-textSecondary">{lang==='en'?'Openness':'Раскрытие глаз'}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.openness*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{lang==='en'?'Lid visibility':'Видимость века'}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.hooding*100).toFixed(1)}%</span>
-                  <span className="text-textSecondary">{lang==='en'?'Vertical position':'Верт. позиция'}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.vertical*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymWidth', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.width*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymHeight', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.height*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymCornerAngle', lang)}</span><span className="text-right text-textPrimary">{p.asymmetryBreakdown.tilt.toFixed(1)}°</span>
+                  <span className="text-textSecondary">{t('detailsAsymOpenness', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.openness*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymLidVisibility', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.hooding*100).toFixed(1)}%</span>
+                  <span className="text-textSecondary">{t('detailsAsymVerticalPosition', lang)}</span><span className="text-right text-textPrimary">{(p.asymmetryBreakdown.vertical*100).toFixed(1)}%</span>
                 </div>
               </div>
             )}
@@ -11327,7 +11503,7 @@
                   <div>
                     <p className="text-sm font-medium text-textPrimary">{irisCompositionLabel}</p>
                     {irisCompositionBreakdown && <p className="text-[11px] text-textMuted leading-snug">{irisCompositionBreakdown}</p>}
-                    <p className="text-xs text-textSecondary">{lang==='en'?'Confidence':'Уверенность'}: {(iris.confidence*100).toFixed(0)}% — {lang==='en'?'lighting affects the result':'освещение влияет на результат'}</p>
+                    <p className="text-xs text-textSecondary">{t('detailsIrisConfidenceLabel', lang)}: {(iris.confidence*100).toFixed(0)}% — {t('detailsIrisLightingNote', lang)}</p>
                   </div>
                 </div>
               </div>
@@ -11345,11 +11521,11 @@
             <div className="glass rounded-lg p-5">
               <div className="flex items-center gap-2 mb-4">
                 <ParamIcon name="position" className="w-4 h-4 text-accent" />
-                <h3 className="label-tech">{lang==='en'?'Other':'Прочее'}</h3>
+                <h3 className="label-tech">{t('detailsOtherHeader', lang)}</h3>
               </div>
               <div className="grid grid-cols-2 gap-y-3 text-sm">
                 <div><span className="text-textSecondary">{t('tiltLabel',lang)}:</span> <span className="font-medium text-textPrimary">{p.tiltConfidence < TILT_CONFIDENCE_FLOOR ? t('tiltUncertain', lang) : p.tiltTendency === 'upturned' ? t('tiltUpturned', lang) : p.tiltTendency === 'downturned' ? t('tiltDownturned', lang) : t('tiltNeutral', lang)} ({(p.tiltConfidence*100).toFixed(0)}%)</span></div>
-                <div><span className="text-textSecondary">{t('spacingLabel',lang)}:</span> <span className="font-medium text-textPrimary">{p.isCloseSet ? (lang==='en'?'Close':'Близкое') : p.isWideSet ? (lang==='en'?'Wide':'Широкое') : (lang==='en'?'Balanced':'Среднее')} ({(p.spacingConfidence*100).toFixed(0)}%)</span></div>
+                <div><span className="text-textSecondary">{t('spacingLabel',lang)}:</span> <span className="font-medium text-textPrimary">{p.isCloseSet ? t('detailsSpacingClose', lang) : p.isWideSet ? t('detailsSpacingWide', lang) : t('detailsSpacingBalanced', lang)} ({(p.spacingConfidence*100).toFixed(0)}%)</span></div>
                 {/* DISPLAY-ONLY: the relative-eye-size row was removed here — p.relativeEyeSize/p.eyeSizeCategory remain fully computed and available, just not shown to the artist. */}
               </div>
             </div>
@@ -11868,36 +12044,23 @@
     function buildLibraryTechniqueNotes(diagramProps, lang) {
       if (!diagramProps) return [];
       const { zones, zoneNames, peakIdx, curlByZone, spikeGeom } = diagramProps;
-      const en = lang === 'en';
       const notes = [];
       if (zones.length > 1 && zones[zones.length - 1] > zones[0]) {
-        notes.push(en
-          ? 'Length builds progressively from the inner corner toward the outer zone for an elongated silhouette.'
-          : 'Длина постепенно нарастает от внутреннего уголка к внешней зоне, создавая эффект удлинения.');
+        notes.push(t('lashMapLibraryNoteElongating', lang));
       } else if (zones.length > 1 && zones[0] > zones[zones.length - 1]) {
-        notes.push(en
-          ? 'Length is concentrated toward the inner corner and eases outward, correcting the outer emphasis of a standard map.'
-          : 'Длина сосредоточена у внутреннего уголка и снижается к внешнему краю — это корректирует привычный акцент на внешний уголок.');
+        notes.push(t('lashMapLibraryNoteInnerFocus', lang));
       }
       if (spikeGeom) {
-        notes.push(en
-          ? 'A distinct spike/ray layer sits on top of the base map — set the base lengths first, then add the longer accent rays at their marked zones.'
-          : 'Поверх базовой карты выполняется отдельный слой лучей — сначала выставляется база, затем в отмеченных зонах добавляются более длинные акцентные лучи.');
+        notes.push(t('lashMapLibraryNoteSpikeLayer', lang));
       }
       if (curlByZone && new Set(curlByZone.filter(Boolean)).size > 1) {
-        notes.push(en
-          ? 'Curl changes from zone to zone — confirm each zone\'s curl against the map instead of using one curl across the whole eye.'
-          : 'Изгиб меняется по зонам — сверяйте изгиб каждой зоны с картой, а не используйте один изгиб на весь глаз.');
+        notes.push(t('lashMapLibraryNoteCurlVaries', lang));
       }
       if (peakIdx > 0 && peakIdx < zones.length - 1 && zones[zones.length - 1] < zones[peakIdx]) {
-        notes.push(en
-          ? 'Length tapers back down after the peak toward the outer corner for a softer finish.'
-          : 'После пика длина мягко снижается к внешнему уголку для более деликатного завершения.');
+        notes.push(t('lashMapLibraryNoteTaper', lang));
       }
       const peakName = zoneLabel(zoneNames[peakIdx], lang);
-      notes.push(en
-        ? `Peak length sits at the ${peakName} zone — this is where the design's visual emphasis is concentrated.`
-        : `Пик длины расположен в зоне «${peakName}» — именно здесь сосредоточен визуальный акцент схемы.`);
+      notes.push(t('lashMapLibraryNotePeakTemplate', lang).replace('{peakName}', peakName));
       return notes;
     }
 
@@ -11916,16 +12079,14 @@
           lengthRange: zones.length ? `${Math.min(...zones)}–${Math.max(...zones)} mm` : '',
         };
       });
-      const T = lang === 'ru'
-        ? { count: `${items.length} профессиональных карт` }
-        : { count: `${items.length} professional maps` };
+      const countLabel = t('lashMapLibraryCountTemplate', lang).replace('{count}', items.length);
       return (
         <div className="h-full flex flex-col bg-bg fade-in">
           <div className="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border/60">
             <BackButton onBack={onBack} />
             <div className="min-w-0">
               <h1 className="text-[15px] font-bold text-textPrimary truncate">{t('lashMapLibraryNavLabel', lang)}</h1>
-              <p className="text-xs text-textSecondary">{T.count}</p>
+              <p className="text-xs text-textSecondary">{countLabel}</p>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 hide-scrollbar">
@@ -12635,7 +12796,7 @@
                   from the current iris classifier/library, never
                   touches visit-snapshot.js's schema or the client
                   data store. */}
-              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={analysis.iris && analysis.iris.category ? (lang === 'en' ? IRIS_NAMES[analysis.iris.category].en : IRIS_NAMES[analysis.iris.category].ru) : na} confidence={analysis.iris?.category === 'uncertain' ? undefined : (analysis.iris?.confidence ?? undefined)} />
+              <EyeProfileRow icon="iris" label={t('irisColorLabel', lang)} value={analysis.iris && analysis.iris.category ? (IRIS_NAMES[analysis.iris.category][lang] || IRIS_NAMES[analysis.iris.category].ru) : na} confidence={analysis.iris?.category === 'uncertain' ? undefined : (analysis.iris?.confidence ?? undefined)} />
               <div className="mt-2 pt-2 border-t border-border/60">
                 <p className="text-[10px] uppercase tracking-wide text-textMuted mb-1.5">{t('visitDetailNaturalLashLabel', lang)}</p>
                 {['left', 'right'].map(side => {

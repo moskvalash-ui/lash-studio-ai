@@ -255,7 +255,7 @@ test('I. reduced-motion completion is gated ONLY on real analysis being done (no
 });
 
 test('J. photo-appropriate label text ("ЛИЦО РАСПОЗНАНО"/"FACE DETECTED") is used in the scan animation, never the live-tracking-implying "SUBJECT LOCKED" string', () => {
-  assert.ok(src.includes("photoFaceDetected: {ru:'ЛИЦО РАСПОЗНАНО', en:'FACE DETECTED'},"));
+  assert.ok(src.includes("photoFaceDetected: {ru:'ЛИЦО РАСПОЗНАНО', en:'FACE DETECTED', ar:'تم رصد الوجه'},"));
   assert.ok(photoScreenBlock.includes("t('photoFaceDetected', langRef.current)"));
   assert.ok(!photoScreenBlock.includes('stageSubjectLocked'), 'PhotoAnalysisScreen must never reuse the live-tracking-implying SUBJECT LOCKED string');
 });

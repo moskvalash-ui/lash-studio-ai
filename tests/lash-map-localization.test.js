@@ -139,6 +139,14 @@ test('custom zone editor in LashMapScreen localizes its per-zone name span', () 
 // routes through zoneLabel().
 test('recommendation/Application Plan EN text generation remains byte-identical; RU no longer leaks raw ZONE_NAMES', () => {
   assert.ok(src.includes('`${ZONE_NAMES[0]} ${d.leftZones[0]}mm → ${ZONE_NAMES[d.peakZone]} ${maxLeft}mm → ${ZONE_NAMES[4]} ${d.leftZones[4]}mm`'), 'EN branch must remain byte-identical');
-  assert.ok(src.includes('`${zoneLabel(ZONE_NAMES[0],lang)} ${d.leftZones[0]}мм → ${zoneLabel(ZONE_NAMES[d.peakZone],lang)} ${maxLeft}мм → ${zoneLabel(ZONE_NAMES[4],lang)} ${d.leftZones[4]}мм`'), 'RU branch must now route through zoneLabel()');
+  // PHASE 1 (Arabic localization): the RU branch's literal 'мм' unit
+  // suffix was replaced with a `lengthUnit` variable (computed as
+  // lang==='en'?'mm':lang==='ar'?'مм'... i.e. 'مم':'мм') so a third
+  // language gets the correct unit glyph too -- for RU specifically
+  // this still evaluates to the exact same literal 'мм' text as
+  // before, byte-identical output, just no longer a hardcoded literal
+  // in the source.
+  assert.ok(src.includes('`${zoneLabel(ZONE_NAMES[0],lang)} ${d.leftZones[0]}${lengthUnit} → ${zoneLabel(ZONE_NAMES[d.peakZone],lang)} ${maxLeft}${lengthUnit} → ${zoneLabel(ZONE_NAMES[4],lang)} ${d.leftZones[4]}${lengthUnit}`'), 'RU/AR branch must now route through zoneLabel() and the shared lengthUnit variable');
+  assert.ok(src.includes("const lengthUnit = lang === 'en' ? 'mm' : lang === 'ar' ? 'مم' : 'мм';"), 'expected the new lengthUnit variable, defaulting to the original мм for ru');
   assert.ok(!src.includes('`${ZONE_NAMES[0]} ${d.leftZones[0]}мм → ${ZONE_NAMES[d.peakZone]} ${maxLeft}мм → ${ZONE_NAMES[4]} ${d.leftZones[4]}мм`'), 'the old raw-RU embed must be gone');
 });

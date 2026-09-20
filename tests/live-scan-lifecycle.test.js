@@ -118,8 +118,8 @@ test('D: an unexpected track "ended" event transitions to a distinct camera-stop
 });
 
 test('D: stageCameraStopped/hintRestartScan RU+EN text matches the specified message and is distinct from stageSearching/stageLost', () => {
-  assert.deepStrictEqual(STRINGS.stageCameraStopped, { ru: 'Камера остановлена', en: 'Camera stopped' });
-  assert.deepStrictEqual(STRINGS.hintRestartScan, { ru: 'Попробуйте запустить сканирование снова.', en: 'Please start the scan again.' });
+  assert.deepStrictEqual(STRINGS.stageCameraStopped, { ru: 'Камера остановлена', en: 'Camera stopped', ar: 'تم إيقاف الكاميرا' });
+  assert.deepStrictEqual(STRINGS.hintRestartScan, { ru: 'Попробуйте запустить сканирование снова.', en: 'Please start the scan again.', ar: 'يرجى بدء المسح من جديد.' });
   // The pill (stageKey) + the hint paragraph directly below it, read
   // together, reproduce the exact requested sentence pair.
   assert.strictEqual(`${STRINGS.stageCameraStopped.ru}. ${STRINGS.hintRestartScan.ru}`, 'Камера остановлена. Попробуйте запустить сканирование снова.');
@@ -142,7 +142,7 @@ test('E: a thrown detector/pipeline error transitions to a distinct, user-visibl
   assert.ok(tickCatch.includes("setPhase('error')"));
   assert.ok(tickCatch.includes("decideHint('hintRestartScan')"));
   assert.ok(!tickCatch.includes("'stageSearching'"));
-  assert.deepStrictEqual(STRINGS.stageScanError, { ru: 'Ошибка сканирования', en: 'Scan error' });
+  assert.deepStrictEqual(STRINGS.stageScanError, { ru: 'Ошибка сканирования', en: 'Scan error', ar: 'خطأ في المسح' });
 });
 
 test('F: the processing loop is stopped in the catch block, so a fatal error cannot repeat/spam every frame', () => {

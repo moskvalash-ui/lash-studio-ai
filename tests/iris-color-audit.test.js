@@ -910,7 +910,7 @@ test('INSTR-2. combineIris and classifyIrisColor/classifyLowLightAmbiguous remai
   // Classification logic remains pinned; only the user-facing wording of
   // its inconclusive outcome changed because it is not a quality rejection.
   for (const line of [
-    "uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'},",
+    "uncertain: {ru:'Оттенок не определён', en:'Color inconclusive', ar:'لم يتم تحديد اللون'},",
     'function classifyLowLightAmbiguous(h, s, veryDark) {',
     "if (l < 0.32 && s < 0.35) return classifyLowLightAmbiguous(h, s, false);",
     "if (l < 0.35) return classifyLowLightAmbiguous(h, s, false);",

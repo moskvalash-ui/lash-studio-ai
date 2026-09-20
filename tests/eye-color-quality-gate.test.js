@@ -87,7 +87,7 @@ test('quality validity has no iris classifier/confidence dependency', () => {
 });
 
 test('an inconclusive iris color no longer falsely instructs a valid capture to retry', () => {
-  assert.ok(src.includes("uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'},"));
+  assert.ok(src.includes("uncertain: {ru:'Оттенок не определён', en:'Color inconclusive', ar:'لم يتم تحديد اللون'},"));
   assert.ok(!src.includes("uncertain: {ru:'Требует уточнения', en:'Needs clearer capture'},"));
 });
 

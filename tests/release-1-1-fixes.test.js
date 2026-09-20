@@ -147,8 +147,12 @@ test('Visit Detail: suppresses the historical iris confidence percentage when th
 test('Visit Detail: uncertain historical iris shows the RU/EN "not determined" text with no confidence number; a confident historical iris may still show one', () => {
   // Value text is untouched by this fix — IRIS_NAMES.uncertain already
   // provides the RU/EN "not determined" wording; only confidence changed.
-  assert.ok(src.includes("value={analysis.iris && analysis.iris.category ? (lang === 'en' ? IRIS_NAMES[analysis.iris.category].en : IRIS_NAMES[analysis.iris.category].ru) : na}"));
-  assert.ok(src.includes("uncertain: {ru:'Оттенок не определён', en:'Color inconclusive'}"), 'IRIS_NAMES.uncertain RU/EN text must still exist unchanged');
+  // PHASE 1 (Arabic localization): migrated from a binary
+  // lang==='en'?X.en:X.ru ternary to X[lang] || X.ru — same dictionary,
+  // same .ru fallback, byte-identical RU/EN output; Arabic now resolves
+  // its own IRIS_NAMES entry instead of silently falling through to RU.
+  assert.ok(src.includes("value={analysis.iris && analysis.iris.category ? (IRIS_NAMES[analysis.iris.category][lang] || IRIS_NAMES[analysis.iris.category].ru) : na}"));
+  assert.ok(src.includes("uncertain: {ru:'Оттенок не определён', en:'Color inconclusive', ar:'لم يتم تحديد اللون'}"), 'IRIS_NAMES.uncertain RU/EN text must still exist unchanged');
 });
 
 test('Visit Detail iris fix does not touch the classifier, combineIris, thresholds, snapshot schema, Visit persistence, historical Lash Map, or Client Card architecture', () => {

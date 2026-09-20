@@ -48,6 +48,24 @@ function loadRecommendCurl() {
 }
 const { recommendCurl } = loadRecommendCurl();
 
+// generateEyeHighlight (PHASE 1 language migration) now calls the real
+// t(key, lang) / STRINGS localization primitives instead of inline
+// ternaries, so this isolated extraction must supply them too — same
+// pattern as tests/lash-map-localization.test.js.
+function extractObjectLiteral(name) {
+  const start = indexSource.indexOf('const ' + name + ' = {');
+  const braceStart = indexSource.indexOf('{', start);
+  let depth = 0, i = braceStart;
+  for (; i < indexSource.length; i++) {
+    if (indexSource[i] === '{') depth++;
+    else if (indexSource[i] === '}') { depth--; if (depth === 0) break; }
+  }
+  return indexSource.slice(braceStart, i + 1);
+}
+const stringsLiteral = extractObjectLiteral('STRINGS');
+const tFnStart = indexSource.indexOf('function t(key, lang)');
+const tFnLine = indexSource.slice(tFnStart, indexSource.indexOf('\n', tFnStart));
+
 function loadGenerateEyeHighlight() {
   // NOTE: slice()'s endMarker is excluded from the result (correct for
   // "everything up to the next declaration" boundaries elsewhere in
@@ -58,7 +76,9 @@ function loadGenerateEyeHighlight() {
   const closeMarker = '\n    }';
   const end = indexSource.indexOf(closeMarker, start) + closeMarker.length;
   const fn = indexSource.slice(start, end);
-  return new Function('const TILT_CONFIDENCE_FLOOR=0.22;' + fn + '; return { generateEyeHighlight };')();
+  return new Function(
+    `const STRINGS = ${stringsLiteral};\n${tFnLine}\nconst TILT_CONFIDENCE_FLOOR=0.22;\n` + fn + '; return { generateEyeHighlight };'
+  )();
 }
 const { generateEyeHighlight } = loadGenerateEyeHighlight();
 

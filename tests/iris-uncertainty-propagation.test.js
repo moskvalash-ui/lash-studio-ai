@@ -202,23 +202,30 @@ test('11b. equal-confidence, non-uncertain eyes still blend as a plain 50/50 ave
 // future change to either cannot silently diverge.
 // ================================================================
 test('12a. IRIS_NAMES.uncertain carries the existing RU/EN inconclusive wording, unchanged', () => {
-  assert.deepStrictEqual(IRIS_NAMES.uncertain, { ru: 'Оттенок не определён', en: 'Color inconclusive' });
+  assert.deepStrictEqual(IRIS_NAMES.uncertain, { ru: 'Оттенок не определён', en: 'Color inconclusive', ar: 'لم يتم تحديد اللون' });
 });
+// PHASE 1 (Arabic localization): both sites were migrated from a binary
+// lang==='en'?X.en:X.ru ternary to X[lang] || X.ru (same IRIS_NAMES
+// dictionary, same .ru fallback semantics) so a third language (Arabic,
+// which now has its own IRIS_NAMES.uncertain.ar entry) resolves
+// correctly instead of silently falling through to Russian. RU/EN
+// output is byte-identical before/after -- only proven-unreachable (for
+// today's RU/EN-only UI) Arabic behavior changed.
 test('12b. HeroScreen (via eyeProfileLabels) renders the inconclusive wording, not a color, when iris.name is uncertain', () => {
   const start = src.indexOf('    function eyeProfileLabels(p, iris, lang) {');
   const end = src.indexOf('\n    }', start) + '\n    }'.length;
   const body = src.slice(start, end);
-  assert.ok(body.includes("const irisName = iris?.name ? (lang==='en' ? IRIS_NAMES[iris.name].en : IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);"), 'eyeProfileLabels must still route iris.name through IRIS_NAMES (which includes the uncertain entry) rather than any special-cased text');
+  assert.ok(body.includes("const irisName = iris?.name ? (IRIS_NAMES[iris.name][lang] || IRIS_NAMES[iris.name].ru) : t('insufficientData', lang);"), 'eyeProfileLabels must still route iris.name through IRIS_NAMES (which includes the uncertain entry) rather than any special-cased text');
 });
 test('12c. DetailsScreen renders the inconclusive wording, not a color, when iris.name is uncertain', () => {
   const start = src.indexOf('    function DetailsScreen({ result, onBack }) {');
-  const end = src.indexOf("const irisName = iris.name ? (lang==='en'?IRIS_NAMES[iris.name].en:IRIS_NAMES[iris.name].ru) : null;", start);
+  const end = src.indexOf("const irisName = iris.name ? (IRIS_NAMES[iris.name][lang] || IRIS_NAMES[iris.name].ru) : null;", start);
   assert.ok(start >= 0 && end > start, 'DetailsScreen and its irisName computation must both be present');
-  assert.ok(src.includes("const irisName = iris.name ? (lang==='en'?IRIS_NAMES[iris.name].en:IRIS_NAMES[iris.name].ru) : null;"));
+  assert.ok(src.includes("const irisName = iris.name ? (IRIS_NAMES[iris.name][lang] || IRIS_NAMES[iris.name].ru) : null;"));
 });
 test('12d. end-to-end: given iris.name === "uncertain" (as combineIris now guarantees for either-eye-uncertain input), both display sites compute the exact RU/EN inconclusive strings', () => {
   const lang_ru = 'ru', lang_en = 'en';
-  const irisNameFor = (lang) => (lang === 'en' ? IRIS_NAMES['uncertain'].en : IRIS_NAMES['uncertain'].ru);
+  const irisNameFor = (lang) => (IRIS_NAMES['uncertain'][lang] || IRIS_NAMES['uncertain'].ru);
   assert.strictEqual(irisNameFor(lang_ru), 'Оттенок не определён');
   assert.strictEqual(irisNameFor(lang_en), 'Color inconclusive');
 });

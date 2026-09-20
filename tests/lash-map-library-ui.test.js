@@ -14,6 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
 const src = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -30,44 +31,44 @@ const libraryUiBlock = src.slice(libraryUiStart, libraryUiEnd);
 // its own helpers + zoneLabel/ZONE_LABEL_KEYS/t/STRINGS), all real
 // production source, same string-slice + eval technique this repo
 // uses throughout.
-function loadLibraryApi() {
-  const stringsStart = src.indexOf('    const STRINGS = {');
-  const stringsBraceStart = src.indexOf('{', stringsStart);
+function loadLibraryApi(source) {
+  const stringsStart = source.indexOf('    const STRINGS = {');
+  const stringsBraceStart = source.indexOf('{', stringsStart);
   let depth = 0, i = stringsBraceStart;
-  for (; i < src.length; i++) {
-    if (src[i] === '{') depth++;
-    else if (src[i] === '}') { depth--; if (depth === 0) break; }
+  for (; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}') { depth--; if (depth === 0) break; }
   }
-  const stringsSrc = src.slice(stringsStart, i + 1);
+  const stringsSrc = source.slice(stringsStart, i + 1);
 
-  const tFnStart = src.indexOf('    function t(key, lang) {');
-  const tFnEnd = src.indexOf('\n    }', tFnStart) + '\n    }'.length;
-  const tSrc = src.slice(tFnStart, tFnEnd);
+  const tFnStart = source.indexOf('    function t(key, lang) {');
+  const tFnEnd = source.indexOf('\n    }', tFnStart) + '\n    }'.length;
+  const tSrc = source.slice(tFnStart, tFnEnd);
 
-  const zoneLabelKeysStart = src.indexOf('    const ZONE_LABEL_KEYS = ');
-  const zoneLabelKeysLine = src.slice(zoneLabelKeysStart, src.indexOf('\n', zoneLabelKeysStart));
-  const zoneLabelFnStart = src.indexOf('    function zoneLabel(');
-  const zoneLabelFnEnd = src.indexOf('\n', zoneLabelFnStart) + 1;
-  const zoneLabelSrc = zoneLabelKeysLine + '\n' + src.slice(zoneLabelFnStart, zoneLabelFnEnd);
+  const zoneLabelKeysStart = source.indexOf('    const ZONE_LABEL_KEYS = ');
+  const zoneLabelKeysLine = source.slice(zoneLabelKeysStart, source.indexOf('\n', zoneLabelKeysStart));
+  const zoneLabelFnStart = source.indexOf('    function zoneLabel(');
+  const zoneLabelFnEnd = source.indexOf('\n', zoneLabelFnStart) + 1;
+  const zoneLabelSrc = zoneLabelKeysLine + '\n' + source.slice(zoneLabelFnStart, zoneLabelFnEnd);
 
-  const adapterStart = src.indexOf('    function plResolveMm(');
-  const adapterEnd = src.indexOf('\n\n\n    function ProLibraryPreviewScreen(', adapterStart);
+  const adapterStart = source.indexOf('    function plResolveMm(');
+  const adapterEnd = source.indexOf('\n\n\n    function ProLibraryPreviewScreen(', adapterStart);
   assert.ok(adapterStart > 0 && adapterEnd > adapterStart, 'the Phase 1S adapter chain must be structurally extractable');
-  const adapterSrc = src.slice(adapterStart, adapterEnd);
+  const adapterSrc = source.slice(adapterStart, adapterEnd);
 
-  const idsStart = src.indexOf('    const LASH_MAP_LIBRARY_IDS = ');
-  const idsEnd = src.indexOf('\n', idsStart) + 1;
-  const notesStart = src.indexOf('    function plDisplayMm(');
-  const notesEnd = src.indexOf('\n\n    function LashMapLibraryScreen(', notesStart);
+  const idsStart = source.indexOf('    const LASH_MAP_LIBRARY_IDS = ');
+  const idsEnd = source.indexOf('\n', idsStart) + 1;
+  const notesStart = source.indexOf('    function plDisplayMm(');
+  const notesEnd = source.indexOf('\n\n    function LashMapLibraryScreen(', notesStart);
   assert.ok(notesEnd > notesStart, 'plDisplayMm/buildLibraryTechniqueNotes must be structurally extractable');
-  const notesSrc = src.slice(notesStart, notesEnd);
+  const notesSrc = source.slice(notesStart, notesEnd);
 
   const fullCode = stringsSrc + '\n' + tSrc + '\n' + zoneLabelSrc + '\n' + adapterSrc + '\n'
-    + src.slice(idsStart, idsEnd) + '\n' + notesSrc
+    + source.slice(idsStart, idsEnd) + '\n' + notesSrc
     + '\nreturn { LASH_MAP_LIBRARY_IDS, plDisplayMm, buildLibraryTechniqueNotes, professionalReferenceTemplateToDiagramProps };';
   return new Function('ProfessionalLashLibrary', fullCode)(Library);
 }
-const api = loadLibraryApi();
+const api = loadLibraryApi(src);
 const { LASH_MAP_LIBRARY_IDS, buildLibraryTechniqueNotes, professionalReferenceTemplateToDiagramProps } = api;
 
 // ------------------------------------------------------------
@@ -192,7 +193,7 @@ test('K. the Library UI never re-derives zone/curl/peak geometry itself — it o
 // ------------------------------------------------------------
 // L. RU/EN
 // ------------------------------------------------------------
-test('L. every new lashMapLibrary* STRINGS key has both a non-empty ru and en value', () => {
+test('L. every new lashMapLibrary* STRINGS key has non-empty ru, en, AND ar values', () => {
   const stringsStart = src.indexOf('    const STRINGS = {');
   const braceStart = src.indexOf('{', stringsStart);
   let depth = 0, i = braceStart;
@@ -203,6 +204,7 @@ test('L. every new lashMapLibrary* STRINGS key has both a non-empty ru and en va
   for (const key of libKeys) {
     assert.ok(STRINGS[key].ru && STRINGS[key].ru.trim().length > 0, key + ' missing RU text');
     assert.ok(STRINGS[key].en && STRINGS[key].en.trim().length > 0, key + ' missing EN text');
+    assert.ok(STRINGS[key].ar && STRINGS[key].ar.trim().length > 0, key + ' missing AR text');
   }
   assert.strictEqual(STRINGS.lashMapLibraryUnderReview.ru, 'На проверке');
   assert.strictEqual(STRINGS.lashMapLibraryUnderReview.en, 'Under review');
@@ -266,4 +268,42 @@ test('O2. the Library UI never references DESIGN_CATALOG, rankDesigns[All], calc
   for (const forbidden of ['DESIGN_CATALOG', 'rankDesigns(', 'rankDesignsAll(', 'calculateEyeLashMap(', 'ClientLashDesign', 'ClientStore.', 'store.createVisit']) {
     assert.ok(!libraryUiBlock.includes(forbidden), forbidden);
   }
+});
+
+// ------------------------------------------------------------
+// P. PHASE 1 CONTINUATION — buildLibraryTechniqueNotes was migrated
+// from inline en/ru ternaries onto centralized STRINGS/t(). These
+// tests prove the migration changed ONLY the displayed language, never
+// the underlying zones/peakIdx/curlByZone/spikeGeom geometry the notes
+// are computed FROM, by diffing the real function's RU/EN output
+// against the real, unmodified function extracted from git HEAD
+// (pre-migration) for every exposed identity.
+// ------------------------------------------------------------
+test('P. buildLibraryTechniqueNotes RU/EN output is byte-identical to the pre-migration (git HEAD) function, for every exposed identity', () => {
+  let headSrc;
+  try { headSrc = execSync('git show HEAD:index.html', { cwd: root, maxBuffer: 1024 * 1024 * 20 }).toString(); }
+  catch (e) { assert.fail('expected `git show HEAD:index.html` to succeed: ' + e.message); }
+  const headApi = loadLibraryApi(headSrc);
+  for (const id of LASH_MAP_LIBRARY_IDS) {
+    for (const lang of ['ru', 'en']) {
+      const props = professionalReferenceTemplateToDiagramProps(id, 'left');
+      const headProps = headApi.professionalReferenceTemplateToDiagramProps(id, 'left');
+      const current = buildLibraryTechniqueNotes(props, lang);
+      const head = headApi.buildLibraryTechniqueNotes(headProps, lang);
+      assert.deepStrictEqual(current, head, `${id}/${lang}: technique notes changed vs. pre-migration HEAD`);
+    }
+  }
+});
+test('P2. buildLibraryTechniqueNotes produces real Arabic script text for lang=\'ar\', for every exposed identity (previously unreachable, ar now has its own STRINGS entries)', () => {
+  const arabicRe = /[؀-ۿ]/;
+  for (const id of LASH_MAP_LIBRARY_IDS) {
+    const props = professionalReferenceTemplateToDiagramProps(id, 'left');
+    const notes = buildLibraryTechniqueNotes(props, 'ar');
+    assert.ok(notes.length > 0, id);
+    for (const note of notes) assert.ok(arabicRe.test(note), `${id}: "${note}" does not look like Arabic script`);
+  }
+});
+test('P3. the item-count label (LashMapLibraryScreen) is migrated to STRINGS/t() with a {count} placeholder, not a hardcoded ru/en ternary', () => {
+  assert.ok(src.includes("const countLabel = t('lashMapLibraryCountTemplate', lang).replace('{count}', items.length);"));
+  assert.ok(!src.includes("? { count: `${items.length} профессиональных карт` }"), 'the old hardcoded ternary must be gone');
 });

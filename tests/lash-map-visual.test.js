@@ -502,8 +502,8 @@ test('mobile PHOTO places EDIT MAP visibly inside the image overlay and exposes 
 });
 
 test('manual PHOTO controls use live RU/EN localization without coupling language to adjustment state',()=>{
-  for(const [key,ru,en] of [['lashMapEdit','НАСТРОИТЬ СХЕМУ','EDIT MAP'],['lashMapEditing','НАСТРОЙКА СХЕМЫ','EDITING MAP'],['lashMapReset','СБРОСИТЬ','RESET'],['lashMapDone','ГОТОВО','DONE']]){
-    assert.ok(src.includes(`${key}: {ru:'${ru}', en:'${en}'}`));
+  for(const [key,ru,en,ar] of [['lashMapEdit','НАСТРОИТЬ СХЕМУ','EDIT MAP','تخصيص الخريطة'],['lashMapEditing','НАСТРОЙКА СХЕМЫ','EDITING MAP','جارٍ تخصيص الخريطة'],['lashMapReset','СБРОСИТЬ','RESET','إعادة تعيين'],['lashMapDone','ГОТОВО','DONE','تم']]){
+    assert.ok(src.includes(`${key}: {ru:'${ru}', en:'${en}', ar:'${ar}'}`));
     assert.ok(professionalEyeMapSource.includes(`t('${key}',lang)`));
   }
   const screen=src.slice(src.indexOf('    function LashMapScreen('),src.indexOf('\n    function ApplicationStepCard(',src.indexOf('    function LashMapScreen(')));

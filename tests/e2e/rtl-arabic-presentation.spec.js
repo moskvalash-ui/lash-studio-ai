@@ -1,15 +1,21 @@
 'use strict';
 // ============================================================
-// PHASE 2 — ARABIC RTL PRESENTATION LAYER, real-browser proof.
+// PHASE 2/3 — ARABIC RTL PRESENTATION + PUBLIC ACTIVATION, real-browser
+// proof.
 // ------------------------------------------------------------
-// Arabic is NOT selectable in production (SUPPORTED_LANGUAGES stays
-// ['ru','en'], LangToggle still renders only those two buttons). This
-// suite activates it the ONLY way a real user never can: the
-// window.__FORCE_LANG test-only override (page.addInitScript), read
-// exactly once at initial mount -- see App()'s lang useState initializer
-// in index.html. Exactly analogous to the existing
-// window.__BOOT_WATCHDOG_MS pattern used throughout this e2e suite
-// (see boot-watchdog.spec.js).
+// PHASE 3: Arabic is now genuinely publicly selectable -- SUPPORTED_
+// LANGUAGES is ['ru','en','ar'] and the real LangToggle renders all
+// three. The window.__FORCE_LANG test-only override (page.addInitScript,
+// read exactly once at initial mount -- see App()'s lang useState
+// initializer in index.html; exactly analogous to the existing
+// window.__BOOT_WATCHDOG_MS pattern used throughout this e2e suite, see
+// boot-watchdog.spec.js) is KEPT for the geometry/recommendation-identity
+// tests below: it activates the exact same `lang` state a real
+// LangToggle click does (both funnel through the identical App() state
+// and render code), so it remains valid, fast, deterministic evidence
+// for those specific claims. Separately, dedicated tests further down
+// drive the REAL LangToggle (RU -> EN -> العربية -> RU) with no
+// __FORCE_LANG at all, proving the public activation itself.
 //
 // The central claim under test: RTL is a PRESENTATION-ONLY layer. Every
 // geometry-bearing test in this file reaches the exact same screen via
@@ -43,6 +49,9 @@ const STR = {
     retry: 'اختيار صورة أخرى',
     openLashMap: 'فتح Lash Map',
     libraryBtn: 'مكتبة Lash Map',
+    moreDetails: 'مزيد من التفاصيل ←',
+    detailsTitle: 'تفاصيل التحليل',
+    saveToClient: 'حفظ لدى العميلة',
   },
 };
 
@@ -214,16 +223,75 @@ test('A2. EN (real, non-forced LangToggle click) stays dir=ltr', async ({ page }
 });
 
 // ------------------------------------------------------------
-// M. Arabic remains absent from the production language selector, even
-// while forced-active internally for this test's own page.
+// M/A/H. PHASE 3: Arabic is now genuinely present in the production
+// language selector, exactly once, alongside RU/EN -- the opposite
+// claim of Phase 2's "M" test, which correctly pinned the pre-
+// activation state and is now superseded by this intentional change.
 // ------------------------------------------------------------
-test('M. Arabic is absent from the real LangToggle even when the page itself is running in forced lang=ar', async ({ page }) => {
-  await page.addInitScript(() => { window.__FORCE_LANG = 'ar'; });
+test('A/H. the real LangToggle exposes exactly RU, EN, and العربية -- three buttons, no duplicate, no clipping/overlap', async ({ page }) => {
   await page.goto('/index.html');
-  await dismissConsent(page, 'ar');
-  await expect(page.getByRole('button', { name: 'RU', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'EN', exact: true })).toBeVisible();
-  await expect(page.getByText('العربية')).toHaveCount(0);
+  await dismissConsent(page, 'ru');
+  const ru = page.getByRole('button', { name: 'RU', exact: true });
+  const en = page.getByRole('button', { name: 'EN', exact: true });
+  const ar = page.getByRole('button', { name: 'العربية', exact: true });
+  await expect(ru).toBeVisible();
+  await expect(en).toBeVisible();
+  await expect(ar).toBeVisible();
+  await expect(page.getByText('العربية')).toHaveCount(1);
+
+  // No clipping/overlap: all three buttons sit fully within the
+  // 390px mobile viewport with non-overlapping bounding boxes.
+  const viewport = page.viewportSize();
+  const [ruBox, enBox, arBox] = await Promise.all([ru.boundingBox(), en.boundingBox(), ar.boundingBox()]);
+  for (const box of [ruBox, enBox, arBox]) {
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+  }
+  expect(ruBox.x + ruBox.width).toBeLessThanOrEqual(enBox.x + 1);
+  expect(enBox.x + enBox.width).toBeLessThanOrEqual(arBox.x + 1);
+});
+
+// ------------------------------------------------------------
+// B/C/D. Real selector drive: RU -> EN -> العربية -> RU, no __FORCE_LANG
+// anywhere in this test. Proves dir/lang wiring, persistence across
+// reload, and restoration to ltr on switch-back, all through the
+// SAME production setLang()/localStorage path RU/EN always used.
+// ------------------------------------------------------------
+test('B/C/D. real selector: RU -> EN -> العربية sets lang=ar/dir=rtl, persists across reload, and switching back to RU restores dir=ltr', async ({ page }) => {
+  await page.goto('/index.html');
+  await dismissConsent(page, 'ru');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+
+  await page.getByRole('button', { name: 'EN', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+
+  await page.getByRole('button', { name: 'العربية', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  const stored = await page.evaluate(() => localStorage.getItem('lashStudioLang'));
+  expect(stored, 'Arabic must persist via the exact same localStorage key RU/EN always used').toBe('ar');
+
+  // C. Reload preserves Arabic, exactly like RU/EN always did.
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar', { timeout: 10000 });
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
+  // D. Switching back to RU restores ltr.
+  await page.getByRole('button', { name: 'RU', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+});
+
+test('العربية -> EN also restores dir=ltr (not just العربية -> RU)', async ({ page }) => {
+  await page.goto('/index.html');
+  await dismissConsent(page, 'ru');
+  await page.getByRole('button', { name: 'العربية', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await page.getByRole('button', { name: 'EN', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
 });
 
 // ------------------------------------------------------------
@@ -367,4 +435,103 @@ test('L. curl code + mm technical notation renders in stable Latin/numeric order
     const curlText = await curlDd.first().innerText();
     expect(/^[A-Z+\/\s]+$/.test(curlText.trim()), `curl code must stay pure Latin notation, got "${curlText}"`).toBe(true);
   }
+});
+
+// ------------------------------------------------------------
+// E. PHASE 3 real-flow E2E -- drives the REAL production language
+// selector (a real click on العربية, no __FORCE_LANG anywhere in this
+// test) through the full real user journey: Home -> consent ->
+// Photo Analysis (upload, real face-api, real ~8s Photo Scan
+// choreography) -> Results Hero -> Details -> back -> Lash Map PHOTO
+// -> DIAGRAM -> Save to Client button reachable. Verifies real Arabic
+// text is genuinely present at every stop, and that navigating
+// (back buttons, view-mode toggle) works correctly under RTL.
+// ------------------------------------------------------------
+test('E. real Arabic flow through the REAL LangToggle (no __FORCE_LANG): Home -> Photo Analysis -> Photo Scan -> Results Hero -> Details -> Lash Map PHOTO/DIAGRAM -> Save to Client, real Arabic text throughout', async ({ page }) => {
+  test.setTimeout(120000);
+  const pageErrors = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error' && !msg.text().includes('BABEL')) pageErrors.push('console.error: ' + msg.text());
+  });
+  const arabicRe = /[؀-ۿ]/;
+
+  // Home: default ru, then a REAL click on العربية.
+  await page.goto('/index.html');
+  await dismissConsent(page, 'ru');
+  await page.getByRole('button', { name: 'العربية', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByText(STR.ar.libraryBtn, { exact: true })).toBeVisible();
+
+  // Photo Analysis, through the real Arabic button label.
+  const photoBtn = page.getByRole('button', { name: STR.ar.photoBtn, exact: true });
+  await expect(photoBtn).toBeEnabled({ timeout: 20000 });
+  await photoBtn.click();
+  await page.locator('input[type="file"]').setInputFiles(FIXTURE);
+  // Photo Scan: the real ~8s scan-canvas choreography runs here (same
+  // production animation as RU/EN -- see photo-scan-visual-layer.spec.js
+  // for its own dedicated timing proof; this test only confirms it
+  // completes and reaches the real post-scan Arabic confirmation screen).
+  await expect(page.getByText(STR.ar.reviewTitle, { exact: true })).toBeVisible({ timeout: 45000 });
+  await page.getByRole('button', { name: STR.ar.confirm, exact: true }).click();
+
+  // Results Hero: real Arabic recommendation card text.
+  const heroHeading = page.getByRole('heading', { level: 1 });
+  await expect(heroHeading).toBeVisible({ timeout: 15000 });
+  const heroBodyText = await page.locator('body').innerText();
+  expect(arabicRe.test(heroBodyText), 'expected real Arabic script on Results Hero').toBe(true);
+
+  // Details, via the real "Detailed metrics" Arabic link, then back.
+  // The moreDetails button sits inside the collapsible "AI Eye Profile"
+  // Section (closed by default -- see Section's defaultOpen prop), so
+  // it must be expanded first, same as a real user would.
+  await page.getByRole('button', { name: 'AI Eye Profile', exact: true }).click();
+  const detailsLink = page.getByText(STR.ar.moreDetails, { exact: true });
+  await expect(detailsLink).toBeVisible();
+  await detailsLink.click();
+  await expect(page.getByText(STR.ar.detailsTitle, { exact: true })).toBeVisible({ timeout: 10000 });
+  const detailsBodyText = await page.locator('body').innerText();
+  expect(arabicRe.test(detailsBodyText), 'expected real Arabic script on Details').toBe(true);
+  const backSvg = page.locator('button svg path[d="M15 19l-7-7 7-7"]').locator('..');
+  await backSvg.click();
+  await expect(heroHeading).toBeVisible({ timeout: 10000 });
+
+  // Lash Map: PHOTO view (default) then DIAGRAM view, both under a
+  // real Arabic-selected session -- proves the view-mode toggle and
+  // both renderers work correctly under RTL, not just via __FORCE_LANG.
+  await page.getByRole('button', { name: STR.ar.openLashMap, exact: true }).click();
+  const leftMap = page.locator('[aria-label="Left eye map"]');
+  await expect(leftMap, 'PHOTO Lash Map must render under real Arabic selection').toBeVisible({ timeout: 10000 });
+  const lashMapBodyText = await page.locator('body').innerText();
+  expect(arabicRe.test(lashMapBodyText), 'expected real Arabic script on Lash Map PHOTO view').toBe(true);
+  await page.getByRole('button', { name: 'diagram', exact: true }).click();
+  await expect(page.locator('svg[dir="ltr"]').first()).toBeVisible({ timeout: 5000 });
+
+  // Save to Client entry point remains reachable under real Arabic.
+  await expect(page.getByText(STR.ar.saveToClient, { exact: true }).first()).toBeVisible({ timeout: 10000 });
+
+  expect(pageErrors, `no fatal errors in the real Arabic flow: ${JSON.stringify(pageErrors)}`).toEqual([]);
+});
+
+// ------------------------------------------------------------
+// E2 (Live Scan touch). Live Scan is reachable under real Arabic and
+// shows real Arabic UI text. Headless Chromium has no real camera
+// device, so this proves the reachable/localized surface (entry
+// button, no-camera error state) rather than driving a full fake-
+// camera detection loop (already covered by the dedicated
+// live-scan-*.spec.js suite for RU/EN geometry/timing, which Phase 3
+// changes nothing in -- see the unit-level byte-identical guards).
+// ------------------------------------------------------------
+test('E2. Live Scan entry point is reachable under real Arabic selection and shows real Arabic UI text', async ({ page }) => {
+  test.setTimeout(60000);
+  await page.goto('/index.html');
+  await dismissConsent(page, 'ru');
+  await page.getByRole('button', { name: 'العربية', exact: true }).click();
+  const liveBtn = page.getByRole('button', { name: 'بدء المسح المباشر', exact: true });
+  await expect(liveBtn).toBeEnabled({ timeout: 20000 });
+  await liveBtn.click();
+  // No real/fake camera device in this headless context -> the real
+  // production "camera unavailable" state, with real Arabic text.
+  await expect(page.getByText('لا يمكن الوصول إلى الكاميرا', { exact: true })).toBeVisible({ timeout: 15000 });
 });

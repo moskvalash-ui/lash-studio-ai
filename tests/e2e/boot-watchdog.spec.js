@@ -97,6 +97,23 @@ test('E. RU/EN fallback text follows the safe pre-React localStorage language so
   expect(await page.evaluate(() => localStorage.getItem('lashStudioLang'))).toBe('en');
 });
 
+test('E2. PHASE 3: Arabic fallback text follows the same safe pre-React localStorage language source, read-only, now that ar is a genuinely persistable value', async ({ page }) => {
+  test.setTimeout(30000);
+  await page.addInitScript(() => {
+    window.__BOOT_WATCHDOG_MS = 500;
+    try { localStorage.setItem('lashStudioLang', 'ar'); } catch (e) {}
+  });
+  await page.route('https://unpkg.com/react@18.3.1/umd/react.production.min.js', route => route.abort('failed'));
+  await page.goto('/index.html');
+  const fallback = page.locator('[data-boot-fallback]');
+  await expect(fallback).toBeVisible({ timeout: 5000 });
+  await expect(fallback).toContainText('تعذّر تحميل التطبيق');
+  await expect(fallback).toContainText('تحقّقي من اتصال الإنترنت وحاولي مرة أخرى.');
+  await expect(page.getByRole('button', { name: 'إعادة المحاولة', exact: true })).toBeVisible();
+  // Read-only: the watchdog never wrote a NEW value, the pre-set 'ar' survives unchanged.
+  expect(await page.evaluate(() => localStorage.getItem('lashStudioLang'))).toBe('ar');
+});
+
 test('F. existing face-api MODEL loading failure handling is untouched and stays entirely separate from the boot watchdog', async ({ page }) => {
   test.setTimeout(30000);
   await page.addInitScript(() => { window.__BOOT_WATCHDOG_MS = 60000; });

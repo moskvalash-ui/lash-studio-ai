@@ -57,7 +57,11 @@ const langToggleEnd = src.indexOf('\n    }', langToggleStart) + '\n    }'.length
 const langToggleBlock = src.slice(langToggleStart, langToggleEnd);
 
 const appStart = src.indexOf('    function App() {');
-const appBlock = src.slice(appStart, appStart + 3000);
+// PHASE 3: widened from 3000 -- the lang/dir effect's own explanatory
+// comment grew past the old fixed window, silently truncating the
+// marker search below. Widened with real margin rather than trimming
+// the comment.
+const appBlock = src.slice(appStart, appStart + 4000);
 
 // ------------------------------------------------------------
 // 5 & 6. Arabic label/config exists internally, but is NOT
@@ -69,20 +73,20 @@ test('5. LANGUAGE_LABELS already carries Arabic\'s native-script label internall
   assert.strictEqual(LANGUAGE_LABELS.en, 'EN');
 });
 
-test('6a. SUPPORTED_LANGUAGES (the single source of truth for what is selectable) does NOT include Arabic', () => {
-  assert.deepStrictEqual(SUPPORTED_LANGUAGES, ['ru', 'en']);
-  assert.ok(!SUPPORTED_LANGUAGES.includes('ar'));
+test('6a. PHASE 3: SUPPORTED_LANGUAGES (the single source of truth for what is selectable) now includes Arabic, as exactly [ru, en, ar]', () => {
+  assert.deepStrictEqual(SUPPORTED_LANGUAGES, ['ru', 'en', 'ar']);
+  assert.ok(SUPPORTED_LANGUAGES.includes('ar'));
 });
 
-test('6b. LangToggle renders buttons from SUPPORTED_LANGUAGES itself (not a separately hardcoded list), so it can only ever render 2 buttons today', () => {
+test('6b. LangToggle renders buttons from SUPPORTED_LANGUAGES itself (not a separately hardcoded list), so it now renders exactly 3 buttons -- RU, EN, and العربية, with no duplicate', () => {
   assert.ok(langToggleBlock.includes('{SUPPORTED_LANGUAGES.map(l =>'), 'LangToggle must map over SUPPORTED_LANGUAGES, the guarded list');
   const langToggleCode = langToggleBlock.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
-  assert.ok(!langToggleCode.includes("['ru','en'") && !langToggleCode.includes("['ru', 'en'"), 'the old hardcoded inline array must be gone, replaced by the shared SUPPORTED_LANGUAGES constant');
-  assert.ok(!langToggleCode.includes("'ar'"), 'LangToggle\'s real CODE (outside its own explanatory comment) must never reference \'ar\' directly');
+  assert.ok(!langToggleCode.includes("['ru','en'") && !langToggleCode.includes("['ru', 'en'") && !langToggleCode.includes("['ru','en','ar'") && !langToggleCode.includes("['ru', 'en', 'ar'"), 'LangToggle must still map over the shared SUPPORTED_LANGUAGES constant, never a separately hardcoded inline array');
   // Simulate exactly what LangToggle's JSX renders: one button per
   // SUPPORTED_LANGUAGES entry, using LANGUAGE_LABELS for its text.
   const renderedButtons = SUPPORTED_LANGUAGES.map((l) => LANGUAGE_LABELS[l]);
-  assert.deepStrictEqual(renderedButtons, ['RU', 'EN'], 'exactly RU and EN must be the only rendered button labels -- no third button, no Arabic text anywhere in the selector');
+  assert.deepStrictEqual(renderedButtons, ['RU', 'EN', 'العربية'], 'exactly RU, EN, and العربية must be the rendered button labels, in that order, each exactly once');
+  assert.strictEqual(renderedButtons.filter((b) => b === 'العربية').length, 1, 'العربية must not be duplicated');
 });
 
 test('6c. LangToggle uses LANGUAGE_LABELS for its button text, not l.toUpperCase() -- required so a future \'ar\' entry would show "العربية", not "AR"', () => {
@@ -127,18 +131,32 @@ test('2 & 7. setLang(\'en\') still updates state and persists to localStorage ex
   assert.strictEqual(store.lashStudioLang, 'en');
 });
 
-test('6d & 7. setLang(\'ar\') is a real, verified no-op today: no state change, no persistence, no analytics event -- proven against the ACTUAL production setLang code, not a reimplementation', () => {
+test('6d & 7. PHASE 3: setLang(\'ar\') now updates state and persists to localStorage exactly like ru/en -- proven against the ACTUAL production setLang code, not a reimplementation', () => {
   const store = {};
   const localStorage = { setItem: (k, v) => { store[k] = v; }, getItem: (k) => store[k] };
   let stateSet = null, stateSetCalls = 0;
   const setLangState = (v) => { stateSet = v; stateSetCalls++; };
+  let trackCalls = 0, trackedLang = null;
+  const Analytics = { track: (event, payload) => { trackCalls++; trackedLang = payload && payload.lang; } };
+  const setLang = extractSetLang(localStorage, Analytics, setLangState);
+  setLang('ar');
+  assert.strictEqual(stateSetCalls, 1, 'setLangState must be called exactly once for the now-supported ar');
+  assert.strictEqual(stateSet, 'ar');
+  assert.strictEqual(store.lashStudioLang, 'ar', 'localStorage must persist ar via the exact same mechanism as ru/en');
+  assert.strictEqual(trackCalls, 1, 'the same language_changed analytics event already fired for ru/en must fire for ar too -- no special-cased second pathway');
+  assert.strictEqual(trackedLang, 'ar');
+});
+test('a value genuinely outside SUPPORTED_LANGUAGES (e.g. a hypothetical future locale) is still rejected by setLang exactly as ar itself used to be, proving the guard mechanism is unchanged -- only the list grew', () => {
+  const store = {};
+  const localStorage = { setItem: (k, v) => { store[k] = v; }, getItem: (k) => store[k] };
+  let stateSetCalls = 0;
+  const setLangState = () => { stateSetCalls++; };
   let trackCalls = 0;
   const Analytics = { track: () => { trackCalls++; } };
   const setLang = extractSetLang(localStorage, Analytics, setLangState);
-  setLang('ar');
-  assert.strictEqual(stateSetCalls, 0, 'setLangState must never be called for an unsupported language');
-  assert.strictEqual(stateSet, null);
-  assert.strictEqual(store.lashStudioLang, undefined, 'localStorage must never be written for an unsupported language');
+  setLang('fr');
+  assert.strictEqual(stateSetCalls, 0, 'setLangState must never be called for a language outside SUPPORTED_LANGUAGES');
+  assert.strictEqual(store.lashStudioLang, undefined, 'localStorage must never be written for a rejected language');
   assert.strictEqual(trackCalls, 0, 'no analytics event must fire for a rejected language change');
 });
 
@@ -157,9 +175,16 @@ test('setLang source begins with the SUPPORTED_LANGUAGES guard, before any state
 
 // ------------------------------------------------------------
 // 7 (initial read). A stale/unexpected localStorage value can no
-// longer boot the app into an unsupported language either.
+// longer boot the app into an unsupported language. PHASE 3: 'ar' is
+// now a genuinely supported, persistable value (SUPPORTED_LANGUAGES
+// is ['ru','en','ar']) -- a stored 'ar' must now be HONORED, the same
+// as 'ru'/'en' always were. A value that is still genuinely outside
+// SUPPORTED_LANGUAGES (e.g. a hypothetical future 'fr', or garbage)
+// must still fall back to 'ru', proving the guard itself -- rejecting
+// anything not in the list -- is unchanged; only the list's own
+// membership grew.
 // ------------------------------------------------------------
-test('7b. the initial lang useState reader falls back to \'ru\' for any value outside SUPPORTED_LANGUAGES, including a stale/unexpected \'ar\'', () => {
+test('7b. the initial lang useState reader honors every SUPPORTED_LANGUAGES value (including ar) and still falls back to \'ru\' for anything genuinely outside it', () => {
   const marker = 'const [lang, setLangState] = useState(() => {';
   const start = src.indexOf(marker);
   const arrowStart = src.indexOf('() => {', start) + '() => {'.length;
@@ -172,7 +197,8 @@ test('7b. the initial lang useState reader falls back to \'ru\' for any value ou
   };
   assert.strictEqual(run('ru'), 'ru', 'a genuinely supported stored value must still be honored');
   assert.strictEqual(run('en'), 'en', 'a genuinely supported stored value must still be honored');
-  assert.strictEqual(run('ar'), 'ru', 'a stale/unexpected stored \'ar\' must fall back to ru, never boot the app into an unfinished language');
+  assert.strictEqual(run('ar'), 'ar', 'PHASE 3: a stored \'ar\' is now genuinely supported and must be honored, not rejected');
+  assert.strictEqual(run('fr'), 'ru', 'a value genuinely outside SUPPORTED_LANGUAGES must still fall back to ru -- the guard itself is unchanged');
   assert.strictEqual(run(null), 'ru', 'no stored value must still fall back to ru (unchanged default)');
 });
 

@@ -340,10 +340,15 @@ test('NaturalLashScanScreen camera negotiation (CAMERA_ATTEMPTS / effectiveVisib
   // SECURITY-2A gate above, so this guard keeps proving CAMERA_ATTEMPTS/
   // effectiveVisibleWidth negotiation is untouched by EITHER approved
   // change, while still failing loudly on any other, unapproved drift.
+  // Applied to BOTH cur and prev (symmetric, same principle as
+  // omitSecurity2ADiagGate above): dir="ltr" landed in git HEAD itself
+  // once Phase 2 was committed, so a cur-only strip would now silently
+  // desync from prev instead of canceling out, exactly the failure mode
+  // the comment above warns about for an asymmetric normalizer.
   const omitPhase2DirLtr = span => span
     .replace('<video dir="ltr" ref={videoRef}', '<video ref={videoRef}')
     .replace('<canvas dir="ltr" ref={overlayCanvasRef}', '<canvas ref={overlayCanvasRef}');
-  assert.strictEqual(omitPhase2DirLtr(omitSecurity2ADiagGate(cur)), omitSecurity2ADiagGate(prev), 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate and the approved Phase 2 dir="ltr" additions — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
+  assert.strictEqual(omitPhase2DirLtr(omitSecurity2ADiagGate(cur)), omitPhase2DirLtr(omitSecurity2ADiagGate(prev)), 'NaturalLashScanScreen must be byte-identical to git HEAD outside the approved SECURITY-2A NLS DIAG debug-gate and the approved Phase 2 dir="ltr" additions — this fix must not touch CAMERA_ATTEMPTS / effectiveVisibleWidth negotiation or any other NaturalLashScanScreen logic');
 });
 
 test('NaturalLashScanScreen preview-mirror behavior is untouched by the LiveScanScreen presentation fix: still exactly 1 CSS-mirrored <video>, keyed on facingMode only', () => {

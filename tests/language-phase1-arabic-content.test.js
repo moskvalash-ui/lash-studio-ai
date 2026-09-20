@@ -168,20 +168,32 @@ test('C2. the migrated Natural Lash label functions produce real Arabic output w
 // ------------------------------------------------------------
 // D. Arabic is still NOT visible/selectable in production LangToggle.
 // ------------------------------------------------------------
-test('D. SUPPORTED_LANGUAGES is still exactly [\'ru\',\'en\'] -- unchanged from Phase 0, Arabic still cannot be selected via the real LangToggle', () => {
+// PHASE 3 (public Arabic activation) superseded D/D2's original Phase-1
+// claim ("Arabic still cannot be selected") -- that was true and
+// correctly pinned for Phase 1/2, and is now an intentional, approved
+// change, not a regression. D now asserts the CURRENT, Phase-3 value;
+// D2 now proves LangToggle's actual FUNCTIONAL code (which button list
+// it maps, which label source it uses, the click/className wiring) is
+// still byte-identical to Phase 0 HEAD -- only its own explanatory
+// JSX comment was ever touched, across any phase, to describe current
+// reality. This keeps the real invariant (no second, hardcoded, or
+// duplicated language-list mechanism was ever introduced) enforced
+// while letting the one legitimate content change through.
+test('D. PHASE 3: SUPPORTED_LANGUAGES is now exactly [\'ru\',\'en\',\'ar\'] -- Arabic is publicly selectable via the real LangToggle, via the SAME SUPPORTED_LANGUAGES mechanism Phase 0 built, not a second activation path', () => {
   const arrStart = src.indexOf("const SUPPORTED_LANGUAGES = [");
   const arrEnd = src.indexOf(']', arrStart) + 1;
-  assert.strictEqual(src.slice(arrStart, arrEnd), "const SUPPORTED_LANGUAGES = ['ru', 'en']");
+  assert.strictEqual(src.slice(arrStart, arrEnd), "const SUPPORTED_LANGUAGES = ['ru', 'en', 'ar']");
 });
 
-test('D2. the LangToggle component itself is byte-identical to Phase 0 (no new button/branch was added to expose Arabic)', () => {
+test('D2. the LangToggle component\'s actual FUNCTIONAL code (button list source, label source, click/className wiring) is byte-identical to Phase 0 HEAD -- only its own explanatory comment was ever edited (Phase 3, to describe current reality)', () => {
   const marker = '    function LangToggle({ lang, setLang }) {';
   const curStart = src.indexOf(marker);
   const prevStart = HEAD.indexOf(marker);
   assert.ok(curStart >= 0 && prevStart >= 0);
   const curEnd = src.indexOf('\n    }', curStart) + '\n    }'.length;
   const prevEnd = HEAD.indexOf('\n    }', prevStart) + '\n    }'.length;
-  assert.strictEqual(src.slice(curStart, curEnd), HEAD.slice(prevStart, prevEnd), 'LangToggle must be untouched by Phase 1 (content-only phase)');
+  const stripJsxComment = (s) => s.replace(/\{\/\*[\s\S]*?\*\/\}/g, '{/* comment */}');
+  assert.strictEqual(stripJsxComment(src.slice(curStart, curEnd)), stripJsxComment(HEAD.slice(prevStart, prevEnd)), 'LangToggle\'s real code (outside its own explanatory comment) must be untouched since Phase 0');
 });
 
 // ------------------------------------------------------------
@@ -277,14 +289,19 @@ test('J. LiveScanScreen is byte-identical to Phase 0 HEAD -- Phase 1 never touch
   const curEnd = src.indexOf('\n    function ', curStart + 10);
   const prevEnd = HEAD.indexOf('\n    function ', prevStart + 10);
   // PHASE 2 (Arabic RTL): the only approved diff is dir="ltr" added
-  // directly to LiveScanScreen's own <video>/<canvas> elements
-  // (presentation-only geometry isolation -- see the Phase 2
-  // geometry-isolation tests). Normalized out here so this guard keeps
-  // proving nothing ELSE in LiveScanScreen changed.
+  // directly to LiveScanScreen's own <video>/<canvas> elements, AND to
+  // NaturalLashScanScreen's (which sits inside this same extracted
+  // span, between LiveScanScreen and the next \n    function marker) --
+  // presentation-only geometry isolation, see the Phase 2 geometry-
+  // isolation tests. split/join (not replace) so BOTH sites are
+  // normalized, not just the first. Applied to BOTH cur and prev
+  // (symmetric): dir="ltr" landed in git HEAD itself once Phase 2 was
+  // committed, so a cur-only strip would now silently desync from prev
+  // instead of canceling out.
   const omitPhase2DirLtr = span => span
-    .replace('<video dir="ltr" ref={videoRef}', '<video ref={videoRef}')
-    .replace('<canvas dir="ltr" ref={overlayCanvasRef}', '<canvas ref={overlayCanvasRef}');
-  assert.strictEqual(omitPhase2DirLtr(src.slice(curStart, curEnd)), HEAD.slice(prevStart, prevEnd), 'LiveScanScreen must be byte-identical to HEAD outside the approved Phase 2 dir="ltr" additions');
+    .split('<video dir="ltr" ref={videoRef}').join('<video ref={videoRef}')
+    .split('<canvas dir="ltr" ref={overlayCanvasRef}').join('<canvas ref={overlayCanvasRef}');
+  assert.strictEqual(omitPhase2DirLtr(src.slice(curStart, curEnd)), omitPhase2DirLtr(HEAD.slice(prevStart, prevEnd)), 'LiveScanScreen must be byte-identical to HEAD outside the approved Phase 2 dir="ltr" additions');
 });
 
 // ------------------------------------------------------------
@@ -364,11 +381,24 @@ test('Z. remaining un-migrated hardcoded ru/en ternary count is pinned (tracks k
   assert.strictEqual(constEnDeclarations, 0, 'const en = lang===\'en\' declaration count changed -- all known sites were migrated this phase; a nonzero count means a new one was introduced');
 });
 
-test('Z2. the pre-React boot-fallback script (outside STRINGS/t(), runs before React mounts) still has exactly 3 hardcoded ru/en string pairs, not yet Arabic-capable -- tracked, not forgotten', () => {
+// PHASE 3: the boot-fallback script (outside STRINGS/t(), runs before
+// React mounts) was made Arabic-capable too, once Arabic became a
+// genuinely persistable localStorage value for real users -- a real
+// boot failure for an Arabic-selected user must not silently show
+// Russian text. The 3 inner en ? 'X' : 'Y' pairs Phase 1 pinned are
+// unchanged in shape (still 3), now each wrapped in an outer
+// ar ? 'X' : (...) branch.
+test('Z2. the pre-React boot-fallback script is now Arabic-capable (Phase 3): still exactly 3 inner en/ru pairs (unchanged shape), each now wrapped in its own ar branch, with real Arabic text', () => {
   const marker = 'function showBootFallback() {';
   const start = src.indexOf(marker);
   const end = src.indexOf('setTimeout(showBootFallback', start);
   const body = src.slice(start, end);
-  const pairs = (body.match(/en \? '[^']*' : '[^']*'/g) || []).length;
-  assert.strictEqual(pairs, 3, 'boot-fallback hardcoded string-pair count changed -- update this pinned count alongside any further migration');
+  const innerPairs = (body.match(/en \? '[^']*' : '[^']*'/g) || []).length;
+  assert.strictEqual(innerPairs, 3, 'boot-fallback inner en/ru pair count changed -- update this pinned count alongside any further migration');
+  const arBranches = (body.match(/ar \? '[^']*' : \(en \?/g) || []).length;
+  assert.strictEqual(arBranches, 3, 'expected all 3 strings to be wrapped in an ar branch');
+  const arabicRe = /[؀-ۿ]/;
+  const arStrings = [...body.matchAll(/ar \? '([^']*)'/g)].map((m) => m[1]);
+  assert.strictEqual(arStrings.length, 3);
+  for (const s of arStrings) assert.ok(arabicRe.test(s), `expected real Arabic script in boot-fallback string: "${s}"`);
 });

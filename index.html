@@ -9858,22 +9858,101 @@
         // in full before the final hold/collapse, per "hold the final
         // scanning state until analysis completes."
         const MIN_MS = 7300, REVEAL_MS = 7300, COLLAPSE_MS = 700;
+        // PHOTO SCAN HANG FIX — real-tester report: the app could get
+        // permanently stuck on this screen (state never leaves
+        // 'analyzing', onComplete never fires) because completion was
+        // gated ENTIRELY on this decorative rAF loop reaching its own
+        // reveal timing, with (a) no protection against an exception
+        // thrown by the geometry/draw code below silently killing the
+        // rAF loop (frame() only reschedules itself at the end of a
+        // successful call — an uncaught throw simply stops all future
+        // frames, forever, with zero recovery), and (b) no absolute
+        // ceiling at all if `geomStart` never gets set or the reveal
+        // gate is otherwise never satisfied. Root cause is NOT proven
+        // to be any specific photo characteristic (EXIF orientation is
+        // an unconfirmed hypothesis, deliberately not addressed here)
+        // — this fix closes the STRUCTURAL possibility of an infinite
+        // hang regardless of what triggers it, without touching any
+        // analysis algorithm (face/iris/eyelid/face-shape/ranking) or
+        // the happy-path visual choreography.
+        //
+        // WATCHDOG_MS: an absolute ceiling from scan start. Chosen
+        // conservatively ABOVE the animation's own MIN_MS/REVEAL_MS
+        // (7300ms) so it never preempts a legitimately slow-but-working
+        // device — real analysis here is TinyFaceDetector @416 (plus a
+        // possible @608 fallback retry) + landmark inference + several
+        // bounded pixel-processing passes (crease/sharpness/iris), all
+        // synchronous once the detector resolves. 20000ms gives ~12.7s
+        // of runway beyond the normal animation target for a slow/older
+        // device before treating the flow as genuinely stuck, while
+        // still bounding the worst case to a human-reasonable wait
+        // instead of forever.
+        const WATCHDOG_MS = 20000;
+        // GEOM_FALLBACK_MS: if real face geometry never becomes
+        // available at all (data.box never gets set), REVEAL_MS alone
+        // would never be satisfied and would block completion forever
+        // even though nothing has crashed. REVEAL_MS still drives the
+        // normal happy-path reveal timing unchanged; this only removes
+        // it as an ABSOLUTE blocker once a generous extra margin
+        // (REVEAL_MS + 4000ms) has passed with no geometry at all.
+        const GEOM_FALLBACK_MS = REVEAL_MS + 4000;
         scanStartRef.current = performance.now();
         let collapseStart = null;
         let geomStart = null;
+        // Set the first time the geometry/draw block below throws.
+        // Once true, that block is never attempted again this run —
+        // the plain photo (drawImageCover above) keeps rendering as a
+        // safe fallback while we simply wait for the real analysis
+        // result, exactly like the reduced-motion path already does.
+        let animationBroken = false;
+        // Local idempotency guard — finish() and the watchdog can each
+        // reach a completion decision from different callbacks
+        // (rAF vs setTimeout); whichever runs first wins, the other is
+        // a no-op. onComplete is therefore called at most once.
+        let finished = false;
 
         const finish = () => {
-          if (cancelledRef.current) return;
+          if (finished || cancelledRef.current) return;
           const rec = analysisResultRef.current;
           // rec is only ever null here if the animation is somehow
           // still running after a failure path already set state to
           // 'error' elsewhere (state!=='analyzing' would have already
           // cancelled this effect) -- defensive, not expected.
-          if (rec) onComplete(rec);
+          if (!rec) return;
+          finished = true;
+          if (scanRafRef.current) { cancelAnimationFrame(scanRafRef.current); scanRafRef.current = null; }
+          onComplete(rec);
         };
 
+        // PHOTO SCAN HANG FIX — final safety net, independent of the
+        // rAF loop entirely (so it still fires even if that loop died
+        // from an uncaught exception before this timer would ever be
+        // reached any other way). If a real result already exists,
+        // complete with it immediately — the decorative animation has
+        // simply run long enough that there's no reason to keep waiting
+        // on it. If no result exists yet, the flow is genuinely stuck
+        // (or still processing far longer than any real device should
+        // need) — surface the existing, already-tested error state
+        // rather than an indefinite scanning screen.
+        const watchdogTimer = setTimeout(() => {
+          if (finished || cancelledRef.current) return;
+          if (analysisResultRef.current) { finish(); return; }
+          finished = true;
+          if (scanRafRef.current) { cancelAnimationFrame(scanRafRef.current); scanRafRef.current = null; }
+          // Deliberately no analytics tracking call here: analytics.js's
+          // own isScanFailReason validator is a closed enum
+          // (no_face_detected / quality_rejected / processing_error
+          // only, see analytics.js) that this new reason code is not
+          // part of -- extending that enum is a separate, reviewed
+          // decision outside this fix's scope, and sending a rejected
+          // event would just silently do nothing anyway. console.error
+          // is the explicitly requested, sufficient signal here.
+          console.error('[PhotoScanAnimation] watchdog fired after ' + WATCHDOG_MS + 'ms with no analysis result — surfacing the error state instead of an indefinite scanning screen');
+          setState('error');
+        }, WATCHDOG_MS);
+
         const frame = (time) => {
-          if (cancelledRef.current) return;
+          if (cancelledRef.current || finished) return;
           const canvas = scanCanvasRef.current;
           const container = canvas && canvas.parentElement;
           if (!canvas || !container) { scanRafRef.current = requestAnimationFrame(frame); return; }
@@ -9901,7 +9980,15 @@
           // also checks the overall `elapsed` against MIN_MS.
           const geomElapsed = geomStart != null ? time - geomStart : 0;
 
-          if (hasGeometry) {
+          // PHOTO SCAN HANG FIX — this whole block is decorative
+          // geometry mapping + drawing, built from real analysis
+          // values but never feeding anything back into analysis
+          // itself. Guarded so that ANY exception here (e.g. from an
+          // unusual photo's mapped geometry) can never silently kill
+          // the rAF loop the way it could before this fix — it falls
+          // back to animationBroken instead, logged once, and the
+          // completion gate below still reaches Results/error normally.
+          if (!animationBroken && hasGeometry) try {
             const toNative = data.toNative;
             const map = (pt) => mapVideoPointToDisplay(pt.x * toNative, pt.y * toNative, data.img.width, data.img.height, w, h);
             const mapAll = (pts) => pts.map(map);
@@ -9970,22 +10057,36 @@
                 drawCenterLabel(ctx, box.x + box.width / 2, box.y - 14, t('photoFaceDetected', langRef.current), geomElapsed - 4200, 200, 4000, 300);
               }
             }
+          } catch (err) {
+            console.error('[PhotoScanAnimation] animation frame failed — falling back to a plain photo view and waiting for the real analysis result:', err);
+            animationBroken = true;
           }
 
-          if (reduceMotion) {
+          // PHOTO SCAN HANG FIX — REVEAL_MS still drives the normal
+          // happy-path reveal timing unchanged (see GEOM_FALLBACK_MS's
+          // own comment above); it is just no longer an ABSOLUTE
+          // blocker. Once the decorative animation is broken there is
+          // nothing left to usefully wait on, so that path completes
+          // exactly like reduceMotion does: as soon as analysis itself
+          // is done.
+          const revealSatisfied = geomElapsed >= REVEAL_MS || elapsed >= GEOM_FALLBACK_MS;
+          if (reduceMotion || animationBroken) {
             if (analysisDone) { finish(); return; }
           } else {
             // Both floors must clear: the overall minimum (fast-device
             // total duration target) AND the reveal's own natural
             // completion (so a late-arriving geometry still always gets
             // to play the full choreography before collapsing/holding).
-            if (collapseStart == null && analysisDone && elapsed >= MIN_MS && geomElapsed >= REVEAL_MS) collapseStart = time;
+            if (collapseStart == null && analysisDone && elapsed >= MIN_MS && revealSatisfied) collapseStart = time;
             if (collapseStart != null && (time - collapseStart) >= COLLAPSE_MS) { finish(); return; }
           }
           scanRafRef.current = requestAnimationFrame(frame);
         };
         scanRafRef.current = requestAnimationFrame(frame);
-        return () => { if (scanRafRef.current) { cancelAnimationFrame(scanRafRef.current); scanRafRef.current = null; } };
+        return () => {
+          clearTimeout(watchdogTimer);
+          if (scanRafRef.current) { cancelAnimationFrame(scanRafRef.current); scanRafRef.current = null; }
+        };
       }, [state]);
 
       return (

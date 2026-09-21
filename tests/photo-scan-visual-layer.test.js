@@ -171,11 +171,130 @@ test('B. photoRec itself (the object actually handed to onComplete) is untouched
   assert.ok(src.includes('nativeImage: url,'), 'nativeImage field must be unchanged');
 });
 
-test('C. onComplete is called exactly once in PhotoAnalysisScreen\'s CODE, from the scan-animation effect\'s finish(), never from inside analyze() itself anymore', () => {
+// ------------------------------------------------------------
+// PHOTO SCAN HANG FIX — shared extraction/harness for C/I/K below.
+// Rather than pattern-matching the exact shape of the completion
+// plumbing (which legitimately changed with the hang fix), these
+// extract the REAL, unmodified finish()/watchdog-callback/
+// completion-gate source out of PhotoAnalysisScreen (same
+// extract-and-eval technique this repo already uses throughout,
+// e.g. analyze() above) and execute it against a fake harness to
+// prove the actual runtime invariants: onComplete is idempotent,
+// reduced-motion/animationBroken skip the decorative wait, and
+// cancellation/finished guards really do block late completions.
+// A real source-shape drift (renamed marker, restructured block)
+// fails these loudly via the assert.ok index checks below, so this
+// isn't weaker than a literal match -- it's a match on behavior
+// instead of on incidental formatting.
+// ------------------------------------------------------------
+function extractBetween(markerStart, markerEnd, fromIndex) {
+  const start = photoScreenBlock.indexOf(markerStart, fromIndex || 0);
+  assert.ok(start >= 0, `expected to find marker in PhotoAnalysisScreen: ${markerStart}`);
+  const end = photoScreenBlock.indexOf(markerEnd, start);
+  assert.ok(end > start, `expected to find end marker in PhotoAnalysisScreen: ${markerEnd}`);
+  return photoScreenBlock.slice(start, end);
+}
+
+// finish() itself, real and unmodified.
+const finishSrc = extractBetween(
+  'const finish = () => {',
+  '\n        };\n\n        // PHOTO SCAN HANG FIX — final safety net,'
+) + '\n        };';
+
+// The watchdog's real setTimeout callback body (without the
+// `setTimeout(() => {` wrapper -- reused as a bare function body).
+const watchdogBodySrc = extractBetween(
+  'const watchdogTimer = setTimeout(() => {',
+  '\n        }, WATCHDOG_MS);'
+).replace('const watchdogTimer = setTimeout(() => {', '');
+
+// The real completion-gate decision block at the end of frame() --
+// decides whether/when finish() gets called for the current frame.
+const gateSrc = extractBetween(
+  'const revealSatisfied = geomElapsed >= REVEAL_MS || elapsed >= GEOM_FALLBACK_MS;',
+  '\n          scanRafRef.current = requestAnimationFrame(frame);\n        };\n        scanRafRef.current = requestAnimationFrame(frame);'
+);
+
+// Real MIN_MS/REVEAL_MS/COLLAPSE_MS/WATCHDOG_MS/GEOM_FALLBACK_MS
+// values, extracted rather than hardcoded, so the gate scenarios
+// below stay honest if the real constants ever change.
+const minMsMatch = photoScreenBlock.match(/const MIN_MS = (\d+), REVEAL_MS = (\d+), COLLAPSE_MS = (\d+);/);
+assert.ok(minMsMatch, 'expected to find the real MIN_MS/REVEAL_MS/COLLAPSE_MS declaration');
+const MIN_MS = Number(minMsMatch[1]), REVEAL_MS = Number(minMsMatch[2]), COLLAPSE_MS = Number(minMsMatch[3]);
+const watchdogMsMatch = photoScreenBlock.match(/const WATCHDOG_MS = (\d+);/);
+assert.ok(watchdogMsMatch, 'expected to find the real WATCHDOG_MS declaration');
+const WATCHDOG_MS = Number(watchdogMsMatch[1]);
+const geomFallbackMatch = photoScreenBlock.match(/const GEOM_FALLBACK_MS = REVEAL_MS \+ (\d+);/);
+assert.ok(geomFallbackMatch, 'expected to find the real GEOM_FALLBACK_MS declaration');
+const GEOM_FALLBACK_MS = REVEAL_MS + Number(geomFallbackMatch[1]);
+
+// Builds ONE harness where finish() and the watchdog callback share
+// the SAME `finished`/cancelledRef/analysisResultRef closures, exactly
+// as they do in production (both are declared inside the same
+// useEffect body) -- required to prove real cross-callback races
+// (e.g. "watchdog fires after finish() already completed").
+function makeFinishWatchdogHarness({ finishedInit = false, cancelled = false, rec = null } = {}) {
+  const calls = { onComplete: [], setState: [] };
+  const cancelledRef = { current: cancelled };
+  const analysisResultRef = { current: rec };
+  const scanRafRef = { current: 123 };
+  const onComplete = (r) => calls.onComplete.push(r);
+  const setState = (s) => calls.setState.push(s);
+  const cancelAnimationFrame = () => {};
+  const fakeConsole = { error: () => {} };
+  const harnessSrc =
+    'let finished = finishedInit;\n' + finishSrc + '\n' +
+    'const watchdogCallback = () => {\n' + watchdogBodySrc + '\n};\n' +
+    'return { finish, watchdogCallback, getFinished: () => finished };';
+  // eslint-disable-next-line no-new-func
+  const build = new Function('cancelledRef', 'analysisResultRef', 'scanRafRef', 'onComplete', 'setState', 'console', 'WATCHDOG_MS', 'cancelAnimationFrame', 'finishedInit', harnessSrc);
+  const { finish, watchdogCallback, getFinished } = build(cancelledRef, analysisResultRef, scanRafRef, onComplete, setState, fakeConsole, WATCHDOG_MS, cancelAnimationFrame, finishedInit);
+  return { calls, cancelledRef, analysisResultRef, finish, watchdogCallback, getFinished };
+}
+
+// Executes the real completion-gate block for one simulated frame.
+function runGate({ reduceMotion, animationBroken, analysisDone, elapsed, geomElapsed, collapseStartInit = null }) {
+  const calls = [];
+  const finish = () => calls.push('finish');
+  const src = 'let collapseStart = collapseStartInit;\n' + gateSrc + '\nreturn collapseStart;';
+  // eslint-disable-next-line no-new-func
+  const build = new Function('reduceMotion', 'animationBroken', 'analysisDone', 'elapsed', 'geomElapsed', 'MIN_MS', 'REVEAL_MS', 'GEOM_FALLBACK_MS', 'COLLAPSE_MS', 'time', 'collapseStartInit', 'finish', src);
+  const collapseStart = build(reduceMotion, animationBroken, analysisDone, elapsed, geomElapsed, MIN_MS, REVEAL_MS, GEOM_FALLBACK_MS, COLLAPSE_MS, elapsed, collapseStartInit, finish);
+  return { finishCalled: calls.includes('finish'), collapseStart };
+}
+
+test('C. onComplete can only fire through finish()\'s idempotent guard: never without a ready result, never twice, never after cancellation', () => {
   const code = stripLineComments(photoScreenBlock);
-  const onCompleteCalls = (code.match(/\bonComplete\(/g) || []).length;
-  assert.strictEqual(onCompleteCalls, 1, 'expected exactly one onComplete( call in PhotoAnalysisScreen\'s actual code (comments may still name it for documentation)');
-  assert.ok(code.includes('if (rec) onComplete(rec);'), 'the one real call site must be finish()\'s own, guarded by cancelledRef and a real analysisResultRef value');
+  const totalOnCompleteCalls = (code.match(/\bonComplete\(/g) || []).length;
+  assert.strictEqual(totalOnCompleteCalls, 1, 'expected exactly one onComplete( call site in PhotoAnalysisScreen\'s actual code');
+  const onCompleteCallsInFinish = (stripLineComments(finishSrc).match(/\bonComplete\(/g) || []).length;
+  assert.strictEqual(onCompleteCallsInFinish, 1, 'the one onComplete( call site must live inside finish() itself, not scattered elsewhere');
+
+  // Real finish(), executed: no result yet -> never calls onComplete.
+  let h = makeFinishWatchdogHarness({ rec: null });
+  h.finish();
+  assert.strictEqual(h.calls.onComplete.length, 0, 'finish() must not call onComplete before a real analysis result exists');
+
+  // Real finish(), executed: result ready -> calls onComplete exactly
+  // once, with that exact result.
+  const rec = { some: 'result' };
+  h = makeFinishWatchdogHarness({ rec });
+  h.finish();
+  assert.strictEqual(h.calls.onComplete.length, 1, 'finish() must call onComplete once a real result exists');
+  assert.strictEqual(h.calls.onComplete[0], rec, 'onComplete must receive the real analysisResultRef value, unmodified');
+  assert.strictEqual(h.getFinished(), true, 'finish() must mark itself finished after completing');
+
+  // Calling the real finish() again (simulating a second trigger --
+  // e.g. a late rAF frame racing the watchdog) must NOT call
+  // onComplete a second time.
+  h.finish();
+  assert.strictEqual(h.calls.onComplete.length, 1, 'a second finish() call must be a no-op once already finished -- onComplete must fire at most once');
+
+  // Cancelled (unmounted/navigated away) -> finish() must never call
+  // onComplete even with a ready result.
+  h = makeFinishWatchdogHarness({ rec, cancelled: true });
+  h.finish();
+  assert.strictEqual(h.calls.onComplete.length, 0, 'finish() must never call onComplete after cancellation, even with a ready result');
 });
 
 test('D. the scan animation reuses the EXISTING top-level LiveScanScreen visual primitives verbatim — none are redefined/duplicated inside PhotoAnalysisScreen', () => {
@@ -249,9 +368,46 @@ test('H. the reduced-motion path never calls the sweeping/particle primitives (d
   }
 });
 
-test('I. reduced-motion completion is gated ONLY on real analysis being done (no artificial minimum-duration wait), matching "proceed normally after the required processing completes"', () => {
-  const reduceCompletion = photoScreenBlock.match(/if \(reduceMotion\) \{\s*if \(analysisDone\) \{ finish\(\); return; \}\s*\}/);
-  assert.ok(reduceCompletion, 'reduced-motion completion must fire as soon as analysisDone is true, with no MIN_MS/geomElapsed gate');
+test('I. reduced-motion and the animation-exception fallback both skip the decorative MIN_MS/REVEAL_MS wait and complete the instant analysis is done; the normal path still waits for both', () => {
+  // Reduced motion: analysisDone alone is enough, even at elapsed=0 /
+  // geomElapsed=0 (far below MIN_MS/REVEAL_MS) -- no artificial wait.
+  let r = runGate({ reduceMotion: true, animationBroken: false, analysisDone: true, elapsed: 0, geomElapsed: 0 });
+  assert.strictEqual(r.finishCalled, true, 'reduced-motion must complete as soon as analysisDone is true, with no MIN_MS/REVEAL_MS gate');
+
+  // animationBroken (the new hang-fix fallback) must use the exact
+  // same fast path as reduced-motion, not wait on the dead animation.
+  r = runGate({ reduceMotion: false, animationBroken: true, analysisDone: true, elapsed: 0, geomElapsed: 0 });
+  assert.strictEqual(r.finishCalled, true, 'animationBroken must complete as soon as analysisDone is true, exactly like reduced-motion');
+
+  // Neither fast path may skip waiting on the real analysis result
+  // itself -- analysisDone=false must never complete, however long
+  // elapsed/geomElapsed are.
+  r = runGate({ reduceMotion: true, animationBroken: false, analysisDone: false, elapsed: 999999, geomElapsed: 999999 });
+  assert.strictEqual(r.finishCalled, false, 'reduced-motion must still wait for a real analysis result, never complete on elapsed time alone');
+  r = runGate({ reduceMotion: false, animationBroken: true, analysisDone: false, elapsed: 999999, geomElapsed: 999999 });
+  assert.strictEqual(r.finishCalled, false, 'animationBroken must still wait for a real analysis result, never complete on elapsed time alone');
+
+  // The NORMAL (happy) path must be unaffected by the fix: it still
+  // requires both floors (elapsed>=MIN_MS AND geomElapsed>=REVEAL_MS)
+  // before it will even start the collapse countdown, and does not
+  // complete on the same frame it starts collapsing.
+  r = runGate({ reduceMotion: false, animationBroken: false, analysisDone: true, elapsed: 0, geomElapsed: 0 });
+  assert.strictEqual(r.finishCalled, false, 'the normal path must NOT complete before MIN_MS/REVEAL_MS have elapsed');
+  assert.strictEqual(r.collapseStart, null, 'the normal path must not even start collapsing before both floors clear');
+
+  r = runGate({ reduceMotion: false, animationBroken: false, analysisDone: true, elapsed: MIN_MS, geomElapsed: REVEAL_MS });
+  assert.strictEqual(r.finishCalled, false, 'the normal path must not complete on the very frame collapse starts -- COLLAPSE_MS must still elapse');
+  assert.strictEqual(r.collapseStart, MIN_MS, 'the normal path must start the collapse countdown once both floors clear');
+
+  r = runGate({ reduceMotion: false, animationBroken: false, analysisDone: true, elapsed: MIN_MS + COLLAPSE_MS, geomElapsed: REVEAL_MS, collapseStartInit: MIN_MS });
+  assert.strictEqual(r.finishCalled, true, 'the normal path must complete once COLLAPSE_MS has elapsed since collapseStart');
+
+  // GEOM_FALLBACK_MS still lets the normal path complete even if
+  // geometry itself never satisfied REVEAL_MS, once the generous
+  // extra margin has passed -- REVEAL_MS is no longer an absolute
+  // blocker (this is the other half of the hang fix).
+  r = runGate({ reduceMotion: false, animationBroken: false, analysisDone: true, elapsed: GEOM_FALLBACK_MS, geomElapsed: 0 });
+  assert.strictEqual(r.collapseStart, GEOM_FALLBACK_MS, 'once GEOM_FALLBACK_MS has passed with no satisfied reveal, the normal path must still be able to start collapsing');
 });
 
 test('J. photo-appropriate label text ("ЛИЦО РАСПОЗНАНО"/"FACE DETECTED") is used in the scan animation, never the live-tracking-implying "SUBJECT LOCKED" string', () => {
@@ -260,14 +416,65 @@ test('J. photo-appropriate label text ("ЛИЦО РАСПОЗНАНО"/"FACE DET
   assert.ok(!photoScreenBlock.includes('stageSubjectLocked'), 'PhotoAnalysisScreen must never reuse the live-tracking-implying SUBJECT LOCKED string');
 });
 
-test('K. no state update or onComplete can fire after unmount: cancelledRef is set in a cleanup effect and checked at every resume-from-await point and at the top of every animation frame', () => {
+test('K. cancellation (unmount/back navigation) and the finished guard really do block late completion, including a watchdog that fires after Results was already reached', () => {
+  // Structural: a real unmount cleanup sets cancelledRef, and the
+  // animation effect's own cleanup independently clears the watchdog
+  // timer and cancels any pending frame -- both must exist as real
+  // cleanup code, not just be implied by the behavioral checks below.
   assert.ok(photoScreenBlock.includes('cancelledRef.current = true;'), 'expected an unmount cleanup that sets cancelledRef');
-  const cancelledChecks = (photoScreenBlock.match(/if \(cancelledRef\.current\)/g) || []).length;
-  // 5 inside analyze() (after img fetch, after primary detect, after
-  // fallback detect, before analysisResultRef assignment, top of catch
-  // -- see the byte-identical test above) + 1 at the top of finish() +
-  // 1 at the top of every animation frame = 7.
-  assert.strictEqual(cancelledChecks, 7, `expected exactly 7 cancelledRef.current checks, found ${cancelledChecks}`);
+  assert.ok(photoScreenBlock.includes('clearTimeout(watchdogTimer);'), 'expected the animation effect\'s cleanup to clear the watchdog timer, so it can never fire after this effect instance is gone');
+
+  // Behavioral, via the real extracted finish()/watchdogCallback,
+  // sharing one `finished` flag exactly as in production:
+
+  // 1. Unmount/back-navigation (cancelledRef=true) must block a late
+  //    finish() even with a ready result -- no late onComplete.
+  let h = makeFinishWatchdogHarness({ cancelled: true, rec: { r: 1 } });
+  h.finish();
+  assert.strictEqual(h.calls.onComplete.length, 0, 'a cancelled (unmounted) screen must never receive a late onComplete via finish()');
+
+  // 2. Unmount/back-navigation must also block a late watchdog fire
+  //    from surfacing an error state on a screen that's gone.
+  h = makeFinishWatchdogHarness({ cancelled: true, rec: null });
+  h.watchdogCallback();
+  assert.strictEqual(h.calls.setState.length, 0, 'a cancelled (unmounted) screen must never be pushed into the error state by a late watchdog fire');
+  assert.strictEqual(h.calls.onComplete.length, 0, 'a cancelled (unmounted) screen must never receive onComplete via a late watchdog fire');
+
+  // 3. The watchdog must never demote an already-successful Results
+  //    screen back to the error state -- this is the core race the
+  //    finished flag exists to prevent.
+  h = makeFinishWatchdogHarness({ finishedInit: true, rec: null });
+  h.watchdogCallback();
+  assert.strictEqual(h.calls.setState.length, 0, 'the watchdog must never call setState(\'error\') once finish() already completed successfully');
+
+  // 4. The watchdog genuinely works when the analyzer is truly stuck
+  //    (not merely inert) -- proves scenario 3 isn't passing only
+  //    because the watchdog never does anything.
+  h = makeFinishWatchdogHarness({ finishedInit: false, cancelled: false, rec: null });
+  h.watchdogCallback();
+  assert.strictEqual(h.calls.setState.length, 1, 'the watchdog must surface the error state exactly once when no result exists and nothing has completed yet');
+  assert.strictEqual(h.calls.setState[0], 'error', 'the watchdog\'s failure state must be \'error\'');
+
+  // 5. A result that only became ready right as the watchdog fires
+  //    must still complete normally via finish(), never be treated
+  //    as an error.
+  const rec = { r: 2 };
+  h = makeFinishWatchdogHarness({ finishedInit: false, cancelled: false, rec });
+  h.watchdogCallback();
+  assert.strictEqual(h.calls.onComplete.length, 1, 'the watchdog must complete via finish() when a result is already ready, not error out');
+  assert.deepStrictEqual(h.calls.onComplete[0], rec, 'the watchdog-triggered completion must hand finish() the real ready result');
+  assert.strictEqual(h.calls.setState.length, 0, 'a result that is ready must never be treated as a watchdog error');
+
+  // 6. The actual race: normal completion reaches Results first, THEN
+  //    the watchdog fires afterward (in the same shared harness, so
+  //    both see the same `finished` flag) -- must never double-fire
+  //    onComplete and must never bounce Results back to an error.
+  h = makeFinishWatchdogHarness({ finishedInit: false, cancelled: false, rec });
+  h.finish();
+  assert.strictEqual(h.calls.onComplete.length, 1, 'normal completion must reach Results first');
+  h.watchdogCallback();
+  assert.strictEqual(h.calls.onComplete.length, 1, 'a watchdog firing after normal completion must not call onComplete a second time');
+  assert.strictEqual(h.calls.setState.length, 0, 'a watchdog firing after normal completion must not bounce the app into the error state');
 });
 
 test('L. LEFT/RIGHT-affecting and mirroring production functions are never referenced by the new visual-layer code beyond the read-only physicalLeft/physicalRight values analyze() already computed', () => {

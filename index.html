@@ -231,6 +231,18 @@
     .chip { transition: all 0.2s cubic-bezier(0.2,0.8,0.2,1); }
     .press-scale { transition: transform 0.18s cubic-bezier(0.2,0.8,0.2,1); }
     .press-scale:active { transform: scale(0.96); }
+    .onboarding-dialog {
+      width: min(420px, calc(100% - 24px));
+      max-height: calc(100dvh - 32px);
+      margin: auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      text-align: start;
+      border: 1px solid rgba(83, 199, 255, 0.2);
+      background-color: #02060B;
+    }
+    .onboarding-dialog::backdrop { background: rgba(2, 6, 11, 0.8); }
+    .onboarding-dialog button:focus-visible { outline: 2px solid #53C7FF; outline-offset: 3px; }
   </style>
 </head>
 <body>
@@ -306,6 +318,23 @@
     const SUPPORTED_LANGUAGES = ['ru', 'en', 'ar'];
     const LANGUAGE_LABELS = { ru: 'RU', en: 'EN', ar: 'العربية' };
     const STRINGS = {
+      onboardingHelp: {"ru": "Как пользоваться", "en": "How it works", "ar": "طريقة الاستخدام"},
+      onboardingTitle: {"ru": "Как пользоваться LASH STUDIO AI", "en": "How to use LASH STUDIO AI", "ar": "كيفية استخدام LASH STUDIO AI"},
+      onboardingNext: {"ru": "Далее", "en": "Next", "ar": "التالي"},
+      onboardingBack: {"ru": "Назад", "en": "Back", "ar": "السابق"},
+      onboardingClose: {"ru": "Закрыть", "en": "Close", "ar": "إغلاق"},
+      onboardingStart: {"ru": "Начать анализ", "en": "Start Analysis", "ar": "ابدئي التحليل"},
+      onboardingConsultation: {"ru": "Клиент может наблюдать за анализом и участвовать в обсуждении будущего дизайна.", "en": "Your client can watch the analysis and take part in the design consultation.", "ar": "يمكن للعميلة متابعة التحليل والمشاركة في مناقشة تصميم الرموش."},
+      onboarding1Title: {"ru": "Выберите способ анализа", "en": "Choose your analysis mode", "ar": "اختاري طريقة التحليل"},
+      onboarding1Text: {"ru": "Используйте Live Scan для анализа клиента в реальном времени или загрузите фотографию.", "en": "Use Live Scan to analyze your client in real time or upload a photo.", "ar": "استخدمي المسح المباشر لتحليل العميلة في الوقت الفعلي أو قومي بتحميل صورة."},
+      onboarding2Title: {"ru": "Подготовьте клиента", "en": "Prepare your client", "ar": "جهزي العميلة"},
+      onboarding2Text: {"ru": "Лицо должно быть направлено прямо в камеру. Глаза открыты, хорошее освещение, без фильтров и сильных теней.", "en": "Keep the face looking straight at the camera, with eyes open, good lighting, no filters and no strong shadows.", "ar": "يجب أن يكون الوجه موجهاً مباشرة نحو الكاميرا، مع فتح العينين وإضاءة جيدة ومن دون فلاتر أو ظلال قوية."},
+      onboarding3Title: {"ru": "Запустите AI-анализ", "en": "Start the AI analysis", "ar": "ابدئي تحليل الذكاء الاصطناعي"},
+      onboarding3Text: {"ru": "LASH STUDIO AI анализирует индивидуальные особенности лица и глаз, их форму и пропорции для персонализации дизайна.", "en": "LASH STUDIO AI analyzes individual facial and eye features, including their shape and proportions, to personalize the lash design.", "ar": "يقوم LASH STUDIO AI بتحليل ملامح الوجه والعينين وشكلهما ونِسَبهما للمساعدة في تخصيص تصميم الرموش."},
+      onboarding4Title: {"ru": "Получите персональную рекомендацию", "en": "Get a personalized recommendation", "ar": "احصلي على توصية مخصصة"},
+      onboarding4Text: {"ru": "После анализа приложение предложит направление дизайна с учётом индивидуальных особенностей клиента.", "en": "After the analysis, the app suggests a lash design direction based on your client’s individual features.", "ar": "بعد التحليل، يقترح التطبيق اتجاهاً لتصميم الرموش بناءً على السمات الفردية للعميلة."},
+      onboarding5Title: {"ru": "Откройте Professional Lash Map", "en": "Open the Professional Lash Map", "ar": "افتحي خريطة الرموش الاحترافية"},
+      onboarding5Text: {"ru": "Используйте профессиональную схему как основу для работы и обсуждения будущего дизайна вместе с клиентом.", "en": "Use the professional lash map as a guide for your work and to discuss the future design with your client.", "ar": "استخدمي خريطة الرموش الاحترافية كدليل لعملك ولمناقشة التصميم مع العميلة."},
       appName: {ru:'Lash Studio AI', en:'Lash Studio AI', ar:'Lash Studio AI'},
       tagline: {ru:'Профессиональный AI-анализ и персональные схемы наращивания', en:'Professional AI analysis and personalized lash mapping', ar:'تحليل احترافي بالذكاء الاصطناعي وخرائط رموش مخصصة'},
       heroHeadingL1: {ru:'AI-АНАЛИЗ ДЛЯ', en:'AI ANALYSIS FOR', ar:'تحليل ذكي'},
@@ -6242,10 +6271,65 @@
       );
     }
 
+    // UI-only onboarding; memory fallback also survives HomeScreen remounts
+    // when browser storage is unavailable. No analysis state is read or written.
+    const ONBOARDING_SEEN_KEY = 'lashStudioOnboardingSeenV1';
+    let onboardingSeenThisSession = false;
+    function hasSeenOnboarding() {
+      if (onboardingSeenThisSession) return true;
+      try { return localStorage.getItem(ONBOARDING_SEEN_KEY) === '1'; } catch (e) { return false; }
+    }
+    function markOnboardingSeen() {
+      onboardingSeenThisSession = true;
+      try { localStorage.setItem(ONBOARDING_SEEN_KEY, '1'); } catch (e) { /* session fallback above */ }
+    }
+
+    function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry }) {
+      const lang = useLang();
+      const [step, setStep] = useState(1);
+      const dialogRef = useRef(null);
+      useEffect(() => {
+        const dialog = dialogRef.current;
+        const previousFocus = document.activeElement;
+        dialog.showModal();
+        return () => { dialog.close(); if (previousFocus && previousFocus.isConnected) previousFocus.focus(); };
+      }, []);
+      return (
+        <dialog ref={dialogRef} className="onboarding-dialog glass-strong text-textPrimary rounded-2xl p-0" aria-labelledby="onboarding-title" onCancel={(event) => { event.preventDefault(); onClose(); }}>
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3 mb-6">
+              <h2 id="onboarding-title" className="text-sm font-semibold text-textSecondary pt-3">{t('onboardingTitle', lang)}</h2>
+              <button autoFocus onClick={onClose} aria-label={t('onboardingClose', lang)} className="w-11 h-11 shrink-0 rounded-full border border-border text-textSecondary press-scale">
+                <svg aria-hidden="true" className="w-4 h-4 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m6 6 12 12M18 6 6 18" /></svg>
+              </button>
+            </div>
+            <div className="flex gap-2 mb-6" aria-hidden="true">
+              {[1, 2, 3, 4, 5].map(n => <span key={n} className={`h-1 flex-1 rounded-full ${n <= step ? 'bg-accent' : 'bg-white/10'}`} />)}
+            </div>
+            <div aria-live="polite" aria-atomic="true">
+              <p className="text-accent text-sm font-semibold mb-3"><bdi>{step} / 5</bdi></p>
+              <h3 className="text-2xl font-bold leading-snug mb-4">{t('onboarding' + step + 'Title', lang)}</h3>
+              <p className="text-[15px] text-textSecondary leading-relaxed">{t('onboarding' + step + 'Text', lang)}</p>
+            </div>
+            <p className="border-s-2 border-accent ps-3 text-xs text-textSecondary leading-relaxed my-6">{t('onboardingConsultation', lang)}</p>
+            {step === 5 && !modelsLoaded && <p role="status" className="text-xs text-textSecondary mb-3">{t(loadError ? 'modelsLoadFailed' : 'modelsLoading', lang)}</p>}
+            {step === 5 && loadError && <button onClick={onRetry} className="w-full py-3 mb-3 rounded-md border border-border text-sm">{t('retry', lang)}</button>}
+            <div className="flex gap-3">
+              {step > 1 && <button onClick={() => setStep(step - 1)} className="px-4 py-3 rounded-md border border-border text-sm text-textSecondary press-scale">{t('onboardingBack', lang)}</button>}
+              <button disabled={step === 5 && (!modelsLoaded || !!loadError)} onClick={() => { if (step < 5) setStep(step + 1); else { onClose(); onStart(); } }} className="flex-1 py-3 px-4 rounded-md bg-accent text-white text-sm font-semibold press-scale disabled:opacity-40">{t(step === 5 ? 'onboardingStart' : 'onboardingNext', lang)}</button>
+            </div>
+          </div>
+        </dialog>
+      );
+    }
+
     function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary }) {
       const lang = useLang();
+      const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSeenOnboarding());
+      const closeOnboarding = () => { markOnboardingSeen(); setOnboardingOpen(false); };
       return (
         <div className="h-full flex flex-col p-6 fade-in overflow-y-auto hide-scrollbar">
+          {onboardingOpen && <OnboardingDialog onClose={closeOnboarding} onStart={onLive} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={onRetry} />}
           <div className="flex items-center gap-2 pt-2 pb-8">
             <div className="w-7 h-7 rounded-lg border border-border flex items-center justify-center flex-shrink-0">
               <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -6278,6 +6362,10 @@
               </button>
             </div>
           )}
+          <button onClick={() => setOnboardingOpen(true)} className="w-full min-h-[44px] mb-3 flex items-center justify-center gap-2 text-sm text-textSecondary press-scale">
+            <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v2" /></svg>
+            {t('onboardingHelp', lang)}
+          </button>
           <p className="text-[11px] text-textMuted text-center leading-relaxed mb-4">{t('onDeviceAnalysisDisclosure', lang)}</p>
           <button onClick={onClients} className="w-full py-3.5 rounded-md font-medium text-[14px] press-scale glass flex items-center justify-center gap-2 text-textPrimary mb-2">
             <ClientsIcon className="w-4 h-4 text-accent" />

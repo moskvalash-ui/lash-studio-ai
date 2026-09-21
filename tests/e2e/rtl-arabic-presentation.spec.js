@@ -347,16 +347,16 @@ test('back-chevron is NOT mirrored for RU (no transform under LTR)', async ({ pa
 // ------------------------------------------------------------
 // D/E/F/G/L. Lash Map PHOTO geometry is byte-identical RU vs AR.
 // ------------------------------------------------------------
-test('D/G. PHOTO Lash Map: extracted per-zone geometry (viewBox, cx/cy, zone-label sequence, PEAK) is identical between RU and forced-AR runs', async ({ page, browser }) => {
+test('D/G. PHOTO Lash Map: extracted per-zone geometry (viewBox, cx/cy, zone-label sequence, PEAK) is identical between RU and forced-AR runs', async ({ page, browser, storageState }) => {
   test.setTimeout(120000);
-  const ruCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const ruCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const ruPage = await ruCtx.newPage();
   const { leftMap: ruLeft, rightMap: ruRight } = await reachLashMap(ruPage, 'ru');
   const ruLeftGeom = await extractMapPoints(ruLeft);
   const ruRightGeom = await extractMapPoints(ruRight);
   await ruCtx.close();
 
-  const arCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const arCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const arPage = await arCtx.newPage();
   const { leftMap: arLeft, rightMap: arRight } = await reachLashMap(arPage, 'ar');
   const arLeftGeom = await extractMapPoints(arLeft);
@@ -378,9 +378,9 @@ test('D/G. PHOTO Lash Map: extracted per-zone geometry (viewBox, cx/cy, zone-lab
 // ------------------------------------------------------------
 // D/G. Lash Map DIAGRAM geometry is byte-identical RU vs AR.
 // ------------------------------------------------------------
-test('D/G. DIAGRAM Lash Map: SVG path `d` strings + viewBox are byte-identical between RU and forced-AR runs', async ({ page, browser }) => {
+test('D/G. DIAGRAM Lash Map: SVG path `d` strings + viewBox are byte-identical between RU and forced-AR runs', async ({ page, browser, storageState }) => {
   test.setTimeout(120000);
-  const ruCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const ruCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const ruPage = await ruCtx.newPage();
   await reachLashMap(ruPage, 'ru');
   await ruPage.getByRole('button', { name: 'diagram', exact: true }).click();
@@ -388,7 +388,7 @@ test('D/G. DIAGRAM Lash Map: SVG path `d` strings + viewBox are byte-identical b
   const ruGeom = await extractDiagramGeometry(ruPage);
   await ruCtx.close();
 
-  const arCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const arCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const arPage = await arCtx.newPage();
   await reachLashMap(arPage, 'ar');
   await arPage.getByRole('button', { name: 'diagram', exact: true }).click();
@@ -407,14 +407,14 @@ test('D/G. DIAGRAM Lash Map: SVG path `d` strings + viewBox are byte-identical b
 // ------------------------------------------------------------
 // J. recommendation output/order/scores unchanged between RU and AR.
 // ------------------------------------------------------------
-test('J. HeroScreen top design id is identical between RU and forced-AR runs (recommendation output unaffected by language/RTL)', async ({ page, browser }) => {
+test('J. HeroScreen top design id is identical between RU and forced-AR runs (recommendation output unaffected by language/RTL)', async ({ page, browser, storageState }) => {
   test.setTimeout(120000);
-  const ruCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const ruCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const ruPage = await ruCtx.newPage();
   const { heroId: ruHeroId } = await reachLashMap(ruPage, 'ru');
   await ruCtx.close();
 
-  const arCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const arCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const arPage = await arCtx.newPage();
   const { heroId: arHeroId } = await reachLashMap(arPage, 'ar');
   await arCtx.close();

@@ -2,12 +2,12 @@
 const { test, expect, chromium } = require('@playwright/test');
 
 for (const mode of ['fast stream', 'delayed stream', 'delayed metadata']) {
-  test(`cold first mount and second mount preserve camera layout: ${mode}`, async ({}, testInfo) => {
+  test(`cold first mount and second mount preserve camera layout: ${mode}`, async ({ storageState }, testInfo) => {
     test.setTimeout(120000);
     // A new PROCESS per scenario: neither the browser cache nor a prior scan can warm this first mount.
     const browser = await chromium.launch();
     try {
-      const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+      const context = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
       const page = await context.newPage();
       const cdp = await context.newCDPSession(page);
       await cdp.send('Network.enable');

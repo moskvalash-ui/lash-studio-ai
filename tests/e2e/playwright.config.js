@@ -39,6 +39,9 @@ module.exports = defineConfig({
   outputDir: './test-results', // gitignored; screenshots/traces land here, only on failure
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
+    // Existing flow regressions represent returning users. onboarding.spec.js
+    // overrides this state to exercise genuine first visits explicitly.
+    storageState: { cookies: [], origins: [{ origin: `http://127.0.0.1:${PORT}`, localStorage: [{ name: 'lashStudioOnboardingSeenV1', value: '1' }] }] },
     browserName: 'chromium', // explicit: this machine's Playwright/Chromium pin (1.40.0) exists specifically for macOS 12.7.6 compatibility (see CLAUDE.md) -- do not switch to a webkit/firefox device preset, which would require a different, unverified browser binary
     // Standardized single phone-class viewport for Phase A, set manually
     // (not via a devices['iPhone ...'] preset, which defaults to WebKit)

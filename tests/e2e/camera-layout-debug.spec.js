@@ -1,11 +1,11 @@
 'use strict';
 const { test, expect } = require('@playwright/test');
 
-test('URL-only diagnostic observes first camera opening without changing preview or constraints', async ({ browser }) => {
+test('URL-only diagnostic observes first camera opening without changing preview or constraints', async ({ browser, storageState }) => {
   test.setTimeout(120000);
   const results = [];
   for (const flagged of [false, true]) {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+    const context = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
     const page = await context.newPage();
     await page.addInitScript(() => {
       window.__constraints = [];

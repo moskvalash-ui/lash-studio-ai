@@ -55,17 +55,20 @@ function fakeProvider() {
 }
 
 // ================================================================
-// A. Allowlist shape — the 17 reviewed events (Stage 3: closed-beta
-//    PostHog patch adds 11 to the original 5 + language_changed),
-//    scan_error still excluded (superseded by scan_failed, never
-//    itself implemented).
+// A. Allowlist shape — 23 reviewed events (Stage 4: closed-beta
+//    funnel-completeness patch adds 6 to Stage 3's 17: onboarding_started,
+//    onboarding_completed, home_viewed, camera_failed, photo_loaded,
+//    lash_preview_opened), scan_error still excluded (superseded by
+//    scan_failed, never itself implemented).
 // ================================================================
-test('A1. ALLOWED_EVENTS is exactly the 17 reviewed events, in no particular order, scan_error absent', () => {
+test('A1. ALLOWED_EVENTS is exactly the 23 reviewed events, in no particular order, scan_error absent', () => {
   const expected = [
-    'app_open', 'scan_started', 'scan_completed', 'scan_failed',
-    'results_viewed', 'details_viewed', 'rescan_started', 'language_changed',
-    'all_designs_opened', 'lash_map_opened', 'save_to_client_started',
-    'client_created', 'client_selected', 'visit_saved', 'visit_save_failed',
+    'app_open', 'onboarding_started', 'onboarding_completed', 'home_viewed',
+    'scan_started', 'scan_completed', 'scan_failed', 'camera_failed',
+    'photo_loaded', 'results_viewed', 'details_viewed', 'rescan_started',
+    'language_changed', 'all_designs_opened', 'lash_map_opened',
+    'lash_preview_opened', 'save_to_client_started', 'client_created',
+    'client_selected', 'visit_saved', 'visit_save_failed',
     'client_card_viewed', 'historical_visit_opened',
   ];
   assert.deepStrictEqual([...Analytics.ALLOWED_EVENTS].sort(), [...expected].sort());
@@ -258,6 +261,22 @@ function stripLineComments(s) {
   }).join('\n');
 }
 
+// Like extractFnSpan, but for a component whose header itself contains a
+// destructured-params brace (e.g. `function Foo({ a, b }) {`) — extractFnSpan's
+// "first '{' after startMarker" would match that params brace instead of the
+// body, so `header` here must be the FULL literal header text ending in the
+// body's own opening '{' (i.e. up to and including "...}) {").
+function extractBodyAfterHeader(s, header) {
+  const st = s.indexOf(header);
+  if (st === -1) return null;
+  let depth = 0;
+  for (let i = st + header.length - 1; i < s.length; i++) {
+    if (s[i] === '{') depth++;
+    else if (s[i] === '}') { depth--; if (depth === 0) return s.slice(st, i + 1); }
+  }
+  return null;
+}
+
 function extractFnSpan(s, startMarker) {
   const st = s.indexOf(startMarker);
   if (st === -1) return null;
@@ -341,18 +360,18 @@ test('F1. analytics.js is loaded as a plain global <script>, immediately after c
   assert.ok(analyticsIdx > consentIdx, 'analytics.js must be loaded after consent-manager.js');
 });
 
-test('F2. every Analytics.track(...) call site in index.html uses one of the 17 reviewed event-name string literals as its first argument — no invented name, scan_error never appears', () => {
+test('F2. every Analytics.track(...) call site in index.html uses one of the 23 reviewed event-name string literals as its first argument — no invented name, scan_error never appears', () => {
   const callSiteRe = /Analytics\.track\(\s*'([^']+)'/g;
   const found = [];
   let m;
   while ((m = callSiteRe.exec(src)) !== null) found.push(m[1]);
-  assert.ok(found.length >= 23, `expected at least 23 Analytics.track() call sites, found ${found.length}`);
+  assert.ok(found.length >= 30, `expected at least 30 Analytics.track() call sites, found ${found.length}`);
   const unexpected = found.filter((name) => !Analytics.ALLOWED_EVENTS.includes(name));
   assert.deepStrictEqual(unexpected, [], `every call site must use a reviewed event name; found unexpected: ${unexpected.join(', ')}`);
   assert.ok(!found.includes('scan_error'), 'scan_error must never appear as a call site');
 });
 
-test('F3. index.html\'s Analytics.track() call sites cover exactly the 17 reviewed events at least once each', () => {
+test('F3. index.html\'s Analytics.track() call sites cover exactly the 23 reviewed events at least once each', () => {
   const callSiteRe = /Analytics\.track\(\s*'([^']+)'/g;
   const found = new Set();
   let m;
@@ -360,26 +379,45 @@ test('F3. index.html\'s Analytics.track() call sites cover exactly the 17 review
   Analytics.ALLOWED_EVENTS.forEach((name) => assert.ok(found.has(name), `expected a call site for ${name}`));
 });
 
-test('F4. inside LiveScanScreen/PhotoAnalysisScreen, the ONLY Analytics usage is the reviewed scan_failed call at each screen\'s own real failure site — exactly 1 in LiveScanScreen (its pipeline-error catch) and exactly 3 in PhotoAnalysisScreen (no_face_detected / quality_rejected / processing_error), each using mode/reason_code enum literals only, nothing else', () => {
+test('F4. inside LiveScanScreen/PhotoAnalysisScreen, Analytics usage is limited to the reviewed failure/funnel calls at each screen\'s own real site — LiveScanScreen: exactly 1 scan_failed (pipeline-error catch) + 1 camera_failed (getUserMedia catch); PhotoAnalysisScreen: exactly 4 scan_failed (no_face_detected / quality_rejected / processing_error / timeout) + 1 photo_loaded — nothing else', () => {
   const liveScan = extractSpan(src, '    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {', '\n    function PhotoAnalysisScreen(');
   const photoScan = extractSpan(src, '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {', '\n    function ParamIcon(');
   assert.ok(liveScan !== null && photoScan !== null, 'expected to locate both screens');
 
   const liveCalls = liveScan.match(/Analytics\.track\([^)]*\)/g) || [];
-  assert.strictEqual(liveCalls.length, 1, `LiveScanScreen must contain exactly one Analytics.track call, found ${liveCalls.length}`);
-  assert.ok(liveCalls[0].includes("'scan_failed'") && liveCalls[0].includes("mode: 'live'") && liveCalls[0].includes("reason_code: 'processing_error'"), 'LiveScanScreen\'s one call must be scan_failed{mode:live, reason_code:processing_error}');
+  assert.strictEqual(liveCalls.length, 2, `LiveScanScreen must contain exactly 2 Analytics.track calls, found ${liveCalls.length}`);
+  const liveScanFailed = liveCalls.filter((c) => c.includes("'scan_failed'"));
+  const liveCameraFailed = liveCalls.filter((c) => c.includes("'camera_failed'"));
+  assert.strictEqual(liveScanFailed.length, 1, 'expected exactly 1 scan_failed call in LiveScanScreen');
+  assert.ok(liveScanFailed[0].includes("mode: 'live'") && liveScanFailed[0].includes("reason_code: 'processing_error'"), 'LiveScanScreen\'s scan_failed call must be {mode:live, reason_code:processing_error}');
+  assert.strictEqual(liveCameraFailed.length, 1, 'expected exactly 1 camera_failed call in LiveScanScreen');
+  assert.ok(liveCameraFailed[0].includes("'permission_denied'") && liveCameraFailed[0].includes("'unavailable'"), 'LiveScanScreen\'s camera_failed call must reference both closed-enum reason_code literals (via the existing NotAllowedError ternary), never a free string');
 
   const photoCalls = photoScan.match(/Analytics\.track\([^)]*\)/g) || [];
-  assert.strictEqual(photoCalls.length, 3, `PhotoAnalysisScreen must contain exactly 3 Analytics.track calls, found ${photoCalls.length}`);
-  photoCalls.forEach((c) => assert.ok(c.includes("'scan_failed'") && c.includes("mode: 'photo'"), `every PhotoAnalysisScreen call must be scan_failed{mode:photo,...}, got: ${c}`));
-  const reasonCodes = photoCalls.map((c) => (c.match(/reason_code:\s*'([a-z_]+)'/) || [])[1]).sort();
-  assert.deepStrictEqual(reasonCodes, ['no_face_detected', 'processing_error', 'quality_rejected']);
+  assert.strictEqual(photoCalls.length, 5, `PhotoAnalysisScreen must contain exactly 5 Analytics.track calls, found ${photoCalls.length}`);
+  const photoScanFailed = photoCalls.filter((c) => c.includes("'scan_failed'"));
+  const photoLoaded = photoCalls.filter((c) => c.includes("'photo_loaded'"));
+  assert.strictEqual(photoScanFailed.length, 4, `PhotoAnalysisScreen must contain exactly 4 scan_failed calls, found ${photoScanFailed.length}`);
+  photoScanFailed.forEach((c) => assert.ok(c.includes("mode: 'photo'"), `every PhotoAnalysisScreen scan_failed call must be mode:photo, got: ${c}`));
+  const reasonCodes = photoScanFailed.map((c) => (c.match(/reason_code:\s*'([a-z_]+)'/) || [])[1]).sort();
+  assert.deepStrictEqual(reasonCodes, ['no_face_detected', 'processing_error', 'quality_rejected', 'timeout']);
+  assert.strictEqual(photoLoaded.length, 1, 'expected exactly 1 photo_loaded call in PhotoAnalysisScreen');
+  assert.strictEqual(photoLoaded[0], "Analytics.track('photo_loaded')", 'photo_loaded must be called with no properties');
 
   // No OTHER Analytics reference (any event name) exists in either screen.
-  const liveOther = (liveScan.match(/Analytics\.track\(\s*'([^']+)'/g) || []).filter((c) => !c.includes("'scan_failed'"));
-  const photoOther = (photoScan.match(/Analytics\.track\(\s*'([^']+)'/g) || []).filter((c) => !c.includes("'scan_failed'"));
-  assert.deepStrictEqual(liveOther, [], 'LiveScanScreen must not reference any event other than scan_failed');
-  assert.deepStrictEqual(photoOther, [], 'PhotoAnalysisScreen must not reference any event other than scan_failed');
+  const liveOther = (liveScan.match(/Analytics\.track\(\s*'([^']+)'/g) || []).filter((c) => !c.includes("'scan_failed'") && !c.includes("'camera_failed'"));
+  const photoOther = (photoScan.match(/Analytics\.track\(\s*'([^']+)'/g) || []).filter((c) => !c.includes("'scan_failed'") && !c.includes("'photo_loaded'"));
+  assert.deepStrictEqual(liveOther, [], 'LiveScanScreen must not reference any event other than scan_failed/camera_failed');
+  assert.deepStrictEqual(photoOther, [], 'PhotoAnalysisScreen must not reference any event other than scan_failed/photo_loaded');
+});
+
+test('F4b. the PHOTO watchdog\'s scan_failed{timeout} call is reached exactly once, inside the SAME already-idempotent branch guarded by the pre-existing `finished` flag — this patch does not add a new dedup mechanism nor change watchdog timing', () => {
+  const watchdogSpan = extractFnSpan(src, 'const watchdogTimer = setTimeout(');
+  assert.ok(watchdogSpan !== null, 'expected to locate the watchdogTimer callback');
+  assert.ok(watchdogSpan.includes('if (finished || cancelledRef.current) return;'), 'the watchdog callback must still start with the pre-existing idempotency guard');
+  const timeoutCalls = (watchdogSpan.match(/Analytics\.track\(\s*'scan_failed'\s*,\s*\{\s*mode:\s*'photo'\s*,\s*reason_code:\s*'timeout'\s*\}\s*\)/g) || []);
+  assert.strictEqual(timeoutCalls.length, 1, `expected exactly one scan_failed{timeout} call inside the watchdog callback, found ${timeoutCalls.length}`);
+  assert.ok(!/WATCHDOG_MS\s*=\s*(?!20000)\d+/.test(src), 'WATCHDOG_MS must remain unchanged at 20000');
 });
 
 test('F5. NO Analytics.track(...) call site ever passes scan-derived data, client-entered data, or free text as a property — only fixed enum literals the schema declares (source-guard: scans ONLY the properties-object argument, with quoted string literals stripped first so enum VALUES like "results_carousel"/"client store unavailable" cannot false-positive against substrings inside them; a bare identifier/property REFERENCE like `result` or `profile.landmarks` would still be caught)', () => {
@@ -401,6 +439,107 @@ test('F5. NO Analytics.track(...) call site ever passes scan-derived data, clien
 
 test('F6. the ConsentManager -> Analytics wiring effect calls the EXISTING ConsentManager.isAnalyticsAllowed(...) — this file does not duplicate the analytics-allowed boolean logic itself', () => {
   assert.ok(src.includes('Analytics.setConsent(ConsentManager.isAnalyticsAllowed('), 'expected the wiring effect to defer to ConsentManager.isAnalyticsAllowed(...) rather than recomputing the boolean inline');
+});
+
+// ================================================================
+// G. Stage 4 — the 6 new funnel-completeness events: schema validation,
+//    consent gating (generic track() gate, proven once per new event
+//    rather than re-testing B/C's whole mechanism), and source-guards
+//    proving each fires once-per-genuine-occurrence, not on every
+//    React re-render.
+// ================================================================
+test('G1. onboarding_started/onboarding_completed/home_viewed/photo_loaded accept zero properties and reject any property', () => {
+  Analytics._resetForTests();
+  Analytics.setConsent(true);
+  ['onboarding_started', 'onboarding_completed', 'home_viewed', 'photo_loaded'].forEach((name) => {
+    assert.strictEqual(Analytics.track(name), true, `${name} with no props must succeed`);
+    assert.strictEqual(Analytics.track(name, {}), true, `${name} with an empty props object must succeed`);
+    assert.strictEqual(Analytics.track(name, { extra: 'x' }), false, `${name} must reject any property`);
+  });
+});
+
+test('G2. camera_failed requires reason_code and its enum is closed to permission_denied/unavailable', () => {
+  Analytics._resetForTests();
+  Analytics.setConsent(true);
+  assert.strictEqual(Analytics.track('camera_failed', { reason_code: 'permission_denied' }), true);
+  assert.strictEqual(Analytics.track('camera_failed', { reason_code: 'unavailable' }), true);
+  assert.strictEqual(Analytics.track('camera_failed', {}), false, 'missing reason_code must be rejected');
+  assert.strictEqual(Analytics.track('camera_failed', { reason_code: 'denied' }), false, 'a non-enum value (e.g. the UI-only cameraErrorKind spelling) must be rejected');
+  assert.strictEqual(Analytics.track('camera_failed', { reason_code: 'timeout' }), false, 'scan_failed\'s reason_code enum must not leak into camera_failed\'s');
+});
+
+test('G3. lash_preview_opened requires origin and its enum is closed to hero/lash_map', () => {
+  Analytics._resetForTests();
+  Analytics.setConsent(true);
+  assert.strictEqual(Analytics.track('lash_preview_opened', { origin: 'hero' }), true);
+  assert.strictEqual(Analytics.track('lash_preview_opened', { origin: 'lash_map' }), true);
+  assert.strictEqual(Analytics.track('lash_preview_opened', {}), false, 'missing origin must be rejected');
+  assert.strictEqual(Analytics.track('lash_preview_opened', { origin: 'results_carousel' }), false, 'lash_map_opened\'s origin enum must not leak into lash_preview_opened\'s');
+});
+
+test('G4. scan_failed now accepts reason_code:"timeout" alongside the 3 original reasons, still rejecting anything else', () => {
+  Analytics._resetForTests();
+  Analytics.setConsent(true);
+  assert.strictEqual(Analytics.track('scan_failed', { mode: 'photo', reason_code: 'timeout' }), true);
+  assert.strictEqual(Analytics.track('scan_failed', { mode: 'live', reason_code: 'timeout' }), true, 'timeout is a mode-agnostic reason_code, same as the other 3');
+  assert.strictEqual(Analytics.track('scan_failed', { mode: 'photo', reason_code: 'bogus' }), false);
+});
+
+test('G5. all 6 new events are gated by consent exactly like every existing event — no-op before setConsent(true), forwarded after', () => {
+  Analytics._resetForTests();
+  const provider = fakeProvider();
+  Analytics._setProviderForTests(provider);
+  assert.strictEqual(Analytics.track('home_viewed'), false, 'must no-op before any consent decision');
+  Analytics.setConsent(true);
+  assert.strictEqual(Analytics.track('home_viewed'), true);
+  Analytics.setConsent(false);
+  assert.strictEqual(Analytics.track('home_viewed'), false, 'must stop immediately on withdrawal, same as every other event');
+});
+
+test('G6 (source-guard). onboarding_started fires from a useEffect with an empty dependency array (fires once per OnboardingDialog mount, i.e. once per genuine "shown to the user", never merely from a re-render)', () => {
+  const dialogSpan = extractBodyAfterHeader(src, 'function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry }) {');
+  assert.ok(dialogSpan !== null, 'expected to locate OnboardingDialog');
+  assert.ok(/Analytics\.track\('onboarding_started'\);\s*\n\s*\}, \[\]\);/.test(dialogSpan), 'onboarding_started\'s effect must close with an empty-deps array');
+});
+
+test('G7 (source-guard). onboarding_completed fires only from the step-5 "complete and proceed" branch of the primary button, never from the plain onClose() dismiss path (X button / Escape / backdrop cancel)', () => {
+  const dialogSpan = extractBodyAfterHeader(src, 'function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry }) {');
+  assert.ok(dialogSpan !== null, 'expected to locate OnboardingDialog');
+  assert.strictEqual((dialogSpan.match(/Analytics\.track\('onboarding_completed'\)/g) || []).length, 1, 'expected exactly one onboarding_completed call site');
+  assert.ok(dialogSpan.includes("Analytics.track('onboarding_completed'); onClose(); onStart(); }"), 'onboarding_completed must fire immediately before the existing onClose()+onStart() completion path, not inside the plain dismiss handler');
+  const dismissOnClick = dialogSpan.match(/onClick=\{onClose\}/g) || [];
+  assert.ok(dismissOnClick.length >= 1, 'expected the X-button dismiss handler to remain a plain onClose with no analytics call attached');
+});
+
+test('G8 (source-guard). home_viewed fires from a useEffect with an empty dependency array inside HomeScreen itself (fires once per HomeScreen mount = once per genuine navigation to Home, including navigating away and back, never from an ordinary re-render while already on Home)', () => {
+  const homeSpan = extractBodyAfterHeader(src, 'function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary }) {');
+  assert.ok(homeSpan !== null, 'expected to locate HomeScreen');
+  assert.ok(/Analytics\.track\('home_viewed'\);\s*\n\s*\}, \[\]\);/.test(homeSpan), 'home_viewed\'s effect must close with an empty-deps array');
+  assert.strictEqual((homeSpan.match(/Analytics\.track\('home_viewed'\)/g) || []).length, 1, 'expected exactly one home_viewed call site');
+});
+
+test('G9 (source-guard). lash_preview_opened fires only on the closed-to-open toggle transition (never on close, never merely because the panel/component exists in the DOM), and its origin comes from the PhotoLashPreviewPanel origin prop, never a literal hardcoded inside the shared component', () => {
+  const panelSpan = extractBodyAfterHeader(src, 'function PhotoLashPreviewPanel({result,clientDesign,lang,origin}) {');
+  assert.ok(panelSpan !== null, 'expected to locate PhotoLashPreviewPanel');
+  assert.strictEqual((panelSpan.match(/Analytics\.track\('lash_preview_opened'/g) || []).length, 1, 'expected exactly one lash_preview_opened call site, inside the shared panel');
+  assert.ok(panelSpan.includes("Analytics.track('lash_preview_opened',{origin})"), 'the panel\'s own call must forward its origin PROP, not a hardcoded literal — the literal enum values must live only at the two call sites');
+  assert.ok(/const next=!value;if\(next&&typeof Analytics!=='undefined'\)Analytics\.track/.test(panelSpan), 'the event must be conditioned on the open transition (next===true), not fired unconditionally on every toggle');
+
+  const heroCallSite = src.match(/<PhotoLashPreviewPanel result=\{result\} clientDesign=\{best\.clientDesign\} lang=\{lang\} origin="([^"]+)"\/>/);
+  const lashMapCallSite = src.match(/<PhotoLashPreviewPanel result=\{result\} clientDesign=\{photoClientDesign\} lang=\{lang\} origin="([^"]+)"\/>/);
+  assert.ok(heroCallSite && lashMapCallSite, 'expected exactly the 2 known PhotoLashPreviewPanel usages (HeroScreen, LashMapScreen), each passing a literal origin');
+  assert.strictEqual(heroCallSite[1], 'hero');
+  assert.strictEqual(lashMapCallSite[1], 'lash_map');
+});
+
+test('G10 (source-guard). photo_loaded fires exactly once, after the image decode succeeds and before face detection begins, inside analyze()', () => {
+  const photoScan = extractSpan(src, '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {', '\n    function ParamIcon(');
+  assert.ok(photoScan !== null, 'expected to locate PhotoAnalysisScreen');
+  const loadedIdx = photoScan.indexOf("Analytics.track('photo_loaded')");
+  const fetchImageIdx = photoScan.indexOf('await faceapi.fetchImage(url)');
+  const detectIdx = photoScan.indexOf('faceapi.detectSingleFace(canvas');
+  assert.ok(loadedIdx !== -1 && fetchImageIdx !== -1 && detectIdx !== -1, 'expected to locate the decode call, the photo_loaded call, and the first detection call');
+  assert.ok(fetchImageIdx < loadedIdx && loadedIdx < detectIdx, 'photo_loaded must fire strictly after image decode and strictly before face detection');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

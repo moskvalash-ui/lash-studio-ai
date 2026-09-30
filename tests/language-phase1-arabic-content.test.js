@@ -301,7 +301,19 @@ test('J. LiveScanScreen is byte-identical to Phase 0 HEAD -- Phase 1 never touch
   const omitPhase2DirLtr = span => span
     .split('<video dir="ltr" ref={videoRef}').join('<video ref={videoRef}')
     .split('<canvas dir="ltr" ref={overlayCanvasRef}').join('<canvas ref={overlayCanvasRef}');
-  assert.strictEqual(omitPhase2DirLtr(src.slice(curStart, curEnd)), omitPhase2DirLtr(HEAD.slice(prevStart, prevEnd)), 'LiveScanScreen must be byte-identical to HEAD outside the approved Phase 2 dir="ltr" additions');
+  // Approved CLOSED-BETA ANALYTICS FUNNEL patch: one Analytics.track('camera_failed',
+  // {reason_code}) call added inside the existing RELEASE FIX #1
+  // getUserMedia catch block, reusing the same NotAllowedError
+  // distinction cameraErrorKind already computes (hoisted into a
+  // `deniedByOS` local so both setCameraErrorKind and the new
+  // Analytics.track read the same value) — no behavior change.
+  // Symmetric (a no-op on the HEAD side, which predates it).
+  const omitAnalyticsCameraFailedFix = span => span.replace(
+    "            if (!cancelled) {\n              const deniedByOS = e && e.name === 'NotAllowedError';\n              setStageKey('stageNoCamera');\n              setCameraErrorKind(deniedByOS ? 'denied' : 'unavailable');\n              setHintKey(null);\n              // ANALYTICS — instruments this existing failure path only;\n              // same NotAllowedError distinction cameraErrorKind already\n              // makes for the UI, never the raw error name/message.\n              if (typeof Analytics !== 'undefined') Analytics.track('camera_failed', { reason_code: deniedByOS ? 'permission_denied' : 'unavailable' });\n            }",
+    "            if (!cancelled) {\n              setStageKey('stageNoCamera');\n              setCameraErrorKind(e && e.name === 'NotAllowedError' ? 'denied' : 'unavailable');\n              setHintKey(null);\n            }"
+  );
+  const normalize = span => omitAnalyticsCameraFailedFix(omitPhase2DirLtr(span));
+  assert.strictEqual(normalize(src.slice(curStart, curEnd)), normalize(HEAD.slice(prevStart, prevEnd)), 'LiveScanScreen must be byte-identical to HEAD outside the approved Phase 2 dir="ltr" additions and the approved camera_failed analytics addition');
 });
 
 // ------------------------------------------------------------

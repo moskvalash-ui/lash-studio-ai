@@ -148,10 +148,30 @@ function omitPhotoScanVisualLayerAdditions(span) {
     );
 }
 
+// Approved CLOSED-BETA ANALYTICS FUNNEL patch: one Analytics.track('photo_loaded')
+// call (plus its 4-line explanatory comment) added right after the
+// pre-existing `scanDataRef.current = { img };` line — after decode,
+// before detection, no properties. Symmetric (a no-op on the HEAD side,
+// which predates it). Must run BEFORE omitPhotoScanVisualLayerAdditions,
+// whose own hook #1 above requires the exact pre-existing 5-line shape
+// ending in `scanDataRef.current = { img };\n` to match — this strips
+// the new insertion first so that match still succeeds on `cur`.
+function omitAnalyticsPhotoLoadedAddition(span) {
+  return span.replace(
+    "          scanDataRef.current = { img };\n" +
+    "          // ANALYTICS — the image has successfully decoded and is about\n" +
+    "          // to enter the real detection pipeline below; fires once per\n" +
+    "          // analyze() call, after scan_started(mode:'photo') and before\n" +
+    "          // scan_completed(mode:'photo')/scan_failed. No properties.\n" +
+    "          if (typeof Analytics !== 'undefined') Analytics.track('photo_loaded');\n",
+    "          scanDataRef.current = { img };\n"
+  );
+}
+
 test('A. analyze()\'s real analytical code (detection, quality gate, computeHeadPose/computeEyeSideMetrics/getPhysicalEyeLandmarks/detectEyelidCrease/aggregateBuffer/classifyFeatures/classifyFaceShape/sampleIrisColor/combineIris/rankDesigns, and photoRec\'s own construction) is byte-identical to git HEAD outside the 6 approved, purely-additive visual-layer hooks', () => {
-  const curNorm = omitPhotoScanVisualLayerAdditions(curAnalyze);
-  const prevNorm = omitPhotoScanVisualLayerAdditions(prevAnalyze);
-  assert.strictEqual(curNorm, prevNorm, 'analyze() must be byte-identical to HEAD outside the approved cancelledRef/scanDataRef/analysisResultRef hooks');
+  const curNorm = omitPhotoScanVisualLayerAdditions(omitAnalyticsPhotoLoadedAddition(curAnalyze));
+  const prevNorm = omitPhotoScanVisualLayerAdditions(omitAnalyticsPhotoLoadedAddition(prevAnalyze));
+  assert.strictEqual(curNorm, prevNorm, 'analyze() must be byte-identical to HEAD outside the approved cancelledRef/scanDataRef/analysisResultRef hooks and the approved photo_loaded analytics addition');
 });
 
 test('B. photoRec itself (the object actually handed to onComplete) is untouched — onComplete only moved, never gained/lost a field or changed a computed value', () => {

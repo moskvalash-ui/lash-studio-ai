@@ -95,8 +95,27 @@
   // (a materially different, earlier failure than quality rejection);
   // a genuine thrown exception is 'processing_error'. Low cardinality,
   // no scan measurement of any kind.
+  // 'timeout' added for the existing PHOTO watchdog (PhotoScanAnimation,
+  // index.html) — the watchdog itself is unchanged; this only lets it
+  // report the failure it already decides, instead of console.error only.
   function isScanFailReason(v) {
-    return v === 'no_face_detected' || v === 'quality_rejected' || v === 'processing_error';
+    return v === 'no_face_detected' || v === 'quality_rejected' || v === 'processing_error' || v === 'timeout';
+  }
+
+  // camera_failed: the existing LiveScanScreen getUserMedia catch already
+  // distinguishes a real permission denial (DOMException name
+  // 'NotAllowedError') from every other acquisition failure (no device,
+  // hardware busy, OverconstrainedError, etc.) for its own UI purposes
+  // (cameraErrorKind). This mirrors that same two-way distinction, never
+  // the raw error name/message.
+  function isCameraFailReason(v) {
+    return v === 'permission_denied' || v === 'unavailable';
+  }
+
+  // lash_preview_opened origin: the two existing call sites of
+  // PhotoLashPreviewPanel (HeroScreen, LashMapScreen).
+  function isLashPreviewOrigin(v) {
+    return v === 'hero' || v === 'lash_map';
   }
 
   // client-store.js's finishSaveToClient path can fail for exactly two
@@ -126,15 +145,21 @@
 
   const EVENT_SCHEMA = {
     app_open: {},
+    onboarding_started: {},
+    onboarding_completed: {},
+    home_viewed: {},
     scan_started: { mode: isMode },
     scan_completed: { mode: isMode },
     scan_failed: { mode: isMode, reason_code: isScanFailReason },
+    camera_failed: { reason_code: isCameraFailReason },
+    photo_loaded: {},
     results_viewed: {},
     details_viewed: {},
     rescan_started: {},
     language_changed: { lang: isLang },
     all_designs_opened: {},
     lash_map_opened: { design_id: isDesignId, origin: isLashMapOrigin },
+    lash_preview_opened: { origin: isLashPreviewOrigin },
     save_to_client_started: {},
     client_created: {},
     client_selected: {},

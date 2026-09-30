@@ -865,6 +865,19 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
     "          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'live', reason_code: 'processing_error' });\n          decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');",
     "          decideStage('stageScanError'); setPhase('error'); decideHint('hintRestartScan');"
   );
+  // Approved CLOSED-BETA ANALYTICS FUNNEL patch: one Analytics.track('camera_failed',
+  // {reason_code}) call added inside the SAME existing RELEASE FIX #1
+  // getUserMedia catch block, reusing the exact NotAllowedError distinction
+  // cameraErrorKind already computes (now hoisted into a `deniedByOS` local
+  // so both setCameraErrorKind and the new Analytics.track read the same
+  // value) — no new failure detection, no behavior change. Symmetric
+  // normalizer (same reasoning as omitAnalyticsScanFailedLiveFix above),
+  // applied innermost so omitCameraRetryFix's own literal match below still
+  // finds the pre-existing (pre-camera_failed) catch-block shape it expects.
+  const omitAnalyticsCameraFailedFix = span => span.replace(
+    "            if (!cancelled) {\n              const deniedByOS = e && e.name === 'NotAllowedError';\n              setStageKey('stageNoCamera');\n              setCameraErrorKind(deniedByOS ? 'denied' : 'unavailable');\n              setHintKey(null);\n              // ANALYTICS — instruments this existing failure path only;\n              // same NotAllowedError distinction cameraErrorKind already\n              // makes for the UI, never the raw error name/message.\n              if (typeof Analytics !== 'undefined') Analytics.track('camera_failed', { reason_code: deniedByOS ? 'permission_denied' : 'unavailable' });\n            }",
+    "            if (!cancelled) {\n              setStageKey('stageNoCamera');\n              setCameraErrorKind(e && e.name === 'NotAllowedError' ? 'denied' : 'unavailable');\n              setHintKey(null);\n            }"
+  );
   // Approved PHASE 2 (Arabic RTL) fix: dir="ltr" added directly to
   // LiveScanScreen's own <video>/<canvas> elements (presentation-only
   // geometry isolation, see the Phase 2 geometry-isolation tests).
@@ -881,7 +894,7 @@ test('J1. LiveScanScreen is byte-identical to git HEAD outside the debug-only co
   // Issue-B post-diagnostic form (decideStage/decideHint, REASON_MESSAGES-
   // based hint lookup) BEFORE undoIssueB looks for that exact form to
   // revert further back to true pre-Issue-B HEAD text.
-  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(omitCameraRetryFix(omitPhase2DirLtr(omitAnalyticsScanFailedLiveFix(span))))))))))))));
+  const normalize = span => omitZoomDiagnosticExtension(omitWebkitSafeVideoPresentation(omitPhaseC3dComposition(omitSecurity2AConsoleGates(omitCameraZoomFix(omitFaceShapeAnalysis(omitContextualIrisDebug(omitLiveScanLifecycleFix(omitCameraTimingInstrumentation(undoIssueB(omitCloseFaceRecoveryFix(omitCameraRetryFix(omitAnalyticsCameraFailedFix(omitPhase2DirLtr(omitAnalyticsScanFailedLiveFix(span)))))))))))))));
   assert.strictEqual(normalize(cur),normalize(prev),'LiveScanScreen outside the bounded contextual debug additions, the approved Face Shape Analysis addition, the approved camera-zoom fix, and the approved lifecycle/stability fix must remain byte-identical to HEAD');
   assert.ok(cur.includes('if (debugAvailable) {\n              const leftAudit=buildIrisColorAudit('),'context extraction must remain inside the existing debugAvailable gate');
   assert.ok(cur.includes('contextual: debugIrisAuditRef.current.contextual'),'final debug export must reuse the stored contextual object');
@@ -1033,6 +1046,27 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
     "            faceShapeProfile,\n" +
     "          };"
   );
+  // Approved CLOSED-BETA ANALYTICS FUNNEL patch: one Analytics.track('photo_loaded')
+  // call (plus its 4-line explanatory comment) added right after the
+  // pre-existing `scanDataRef.current = { img };` line — after decode,
+  // before detection — no properties. Symmetric (a no-op on the HEAD
+  // side, which predates it). Applied FIRST/innermost, strictly before
+  // omitPhotoScanVisualLayerFix below: that normalizer's own literal
+  // match already requires the EXACT pre-existing 5-line shape ending
+  // in `scanDataRef.current = { img };\n` (present verbatim in BOTH cur
+  // and HEAD — the PHOTO SCAN VISUAL LAYER feature is already committed,
+  // despite that normalizer's own stale "no-op on HEAD" comment), so
+  // this new insertion must be stripped out of `cur` first or that
+  // match would silently fail on `cur` only, breaking the whole chain.
+  const omitAnalyticsPhotoLoadedFix = span => span.replace(
+    "          scanDataRef.current = { img };\n" +
+    "          // ANALYTICS — the image has successfully decoded and is about\n" +
+    "          // to enter the real detection pipeline below; fires once per\n" +
+    "          // analyze() call, after scan_started(mode:'photo') and before\n" +
+    "          // scan_completed(mode:'photo')/scan_failed. No properties.\n" +
+    "          if (typeof Analytics !== 'undefined') Analytics.track('photo_loaded');\n",
+    "          scanDataRef.current = { img };\n"
+  );
   // Approved PHOTO SCAN VISUAL LAYER patch: 6 small, precise additions
   // to analyze() — real, unmodified-code proof of exactly these 6 (and
   // nothing else) already lives in tests/photo-scan-visual-layer.test.js
@@ -1182,8 +1216,8 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
       "        } catch (e) {\n" +
       "          console.error('[Photo] PIPELINE ERROR', e);\n"
     );
-  const curHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(omitPhotoScanVisualLayerFix(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length))));
-  const prevHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(omitPhotoScanVisualLayerFix(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length))));
+  const curHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(omitPhotoScanVisualLayerFix(omitAnalyticsPhotoLoadedFix(src.slice(curOuterStart, curBrightnessIdx + brightnessLine.length)))));
+  const prevHead = omitPhotoQualityDebugHead(omitPhotoAnalyticsScanFailedFix(omitPhotoScanVisualLayerFix(omitAnalyticsPhotoLoadedFix(HEAD.slice(prevOuterStart, prevBrightnessIdx + brightnessLine.length)))));
   assert.strictEqual(curHead, prevHead, 'everything before the sharpness measurement (detection, headPose, leftMetrics/rightMetrics, physical-eye normalization, brightness sampling) must be byte-identical to git HEAD');
 
   // (b) everything from the quality-gate call onward. outerEnd now also

@@ -1,0 +1,116 @@
+<!doctype html>
+<!--
+  DEV/TEST-ONLY VISUAL COMPARISON — Photo Lash Preview curl geometry.
+
+  Not part of production UI, never linked from index.html, never served
+  to a client. Renders all 8 professional curl identities (J/B/C/CC/D/
+  L/L+/M) against the EXACT SAME synthetic upper-lid curve, sector
+  lengths, fiber count, and canvas scale — only the 3rd argument to
+  PhotoLashPreview.buildFibers (curlFamily) differs between panels — so
+  any visible difference between panels comes solely from curl
+  geometry, never from a different lash map.
+
+  Open directly in a browser (file://) or via a static server; no build
+  step, no dependencies beyond the real ../../photo-lash-preview.js.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Photo Lash Preview — curl geometry comparison</title>
+<style>
+  body { background:#0b0e12; color:#e8e8e8; font:13px/1.4 -apple-system,sans-serif; padding:24px; }
+  h1 { font-size:16px; font-weight:600; margin:0 0 4px; }
+  p.sub { color:#9aa4b2; margin:0 0 20px; max-width:760px; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; max-width:1000px; }
+  .panel { background:#f2e3da; border-radius:8px; overflow:hidden; }
+  .panel canvas { display:block; width:100%; height:auto; }
+  .label { background:#1a1f27; padding:6px 10px; font-weight:600; letter-spacing:.04em; display:flex; justify-content:space-between; }
+  .label .tag { color:#7fb2ff; font-weight:400; }
+</style>
+</head>
+<body>
+<h1>Photo Lash Preview — curl geometry comparison</h1>
+<p class="sub">Same synthetic eye, same sector lengths (5-zone map, peak at BODY), same fiber count/scale for every panel — only curl identity changes. Dev/test-only fixture; not linked from the production app.</p>
+<div class="grid" id="grid"></div>
+<script src="../../photo-lash-preview.js"></script>
+<script>
+(function () {
+  'use strict';
+  // Shared professional design data — IDENTICAL for every curl below.
+  // A plausible 5-zone Lash Map profile (mm), peak at BODY, same shape
+  // sampleSectors() already expects from the real production pipeline.
+  var ITEMS = [
+    { t: 0, len: 7 },
+    { t: .25, len: 9 },
+    { t: .5, len: 11, isPeak: true },
+    { t: .75, len: 10 },
+    { t: 1, len: 8 },
+  ];
+  // Shared synthetic upper-lid curve — a plausible almond-eye arc
+  // (inner corner -> outer corner), cubic Bezier, canvas coordinates
+  // (y grows downward). Same 4 control points for every panel.
+  var BASE = [
+    { x: 46, y: 118 }, { x: 78, y: 54 }, { x: 168, y: 50 }, { x: 214, y: 104 },
+  ];
+  function baseAt(t) {
+    var u = 1 - t;
+    return {
+      x: u*u*u*BASE[0].x + 3*u*u*t*BASE[1].x + 3*u*t*t*BASE[2].x + t*t*t*BASE[3].x,
+      y: u*u*u*BASE[0].y + 3*u*u*t*BASE[1].y + 3*u*t*t*BASE[2].y + t*t*t*BASE[3].y,
+    };
+  }
+  function baseDerivative(t) {
+    var u = 1 - t;
+    return {
+      x: 3*u*u*(BASE[1].x-BASE[0].x) + 6*u*t*(BASE[2].x-BASE[1].x) + 3*t*t*(BASE[3].x-BASE[2].x),
+      y: 3*u*u*(BASE[1].y-BASE[0].y) + 6*u*t*(BASE[2].y-BASE[1].y) + 3*t*t*(BASE[3].y-BASE[2].y),
+    };
+  }
+  var EYE_WIDTH = Math.hypot(BASE[3].x-BASE[0].x, BASE[3].y-BASE[0].y);
+
+  // Built ONCE, shared by every panel below (buildFibers never mutates
+  // its input — proven by tests/photo-lash-preview.test.js test I).
+  var SHARED_POINTS = PhotoLashPreview.sampleSectors(ITEMS).map(function (s) {
+    var pos = baseAt(s.t), der = baseDerivative(s.t), dm = Math.hypot(der.x, der.y) || 1;
+    var tangent = { x: der.x/dm, y: der.y/dm };
+    var normal = { x: -tangent.y, y: tangent.x };
+    if (normal.y > 0) normal = { x: -normal.x, y: -normal.y }; // point away from the eye, upward
+    return { ...s, x: pos.x, y: pos.y, tangent: tangent, normal: normal };
+  });
+
+  var CURLS = ['J', 'B', 'C', 'CC', 'D', 'L', 'L+', 'M'];
+  var grid = document.getElementById('grid');
+  var W = 260, H = 200, SCALE = 2; // 2x for crisper screenshots at real preview resolution.
+
+  CURLS.forEach(function (curl) {
+    var panel = document.createElement('div'); panel.className = 'panel';
+    var label = document.createElement('div'); label.className = 'label';
+    label.innerHTML = '<span>' + curl + '</span><span class="tag">curl</span>';
+    var canvas = document.createElement('canvas');
+    canvas.width = W * SCALE; canvas.height = H * SCALE;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    panel.appendChild(canvas); panel.appendChild(label); grid.appendChild(panel);
+
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    ctx.fillStyle = '#f2e3da'; ctx.fillRect(0, 0, W, H);
+
+    // Faint root-curve guide, identical every panel, purely for visual
+    // orientation — never fed into buildFibers.
+    ctx.save();
+    ctx.strokeStyle = 'rgba(120,70,50,0.25)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (var i = 0; i <= 40; i++) {
+      var p = baseAt(i / 40), x = p.x + 20, y = p.y + 20;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke(); ctx.restore();
+
+    var offsetPoints = SHARED_POINTS.map(function (p) { return { ...p, x: p.x + 20, y: p.y + 20 }; });
+    var fibers = PhotoLashPreview.buildFibers(offsetPoints, EYE_WIDTH, curl);
+    PhotoLashPreview.draw(ctx, fibers);
+  });
+})();
+</script>
+</body>
+</html>

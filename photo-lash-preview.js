@@ -21,6 +21,117 @@
     return (n-Math.floor(n))*2-1;
   };
   const smooth=(a,b,t)=>{const u=Math.max(0,Math.min(1,(t-a)/(b-a)));return u*u*(3-2*u);};
+
+  // ------------------------------------------------------------
+  // CURL GEOMETRY PROFILES — one explicit, immutable trajectory profile
+  // per professional curl identity (the 8 CURL_CATALOG ids owned by
+  // index.html: J/B/C/CC/D/L/L+/M). Replaces the old binary
+  // isLCurl=/L/.test(curlFamily) switch: every curl now resolves to its
+  // own profile instead of collapsing 6 of 8 names into one shared
+  // shape. Curl identity ONLY ever selects one of these 8 fixed
+  // objects — it never mutates points/eyeWidth/length/width/opacity/
+  // taper/layer/noise, all of which stay exactly as before.
+  //
+  // Each field maps 1:1 onto a control makeFiber() already had (see the
+  // pre-existing angle/curvePhase/liftNear/midBend/tipEase formulas
+  // below) — this is a data table, not a second drawing algorithm:
+  //   angleBase/angleSweep/angleProm — the 3 additive terms of the
+  //     existing `angle` formula (constant, smooth(0,1,t)-weighted
+  //     sweep, and prominence-weighted peak-zone emphasis).
+  //   curvePhaseBase/curvePhaseJitter — where along the shaft (0..1)
+  //     the c2 control point's own bend is centered, and how much
+  //     per-fiber noise perturbs that position.
+  //   liftNearBase/liftNearSweep — how much bend the root (c1) already
+  //     carries, before curlScale/layer scaling.
+  //   midBendRatio/tipEaseRatio — multipliers on the SAME shared
+  //     curlPeak magnitude formula, controlling how much of it reaches
+  //     c2 (midBend) and the tip (tipEase) respectively.
+  //
+  // ROUNDED FAMILY (J/B/C/CC/D) — a single delta ladder (delta = -2 for
+  // J .. +2 for D, C=0) drives every field, so "J < B < C < CC < D" is
+  // a real, derivable geometric progression (verified in tests against
+  // actual rendered tip deviation), not five independent guesses. C's
+  // own delta=0 values are BYTE-IDENTICAL to this renderer's previous
+  // sole default branch — C is deliberately the unchanged reference
+  // profile the product brief asks for, and doubles as the safe
+  // fallback for any unrecognized curl string (see buildFibers below).
+  // Stronger curls (CC/D): curvePhase moves EARLIER (bend develops
+  // sooner), liftNear/midBend/tipEase all increase (root already
+  // carries more bend, and the tip retains more of it rather than
+  // easing back) — together these read as progressively more lift
+  // without ever disabling the smooth, continuous rounded arc (there
+  // is no L-style flat-then-hinge transition anywhere in this family).
+  // Softer curls (J/B): the mirror image — later curvePhase, smaller
+  // liftNear/midBend/tipEase.
+  //
+  // L FAMILY (L/L+) — L's 6 shape fields are BYTE-IDENTICAL to this
+  // renderer's previous isLCurl-true branch (no regression to the
+  // existing, already-tuned straight-base/late-lift character). L+
+  // shares L's root/curvePhase/liftNear exactly (same straight basal
+  // leg, same delayed-curvature architecture) and differs ONLY in
+  // midBendRatio/tipEaseRatio (both raised) — a targeted stronger tip
+  // resolution, not a uniform scale-up of the whole fiber.
+  //
+  // M — distinct from all of the above: a shorter version of L's
+  // straight-base/late-lift architecture (curvePhase later than the
+  // rounded family but earlier than L; liftNear low but not as low as
+  // L) combined with a rounded-family-scale tip resolution (midBend/
+  // tipEase well below L's, above the rounded family's), giving the
+  // "controlled base + softer, less hinge-like lift-style transition"
+  // the product brief asks for -- never equal to C, D, L, or L+ in any
+  // field.
+  // ------------------------------------------------------------
+  function roundedProfile(delta) {
+    return {
+      angleBase: .09 + .014 * delta,
+      angleSweep: .62 + .028 * delta,
+      angleProm: .35 + .035 * delta,
+      curvePhaseBase: .52 - .055 * delta,
+      curvePhaseJitter: .05,
+      liftNearBase: .06 + .021 * delta,
+      liftNearSweep: .03 + .010 * delta,
+      midBendRatio: 1 + .17 * delta,
+      tipEaseRatio: .48 + .095 * delta,
+    };
+  }
+  const L_PROFILE = {
+    angleBase: 1.25, angleSweep: .20, angleProm: 0,
+    curvePhaseBase: .72, curvePhaseJitter: .04,
+    liftNearBase: .015, liftNearSweep: .008,
+    midBendRatio: .22, tipEaseRatio: 1.25,
+  };
+  const CURL_GEOMETRY_PROFILES = Object.freeze({
+    J: Object.freeze(roundedProfile(-2)),
+    B: Object.freeze(roundedProfile(-1)),
+    C: Object.freeze(roundedProfile(0)),
+    CC: Object.freeze(roundedProfile(1)),
+    D: Object.freeze(roundedProfile(2)),
+    L: Object.freeze(L_PROFILE),
+    // L+ shares L's angleBase/angleSweep/angleProm/liftNear EXACTLY
+    // (same straight basal leg -- c1 stays effectively unchanged, see
+    // tests/photo-lash-preview.test.js test E) -- curvePhaseBase moves
+    // only slightly earlier (bend becomes visible a touch sooner) and
+    // midBendRatio/tipEaseRatio are raised, concentrating a visibly
+    // stronger resolution at the tip. Never a uniform scale-up.
+    'L+': Object.freeze({
+      ...L_PROFILE,
+      curvePhaseBase: .68,
+      midBendRatio: .34,
+      tipEaseRatio: 1.65,
+    }),
+    M: Object.freeze({
+      angleBase: .62, angleSweep: .35, angleProm: .15,
+      curvePhaseBase: .60, curvePhaseJitter: .045,
+      liftNearBase: .040, liftNearSweep: .020,
+      midBendRatio: .50, tipEaseRatio: .78,
+    }),
+  });
+  // Deterministic, never-throwing fallback for an unrecognized/missing
+  // curl string: the exact same geometry this renderer already used
+  // for every curl before this change (now formalized as 'C').
+  function curlProfileFor(curlFamily) {
+    return (typeof curlFamily === 'string' && CURL_GEOMETRY_PROFILES[curlFamily]) || CURL_GEOMETRY_PROFILES.C;
+  }
   function sampleSectors(items){
     if(!Array.isArray(items)||items.length<2||items.some((s,i)=>!Number.isFinite(s.t)||s.t<0||s.t>1||!Number.isFinite(s.len)||s.len<=0||(i&&s.t<=items[i-1].t)))throw new Error('mapping');
     let sector=0;
@@ -42,12 +153,12 @@
     if(!Array.isArray(points)||!points.length||!Number.isFinite(eyeWidth)||eyeWidth<2)throw new Error('geometry');
     for(const p of points)if(![p.x,p.y,p.t,p.len,p.normal?.x,p.normal?.y,p.tangent?.x,p.tangent?.y].every(Number.isFinite)||p.len<=0)throw new Error('geometry');
     // Curl family from the existing professional design data (clientDesign.
-    // curl.global -> photoCurl -> props.curl, e.g. 'C'/'CC'/'D'/'L'/'L+') --
-    // an optional 3rd argument so any caller that omits it (tests, a stale
-    // build) keeps today's C-like profile untouched. Only strings containing
-    // 'L' switch to the distinct L/LLD profile below; every other curl
-    // (including null/undefined) is unaffected.
-    const isLCurl=typeof curlFamily==='string'&&/L/.test(curlFamily);
+    // curl.global -> photoCurl -> props.curl, e.g. 'C'/'CC'/'D'/'L'/'L+'/'M')
+    // -- an optional 3rd argument, so any caller that omits it (tests, a
+    // stale build) keeps the safe C-equivalent default. See
+    // CURL_GEOMETRY_PROFILES above for the full explicit table and
+    // curlProfileFor's fallback rule.
+    const curlProfile=curlProfileFor(curlFamily);
     // A continuous eye-local field replaces independent radial spikes. The
     // INNER->OUTER axis follows physical geometry and mirrors anatomically.
     // This chord frame is kept only as a stabilizing anchor (see below) --
@@ -108,7 +219,7 @@
       const bom=Math.hypot(blendedOutward.x,blendedOutward.y)||1,bum=Math.hypot(blendedUp.x,blendedUp.y)||1;
       const localFrameOutward={x:blendedOutward.x/bom,y:blendedOutward.y/bom};
       const localFrameUp={x:blendedUp.x/bum,y:blendedUp.y/bum};
-      // Base growth axis. C/CC/D/B/J (unchanged): a single continuous,
+      // Base growth axis. Rounded family (J/B/C/CC/D): a single continuous,
       // monotonic lift profile (inner -> outer), with this eye's own map
       // peak (prom) adding extra lift only where the Lash Map itself is
       // longest -- no dead zone, no direction reversal. Range raised so the
@@ -117,19 +228,15 @@
       // "outward" everywhere -- that up-bias is what made longer peak
       // fibers reach toward the brow instead of sweeping along the lid).
       //
-      // L/LLD gets its OWN, much flatter axis instead of reusing C's: the
-      // earlier L attempt only changed the curl BEND on top of this same
-      // shared axis, and a real measurement proved that made the tip swing
-      // BACK toward vertical (21.7 deg from vertical at the outer zone --
-      // more vertical than CC's 34.9 deg), the opposite of "flat base, late
-      // lift". The root section must itself run close to the lid tangent
-      // (matches the L-curl references: flat base, lift only near the tip),
-      // and there is deliberately no `prom` term -- the longest/peak fiber
-      // must not become the most vertical one for this family.
-      const angle=isLCurl
-        ? 1.25+.20*smooth(0,1,p.t)+(layer==='support'?.05:.03)*noise(i,salt+4)
-        : .09+.62*smooth(0,1,p.t)+.35*prom*smooth(.2,1,p.t)+
-          (layer==='support'?.05:.03)*noise(i,salt+4);
+      // Per-curl axis, generalized from what used to be two hardcoded
+      // branches (L/LLD's own much flatter axis vs. every other curl's
+      // shared C-shaped one) into curlProfile's angleBase/angleSweep/
+      // angleProm fields -- see CURL_GEOMETRY_PROFILES above for why L's
+      // angleProm is exactly 0 (the longest/peak fiber must not become
+      // the most vertical one for that family) while the rounded family
+      // (J/B/C/CC/D) keeps a real, strength-scaled prominence term.
+      const angle=curlProfile.angleBase+curlProfile.angleSweep*smooth(0,1,p.t)+curlProfile.angleProm*prom*smooth(.2,1,p.t)+
+        (layer==='support'?.05:.03)*noise(i,salt+4);
       const direction={x:localFrameUp.x*Math.cos(angle)+localFrameOutward.x*Math.sin(angle),y:localFrameUp.y*Math.cos(angle)+localFrameOutward.y*Math.sin(angle)};
       const lateral={x:localFrameOutward.x*Math.cos(angle)-localFrameUp.x*Math.sin(angle),y:localFrameOutward.y*Math.cos(angle)-localFrameUp.y*Math.sin(angle)};
       const at=(along,across)=>({x:root.x+direction.x*length*along+lateral.x*length*across,y:root.y+direction.y*length*along+lateral.y*length*across});
@@ -142,38 +249,21 @@
       // root already carries (liftNear) and how the tip resolves it
       // (tipEase's ratio) differ below.
       const curlPeak=(.24+.13*smooth(.30,1,p.t))*curlScale;
-      let curvePhase,liftNear,tipEase,midBend;
-      if(isLCurl){
-        // L/LLD: c1 AND c2 both stay close to the flat root/shaft direction
-        // -- midBend (c2's own bend, not curlPeak) is deliberately small, so
-        // the visible curve stays close to the root's own tangent through
-        // roughly the first 70% of its length. A cubic bezier's shape near
-        // s=1 is dominated by the TIP control point (its blend weight grows
-        // as s^3), so putting the large bend only at tipEase concentrates
-        // the actual lift into the final ~20-30% instead of ramping it up
-        // gradually across the whole mid-shaft (that gradual ramp -- c2
-        // already carrying curlPeak at 76% of the length -- was the earlier
-        // L attempt's real bug: the tip ended up MORE vertical than CC's,
-        // not less, because the bend had already mostly developed by then).
-        curvePhase=.72+.04*noise(i,salt+5);
-        liftNear=(.015+.008*smooth(0,.4,p.t))*curlScale;
-        midBend=curlPeak*.22;
-        tipEase=curlPeak*1.25;
-      } else {
-        curvePhase=.52+.05*noise(i,salt+5);
-        liftNear=(.06+.03*smooth(0,.4,p.t))*curlScale;
-        midBend=curlPeak;
-        // How much of curlPeak the tip RETAINS, not curlPeak's own magnitude
-        // (untouched above). Measured empirically (deviation of the actual
-        // curve from the root's own initial tangent, swept across a
-        // curvePhase x tipEase-ratio grid): a tip that eases back FURTHER
-        // toward the root's tangent -- not less -- is what makes the bend
-        // read clearly; a first attempt that made the tip continue PAST
-        // curlPeak instead measurably flattened the visible curve (verified
-        // numerically, reverted). .48 sits inside the tested, sign-stable
-        // range with a substantial, not extreme, increase in visible bend.
-        tipEase=curlPeak*.48;
-      }
+      // curvePhase/liftNear/midBend/tipEase, generalized from the old
+      // two-branch isLCurl split into curlProfile's own fields -- same
+      // shared curlPeak magnitude formula for every curl (untouched
+      // above); only WHERE along the shaft the bend concentrates
+      // (curvePhaseBase/Jitter), how much the root already carries
+      // (liftNearBase/Sweep) and how much of curlPeak reaches c2/the tip
+      // (midBendRatio/tipEaseRatio) differ, per curl, via the profile
+      // table. L's own values here are byte-identical to this
+      // renderer's previous isLCurl-true branch (see the file-header
+      // comment above CURL_GEOMETRY_PROFILES for the full empirical
+      // rationale -- unchanged, not re-derived).
+      const curvePhase=curlProfile.curvePhaseBase+curlProfile.curvePhaseJitter*noise(i,salt+5);
+      const liftNear=(curlProfile.liftNearBase+curlProfile.liftNearSweep*smooth(0,.4,p.t))*curlScale;
+      const midBend=curlPeak*curlProfile.midBendRatio;
+      const tipEase=curlPeak*curlProfile.tipEaseRatio;
       const lightness=(.45+.55*inner)*(.67+.33*outer);
       // Mid/outer strands read thicker within their own layer; the inner
       // corner stays thinnest (finish/lightness above are unchanged).

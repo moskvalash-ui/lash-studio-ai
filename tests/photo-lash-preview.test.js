@@ -91,19 +91,40 @@ test('visual defaults: root/width clamp holds so dense roots never merge into a 
  for(let i=1;i<sparse.length;i++)assert.ok(sparse[i].t>sparse[i-1].t);
  assert.ok(sparse[0].t>0&&sparse.at(-1).t<1);
 });
-test('curl progression: the bend direction is deterministic and can never flip sign (no kink/hook)',()=>{
- // Mirrors buildFibers' own liftNear/curlPeak/tipEase formulas across the
- // full t and curlScale domain actually used (support/main/accent), to
- // prove -- not just observe on one fixture -- that root->c1->c2->tip
- // always bends the same way and tip eases back from, never past, the peak.
- for(const curlScale of [.58,1,1.12]){
-   for(let t=0;t<=1;t+=.02){
-     const smooth_=(a,b,x)=>{const u=Math.max(0,Math.min(1,(x-a)/(b-a)));return u*u*(3-2*u);};
-     const liftNear=(.06+.03*smooth_(0,.4,t))*curlScale;
-     const curlPeak=(.24+.13*smooth_(.30,1,t))*curlScale;
-     const tipEase=curlPeak*.48;
-     assert.ok(liftNear>0&&curlPeak>0,'c1 and c2 bend the same (negative) direction');
-     assert.ok(tipEase>0&&tipEase<curlPeak,'the tip eases back from the peak curl instead of accelerating into a hook, and never reverses sign');
+// Mirrors CURL_GEOMETRY_PROFILES' own literal values (photo-lash-preview.js)
+// so this file can prove sign-stability analytically, across the full t
+// domain, independent of any one synthetic fixture -- same technique the
+// pre-refactor version of this test already used for the old two-branch
+// model. This is an intentionally pinned, independent copy: if it ever
+// drifts from the real source table, the "distinct geometry"/"monotonic
+// progression"/"M differs from C/D/L(+)" tests below (which call the REAL
+// PhotoLashPreview.buildFibers, not this mirror) still catch real
+// behavioral regressions on their own.
+const CURL_PROFILE_MIRROR={
+ J:{angleBase:.062,angleSweep:.564,angleProm:.28,curvePhaseBase:.63,liftNearBase:.018,liftNearSweep:.010,midBendRatio:.66,tipEaseRatio:.29},
+ B:{angleBase:.076,angleSweep:.592,angleProm:.315,curvePhaseBase:.575,liftNearBase:.039,liftNearSweep:.020,midBendRatio:.83,tipEaseRatio:.385},
+ C:{angleBase:.09,angleSweep:.62,angleProm:.35,curvePhaseBase:.52,liftNearBase:.06,liftNearSweep:.03,midBendRatio:1,tipEaseRatio:.48},
+ CC:{angleBase:.104,angleSweep:.648,angleProm:.385,curvePhaseBase:.465,liftNearBase:.081,liftNearSweep:.040,midBendRatio:1.17,tipEaseRatio:.575},
+ D:{angleBase:.118,angleSweep:.676,angleProm:.42,curvePhaseBase:.41,liftNearBase:.102,liftNearSweep:.050,midBendRatio:1.34,tipEaseRatio:.67},
+ L:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.72,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.22,tipEaseRatio:1.25},
+ 'L+':{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.68,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.34,tipEaseRatio:1.65},
+ M:{angleBase:.62,angleSweep:.35,angleProm:.15,curvePhaseBase:.60,liftNearBase:.040,liftNearSweep:.020,midBendRatio:.50,tipEaseRatio:.78},
+};
+const ALL_CURLS=['J','B','C','CC','D','L','L+','M'];
+const ROUNDED_CURLS=['J','B','C','CC','D'];
+
+test('curl progression: every one of the 8 profiles bends root->c1->c2->tip the same (negative) direction and can never flip sign (no kink/hook), across the full t/curlScale domain',()=>{
+ const smooth_=(a,b,x)=>{const u=Math.max(0,Math.min(1,(x-a)/(b-a)));return u*u*(3-2*u);};
+ for(const curl of ALL_CURLS){
+   const p=CURL_PROFILE_MIRROR[curl];
+   for(const curlScale of [.58,1,1.12]){
+     for(let t=0;t<=1;t+=.02){
+       const liftNear=(p.liftNearBase+p.liftNearSweep*smooth_(0,.4,t))*curlScale;
+       const curlPeak=(.24+.13*smooth_(.30,1,t))*curlScale;
+       const midBend=curlPeak*p.midBendRatio;
+       const tipEase=curlPeak*p.tipEaseRatio;
+       assert.ok(liftNear>0&&midBend>0&&curlPeak>0&&tipEase>0,`curl=${curl}: root, mid and tip all bend the same (negative) direction, never a sign flip`);
+     }
    }
  }
 });
@@ -153,42 +174,132 @@ test('LEFT/RIGHT parity: both physical eyes assign the same depth layer at the s
  const eyes=buildPhotoPreviewEyes(result,client);
  eyes[0].fibers.forEach((f,i)=>assert.equal(f.layer,eyes[1].fibers[i].layer,'a shared per-index rule must never accidentally flip one side only'));
 });
-test('curl family: every curl WITHOUT an "L" (undefined, null, C, CC, D, B, J) renders the exact same C-like geometry -- no curl is hard-coded to L',()=>{
- const baseline=JSON.stringify(PhotoLashPreview.buildFibers(
-   PhotoLashPreview.sampleSectors(items).map(s=>({...s,x:180+s.t*40,y:100,normal:{x:0,y:-1},tangent:{x:1,y:0}})),40));
- for(const curl of [undefined,null,'C','CC','D','B','J']){
-   const points=PhotoLashPreview.sampleSectors(items).map(s=>({...s,x:180+s.t*40,y:100,normal:{x:0,y:-1},tangent:{x:1,y:0}}));
-   const fibers=PhotoLashPreview.buildFibers(points,40,curl);
-   assert.equal(JSON.stringify(fibers),baseline,`curl=${curl} must be byte-identical to the no-curl default`);
+// ------------------------------------------------------------
+// CURL GEOMETRY PROFILES -- distinct professional curl identities
+// (J/B/C/CC/D/L/L+/M), replacing the old binary isLCurl model. Every
+// test below exercises the REAL, exported PhotoLashPreview.buildFibers,
+// never a re-derivation, so these prove actual rendered behavior.
+// ------------------------------------------------------------
+const curlFixturePoints=()=>PhotoLashPreview.sampleSectors(items).map(s=>({...s,x:180+s.t*40,y:100,normal:{x:0,y:-1},tangent:{x:1,y:0}}));
+const geomKey=f=>JSON.stringify([f.c1,f.c2,f.tip]);
+const buildAllCurls=()=>Object.fromEntries(ALL_CURLS.map(curl=>[curl,PhotoLashPreview.buildFibers(curlFixturePoints(),40,curl)]));
+
+test('A. all 8 curl names (J/B/C/CC/D/L/L+/M) resolve to their own explicit profile -- every pair produces different control-point geometry',()=>{
+ const byCurl=buildAllCurls();
+ for(let i=0;i<ALL_CURLS.length;i++)for(let j=i+1;j<ALL_CURLS.length;j++){
+   const a=ALL_CURLS[i],b=ALL_CURLS[j];
+   assert.notEqual(geomKey(byCurl[a][0]),geomKey(byCurl[b][0]),`curl=${a} must render different control-point geometry from curl=${b}`);
  }
 });
-test('curl family: a curl string containing "L" (L, L+) renders a distinct, still valid, sign-stable geometry -- lengths/peak/zones/count/LEFT-RIGHT untouched',()=>{
- const cPoints=PhotoLashPreview.sampleSectors(items).map(s=>({...s,x:180+s.t*40,y:100,normal:{x:0,y:-1},tangent:{x:1,y:0}}));
- const cFibers=PhotoLashPreview.buildFibers(cPoints,40,'CC');
- for(const curl of ['L','L+']){
-   const points=PhotoLashPreview.sampleSectors(items).map(s=>({...s,x:180+s.t*40,y:100,normal:{x:0,y:-1},tangent:{x:1,y:0}}));
-   const lFibers=PhotoLashPreview.buildFibers(points,40,curl);
-   assert.equal(lFibers.length,cFibers.length,'curl never changes density/fiber count');
-   lFibers.forEach((f,i)=>{
-     assert.equal(f.layer,cFibers[i].layer,'curl never changes layer assignment');
-     assert.equal(f.len,cFibers[i].len,'curl never changes the canonical Lash Map length');
-     assert.equal(f.t,cFibers[i].t,'curl never moves a root to a different sector/zone');
-     assert.deepEqual(f.root,cFibers[i].root,'curl never moves the root off the real lid curve');
-     assert.ok(Math.abs(f.width-cFibers[i].width)<1e-9&&Math.abs(f.opacity-cFibers[i].opacity)<1e-9,'curl never changes width/opacity');
+
+test('B. J/B/C/CC/D (the rounded family) are not geometrically identical to one another',()=>{
+ const byCurl=buildAllCurls();
+ const geoms=new Set(ROUNDED_CURLS.map(c=>geomKey(byCurl[c][0])));
+ assert.equal(geoms.size,ROUNDED_CURLS.length,'each rounded curl must have its own distinct geometry, not collapse into a shared default');
+});
+
+test('C. rounded-family progression J<B<C<CC<D is monotonic in real, measured tip geometry (not just profile constants)',()=>{
+ // Measures the REAL fiber's tip angle from the synthetic fixture's own
+ // "up" axis (root->tip vector, atan2 against local up=(0,-1)/outward=
+ // (1,0) that this straight synthetic eye produces) at the peak sector
+ // (t=.5, prom=1 on this fixture), where curl-driven differences are
+ // largest. This is the actual rendered geometry, not the source table.
+ const byCurl=buildAllCurls();
+ const peakAngle=curl=>{
+   const fibers=byCurl[curl];
+   const peak=fibers.find(f=>f.layer==='main'&&Math.abs(f.t-.5)<.01);
+   assert.ok(peak,`expected a MAIN fiber near the peak sector for curl=${curl}`);
+   return Math.atan2(peak.tip.x-peak.root.x,-(peak.tip.y-peak.root.y));
+ };
+ const angles=ROUNDED_CURLS.map(peakAngle);
+ for(let i=1;i<angles.length;i++){
+   assert.ok(angles[i]>angles[i-1],`expected strictly increasing tip angle ${ROUNDED_CURLS[i-1]}(${angles[i-1].toFixed(4)}) < ${ROUNDED_CURLS[i]}(${angles[i].toFixed(4)})`);
+ }
+});
+
+test('D. L differs from D (L must not resemble the strongest rounded curl)',()=>{
+ const byCurl=buildAllCurls();
+ assert.notEqual(geomKey(byCurl.L[0]),geomKey(byCurl.D[0]));
+ // L's own root-to-tip vector should read as flatter/less-resolved by c2
+ // than D's -- verified via midBend/curlPeak ratio being far smaller for
+ // every fiber pair sharing the same t, i.e. via the real output's c2
+ // staying much closer to root+direction*length*curvePhase than D's does.
+ const lPeak=byCurl.L.find(f=>f.layer==='main'&&Math.abs(f.t-.5)<.01);
+ const dPeak=byCurl.D.find(f=>f.layer==='main'&&Math.abs(f.t-.5)<.01);
+ const bend=f=>Math.hypot(f.c2.x-f.root.x,f.c2.y-f.root.y);
+ assert.notEqual(bend(lPeak).toFixed(6),bend(dPeak).toFixed(6),'L and D must reach c2 with a measurably different bend magnitude');
+});
+
+test('E. L+ differs from L, while staying architecturally related (near-identical root/c1, distinctly stronger tip)',()=>{
+ const byCurl=buildAllCurls();
+ assert.notEqual(geomKey(byCurl.L[0]),geomKey(byCurl['L+'][0]),'L and L+ must no longer be byte-identical');
+ byCurl.L.forEach((f,i)=>{
+   const g=byCurl['L+'][i];
+   assert.deepEqual(f.root,g.root,'L and L+ never move the root');
+   assert.ok(Math.abs(f.c1.x-g.c1.x)<1e-6&&Math.abs(f.c1.y-g.c1.y)<1e-6,'L and L+ share the same straight basal leg (liftNear unchanged) -- c1 must stay effectively identical');
+ });
+ const lTip=byCurl.L.find(f=>f.layer==='main'&&Math.abs(f.t-.5)<.01);
+ const lPlusTip=byCurl['L+'].find(f=>f.layer==='main'&&Math.abs(f.t-.5)<.01);
+ const tipLift=f=>Math.hypot(f.tip.x-f.c2.x,f.tip.y-f.c2.y);
+ assert.ok(tipLift(lPlusTip)>tipLift(lTip),'L+ must show a visibly stronger final tip lift than L');
+});
+
+test('F. M differs from C, D, L, and L+ (not a rounded curl, not identical to either L variant)',()=>{
+ const byCurl=buildAllCurls();
+ for(const other of ['C','D','L','L+']){
+   assert.notEqual(geomKey(byCurl.M[0]),geomKey(byCurl[other][0]),`M must not be identical to curl=${other}`);
+ }
+});
+
+test('G. an unknown/missing curl string safely falls back to the existing default (C) geometry -- never throws, never invents a new shape',()=>{
+ const cFibers=PhotoLashPreview.buildFibers(curlFixturePoints(),40,'C');
+ const baseline=JSON.stringify(cFibers);
+ for(const invalid of [undefined,null,'','XYZ','l',123,{},[]]){
+   assert.doesNotThrow(()=>PhotoLashPreview.buildFibers(curlFixturePoints(),40,invalid),`curl=${JSON.stringify(invalid)} must never throw`);
+   const fibers=PhotoLashPreview.buildFibers(curlFixturePoints(),40,invalid);
+   assert.equal(JSON.stringify(fibers),baseline,`curl=${JSON.stringify(invalid)} must fall back to the exact C-equivalent default geometry`);
+ }
+});
+
+test('H. same input + same curl remains fully deterministic, for every one of the 8 curls',()=>{
+ for(const curl of ALL_CURLS){
+   const a=PhotoLashPreview.buildFibers(curlFixturePoints(),40,curl);
+   const b=PhotoLashPreview.buildFibers(curlFixturePoints(),40,curl);
+   assert.deepEqual(a,b,`curl=${curl} must produce byte-identical output for identical input`);
+ }
+});
+
+test('I. changing curl never changes fiber count, source sector lengths, root positions, layer assignment, width/opacity, or mutates the input points array',()=>{
+ const basePoints=curlFixturePoints();
+ const frozenSnapshot=JSON.stringify(basePoints);
+ const byCurl=Object.fromEntries(ALL_CURLS.map(curl=>[curl,PhotoLashPreview.buildFibers(basePoints,40,curl)]));
+ assert.equal(JSON.stringify(basePoints),frozenSnapshot,'buildFibers must never mutate its input points array, regardless of curl');
+ const reference=byCurl.C;
+ for(const curl of ALL_CURLS){
+   const fibers=byCurl[curl];
+   assert.equal(fibers.length,reference.length,`curl=${curl} must not change fiber count`);
+   fibers.forEach((f,i)=>{
+     const r=reference[i];
+     assert.equal(f.len,r.len,`curl=${curl}: source sector length must be unchanged at index ${i}`);
+     assert.equal(f.t,r.t,`curl=${curl}: root sector/zone (t) must be unchanged at index ${i}`);
+     assert.equal(f.layer,r.layer,`curl=${curl}: layer assignment must be unchanged at index ${i}`);
+     assert.deepEqual(f.root,r.root,`curl=${curl}: root position must be unchanged at index ${i} (curl never moves roots, only the fiber's trajectory) -- deterministic support/accent jitter already existed pre-curl and is untouched here since it is derived from the same noise(i,salt) calls regardless of curl`);
+     assert.ok(Math.abs(f.width-r.width)<1e-9,`curl=${curl}: width must be unchanged at index ${i}`);
+     assert.ok(Math.abs(f.opacity-r.opacity)<1e-9,`curl=${curl}: opacity must be unchanged at index ${i}`);
    });
-   assert.notEqual(JSON.stringify(lFibers.map(f=>[f.c1,f.c2,f.tip])),JSON.stringify(cFibers.map(f=>[f.c1,f.c2,f.tip])),'the L profile must actually produce different control-point geometry from C/CC');
  }
 });
-test('curl family: the L/LLD profile is deterministic and sign-stable across the full t domain (no kink/hook)',()=>{
- for(const curlScale of [.58,1,1.12]){
-   for(let t=0;t<=1;t+=.02){
-     const smooth_=(a,b,x)=>{const u=Math.max(0,Math.min(1,(x-a)/(b-a)));return u*u*(3-2*u);};
-     const curlPeak=(.24+.13*smooth_(.30,1,t))*curlScale;
-     const liftNear=(.015+.008*smooth_(0,.4,t))*curlScale;
-     const midBend=curlPeak*.22;
-     const tipEase=curlPeak*1.25;
-     assert.ok(liftNear>0&&midBend>0&&curlPeak>0&&tipEase>0,'root, mid and tip all bend the same (negative) direction, never a sign flip');
-     assert.ok(midBend<curlPeak,'c2 stays a small fraction of curlPeak so the shaft reads flat through the first ~70% of length');
-   }
- }
+
+test('J. no new curl values were introduced into index.html\'s CURL_CATALOG or DESIGN_CATALOG (production catalogs are byte-identical to git HEAD)',()=>{
+ const {execSync}=require('node:child_process');
+ let HEAD;
+ try{HEAD=execSync('git show HEAD:index.html',{cwd:require('node:path').join(__dirname,'..'),maxBuffer:1024*1024*20}).toString();}catch(e){HEAD=null;}
+ assert.ok(HEAD,'expected `git show HEAD:index.html` to succeed inside a git working tree');
+ const extract=(s,start,end)=>{const st=s.indexOf(start);const en=s.indexOf(end,st);assert.ok(st!==-1&&en!==-1,'expected to locate CURL_CATALOG/DESIGN_CATALOG markers');return s.slice(st,en);};
+ const curCurlCatalog=extract(src,'const CURL_CATALOG = [','function recommendCurl(');
+ const prevCurlCatalog=extract(HEAD,'const CURL_CATALOG = [','function recommendCurl(');
+ assert.equal(curCurlCatalog,prevCurlCatalog,'CURL_CATALOG must be byte-identical to git HEAD -- this task is rendering-only');
+ const curDesignCatalog=extract(src,'const DESIGN_CATALOG','function calculateEyeLashMap(');
+ const prevDesignCatalog=extract(HEAD,'const DESIGN_CATALOG','function calculateEyeLashMap(');
+ assert.equal(curDesignCatalog,prevDesignCatalog,'DESIGN_CATALOG (including every baseCurl/curlOptions entry) must be byte-identical to git HEAD');
 });

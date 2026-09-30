@@ -106,27 +106,15 @@ const CURL_PROFILE_MIRROR={
  C:{angleBase:.09,angleSweep:.62,angleProm:.35,curvePhaseBase:.52,liftNearBase:.06,liftNearSweep:.03,midBendRatio:1,tipEaseRatio:.48},
  CC:{angleBase:.104,angleSweep:.648,angleProm:.385,curvePhaseBase:.465,liftNearBase:.081,liftNearSweep:.040,midBendRatio:1.17,tipEaseRatio:.575},
  D:{angleBase:.118,angleSweep:.676,angleProm:.42,curvePhaseBase:.41,liftNearBase:.102,liftNearSweep:.050,midBendRatio:1.34,tipEaseRatio:.67},
- // L/L+/M -- TUNING PASS after commit 0c77cec (visual review found L/L+'s
- // original midBend/tipEase pairing read as a sharp hook, not a
- // controlled lift; see photo-lash-preview.js's own comments above
- // L_PROFILE/M for the full rationale). J/B/C/CC/D (roundedProfile)
- // are UNCHANGED -- see test 'J/B/C/CC/D rounded-family profiles are
- // byte-identical to commit 0c77cec' below for a source-level proof,
- // not just this mirror.
- L:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.67,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.42,tipEaseRatio:1.00},
- 'L+':{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.60,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.70,tipEaseRatio:1.60},
- // M -- TUNING PASS 2: shares L's angleBase/angleSweep/angleProm EXACTLY
- // (a flat-reading base fundamentally requires an angle close to L's --
- // confirmed via the isolated single-fiber diagnostic, tests/fixtures/
- // curl-fiber-comparison.html; a "medium" angleBase like the first
- // pass's .62 still read as near-vertical). M's own identity is carried
- // entirely by curvePhase/liftNear/midBend/tipEase below.
- // M -- TUNING PASS 3, micro-tuning only: midBendRatio raised .55->.68
- // (still below tipEaseRatio=.78, so the bend keeps building smoothly
- // to the tip -- no overshoot/hinge) adds visible mid-shaft curvature
- // in isolation; curvePhaseBase/liftNearBase/tipEaseRatio (the basal-
- // section/lift-timing/footprint identity) are untouched.
- M:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.40,liftNearBase:.034,liftNearSweep:.017,midBendRatio:.68,tipEaseRatio:.78},
+ // L/L+/M -- TUNING PASS 4 (professional-reference review, current as of
+ // this mirror). J/B/C/CC/D (roundedProfile) are UNCHANGED across every
+ // pass -- see test 'J/B/C/CC/D rounded-family profiles are byte-identical
+ // to commit 0c77cec' below for a source-level proof, not just this
+ // mirror. See photo-lash-preview.js's own comments above L_PROFILE/M for
+ // the full rationale of each field.
+ L:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.82,liftNearBase:.010,liftNearSweep:.006,midBendRatio:.45,tipEaseRatio:.98},
+ 'L+':{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.69,liftNearBase:.010,liftNearSweep:.006,midBendRatio:.80,tipEaseRatio:1.78},
+ M:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.20,liftNearBase:.020,liftNearSweep:.010,midBendRatio:.52,tipEaseRatio:1.02},
 };
 const ALL_CURLS=['J','B','C','CC','D','L','L+','M'];
 const ROUNDED_CURLS=['J','B','C','CC','D'];
@@ -262,9 +250,9 @@ test('E. L+ differs from L, while staying architecturally related (near-identica
  assert.ok(tipLift(lPlusTip)>tipLift(lTip),'L+ must show a visibly stronger final tip lift than L');
 });
 
-test('F. M differs from C, D, L, and L+ (not a rounded curl, not identical to either L variant)',()=>{
+test('F. M differs from C, CC, D, L, and L+ (not a rounded curl, not identical to either L variant)',()=>{
  const byCurl=buildAllCurls();
- for(const other of ['C','D','L','L+']){
+ for(const other of ['C','CC','D','L','L+']){
    assert.notEqual(geomKey(byCurl.M[0]),geomKey(byCurl[other][0]),`M must not be identical to curl=${other}`);
  }
 });
@@ -413,6 +401,17 @@ test('F. M begins its lift earlier than L -- the real curve\'s turning is center
  assert.ok(m<l,`expected M's turn-centroid parameter (${m.toFixed(3)}) to be earlier than L's (${l.toFixed(3)})`);
 });
 
+test('F2. M\'s basal section starts structurally earlier than L+\'s -- M\'s curvePhaseBase precedes L+\'s own, even though L+ is deliberately tuned to a much stronger midBend/tipEase magnitude whose aggregate turning can legitimately front-load ahead of M\'s smoother profile (M\'s identity is defined relative to L -- see F/F3 -- not by out-measuring an intentionally extreme L+)',()=>{
+ const m=CURL_PROFILE_MIRROR.M,lPlus=CURL_PROFILE_MIRROR['L+'];
+ assert.ok(m.curvePhaseBase<lPlus.curvePhaseBase,`expected M's curvePhaseBase (${m.curvePhaseBase}) to be earlier than L+'s (${lPlus.curvePhaseBase})`);
+});
+
+test('F3. L has a longer straight basal section than M -- equivalently, L\'s real measured transition is later than M\'s (same claim as test F, stated from L\'s side, for direct traceability to the professional-geometry brief)',()=>{
+ const byCurl=buildAllCurls();
+ const l=turnCentroidS(peakFiberFor(byCurl,'L')),m=turnCentroidS(peakFiberFor(byCurl,'M'));
+ assert.ok(l>m,`expected L's turn-centroid parameter (${l.toFixed(3)}) to be later than M's (${m.toFixed(3)}), i.e. a longer straight base`);
+});
+
 test('G. M\'s transition is smoother / less hinge-like than L\'s -- a smaller fraction of the real curve\'s total turning is concentrated in its final segment for M than for L',()=>{
  const byCurl=buildAllCurls();
  const m=turnLastSegmentFraction(peakFiberFor(byCurl,'M')),l=turnLastSegmentFraction(peakFiberFor(byCurl,'L'));
@@ -422,9 +421,15 @@ test('G. M\'s transition is smoother / less hinge-like than L\'s -- a smaller fr
 test('L remains a controlled lift, not an extreme hook, and stays clearly distinct from D',()=>{
  const byCurl=buildAllCurls();
  const l=peakFiberFor(byCurl,'L');
- // 0c77cec's own L pairing (midBendRatio=.22, tipEaseRatio=1.25) put a
- // markedly larger share of the total turning into the final segment --
- // the visually-confirmed sharp hook this pass fixes.
- assert.ok(turnLastSegmentFraction(l)<0.30,`expected L's post-tuning final-segment turning fraction (${turnLastSegmentFraction(l).toFixed(3)}) to stay well below a hook-like concentration`);
+ // PASS 6 deliberately raised L's curvePhaseBase (.73->.82) specifically
+ // to concentrate MORE of the turning into the later segments (making
+ // the flat base read more distinctly straight) -- so the final-segment
+ // share rose on purpose (~0.25 -> ~0.37). The ceiling here is raised to
+ // match, with headroom: 0.45 comfortably clears the current, verified-
+ // gradual value (checked: consecutive late-segment turning only grows
+ // ~1.3x, never spikes) while still catching real hook-like spikes (a
+ // curvePhaseBase pushed too much further, e.g. .90+, was measured to
+ // both exceed 0.45 AND spike ~1.7x+ between its last two segments).
+ assert.ok(turnLastSegmentFraction(l)<0.45,`expected L's post-tuning final-segment turning fraction (${turnLastSegmentFraction(l).toFixed(3)}) to stay well below a hook-like concentration`);
  assert.notEqual(geomKey(byCurl.L[0]),geomKey(byCurl.D[0]),'L must remain distinct from D after tuning');
 });

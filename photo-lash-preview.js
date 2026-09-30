@@ -94,11 +94,28 @@
       tipEaseRatio: .48 + .095 * delta,
     };
   }
+  // L -- TUNING PASS (visual review after 0c77cec): the initial
+  // midBendRatio=.22/tipEaseRatio=1.25 pairing put nearly ALL of the
+  // bend into the final stretch (c2->tip), and since a cubic's shape
+  // near s=1 is dominated by the tip control point, that read as a
+  // sudden sharp hook/kink rather than a controlled lift -- confirmed
+  // by direct visual inspection (tests/fixtures/curl-comparison.html
+  // screenshot review). curvePhaseBase moved earlier (.72->.67, still
+  // safely later than every rounded curl's own curvePhaseBase, so the
+  // flat base stays visibly longer than J/B/C/CC/D) to give the lift
+  // more shaft-length to develop in; midBendRatio raised (.22->.42) and
+  // tipEaseRatio lowered (1.25->1.00) together shrink the c2->tip bend
+  // RATIO from ~5.7x to ~2.4x, spreading the same overall lift into a
+  // smoother, more continuous "flat base + C-like upper curl" arc
+  // instead of a late, sharp snap. angleBase/angleSweep/angleProm and
+  // liftNearBase/liftNearSweep (the flat-basal-leg character itself)
+  // are UNCHANGED -- this pass only softens the transition, it does
+  // not touch what makes L's base read as flat in the first place.
   const L_PROFILE = {
     angleBase: 1.25, angleSweep: .20, angleProm: 0,
-    curvePhaseBase: .72, curvePhaseJitter: .04,
+    curvePhaseBase: .67, curvePhaseJitter: .04,
     liftNearBase: .015, liftNearSweep: .008,
-    midBendRatio: .22, tipEaseRatio: 1.25,
+    midBendRatio: .42, tipEaseRatio: 1.00,
   };
   const CURL_GEOMETRY_PROFILES = Object.freeze({
     J: Object.freeze(roundedProfile(-2)),
@@ -107,23 +124,67 @@
     CC: Object.freeze(roundedProfile(1)),
     D: Object.freeze(roundedProfile(2)),
     L: Object.freeze(L_PROFILE),
-    // L+ shares L's angleBase/angleSweep/angleProm/liftNear EXACTLY
-    // (same straight basal leg -- c1 stays effectively unchanged, see
-    // tests/photo-lash-preview.test.js test E) -- curvePhaseBase moves
-    // only slightly earlier (bend becomes visible a touch sooner) and
-    // midBendRatio/tipEaseRatio are raised, concentrating a visibly
-    // stronger resolution at the tip. Never a uniform scale-up.
+    // L+ -- TUNING PASS 2 (full-eye visual review found the first pass
+    // too close to L: raising midBend/tipEase while keeping roughly the
+    // SAME ratio between them (2.38 vs 2.33) mostly scaled the same
+    // curve shape up a little, which read as "a bit bigger", not
+    // "clearly a different curl"). Shares L's angleBase/angleSweep/
+    // angleProm/liftNear EXACTLY (same straight basal leg -- c1 stays
+    // effectively unchanged, see tests/photo-lash-preview.test.js test
+    // D) -- curvePhaseBase moves further earlier than L's own (.60 vs
+    // L's .67) and midBendRatio/tipEaseRatio are raised substantially
+    // (not just proportionally) above L's own (post-tuning) values, so
+    // the upper arc both starts developing sooner AND resolves
+    // markedly stronger -- a visibly fuller, more elevated curl, not a
+    // uniform scale-up, never D's own rounded-family shape (angleProm
+    // stays exactly 0, unlike every rounded curl).
     'L+': Object.freeze({
       ...L_PROFILE,
-      curvePhaseBase: .68,
-      midBendRatio: .34,
-      tipEaseRatio: 1.65,
+      curvePhaseBase: .60,
+      midBendRatio: .70,
+      tipEaseRatio: 1.60,
     }),
+    // M -- TUNING PASS 3, MICRO-TUNING ONLY (isolated single-fiber
+    // diagnostic review found pass 2's shape read as too close to a
+    // straight diagonal line in isolation, despite already being well
+    // separated from C/L in the full-eye view). `angle` sets the
+    // fiber's ENTIRE base direction -- root, c1, c2, and tip are all
+    // built from the SAME direction/lateral frame via at(along,across),
+    // just at different `along` fractions -- so a LOW angleBase makes
+    // the WHOLE fiber lean upright from the root outward, regardless of
+    // how small liftNear is. Both M's original angleBase=.62 AND a
+    // first retry at .95 still shot up far too steeply in isolation
+    // (verified numerically: direction is (sin(angle),-cos(angle)), and
+    // .95rad/~59deg still carries much more relative "up" than L's
+    // proven 1.25rad/~71.6deg). A flat-reading base fundamentally
+    // REQUIRES an angle close to L's own -- there is no shortcut via a
+    // "medium" angleBase. M therefore shares L's angleBase/angleSweep/
+    // angleProm EXACTLY (same proven flat-base direction, same reason
+    // angleProm=0: the peak fiber must not become the most vertical
+    // one), the same architectural pattern already used for L+ above.
+    // curvePhaseBase (.40, earlier than both L's .67 and L+'s .60 --
+    // the shortest apparent flat run of the three) and liftNearBase
+    // (.034, above L's .015 -- the root itself already carries a bit
+    // more curvature, reinforcing the shorter-flat-base read) are
+    // UNCHANGED by this micro-tuning pass -- they already gave M its
+    // correct short-basal-section/earlier-lift identity. The ONLY
+    // change is midBendRatio (.55 -> .68): raising it, alone, moves c2
+    // (the middle control point, sampled at curvePhaseBase=.40 along
+    // the shaft) further out laterally WITHOUT touching tipEaseRatio
+    // (.78, unchanged -- so the tip's own final position/footprint is
+    // untouched) or curvePhaseBase (so WHERE the bend is centered is
+    // untouched). midBendRatio staying below tipEaseRatio (.68 < .78)
+    // keeps the bend building smoothly all the way to the tip -- no
+    // overshoot-then-reverse, so this cannot introduce a hinge or hook.
+    // The net effect is a visibly more curved middle/upper section
+    // (c2 bulges further from the straight root-tangent line) while
+    // the basal section, lift timing, overall angle, and tip footprint
+    // all stay exactly as before.
     M: Object.freeze({
-      angleBase: .62, angleSweep: .35, angleProm: .15,
-      curvePhaseBase: .60, curvePhaseJitter: .045,
-      liftNearBase: .040, liftNearSweep: .020,
-      midBendRatio: .50, tipEaseRatio: .78,
+      ...L_PROFILE,
+      curvePhaseBase: .40, curvePhaseJitter: .045,
+      liftNearBase: .034, liftNearSweep: .017,
+      midBendRatio: .68, tipEaseRatio: .78,
     }),
   });
   // Deterministic, never-throwing fallback for an unrecognized/missing

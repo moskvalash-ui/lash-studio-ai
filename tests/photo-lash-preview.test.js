@@ -106,9 +106,27 @@ const CURL_PROFILE_MIRROR={
  C:{angleBase:.09,angleSweep:.62,angleProm:.35,curvePhaseBase:.52,liftNearBase:.06,liftNearSweep:.03,midBendRatio:1,tipEaseRatio:.48},
  CC:{angleBase:.104,angleSweep:.648,angleProm:.385,curvePhaseBase:.465,liftNearBase:.081,liftNearSweep:.040,midBendRatio:1.17,tipEaseRatio:.575},
  D:{angleBase:.118,angleSweep:.676,angleProm:.42,curvePhaseBase:.41,liftNearBase:.102,liftNearSweep:.050,midBendRatio:1.34,tipEaseRatio:.67},
- L:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.72,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.22,tipEaseRatio:1.25},
- 'L+':{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.68,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.34,tipEaseRatio:1.65},
- M:{angleBase:.62,angleSweep:.35,angleProm:.15,curvePhaseBase:.60,liftNearBase:.040,liftNearSweep:.020,midBendRatio:.50,tipEaseRatio:.78},
+ // L/L+/M -- TUNING PASS after commit 0c77cec (visual review found L/L+'s
+ // original midBend/tipEase pairing read as a sharp hook, not a
+ // controlled lift; see photo-lash-preview.js's own comments above
+ // L_PROFILE/M for the full rationale). J/B/C/CC/D (roundedProfile)
+ // are UNCHANGED -- see test 'J/B/C/CC/D rounded-family profiles are
+ // byte-identical to commit 0c77cec' below for a source-level proof,
+ // not just this mirror.
+ L:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.67,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.42,tipEaseRatio:1.00},
+ 'L+':{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.60,liftNearBase:.015,liftNearSweep:.008,midBendRatio:.70,tipEaseRatio:1.60},
+ // M -- TUNING PASS 2: shares L's angleBase/angleSweep/angleProm EXACTLY
+ // (a flat-reading base fundamentally requires an angle close to L's --
+ // confirmed via the isolated single-fiber diagnostic, tests/fixtures/
+ // curl-fiber-comparison.html; a "medium" angleBase like the first
+ // pass's .62 still read as near-vertical). M's own identity is carried
+ // entirely by curvePhase/liftNear/midBend/tipEase below.
+ // M -- TUNING PASS 3, micro-tuning only: midBendRatio raised .55->.68
+ // (still below tipEaseRatio=.78, so the bend keeps building smoothly
+ // to the tip -- no overshoot/hinge) adds visible mid-shaft curvature
+ // in isolation; curvePhaseBase/liftNearBase/tipEaseRatio (the basal-
+ // section/lift-timing/footprint identity) are untouched.
+ M:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.40,liftNearBase:.034,liftNearSweep:.017,midBendRatio:.68,tipEaseRatio:.78},
 };
 const ALL_CURLS=['J','B','C','CC','D','L','L+','M'];
 const ROUNDED_CURLS=['J','B','C','CC','D'];
@@ -302,4 +320,111 @@ test('J. no new curl values were introduced into index.html\'s CURL_CATALOG or D
  const curDesignCatalog=extract(src,'const DESIGN_CATALOG','function calculateEyeLashMap(');
  const prevDesignCatalog=extract(HEAD,'const DESIGN_CATALOG','function calculateEyeLashMap(');
  assert.equal(curDesignCatalog,prevDesignCatalog,'DESIGN_CATALOG (including every baseCurl/curlOptions entry) must be byte-identical to git HEAD');
+});
+
+// ------------------------------------------------------------
+// L/L+/M TUNING PASS (after commit 0c77cec) -- J/B/C/CC/D (the rounded
+// family, built entirely from roundedProfile()) are frozen and must
+// stay byte-identical; only L/L+/M's own profile objects may change.
+// ------------------------------------------------------------
+test('J/B/C/CC/D rounded-family profiles are byte-identical to commit 0c77cec (source-level proof, not just a value mirror)',()=>{
+ const {execSync}=require('node:child_process');
+ const root=require('node:path').join(__dirname,'..');
+ let BASE;
+ try{BASE=execSync('git show 0c77cec:photo-lash-preview.js',{cwd:root,maxBuffer:1024*1024*20}).toString();}catch(e){BASE=null;}
+ assert.ok(BASE,'expected `git show 0c77cec:photo-lash-preview.js` to succeed -- 0c77cec must exist in history');
+ const curSrc=fs.readFileSync(require('node:path').join(root,'photo-lash-preview.js'),'utf8');
+ // Balanced-brace extraction (not a second string marker) so an
+ // unrelated comment inserted AFTER roundedProfile's own closing brace
+ // (e.g. explaining the L/L+/M tuning below it) can never accidentally
+ // get swept into this comparison.
+ const extractFnBody=(s,marker)=>{
+   const st=s.indexOf(marker);
+   assert.ok(st!==-1,`expected to find "${marker}"`);
+   let i=s.indexOf('{',st),depth=0;
+   for(;i<s.length;i++){
+     if(s[i]==='{')depth++;
+     else if(s[i]==='}'){depth--;if(depth===0)return s.slice(st,i+1);}
+   }
+   throw new Error('unbalanced braces');
+ };
+ const curRounded=extractFnBody(curSrc,'function roundedProfile(delta) {');
+ const baseRounded=extractFnBody(BASE,'function roundedProfile(delta) {');
+ assert.equal(curRounded,baseRounded,'roundedProfile() itself (the function every one of J/B/C/CC/D is derived from) must be untouched');
+ const extract=(s,start,end)=>{const st=s.indexOf(start);assert.ok(st!==-1,`expected to find "${start}"`);const en=s.indexOf(end,st);assert.ok(en!==-1,`expected to find "${end}" after "${start}"`);return s.slice(st,en);};
+ const curJD=extract(curSrc,'J: Object.freeze(roundedProfile(-2)),','L: Object.freeze(L_PROFILE),');
+ const baseJD=extract(BASE,'J: Object.freeze(roundedProfile(-2)),','L: Object.freeze(L_PROFILE),');
+ assert.equal(curJD,baseJD,'the J/B/C/CC/D table entries themselves (delta arguments -2..2) must be untouched');
+});
+
+// Real tangent-direction turning profile of the actual rendered curve
+// (root/c1/c2/tip are exactly the 4 control points buildFibers already
+// returns per fiber) -- reads how much the fiber's direction rotates
+// between successive parameter samples, and where along the shaft that
+// rotation is concentrated. Standard cubic Bezier derivative; used only
+// to read real, already-computed geometry, never to re-derive it.
+function tangentAt(f,s){
+ const u=1-s;
+ return {
+   x:3*u*u*(f.c1.x-f.root.x)+6*u*s*(f.c2.x-f.c1.x)+3*s*s*(f.tip.x-f.c2.x),
+   y:3*u*u*(f.c1.y-f.root.y)+6*u*s*(f.c2.y-f.c1.y)+3*s*s*(f.tip.y-f.c2.y),
+ };
+}
+function turningProfile(f){
+ const samples=[.05,.25,.45,.65,.85,.97];
+ const angles=samples.map(s=>{const t=tangentAt(f,s);return Math.atan2(t.y,t.x);});
+ const turns=[];
+ for(let i=1;i<angles.length;i++){
+   let d=angles[i]-angles[i-1];
+   while(d>Math.PI)d-=2*Math.PI;
+   while(d<-Math.PI)d+=2*Math.PI;
+   turns.push(d);
+ }
+ return {samples,turns};
+}
+// Turning-weighted mean parameter position: where, on average along s,
+// the fiber's own direction change is centered. A smaller value means
+// the curve does most of its turning earlier along the shaft.
+function turnCentroidS(f){
+ const {samples,turns}=turningProfile(f);
+ let weighted=0,total=0;
+ for(let i=0;i<turns.length;i++){const mid=(samples[i]+samples[i+1])/2,w=Math.abs(turns[i]);weighted+=w*mid;total+=w;}
+ return weighted/total;
+}
+// Fraction of the curve's TOTAL turning that happens in its final
+// sampled segment -- how hinge-like/late-concentrated the bend is. 1.0
+// would mean the curve is dead straight until the very last stretch,
+// then snaps; a smaller fraction means the turning is spread more
+// evenly across the shaft (a smoother, more continuous transition).
+function turnLastSegmentFraction(f){
+ const {turns}=turningProfile(f);
+ const total=turns.reduce((s,t)=>s+Math.abs(t),0);
+ return Math.abs(turns.at(-1))/total;
+}
+function peakFiberFor(byCurl,curl){
+ const f=byCurl[curl].find(x=>x.layer==='main'&&Math.abs(x.t-.5)<.01);
+ assert.ok(f,`expected a MAIN fiber near the peak sector for curl=${curl}`);
+ return f;
+}
+
+test('F. M begins its lift earlier than L -- the real curve\'s turning is centered at an earlier parameter for M than for L',()=>{
+ const byCurl=buildAllCurls();
+ const m=turnCentroidS(peakFiberFor(byCurl,'M')),l=turnCentroidS(peakFiberFor(byCurl,'L'));
+ assert.ok(m<l,`expected M's turn-centroid parameter (${m.toFixed(3)}) to be earlier than L's (${l.toFixed(3)})`);
+});
+
+test('G. M\'s transition is smoother / less hinge-like than L\'s -- a smaller fraction of the real curve\'s total turning is concentrated in its final segment for M than for L',()=>{
+ const byCurl=buildAllCurls();
+ const m=turnLastSegmentFraction(peakFiberFor(byCurl,'M')),l=turnLastSegmentFraction(peakFiberFor(byCurl,'L'));
+ assert.ok(m<l,`expected M's final-segment turning fraction (${m.toFixed(3)}) to be smaller (smoother) than L's (${l.toFixed(3)})`);
+});
+
+test('L remains a controlled lift, not an extreme hook, and stays clearly distinct from D',()=>{
+ const byCurl=buildAllCurls();
+ const l=peakFiberFor(byCurl,'L');
+ // 0c77cec's own L pairing (midBendRatio=.22, tipEaseRatio=1.25) put a
+ // markedly larger share of the total turning into the final segment --
+ // the visually-confirmed sharp hook this pass fixes.
+ assert.ok(turnLastSegmentFraction(l)<0.30,`expected L's post-tuning final-segment turning fraction (${turnLastSegmentFraction(l).toFixed(3)}) to stay well below a hook-like concentration`);
+ assert.notEqual(geomKey(byCurl.L[0]),geomKey(byCurl.D[0]),'L must remain distinct from D after tuning');
 });

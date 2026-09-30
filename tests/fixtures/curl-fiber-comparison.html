@@ -1,0 +1,90 @@
+<!doctype html>
+<!--
+  DEV/TEST-ONLY DIAGNOSTIC — Photo Lash Preview, ISOLATED single-fiber
+  curl comparison.
+
+  Not part of production UI, never linked from index.html, never served
+  to a client. Renders exactly ONE representative fiber per curl
+  (J/B/C/CC/D/L/L+/M), all sharing the SAME root position, nominal
+  length, and canvas scale, so the raw Bezier silhouette (root->c1->c2->
+  tip) of each curl can be compared directly without the visual noise of
+  294+ overlapping fibers, support/accent layers, or per-fiber jitter.
+
+  Open directly in a browser (file://) or via a static server; no build
+  step, no dependencies beyond the real ../../photo-lash-preview.js.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Photo Lash Preview — isolated single-fiber curl comparison</title>
+<style>
+  body { background:#0b0e12; color:#e8e8e8; font:13px/1.4 -apple-system,sans-serif; padding:24px; }
+  h1 { font-size:16px; font-weight:600; margin:0 0 4px; }
+  p.sub { color:#9aa4b2; margin:0 0 20px; max-width:760px; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; max-width:1000px; }
+  .panel { background:#f2e3da; border-radius:8px; overflow:hidden; }
+  .panel canvas { display:block; width:100%; height:auto; }
+  .label { background:#1a1f27; padding:6px 10px; font-weight:600; letter-spacing:.04em; display:flex; justify-content:space-between; }
+  .label .tag { color:#7fb2ff; font-weight:400; }
+</style>
+</head>
+<body>
+<h1>Photo Lash Preview — isolated single-fiber curl comparison</h1>
+<p class="sub">ONE representative MAIN fiber per curl, same root position/nominal length/scale for every panel (dashed line = the fiber's own root tangent, for reference). Dev/test-only diagnostic; not linked from the production app.</p>
+<div class="grid" id="grid"></div>
+<script src="../../photo-lash-preview.js"></script>
+<script>
+(function () {
+  'use strict';
+  // Two points sharing the SAME root position/tangent/normal/len/t
+  // characteristics -- buildFibers requires >=2 points with a non-zero
+  // chord (points[0] vs points.at(-1)) to establish its outward/up
+  // frame; only points[0]'s fiber is ever rendered below, so the
+  // second point exists purely to satisfy that requirement without
+  // affecting the one fiber actually shown.
+  var ROOT = { x: 60, y: 150 };
+  var POINTS = [
+    { t: .50, len: 10, x: ROOT.x, y: ROOT.y, normal: { x: 0, y: -1 }, tangent: { x: 1, y: 0 } },
+    { t: .51, len: 10, x: ROOT.x + 40, y: ROOT.y, normal: { x: 0, y: -1 }, tangent: { x: 1, y: 0 } },
+  ];
+  var EYE_WIDTH = 300; // fixed, generous scale so one fiber is clearly inspectable.
+
+  var CURLS = ['J', 'B', 'C', 'CC', 'D', 'L', 'L+', 'M'];
+  var grid = document.getElementById('grid');
+  var W = 220, H = 240, SCALE = 3;
+
+  CURLS.forEach(function (curl) {
+    var panel = document.createElement('div'); panel.className = 'panel';
+    var label = document.createElement('div'); label.className = 'label';
+    label.innerHTML = '<span>' + curl + '</span><span class="tag">curl</span>';
+    var canvas = document.createElement('canvas');
+    canvas.width = W * SCALE; canvas.height = H * SCALE;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    panel.appendChild(canvas); panel.appendChild(label); grid.appendChild(panel);
+
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    ctx.fillStyle = '#f2e3da'; ctx.fillRect(0, 0, W, H);
+
+    // Reference: the root's own tangent line (dashed) and a root marker
+    // -- purely for visual orientation, never fed into buildFibers.
+    ctx.save();
+    ctx.strokeStyle = 'rgba(120,70,50,0.35)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(20, ROOT.y - 90); ctx.lineTo(20, ROOT.y + 10); ctx.moveTo(20, ROOT.y); ctx.lineTo(200, ROOT.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(120,70,50,0.6)';
+    ctx.beginPath(); ctx.arc(20, ROOT.y, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    var offsetPoints = POINTS.map(function (p) { return { ...p, x: p.x - ROOT.x + 20, y: p.y }; });
+    var fibers = PhotoLashPreview.buildFibers(offsetPoints, EYE_WIDTH, curl);
+    var mainFiber = fibers.find(function (f) { return f.layer === 'main' && Math.abs(f.t - offsetPoints[0].t) < 1e-9; });
+    // Render at full opacity/width so the raw silhouette reads clearly
+    // in isolation (the real renderer's own width/opacity formulas are
+    // otherwise untouched -- draw() itself is the real, unmodified fn).
+    PhotoLashPreview.draw(ctx, [{ ...mainFiber, opacity: 1, width: Math.max(mainFiber.width, 0.9) }]);
+  });
+})();
+</script>
+</body>
+</html>

@@ -119,5 +119,10 @@ test('Phase 2C isolation guards keep forbidden consumers and professional source
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   const naturalStart=src.indexOf('    function NaturalLashScanScreen('),naturalEnd=src.indexOf('\n    function ',naturalStart+20);
   assert.ok(!src.slice(naturalStart,naturalEnd).includes('photoClientDesign'));
-  assert.strictEqual((src.match(/withPhotoRuntime\(/g)||[]).length,1,'only PHOTO screen may create PHOTO runtime');
+  const previewStart=src.indexOf('    function buildPhotoPreviewEyes('),previewEnd=src.indexOf('    function PhotoLashPreviewPanel(',previewStart);
+  const preview=src.slice(previewStart,previewEnd);
+  assert.ok(preview.includes("result.source!=='photo'"),'preview runtime is PHOTO-only');
+  assert.strictEqual((preview.match(/withPhotoRuntime\(/g)||[]).length,1);
+  const outsidePreview=src.slice(0,previewStart)+src.slice(previewEnd);
+  assert.strictEqual((outsidePreview.match(/withPhotoRuntime\(/g)||[]).length,1,'only existing PHOTO map and explicit PHOTO preview may create runtime');
 });

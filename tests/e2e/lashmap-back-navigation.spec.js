@@ -118,6 +118,31 @@ test('E. correct design identity is passed into Lash Map for a catalog selection
   expect(mapTitle.trim().toUpperCase()).toBe(chosen.name.toUpperCase());
 });
 
+test('G. REAL-DEVICE REPRO: All Designs -> FOX (selected by name, not "first card") -> Lash Map -> Back returns to All Designs, not Results Hero', async ({ page }) => {
+  test.setTimeout(90000);
+  await reachHero(page);
+
+  await page.getByRole('button', { name: 'Смотреть все дизайны', exact: true }).click();
+  await expect(page.getByText('Все дизайны', { exact: true })).toBeVisible();
+
+  // Exact match (not a substring hasText) — "SOFT FOX" also contains
+  // "FOX" and would otherwise match two cards.
+  const foxCard = page.locator('button').filter({ has: page.locator('h4', { hasText: /^FOX$/ }) });
+  await expect(foxCard).toHaveCount(1);
+  await foxCard.click();
+  await expect(page.getByText('Профессиональная Lash Map', { exact: true })).toBeVisible();
+  const mapTitle = await page.locator('span.text-sm.font-semibold.text-textPrimary.truncate').textContent();
+  expect(mapTitle.trim().toUpperCase()).toBe('FOX');
+
+  await page.locator('button').filter({ has: page.locator('svg path[d="M15 19l-7-7 7-7"]') }).click();
+  // Real-device report: this landed on Results Hero instead of All
+  // Designs. Assert the EXPECTED contract explicitly (must be on
+  // catalog, must NOT be on Hero) so a regression fails loudly instead
+  // of silently matching whichever screen happens to render.
+  await expect(page.getByText('Все дизайны', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
+});
+
 test('F. no rank-0 duplication / no result reordering is introduced by the origin-aware navigation', async ({ page }) => {
   // Longer budget than the others: this test exercises all THREE entry
   // points (Hero, carousel, catalog) in one run, on top of the same

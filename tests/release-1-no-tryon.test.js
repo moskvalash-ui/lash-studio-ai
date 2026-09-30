@@ -63,13 +63,14 @@ test('literal "Try-On" appears in the production script only in the one pre-exis
   assert.strictEqual(occurrences, allowedCount, 'a new "Try-On" reference was added to index.html — review it against the RELEASE-1 decision to keep Try-On unreachable in V1');
 });
 
-test('J/K. no RU or EN STRINGS value promises a virtual try-on, lash preview, or before/after simulation', () => {
+test('J/K. only explicit PHOTO preview copy may mention lash preview; no virtual try-on promises', () => {
   const forbiddenRu = /примерить|примерка|виртуальн.*пример/i;
   const forbiddenEn = /virtual try-?on|try (on|the) lashes|lash preview|before\s*\/\s*after/i;
+  const previewKeys=new Set(['photoPreviewShow','photoPreviewHide','photoPreviewImage','photoPreviewLoading','photoPreviewError']);
   for (const [key, value] of Object.entries(STRINGS)) {
     if (!value || typeof value !== 'object') continue;
     if (typeof value.ru === 'string') assert.ok(!forbiddenRu.test(value.ru), key + '.ru unexpectedly promises Try-On: ' + value.ru);
-    if (typeof value.en === 'string') assert.ok(!forbiddenEn.test(value.en), key + '.en unexpectedly promises Try-On: ' + value.en);
+    if (typeof value.en === 'string') assert.ok(!forbiddenEn.test(previewKeys.has(key)?value.en.replace(/lash preview/gi,''):value.en), key + '.en unexpectedly promises Try-On: ' + value.en);
   }
 });
 

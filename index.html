@@ -98,6 +98,7 @@
        already-computed legacy results; all production consumers remain
        on the legacy recommendation/map objects in this phase. -->
   <script src="lash-design-domain.js"></script>
+  <script src="photo-lash-preview.js"></script>
   <!-- Consent foundation (Phase 1): pure consent-state logic, extracted
        to its own plain script for the same reason as lash-scan-core.js
        above — zero-duplication Node testability via require(). Exports
@@ -219,6 +220,21 @@
       100% { top: 100%; opacity: 0; }
     }
     .scan-line::after { content: ''; position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #0A8CFF, transparent); box-shadow: 0 0 20px rgba(10,140,255,0.5); animation: scan-line 2.2s ease-in-out infinite; }
+    /* HomeScreen ambient AI-scan hero visual — purely decorative, no
+       tracking data. Separate from the real V2 scanner overlay module
+       (drawFaceMeshV3/drawScanBeam/etc.) used by LiveScanScreen/
+       PhotoAnalysisScreen; reuses .scan-line's sweep + existing tokens
+       only. See AmbientScanVisual component. */
+    @keyframes ambientPulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.04); } }
+    @keyframes ambientMeshFade { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+    .ambient-scan-visual { position: relative; }
+    .ambient-scan-visual .ambient-scan-glow { animation: ambientPulse 2.6s ease-in-out infinite; }
+    .ambient-scan-visual .ambient-scan-mesh { animation: ambientMeshFade 3.2s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .ambient-scan-visual .ambient-scan-glow,
+      .ambient-scan-visual .ambient-scan-mesh,
+      .ambient-scan-visual.scan-line::after { animation: none; }
+    }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     .fade-in { animation: fadeIn 0.32s ease-out forwards; }
     @keyframes stageIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
@@ -335,6 +351,14 @@
       onboarding4Text: {"ru": "После анализа приложение предложит направление дизайна с учётом индивидуальных особенностей клиента.", "en": "After the analysis, the app suggests a lash design direction based on your client’s individual features.", "ar": "بعد التحليل، يقترح التطبيق اتجاهاً لتصميم الرموش بناءً على السمات الفردية للعميلة."},
       onboarding5Title: {"ru": "Откройте Professional Lash Map", "en": "Open the Professional Lash Map", "ar": "افتحي خريطة الرموش الاحترافية"},
       onboarding5Text: {"ru": "Используйте профессиональную схему как основу для работы и обсуждения будущего дизайна вместе с клиентом.", "en": "Use the professional lash map as a guide for your work and to discuss the future design with your client.", "ar": "استخدمي خريطة الرموش الاحترافية كدليل لعملك ولمناقشة التصميم مع العميلة."},
+      photoPreviewShow: {ru:'ПОКАЗАТЬ LASH PREVIEW', en:'SHOW LASH PREVIEW', ar:'عرض معاينة الرموش'},
+      photoPreviewHide: {ru:'СКРЫТЬ LASH PREVIEW', en:'HIDE LASH PREVIEW', ar:'إخفاء معاينة الرموش'},
+      photoPreviewHint: {ru:'Эскиз по длинам Lash Map. Густота, направление и изгиб условные; масштаб не калиброван в мм.', en:'Illustration using Lash Map lengths. Density, direction and bend are visual defaults; scale is not calibrated in mm.', ar:'تصور بأطوال خريطة الرموش. الكثافة والاتجاه والانحناء افتراضية؛ المقياس غير معاير بالملليمتر.'},
+      photoPreviewImage: {ru:'Исходное фото с Lash Preview', en:'Original photo with Lash Preview', ar:'الصورة الأصلية مع معاينة الرموش'},
+      photoPreviewLoading: {ru:'Подготовка Lash Preview…', en:'Preparing Lash Preview…', ar:'جارٍ تحضير معاينة الرموش…'},
+      photoPreviewError: {ru:'Не удалось построить Lash Preview. Проверьте фото и попробуйте открыть preview снова.', en:'Could not build Lash Preview. Check the photo and try opening preview again.', ar:'تعذر إنشاء معاينة الرموش. تحقق من الصورة وحاول فتح المعاينة مجددًا.'},
+      photoPreviewImageError: {ru:'Исходное фото недоступно. Повторите анализ с этим фото.', en:'The original photo is unavailable. Analyze this photo again.', ar:'الصورة الأصلية غير متاحة. أعد تحليل الصورة.'},
+      photoPreviewGeometryError: {ru:'Не удалось разместить ресницы на обоих глазах: проверьте, что оба глаза хорошо видны.', en:'Cannot place lashes on both eyes: check that both eyes are clearly visible.', ar:'تعذر وضع الرموش على كلتا العينين. تأكد من وضوحهما.'},
       appName: {ru:'Lash Studio AI', en:'Lash Studio AI', ar:'Lash Studio AI'},
       tagline: {ru:'Профессиональный AI-анализ и персональные схемы наращивания', en:'Professional AI analysis and personalized lash mapping', ar:'تحليل احترافي بالذكاء الاصطناعي وخرائط رموش مخصصة'},
       heroHeadingL1: {ru:'AI-АНАЛИЗ ДЛЯ', en:'AI ANALYSIS FOR', ar:'تحليل ذكي'},
@@ -6069,6 +6093,34 @@
       );
     }
 
+    // HomeScreen-only ambient AI-scan hero visual. Purely presentational:
+    // static SVG shapes + CSS animation, no props, no tracking/analysis
+    // data of any kind. Deliberately separate from the real V2 scanner
+    // overlay module (drawFaceMeshV3/drawScanBeam/drawIrisMicroScan/etc.,
+    // ~index.html:5450-6030) used by LiveScanScreen/PhotoAnalysisScreen —
+    // never reads or duplicates that code. dir="ltr" pins the geometry so
+    // it never mirrors under Arabic RTL, matching this file's existing
+    // "RTL geometry isolation" convention for decorative graphics.
+    function AmbientScanVisual() {
+      return (
+        <div dir="ltr" aria-hidden="true" className="ambient-scan-visual scan-line relative w-full h-24 rounded-lg glass overflow-hidden mb-6">
+          <div className="ambient-scan-glow absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(10,140,255,0.22), transparent 70%)' }} />
+          <svg className="ambient-scan-mesh absolute inset-0 w-full h-full text-cyan" viewBox="0 0 200 90" fill="none" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4">
+            <ellipse cx="72" cy="45" rx="26" ry="15" />
+            <circle cx="72" cy="45" r="5.5" />
+            <ellipse cx="128" cy="45" rx="26" ry="15" />
+            <circle cx="128" cy="45" r="5.5" />
+          </svg>
+          <svg className="absolute inset-0 w-full h-full text-accent" viewBox="0 0 200 90" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M8 22 V8 H22" />
+            <path d="M178 8 H192 V22" />
+            <path d="M192 68 V82 H178" />
+            <path d="M22 82 H8 V68" />
+          </svg>
+        </div>
+      );
+    }
+
     function ConsentToggleRow({ label, desc, checked, disabled, onChange }) {
       return (
         <div className="flex items-start justify-between gap-3 py-3 border-b border-border last:border-b-0">
@@ -6294,6 +6346,13 @@
         dialog.showModal();
         return () => { dialog.close(); if (previousFocus && previousFocus.isConnected) previousFocus.focus(); };
       }, []);
+      // ANALYTICS — fires exactly once per mount (empty deps), i.e. once
+      // per genuine time this dialog is actually shown (first-visit
+      // auto-open or a manual reopen via the "How it works" button),
+      // never on an ordinary re-render while it stays open.
+      useEffect(() => {
+        if (typeof Analytics !== 'undefined') Analytics.track('onboarding_started');
+      }, []);
       return (
         <dialog ref={dialogRef} className="onboarding-dialog glass-strong text-textPrimary rounded-2xl p-0" aria-labelledby="onboarding-title" onCancel={(event) => { event.preventDefault(); onClose(); }}>
           <div className="p-5 sm:p-6">
@@ -6316,7 +6375,7 @@
             {step === 5 && loadError && <button onClick={onRetry} className="w-full py-3 mb-3 rounded-md border border-border text-sm">{t('retry', lang)}</button>}
             <div className="flex gap-3">
               {step > 1 && <button onClick={() => setStep(step - 1)} className="px-4 py-3 rounded-md border border-border text-sm text-textSecondary press-scale">{t('onboardingBack', lang)}</button>}
-              <button disabled={step === 5 && (!modelsLoaded || !!loadError)} onClick={() => { if (step < 5) setStep(step + 1); else { onClose(); onStart(); } }} className="flex-1 py-3 px-4 rounded-md bg-accent text-white text-sm font-semibold press-scale disabled:opacity-40">{t(step === 5 ? 'onboardingStart' : 'onboardingNext', lang)}</button>
+              <button disabled={step === 5 && (!modelsLoaded || !!loadError)} onClick={() => { if (step < 5) setStep(step + 1); else { if (typeof Analytics !== 'undefined') Analytics.track('onboarding_completed'); onClose(); onStart(); } }} className="flex-1 py-3 px-4 rounded-md bg-accent text-white text-sm font-semibold press-scale disabled:opacity-40">{t(step === 5 ? 'onboardingStart' : 'onboardingNext', lang)}</button>
             </div>
           </div>
         </dialog>
@@ -6327,6 +6386,14 @@
       const lang = useLang();
       const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSeenOnboarding());
       const closeOnboarding = () => { markOnboardingSeen(); setOnboardingOpen(false); };
+      // ANALYTICS — HomeScreen only exists in the tree while screen==='home'
+      // ({screen === 'home' && <HomeScreen .../>} in App()), so a fresh
+      // mount (empty deps) happens exactly once per genuine navigation to
+      // Home, including navigating away and back, and never fires again
+      // from an ordinary re-render while already on Home.
+      useEffect(() => {
+        if (typeof Analytics !== 'undefined') Analytics.track('home_viewed');
+      }, []);
       return (
         <div className="h-full flex flex-col p-6 fade-in overflow-y-auto hide-scrollbar">
           {onboardingOpen && <OnboardingDialog onClose={closeOnboarding} onStart={onLive} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={onRetry} />}
@@ -6338,6 +6405,7 @@
           </div>
 
           <div className="flex-1 flex flex-col justify-center">
+            <AmbientScanVisual />
             <h1 className="text-[34px] leading-[1.08] font-extrabold tracking-tight mb-4">
               <span className="block text-textPrimary">{t('heroHeadingL1', lang)}</span>
               <span className="block text-textPrimary">{t('heroHeadingL2', lang)}</span>
@@ -8557,9 +8625,14 @@
             // camera-unavailable message. e itself is never stored or
             // rendered.
             if (!cancelled) {
+              const deniedByOS = e && e.name === 'NotAllowedError';
               setStageKey('stageNoCamera');
-              setCameraErrorKind(e && e.name === 'NotAllowedError' ? 'denied' : 'unavailable');
+              setCameraErrorKind(deniedByOS ? 'denied' : 'unavailable');
               setHintKey(null);
+              // ANALYTICS — instruments this existing failure path only;
+              // same NotAllowedError distinction cameraErrorKind already
+              // makes for the UI, never the raw error name/message.
+              if (typeof Analytics !== 'undefined') Analytics.track('camera_failed', { reason_code: deniedByOS ? 'permission_denied' : 'unavailable' });
             }
             return;
           }
@@ -9460,6 +9533,11 @@
           // (started by the useEffect below, keyed on state==='analyzing')
           // can show it immediately, before detection has even run.
           scanDataRef.current = { img };
+          // ANALYTICS — the image has successfully decoded and is about
+          // to enter the real detection pipeline below; fires once per
+          // analyze() call, after scan_started(mode:'photo') and before
+          // scan_completed(mode:'photo')/scan_failed. No properties.
+          if (typeof Analytics !== 'undefined') Analytics.track('photo_loaded');
           // Builds the proportional analysis canvas/context for a given
           // width cap. Shared by the primary attempt and the bounded
           // no_detection fallback below so both reuse the exact same,
@@ -10027,15 +10105,12 @@
           if (analysisResultRef.current) { finish(); return; }
           finished = true;
           if (scanRafRef.current) { cancelAnimationFrame(scanRafRef.current); scanRafRef.current = null; }
-          // Deliberately no analytics tracking call here: analytics.js's
-          // own isScanFailReason validator is a closed enum
-          // (no_face_detected / quality_rejected / processing_error
-          // only, see analytics.js) that this new reason code is not
-          // part of -- extending that enum is a separate, reviewed
-          // decision outside this fix's scope, and sending a rejected
-          // event would just silently do nothing anyway. console.error
-          // is the explicitly requested, sufficient signal here.
           console.error('[PhotoScanAnimation] watchdog fired after ' + WATCHDOG_MS + 'ms with no analysis result — surfacing the error state instead of an indefinite scanning screen');
+          // ANALYTICS — instruments this existing watchdog's own failure
+          // decision (reached exactly once, guarded by `finished` above,
+          // same as every other completion path here); does not change
+          // when or why the watchdog fires.
+          if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'timeout' });
           setState('error');
         }, WATCHDOG_MS);
 
@@ -10607,6 +10682,80 @@
       return d.name;
     }
 
+    // PHOTO presentation bridge: canonical sectors and the existing eye projection.
+    function buildPhotoPreviewEyes(result, clientDesign) {
+      if(result.source!=='photo'||!result.landmarks||!result.imageWidth||!result.imageHeight)throw new Error('geometry');
+      const runtime=clientDesign.mapping.photo?clientDesign:LashDesignDomain.withPhotoRuntime(clientDesign,{
+        physicalEyes:clientDesign.mapping.physicalEyes,topology:clientDesign.mapping.template.topology,
+        technique:clientDesign.application.legacyLabel,curl:clientDesign.curl.global,
+        textureDescriptor:clientDesign.texture.legacyDescriptor,
+      });
+      return ['left','right'].map(side=>{
+        const props=LashDesignDomain.photoPropsFromClientDesign(runtime,side);
+        const eye=getPhysicalEyeLandmarks(result.landmarks,side).eye;
+        const samples=PhotoLashPreview.sampleSectors(props.items);
+        const projection=buildProfessionalEyeProjection(eye,samples,result.imageWidth,result.imageHeight);
+        if(!projection)throw new Error('geometry');
+        const peakT=props.items.find(item=>item.isPeak)?.t??.5;
+        const line=applyManualPhotoAdjustment(eye,projection.points,props.adjustment,peakT);
+        if(!line)throw new Error('geometry');
+        // Remove only the map-label offset; retain the existing manual displacement.
+        const points=line.points.map(p=>({...p,x:p.mapX,y:p.mapY+line.offset}));
+        const eyeWidth=Math.hypot(eye[3].x-eye[0].x,eye[3].y-eye[0].y);
+        const fibers=PhotoLashPreview.buildFibers(points,eyeWidth,props.curl);
+        if(fibers.some(f=>f.root.x<0||f.root.x>result.imageWidth||f.root.y<0||f.root.y>result.imageHeight))throw new Error('geometry');
+        return {side,fibers};
+      });
+    }
+
+    function PhotoLashPreviewPanel({result,clientDesign,lang,origin}) {
+      const [open,setOpen]=useState(false),[status,setStatus]=useState('loading');
+      const canvasRef=useRef(null),imageRef=useRef(null);
+      useEffect(()=>{
+        if(!open)return;
+        let cancelled=false;
+        const img=imageRef.current;
+        setStatus('loading');
+        const render=()=>{
+          if(cancelled)return;
+          try {
+            if(!img.naturalWidth)throw new Error('image');
+            const eyes=buildPhotoPreviewEyes(result,clientDesign);
+            const canvas=canvasRef.current,ctx=canvas.getContext('2d');
+            if(!ctx)throw new Error('canvas');
+            const scale=Math.min(2,2048/Math.max(result.imageWidth,result.imageHeight));
+            canvas.width=Math.round(result.imageWidth*scale);canvas.height=Math.round(result.imageHeight*scale);
+            ctx.setTransform(canvas.width/result.imageWidth,0,0,canvas.height/result.imageHeight,0,0);
+            eyes.forEach(eye=>PhotoLashPreview.draw(ctx,eye.fibers));
+            canvas.dataset.leftFibers=eyes[0].fibers.length;canvas.dataset.rightFibers=eyes[1].fibers.length;
+            setStatus('ready');
+          }catch(error){
+            const ctx=canvasRef.current?.getContext('2d');
+            if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);}
+            setStatus(['geometry','mapping'].includes(error.message)?'geometry':error.message==='image'?'image':'error');
+          }
+        };
+        const fail=()=>{if(!cancelled)setStatus('image');};
+        img.addEventListener('load',render);img.addEventListener('error',fail);
+        if(img.complete)render();
+        const timer=setTimeout(()=>{if(!cancelled&&!img.complete){cancelled=true;setStatus('image');}},15000);
+        return ()=>{cancelled=true;clearTimeout(timer);img.removeEventListener('load',render);img.removeEventListener('error',fail);};
+      },[open,result,clientDesign]);
+      if(result.source!=='photo')return null;
+      return <div className="mb-3" data-photo-lash-preview="true">
+        <button type="button" aria-expanded={open} onClick={()=>setOpen(value=>{const next=!value;if(next&&typeof Analytics!=='undefined')Analytics.track('lash_preview_opened',{origin});return next;})} className="w-full py-3 rounded-md border border-accent text-accent text-xs font-semibold tracking-wide">{t(open?'photoPreviewHide':'photoPreviewShow',lang)}</button>
+        {open&&<div className="mt-3">
+          <div className="relative overflow-hidden rounded-md" style={{aspectRatio:`${result.imageWidth} / ${result.imageHeight}`}}>
+            <img ref={imageRef} src={result.nativeImage||result.originalImage} alt={t('photoPreviewImage',lang)} className="block w-full h-full"/>
+            <canvas ref={canvasRef} data-preview-status={status} aria-label="Lash Preview" className="absolute inset-0 w-full h-full pointer-events-none"/>
+          </div>
+          {status==='loading'&&<p role="status" className="text-xs text-textMuted mt-2">{t('photoPreviewLoading',lang)}</p>}
+          {!['loading','ready'].includes(status)&&<p role="alert" className="text-xs text-peak mt-2">{t(status==='image'?'photoPreviewImageError':status==='geometry'?'photoPreviewGeometryError':'photoPreviewError',lang)}</p>}
+          <p className="text-xs text-textMuted mt-2">{t('photoPreviewHint',lang)}</p>
+        </div>}
+      </div>;
+    }
+
     function HeroScreen({ result, naturalLashProfile, onViewMap, onDetails, onAllDesigns, onScanLashes, onViewLashProfile, onBack, onSaveToClient }) {
       const lang = useLang();
       const p = result.eyeProfile;
@@ -10654,6 +10803,7 @@
                 <button onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: best.id, origin: 'best_design' }); onViewMap(best.clientDesign); }} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-3">
                   {t('heroOpenLashMap', lang)}
                 </button>
+                <PhotoLashPreviewPanel result={result} clientDesign={best.clientDesign} lang={lang} origin="hero"/>
                 {onSaveToClient && (
                   <button onClick={onSaveToClient} className="w-full py-2.5 rounded-md border border-border bg-white/[0.02] text-textSecondary text-[12px] font-semibold uppercase tracking-wide press-scale flex items-center justify-center gap-2">
                     <ClientsIcon className="w-3.5 h-3.5" />
@@ -11319,6 +11469,7 @@
             </div>
             <div className="px-4">
               {debugAvailable&&<CopyLashMapOrientationDebugButton data={orientationDebug}/>}
+              <PhotoLashPreviewPanel result={result} clientDesign={photoClientDesign} lang={lang} origin="lash_map"/>
               <div className="mb-3 flex rounded-md border border-border bg-surface p-1" aria-label="Lash Map view">
                 {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
               </div>

@@ -279,10 +279,11 @@ test('12. imageQuality is still computed from the real det.detection.score, unco
   // exactly as before this fix (recovery does not skip past it or feed
   // it a synthetic/boosted score).
   const recoveryIdx = photoBlock.indexOf(recoveryEndMarker);
-  // Approved CLOSED-BETA ANALYTICS patch: this line also fires the
+  // Approved CLOSED-BETA ANALYTICS patch: this branch also fires the
   // reviewed, consent-gated scan_failed({mode:'photo', reason_code:
-  // 'quality_rejected'}) event — still the same hard-block position.
-  const hardBlockIdx = photoBlock.indexOf("if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }");
+  // 'quality_rejected'}) event, plus the additive scan_quality_rejected
+  // event — still the same hard-block position.
+  const hardBlockIdx = photoBlock.indexOf("if (!photoQualityProceeds) {\n            if (typeof Analytics !== 'undefined') {\n              Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' });");
   const imageQualityIdx = photoBlock.indexOf(marker);
   assert.ok(recoveryIdx < hardBlockIdx && hardBlockIdx < imageQualityIdx, 'imageQuality must be computed after the recovery decision and the hard-block check, on the proceeding path only');
 });

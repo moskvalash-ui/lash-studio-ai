@@ -102,6 +102,16 @@ test('2b. no-detection branch: when debug is ON, records detectorPresent:false a
   }
 });
 
+// Real HINT_PRIORITY_ORDER constant (index.html, top-level, outside
+// PhotoAnalysisScreen) — extracted and eval'd verbatim, exactly like
+// every other real-code extraction in this suite, so the priority pick
+// scan_quality_rejected now uses is proven against the REAL array, never
+// a hand-typed guess that could silently drift from production.
+const hintPriorityStart = src.indexOf('const HINT_PRIORITY_ORDER = [');
+const hintPriorityEnd = src.indexOf('];', hintPriorityStart) + 2;
+assert.ok(hintPriorityStart >= 0 && hintPriorityEnd > hintPriorityStart, 'HINT_PRIORITY_ORDER must be structurally extractable');
+const HINT_PRIORITY_ORDER = new Function(src.slice(hintPriorityStart, hintPriorityEnd) + '\nreturn HINT_PRIORITY_ORDER;')();
+
 // ------------------------------------------------------------
 // PART B — the quality-evaluated diagnostic branch (pass or reject).
 // ------------------------------------------------------------
@@ -113,12 +123,15 @@ assert.ok(qualityBlockStart >= 0, 'quality-evaluated diagnostic branch must be s
 // focused coverage) since photoEdgeClipped/photoQualityRecovered/
 // photoQualityProceeds are computed here and consumed by both the
 // diagnostic object below AND the final hard-block line.
-// Approved CLOSED-BETA ANALYTICS patch: this line now also fires the
+// Approved CLOSED-BETA ANALYTICS patch: this branch now also fires the
 // reviewed, consent-gated scan_failed({mode:'photo', reason_code:
-// 'quality_rejected'}) event before its original, unmodified setState.
-const qualityBlockEndMarker = "if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }";
+// 'quality_rejected'}) event, plus (Stage: scan_quality_rejected patch)
+// one additional, additive scan_quality_rejected event carrying the
+// SAME quality.reasons array reduced via the SAME real HINT_PRIORITY_ORDER
+// extracted above — before the branch's original, unmodified setState.
+const qualityBlockEndMarker = "if (!photoQualityProceeds) {\n            if (typeof Analytics !== 'undefined') {\n              Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' });\n              // ANALYTICS — additive, more granular signal alongside the\n              // existing scan_failed{quality_rejected} above (never\n              // replacing it, so its existing PostHog history stays\n              // intact). Reuses the SAME quality.reasons array and the\n              // SAME existing HINT_PRIORITY_ORDER priority pick Live\n              // Scan's own UI hint already uses (see\n              // pickRejectionHintKey above) to deterministically choose\n              // ONE reason when several co-occur -- no new priority\n              // logic. Only the category name is sent, never the raw\n              // brightness/sharpness/pose numbers behind it.\n              const qualityReason = HINT_PRIORITY_ORDER.find(r => quality.reasons.includes(r));\n              if (qualityReason) Analytics.track('scan_quality_rejected', { mode: 'photo', reason: qualityReason });\n            }\n            setState('error'); return;\n          }";
 const qualityBlockEndIdx = photoBlock.indexOf(qualityBlockEndMarker, qualityBlockStart);
-assert.ok(qualityBlockEndIdx > qualityBlockStart);
+assert.ok(qualityBlockEndIdx > qualityBlockStart, 'expected the full !photoQualityProceeds branch (including the new scan_quality_rejected call) to be present verbatim');
 const qualityBranch = photoBlock.slice(qualityBlockStart, qualityBlockEndIdx + qualityBlockEndMarker.length);
 
 // Confirms, textually, that the diagnostic's leftEAR/rightEAR/detScore/
@@ -153,15 +166,17 @@ test('4. assessFrameQuality itself is byte-for-byte unchanged by this diagnostic
 });
 
 function runQualityBranch({ photoQualityDebugEnabled, det, headPose, leftMetrics, rightMetrics, brightness, sharpness, canvas, quality, pickRejectionHintKey, leftEye, rightEye, physicalLeft, physicalRight }) {
-  const calls = { setPhotoQualityDebugInfo: [], consoleLog: [], setState: [] };
+  const calls = { setPhotoQualityDebugInfo: [], consoleLog: [], setState: [], analyticsTrack: [] };
   const fn = new Function('photoQualityDebugEnabled', 'det', 'headPose', 'leftMetrics', 'rightMetrics',
     'brightness', 'sharpness', 'canvas', 'quality', 'pickRejectionHintKey', 'leftEye', 'rightEye', 'physicalLeft', 'physicalRight',
-    'setPhotoQualityDebugInfo', 'console', 'setState',
+    'setPhotoQualityDebugInfo', 'console', 'setState', 'Analytics', 'HINT_PRIORITY_ORDER',
     qualityBranch);
   fn(photoQualityDebugEnabled, det, headPose, leftMetrics, rightMetrics, brightness, sharpness, canvas, quality,
     pickRejectionHintKey, leftEye, rightEye, physicalLeft, physicalRight,
     info => calls.setPhotoQualityDebugInfo.push(info),
-    { log: (...args) => calls.consoleLog.push(args) }, s => calls.setState.push(s));
+    { log: (...args) => calls.consoleLog.push(args) }, s => calls.setState.push(s),
+    { track: (name, props) => calls.analyticsTrack.push({ name, props }) },
+    HINT_PRIORITY_ORDER);
   return calls;
 }
 
@@ -250,6 +265,56 @@ test('6c. one-eye-only EAR failure ("eyes_closed" from a single low EAR) is capt
   assert.strictEqual(diag.leftEAR, 0.09);
   assert.strictEqual(diag.rightEAR, 0.30);
   assert.strictEqual(diag.primaryReason, 'eyes_closed');
+});
+
+// ------------------------------------------------------------
+// scan_quality_rejected — the new, additive analytics event. Uses this
+// file's own REAL extracted branch + the REAL extracted HINT_PRIORITY_ORDER
+// (see the top of this file), never a re-implementation.
+// ------------------------------------------------------------
+test('ANALYTICS-1. quality.ok=true (pass): scan_failed and scan_quality_rejected are BOTH never sent — the branch is not even reached', () => {
+  const calls = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: true, quality: { ok: true, reasons: [] } });
+  assert.deepStrictEqual(calls.analyticsTrack, [], 'no analytics call of any kind on the pass path');
+});
+
+test('ANALYTICS-2. quality.ok=false, single reason: scan_failed{quality_rejected} AND scan_quality_rejected{reason} both fire, in that order', () => {
+  const quality = { ok: false, reasons: ['too_dark'] };
+  const calls = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: false, quality });
+  assert.strictEqual(calls.analyticsTrack.length, 2, 'expected exactly 2 analytics calls');
+  assert.deepStrictEqual(calls.analyticsTrack[0], { name: 'scan_failed', props: { mode: 'photo', reason_code: 'quality_rejected' } }, 'the existing scan_failed call must be unchanged');
+  assert.deepStrictEqual(calls.analyticsTrack[1], { name: 'scan_quality_rejected', props: { mode: 'photo', reason: 'too_dark' } });
+});
+
+test('ANALYTICS-3. multiple co-occurring reasons: scan_quality_rejected uses the REAL HINT_PRIORITY_ORDER pick, which can differ from the diagnostic-only primaryReason (quality.reasons[0])', () => {
+  // Same fixture as test 6b: reasons=['too_dark','eyes_closed'] gives
+  // primaryReason:'too_dark' (array order) in the debug diagnostic, but
+  // HINT_PRIORITY_ORDER ranks eyes_closed above too_dark -- proving
+  // scan_quality_rejected does NOT reuse quality.reasons[0].
+  const quality = { ok: false, reasons: ['too_dark', 'eyes_closed'] };
+  const calls = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: true, quality });
+  const qualityRejectedCall = calls.analyticsTrack.find(c => c.name === 'scan_quality_rejected');
+  assert.ok(qualityRejectedCall, 'expected a scan_quality_rejected call');
+  assert.strictEqual(qualityRejectedCall.props.reason, 'eyes_closed', 'HINT_PRIORITY_ORDER ranks eyes_closed above too_dark');
+  const diag = calls.setPhotoQualityDebugInfo[0];
+  assert.strictEqual(diag.primaryReason, 'too_dark', 'sanity check: the UNRELATED diagnostic-only field still uses array order, confirming these are genuinely different mechanisms');
+});
+
+test('ANALYTICS-4. analytics fires unconditionally, independent of the debug flag (debug OFF still sends both events)', () => {
+  const quality = { ok: false, reasons: ['blurry'] };
+  const callsDebugOff = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: false, quality });
+  const callsDebugOn = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: true, quality });
+  assert.deepStrictEqual(callsDebugOff.analyticsTrack, callsDebugOn.analyticsTrack, 'analytics must fire identically regardless of the debug flag');
+  assert.strictEqual(callsDebugOff.analyticsTrack.length, 2);
+});
+
+test('ANALYTICS-5. only the category name is ever sent — no numeric brightness/sharpness/pose/EAR/faceRatio value ever appears in a tracked event\'s props', () => {
+  const quality = { ok: false, reasons: ['too_dark', 'blurry', 'head_tilted'] };
+  const calls = runQualityBranch({ ...baseFixture, photoQualityDebugEnabled: true, quality, brightness: 12.5, sharpness: 3.7 });
+  const json = JSON.stringify(calls.analyticsTrack);
+  for (const forbidden of ['12.5', '3.7', String(baseFixture.headPose.roll), String(baseFixture.leftMetrics.ear), 'landmarks', 'base64']) {
+    assert.ok(!json.includes(forbidden), `tracked analytics events must never contain "${forbidden}"`);
+  }
+  assert.deepStrictEqual(Object.keys(calls.analyticsTrack[1].props).sort(), ['mode', 'reason']);
 });
 
 test('7. boxClipped (generic face-box, diagnostic only) and requiredEyeRegionClipped (the real recovery gate) both report correctly for a comfortably-unclipped fixture — see photo-quality-recovery.test.js for full coverage of the required-region check itself', () => {
@@ -357,11 +422,14 @@ test('11. the real hard-block decisions are unconditional — never gated behind
   // of quality.ok directly -- still unconditional/ungated by the debug
   // flag, and quality.ok/quality.reasons themselves are never rewritten
   // (see photo-quality-recovery.test.js for the recovery logic itself).
-  // Approved CLOSED-BETA ANALYTICS patch: this line also fires the
+  // Approved CLOSED-BETA ANALYTICS patch: this branch also fires the
   // reviewed, consent-gated scan_failed({mode:'photo', reason_code:
-  // 'quality_rejected'}) event — still unconditional/ungated by the debug
-  // flag, and the underlying setState('error') is unchanged.
-  assert.ok(photoBlock.includes("if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }"), 'quality-rejection setState(error) must be unconditional and unchanged');
+  // 'quality_rejected'}) event, plus the additive scan_quality_rejected
+  // event — both still unconditional/ungated by the debug flag, and the
+  // underlying setState('error') is unchanged (see qualityBlockEndMarker
+  // above for the full, byte-exact branch text this reuses).
+  assert.ok(photoBlock.includes(qualityBlockEndMarker), 'quality-rejection branch (both analytics calls + setState) must be unconditional and unchanged');
+  assert.ok(!qualityBlockEndMarker.includes('photoQualityDebugEnabled'), 'neither analytics call may be gated behind the debug flag');
   // PHOTO SCAN VISUAL LAYER: the success path now hands photoRec to
   // analysisResultRef (read by the scan-animation effect, which calls
   // the real, unmodified onComplete once the visual sequence is also

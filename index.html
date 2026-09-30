@@ -9811,7 +9811,24 @@
             // read-only "debug shadow" way those two already are.
             if (photoQualityProceeds) console.log('[PhotoQualityDebug]', photoQualityDiag);
           }
-          if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }
+          if (!photoQualityProceeds) {
+            if (typeof Analytics !== 'undefined') {
+              Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' });
+              // ANALYTICS — additive, more granular signal alongside the
+              // existing scan_failed{quality_rejected} above (never
+              // replacing it, so its existing PostHog history stays
+              // intact). Reuses the SAME quality.reasons array and the
+              // SAME existing HINT_PRIORITY_ORDER priority pick Live
+              // Scan's own UI hint already uses (see
+              // pickRejectionHintKey above) to deterministically choose
+              // ONE reason when several co-occur -- no new priority
+              // logic. Only the category name is sent, never the raw
+              // brightness/sharpness/pose numbers behind it.
+              const qualityReason = HINT_PRIORITY_ORDER.find(r => quality.reasons.includes(r));
+              if (qualityReason) Analytics.track('scan_quality_rejected', { mode: 'photo', reason: qualityReason });
+            }
+            setState('error'); return;
+          }
 
           const leftBrowPts = physicalLeft.brow, rightBrowPts = physicalRight.brow;
           const leftCrease = detectEyelidCrease(canvas, leftEye, leftBrowPts);

@@ -168,9 +168,41 @@ function omitAnalyticsPhotoLoadedAddition(span) {
   );
 }
 
+// Approved CLOSED-BETA ANALYTICS FUNNEL patch: one additional, additive
+// Analytics.track('scan_quality_rejected', {mode:'photo', reason}) call
+// added inside the pre-existing `if (!photoQualityProceeds) { ... }`
+// branch, right alongside the pre-existing scan_failed{quality_rejected}
+// call (never replacing or reshaping it). `reason` is computed via the
+// EXISTING HINT_PRIORITY_ORDER.find(...) priority pick (already used by
+// Live Scan's own UI hint), never a new priority list. Symmetric (a
+// no-op on the HEAD side, which predates it).
+function omitAnalyticsScanQualityRejectedAddition(span) {
+  return span.replace(
+    "          if (!photoQualityProceeds) {\n" +
+    "            if (typeof Analytics !== 'undefined') {\n" +
+    "              Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' });\n" +
+    "              // ANALYTICS — additive, more granular signal alongside the\n" +
+    "              // existing scan_failed{quality_rejected} above (never\n" +
+    "              // replacing it, so its existing PostHog history stays\n" +
+    "              // intact). Reuses the SAME quality.reasons array and the\n" +
+    "              // SAME existing HINT_PRIORITY_ORDER priority pick Live\n" +
+    "              // Scan's own UI hint already uses (see\n" +
+    "              // pickRejectionHintKey above) to deterministically choose\n" +
+    "              // ONE reason when several co-occur -- no new priority\n" +
+    "              // logic. Only the category name is sent, never the raw\n" +
+    "              // brightness/sharpness/pose numbers behind it.\n" +
+    "              const qualityReason = HINT_PRIORITY_ORDER.find(r => quality.reasons.includes(r));\n" +
+    "              if (qualityReason) Analytics.track('scan_quality_rejected', { mode: 'photo', reason: qualityReason });\n" +
+    "            }\n" +
+    "            setState('error'); return;\n" +
+    "          }",
+    "          if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }"
+  );
+}
+
 test('A. analyze()\'s real analytical code (detection, quality gate, computeHeadPose/computeEyeSideMetrics/getPhysicalEyeLandmarks/detectEyelidCrease/aggregateBuffer/classifyFeatures/classifyFaceShape/sampleIrisColor/combineIris/rankDesigns, and photoRec\'s own construction) is byte-identical to git HEAD outside the 6 approved, purely-additive visual-layer hooks', () => {
-  const curNorm = omitPhotoScanVisualLayerAdditions(omitAnalyticsPhotoLoadedAddition(curAnalyze));
-  const prevNorm = omitPhotoScanVisualLayerAdditions(omitAnalyticsPhotoLoadedAddition(prevAnalyze));
+  const curNorm = omitPhotoScanVisualLayerAdditions(omitAnalyticsScanQualityRejectedAddition(omitAnalyticsPhotoLoadedAddition(curAnalyze)));
+  const prevNorm = omitPhotoScanVisualLayerAdditions(omitAnalyticsScanQualityRejectedAddition(omitAnalyticsPhotoLoadedAddition(prevAnalyze)));
   assert.strictEqual(curNorm, prevNorm, 'analyze() must be byte-identical to HEAD outside the approved cancelledRef/scanDataRef/analysisResultRef hooks and the approved photo_loaded analytics addition');
 });
 

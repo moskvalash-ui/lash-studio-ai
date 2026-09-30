@@ -55,16 +55,16 @@ function fakeProvider() {
 }
 
 // ================================================================
-// A. Allowlist shape — 23 reviewed events (Stage 4: closed-beta
-//    funnel-completeness patch adds 6 to Stage 3's 17: onboarding_started,
-//    onboarding_completed, home_viewed, camera_failed, photo_loaded,
-//    lash_preview_opened), scan_error still excluded (superseded by
-//    scan_failed, never itself implemented).
+// A. Allowlist shape — 24 reviewed events (Stage 5: scan_quality_rejected
+//    adds one MORE granular, additive signal alongside the existing
+//    scan_failed{quality_rejected} — never replacing or reshaping it, so
+//    its existing PostHog history stays intact), scan_error still
+//    excluded (superseded by scan_failed, never itself implemented).
 // ================================================================
-test('A1. ALLOWED_EVENTS is exactly the 23 reviewed events, in no particular order, scan_error absent', () => {
+test('A1. ALLOWED_EVENTS is exactly the 24 reviewed events, in no particular order, scan_error absent', () => {
   const expected = [
     'app_open', 'onboarding_started', 'onboarding_completed', 'home_viewed',
-    'scan_started', 'scan_completed', 'scan_failed', 'camera_failed',
+    'scan_started', 'scan_completed', 'scan_failed', 'scan_quality_rejected', 'camera_failed',
     'photo_loaded', 'results_viewed', 'details_viewed', 'rescan_started',
     'language_changed', 'all_designs_opened', 'lash_map_opened',
     'lash_preview_opened', 'save_to_client_started', 'client_created',
@@ -360,18 +360,18 @@ test('F1. analytics.js is loaded as a plain global <script>, immediately after c
   assert.ok(analyticsIdx > consentIdx, 'analytics.js must be loaded after consent-manager.js');
 });
 
-test('F2. every Analytics.track(...) call site in index.html uses one of the 23 reviewed event-name string literals as its first argument — no invented name, scan_error never appears', () => {
+test('F2. every Analytics.track(...) call site in index.html uses one of the 24 reviewed event-name string literals as its first argument — no invented name, scan_error never appears', () => {
   const callSiteRe = /Analytics\.track\(\s*'([^']+)'/g;
   const found = [];
   let m;
   while ((m = callSiteRe.exec(src)) !== null) found.push(m[1]);
-  assert.ok(found.length >= 30, `expected at least 30 Analytics.track() call sites, found ${found.length}`);
+  assert.ok(found.length >= 31, `expected at least 31 Analytics.track() call sites, found ${found.length}`);
   const unexpected = found.filter((name) => !Analytics.ALLOWED_EVENTS.includes(name));
   assert.deepStrictEqual(unexpected, [], `every call site must use a reviewed event name; found unexpected: ${unexpected.join(', ')}`);
   assert.ok(!found.includes('scan_error'), 'scan_error must never appear as a call site');
 });
 
-test('F3. index.html\'s Analytics.track() call sites cover exactly the 23 reviewed events at least once each', () => {
+test('F3. index.html\'s Analytics.track() call sites cover exactly the 24 reviewed events at least once each', () => {
   const callSiteRe = /Analytics\.track\(\s*'([^']+)'/g;
   const found = new Set();
   let m;
@@ -379,7 +379,7 @@ test('F3. index.html\'s Analytics.track() call sites cover exactly the 23 review
   Analytics.ALLOWED_EVENTS.forEach((name) => assert.ok(found.has(name), `expected a call site for ${name}`));
 });
 
-test('F4. inside LiveScanScreen/PhotoAnalysisScreen, Analytics usage is limited to the reviewed failure/funnel calls at each screen\'s own real site — LiveScanScreen: exactly 1 scan_failed (pipeline-error catch) + 1 camera_failed (getUserMedia catch); PhotoAnalysisScreen: exactly 4 scan_failed (no_face_detected / quality_rejected / processing_error / timeout) + 1 photo_loaded — nothing else', () => {
+test('F4. inside LiveScanScreen/PhotoAnalysisScreen, Analytics usage is limited to the reviewed failure/funnel calls at each screen\'s own real site — LiveScanScreen: exactly 1 scan_failed (pipeline-error catch) + 1 camera_failed (getUserMedia catch); PhotoAnalysisScreen: exactly 4 scan_failed (no_face_detected / quality_rejected / processing_error / timeout) + 1 scan_quality_rejected + 1 photo_loaded — nothing else', () => {
   const liveScan = extractSpan(src, '    function LiveScanScreen({ onComplete, onBack, modelsLoaded, onSetLang }) {', '\n    function PhotoAnalysisScreen(');
   const photoScan = extractSpan(src, '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {', '\n    function ParamIcon(');
   assert.ok(liveScan !== null && photoScan !== null, 'expected to locate both screens');
@@ -394,21 +394,42 @@ test('F4. inside LiveScanScreen/PhotoAnalysisScreen, Analytics usage is limited 
   assert.ok(liveCameraFailed[0].includes("'permission_denied'") && liveCameraFailed[0].includes("'unavailable'"), 'LiveScanScreen\'s camera_failed call must reference both closed-enum reason_code literals (via the existing NotAllowedError ternary), never a free string');
 
   const photoCalls = photoScan.match(/Analytics\.track\([^)]*\)/g) || [];
-  assert.strictEqual(photoCalls.length, 5, `PhotoAnalysisScreen must contain exactly 5 Analytics.track calls, found ${photoCalls.length}`);
+  assert.strictEqual(photoCalls.length, 6, `PhotoAnalysisScreen must contain exactly 6 Analytics.track calls, found ${photoCalls.length}`);
   const photoScanFailed = photoCalls.filter((c) => c.includes("'scan_failed'"));
+  const photoQualityRejected = photoCalls.filter((c) => c.includes("'scan_quality_rejected'"));
   const photoLoaded = photoCalls.filter((c) => c.includes("'photo_loaded'"));
   assert.strictEqual(photoScanFailed.length, 4, `PhotoAnalysisScreen must contain exactly 4 scan_failed calls, found ${photoScanFailed.length}`);
   photoScanFailed.forEach((c) => assert.ok(c.includes("mode: 'photo'"), `every PhotoAnalysisScreen scan_failed call must be mode:photo, got: ${c}`));
   const reasonCodes = photoScanFailed.map((c) => (c.match(/reason_code:\s*'([a-z_]+)'/) || [])[1]).sort();
   assert.deepStrictEqual(reasonCodes, ['no_face_detected', 'processing_error', 'quality_rejected', 'timeout']);
+  assert.strictEqual(photoQualityRejected.length, 1, 'expected exactly 1 scan_quality_rejected call in PhotoAnalysisScreen');
+  assert.ok(photoQualityRejected[0].includes("mode: 'photo'"), 'scan_quality_rejected call must be mode:photo');
+  assert.ok(photoQualityRejected[0].includes('reason: qualityReason'), 'scan_quality_rejected\'s reason must come from the computed qualityReason variable, never a hardcoded literal');
   assert.strictEqual(photoLoaded.length, 1, 'expected exactly 1 photo_loaded call in PhotoAnalysisScreen');
   assert.strictEqual(photoLoaded[0], "Analytics.track('photo_loaded')", 'photo_loaded must be called with no properties');
 
   // No OTHER Analytics reference (any event name) exists in either screen.
   const liveOther = (liveScan.match(/Analytics\.track\(\s*'([^']+)'/g) || []).filter((c) => !c.includes("'scan_failed'") && !c.includes("'camera_failed'"));
-  const photoOther = (photoScan.match(/Analytics\.track\(\s*'([^']+)'/g) || []).filter((c) => !c.includes("'scan_failed'") && !c.includes("'photo_loaded'"));
+  const photoOther = (photoScan.match(/Analytics\.track\(\s*'([^']+)'/g) || []).filter((c) => !c.includes("'scan_failed'") && !c.includes("'scan_quality_rejected'") && !c.includes("'photo_loaded'"));
   assert.deepStrictEqual(liveOther, [], 'LiveScanScreen must not reference any event other than scan_failed/camera_failed');
-  assert.deepStrictEqual(photoOther, [], 'PhotoAnalysisScreen must not reference any event other than scan_failed/photo_loaded');
+  assert.deepStrictEqual(photoOther, [], 'PhotoAnalysisScreen must not reference any event other than scan_failed/scan_quality_rejected/photo_loaded');
+});
+
+test('F4c (source-guard). scan_quality_rejected reuses the EXISTING HINT_PRIORITY_ORDER priority pick (not quality.reasons[0], not a new priority list) to choose a single reason when several co-occur', () => {
+  const photoScan = extractSpan(src, '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {', '\n    function ParamIcon(');
+  assert.ok(photoScan.includes('HINT_PRIORITY_ORDER.find(r => quality.reasons.includes(r))'), 'expected scan_quality_rejected\'s reason to be computed via the existing HINT_PRIORITY_ORDER.find(...) priority pick');
+  assert.ok(!photoScan.includes("reason: quality.reasons[0]"), 'must not use the unprioritized quality.reasons[0] for analytics');
+});
+
+test('F4d (source-guard). scan_quality_rejected is sent from INSIDE the same `if (!photoQualityProceeds)` branch as scan_failed{quality_rejected} — never reachable when photoQualityProceeds is true (i.e. never when photoQualityRecovered is true)', () => {
+  const photoScan = extractSpan(src, '    function PhotoAnalysisScreen({ onComplete, onBack, modelsLoaded }) {', '\n    function ParamIcon(');
+  const idx = photoScan.indexOf('if (!photoQualityProceeds) {');
+  assert.ok(idx !== -1, 'expected the !photoQualityProceeds branch');
+  const branchEnd = photoScan.indexOf('setState(\'error\'); return;', idx);
+  assert.ok(branchEnd !== -1, 'expected to find the branch body');
+  const branch = photoScan.slice(idx, branchEnd);
+  assert.ok(branch.includes("Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' })"), 'expected the existing scan_failed{quality_rejected} call inside this same branch');
+  assert.ok(branch.includes("Analytics.track('scan_quality_rejected'"), 'expected scan_quality_rejected inside this same branch, not a separate/parallel code path');
 });
 
 test('F4b. the PHOTO watchdog\'s scan_failed{timeout} call is reached exactly once, inside the SAME already-idempotent branch guarded by the pre-existing `finished` flag — this patch does not add a new dedup mechanism nor change watchdog timing', () => {
@@ -483,6 +504,65 @@ test('G4. scan_failed now accepts reason_code:"timeout" alongside the 3 original
   assert.strictEqual(Analytics.track('scan_failed', { mode: 'photo', reason_code: 'timeout' }), true);
   assert.strictEqual(Analytics.track('scan_failed', { mode: 'live', reason_code: 'timeout' }), true, 'timeout is a mode-agnostic reason_code, same as the other 3');
   assert.strictEqual(Analytics.track('scan_failed', { mode: 'photo', reason_code: 'bogus' }), false);
+});
+
+test('G4b. scan_failed{quality_rejected} continues to be sent exactly as before — unaffected by the new scan_quality_rejected event', () => {
+  Analytics._resetForTests();
+  const provider = fakeProvider();
+  Analytics._setProviderForTests(provider);
+  Analytics.setConsent(true);
+  assert.strictEqual(Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }), true);
+  assert.deepStrictEqual(provider._log[provider._log.length - 1], { type: 'event', eventName: 'scan_failed', props: { mode: 'photo', reason_code: 'quality_rejected' } });
+});
+
+test('G4c. scan_quality_rejected requires mode+reason and its reason enum is closed to exactly the 10 real assessFrameQuality reasons', () => {
+  Analytics._resetForTests();
+  const provider = fakeProvider();
+  Analytics._setProviderForTests(provider);
+  Analytics.setConsent(true);
+  const validReasons = ['head_tilted', 'head_turned', 'head_pitch', 'eyes_closed', 'too_far',
+    'too_close', 'too_dark', 'too_bright', 'blurry', 'low_face_confidence'];
+  for (const reason of validReasons) {
+    assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo', reason }), true, `${reason} must be accepted`);
+  }
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { reason: 'too_dark' }), false, 'mode is required');
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo' }), false, 'reason is required');
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo', reason: 'quality_rejected' }), false, 'the coarse scan_failed reason_code value must not leak into this enum');
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo', reason: 'brightness_42' }), false, 'a raw/invented value must be rejected, never forwarded');
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo', reason: 'too_dark', brightness: 42 }), false, 'a raw numeric diagnostic must never be accepted alongside reason');
+});
+
+test('G4d. scan_quality_rejected is gated by consent exactly like every other event', () => {
+  Analytics._resetForTests();
+  const provider = fakeProvider();
+  Analytics._setProviderForTests(provider);
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo', reason: 'too_dark' }), false, 'must no-op before any consent decision');
+  Analytics.setConsent(true);
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo', reason: 'too_dark' }), true);
+  Analytics.setConsent(false);
+  assert.strictEqual(Analytics.track('scan_quality_rejected', { mode: 'photo', reason: 'too_dark' }), false, 'must stop immediately on withdrawal');
+});
+
+// Independent mirror of index.html's HINT_PRIORITY_ORDER (the SAME list
+// scan_quality_rejected's call site reuses via HINT_PRIORITY_ORDER.find)
+// -- proves the priority-pick behavior analytically, the same technique
+// already used elsewhere in this file (CURL_PROFILE_MIRROR-style),
+// independent of any one PhotoAnalysisScreen fixture.
+const HINT_PRIORITY_ORDER_MIRROR = ['head_tilted', 'head_turned', 'head_pitch', 'eyes_closed', 'too_close',
+  'low_face_confidence', 'too_dark', 'too_bright', 'blurry', 'too_far'];
+test('G4e. when multiple quality reasons co-occur, the reason sent to scan_quality_rejected follows HINT_PRIORITY_ORDER, never array order / quality.reasons[0]', () => {
+  const pick = (reasons) => HINT_PRIORITY_ORDER_MIRROR.find((r) => reasons.includes(r));
+  // assessFrameQuality's own internal check order (index.html:2312-2322)
+  // would produce quality.reasons in THIS order for a frame failing all
+  // three — low_face_confidence would be reasons[0], but head_tilted
+  // must win per HINT_PRIORITY_ORDER.
+  assert.strictEqual(pick(['low_face_confidence', 'head_tilted', 'too_dark']), 'head_tilted');
+  // eyes_closed must outrank too_close/too_dark/blurry.
+  assert.strictEqual(pick(['too_dark', 'blurry', 'eyes_closed', 'too_close']), 'eyes_closed');
+  // too_close must outrank low_face_confidence/too_dark/too_bright/blurry/too_far.
+  assert.strictEqual(pick(['too_far', 'too_dark', 'too_close']), 'too_close');
+  // Single-reason case: that reason itself, unambiguous.
+  assert.strictEqual(pick(['blurry']), 'blurry');
 });
 
 test('G5. all 6 new events are gated by consent exactly like every existing event — no-op before setConsent(true), forwarded after', () => {

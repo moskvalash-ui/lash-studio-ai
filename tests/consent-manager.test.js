@@ -1013,6 +1013,21 @@ test('J2. PhotoAnalysisScreen production pipeline stays byte-identical to git HE
       "            }\n            if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'no_face_detected' });\n            setState('error'); return;\n          }",
       "            }\n            setState('error'); return;\n          }"
     )
+    // Approved CLOSED-BETA ANALYTICS FUNNEL patch: one additional, additive
+    // Analytics.track('scan_quality_rejected', {mode:'photo', reason}) call
+    // added inside this SAME existing branch, right alongside the
+    // pre-existing scan_failed{quality_rejected} call (never replacing or
+    // reshaping it -- its own PostHog history stays intact). `reason` is
+    // computed via the EXISTING HINT_PRIORITY_ORDER.find(...) priority
+    // pick (already used by Live Scan's own UI hint, see
+    // pickRejectionHintKey), never a new priority list. Normalized back to
+    // the pre-existing single-line branch form first, so the very next
+    // .replace() below (which already expects that exact single-line
+    // shape) still matches.
+    .replace(
+      "          if (!photoQualityProceeds) {\n            if (typeof Analytics !== 'undefined') {\n              Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' });\n              // ANALYTICS — additive, more granular signal alongside the\n              // existing scan_failed{quality_rejected} above (never\n              // replacing it, so its existing PostHog history stays\n              // intact). Reuses the SAME quality.reasons array and the\n              // SAME existing HINT_PRIORITY_ORDER priority pick Live\n              // Scan's own UI hint already uses (see\n              // pickRejectionHintKey above) to deterministically choose\n              // ONE reason when several co-occur -- no new priority\n              // logic. Only the category name is sent, never the raw\n              // brightness/sharpness/pose numbers behind it.\n              const qualityReason = HINT_PRIORITY_ORDER.find(r => quality.reasons.includes(r));\n              if (qualityReason) Analytics.track('scan_quality_rejected', { mode: 'photo', reason: qualityReason });\n            }\n            setState('error'); return;\n          }",
+      "          if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }"
+    )
     .replace(
       "          if (!photoQualityProceeds) { if (typeof Analytics !== 'undefined') Analytics.track('scan_failed', { mode: 'photo', reason_code: 'quality_rejected' }); setState('error'); return; }",
       "          if (!photoQualityProceeds) { setState('error'); return; }"

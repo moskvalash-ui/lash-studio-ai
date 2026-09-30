@@ -118,6 +118,21 @@
     return v === 'hero' || v === 'lash_map';
   }
 
+  // scan_quality_rejected reason: the real, full internal
+  // assessFrameQuality() reason set (index.html) that 'quality_rejected'
+  // above deliberately collapses into one bucket. A SEPARATE, additive
+  // event (not a new property on scan_failed) so the existing
+  // scan_failed{quality_rejected} history in PostHog is never touched
+  // or reshaped -- this only adds a second, more granular signal
+  // alongside it. Still just the category name, never a measured value
+  // (brightness/sharpness/pose numbers themselves are never sent).
+  function isQualityReason(v) {
+    return v === 'head_tilted' || v === 'head_turned' || v === 'head_pitch' ||
+      v === 'eyes_closed' || v === 'too_far' || v === 'too_close' ||
+      v === 'too_dark' || v === 'too_bright' || v === 'blurry' ||
+      v === 'low_face_confidence';
+  }
+
   // client-store.js's finishSaveToClient path can fail for exactly two
   // reasons in current production code: the IndexedDB/memory store
   // being unavailable at all, or the write itself throwing. Never the
@@ -151,6 +166,7 @@
     scan_started: { mode: isMode },
     scan_completed: { mode: isMode },
     scan_failed: { mode: isMode, reason_code: isScanFailReason },
+    scan_quality_rejected: { mode: isMode, reason: isQualityReason },
     camera_failed: { reason_code: isCameraFailReason },
     photo_loaded: {},
     results_viewed: {},

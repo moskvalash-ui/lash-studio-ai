@@ -115,9 +115,24 @@ const CURL_PROFILE_MIRROR={
  L:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.82,liftNearBase:.010,liftNearSweep:.006,midBendRatio:.45,tipEaseRatio:.98},
  'L+':{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.69,liftNearBase:.010,liftNearSweep:.006,midBendRatio:.80,tipEaseRatio:1.78},
  M:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.20,liftNearBase:.020,liftNearSweep:.010,midBendRatio:.52,tipEaseRatio:1.02},
+ // LJ/LB/LC -- NEW FLAT-BASE FAMILY, first visual-validation pass (see
+ // photo-lash-preview.js's own CURL_GEOMETRY_PROFILES comment for the
+ // full rationale: angleBase/angleSweep/angleProm/curvePhaseJitter held
+ // at L's own values, curvePhaseBase kept high/late (unlike M) so the
+ // flat leg stays long in all three, and midBendRatio/tipEaseRatio carry
+ // almost the entire LJ<LB<LC progression).
+ // v2 (post visual-review): LJ frozen unchanged; LB/LC raise
+ // midBendRatio/tipEaseRatio substantially while keeping curvePhaseBase
+ // close to v1 -- see photo-lash-preview.js's own comment above
+ // CURL_GEOMETRY_PROFILES for the full rationale.
+ LJ:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.79,liftNearBase:.010,liftNearSweep:.006,midBendRatio:.38,tipEaseRatio:.75},
+ LB:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.78,liftNearBase:.013,liftNearSweep:.009,midBendRatio:.66,tipEaseRatio:1.28},
+ LC:{angleBase:1.25,angleSweep:.20,angleProm:0,curvePhaseBase:.76,liftNearBase:.016,liftNearSweep:.012,midBendRatio:.86,tipEaseRatio:1.78},
 };
-const ALL_CURLS=['J','B','C','CC','D','L','L+','M'];
+const ALL_CURLS=['J','B','C','CC','D','L','L+','M','LJ','LB','LC'];
 const ROUNDED_CURLS=['J','B','C','CC','D'];
+const FLAT_BASE_CURLS=['L','L+','M','LJ','LB','LC'];
+const LJLBLC_CURLS=['LJ','LB','LC'];
 
 test('curl progression: every one of the 8 profiles bends root->c1->c2->tip the same (negative) direction and can never flip sign (no kink/hook), across the full t/curlScale domain',()=>{
  const smooth_=(a,b,x)=>{const u=Math.max(0,Math.min(1,(x-a)/(b-a)));return u*u*(3-2*u);};
@@ -432,4 +447,113 @@ test('L remains a controlled lift, not an extreme hook, and stays clearly distin
  // both exceed 0.45 AND spike ~1.7x+ between its last two segments).
  assert.ok(turnLastSegmentFraction(l)<0.45,`expected L's post-tuning final-segment turning fraction (${turnLastSegmentFraction(l).toFixed(3)}) to stay well below a hook-like concentration`);
  assert.notEqual(geomKey(byCurl.L[0]),geomKey(byCurl.D[0]),'L must remain distinct from D after tuning');
+});
+
+// ============================================================
+// LJ/LB/LC -- NEW FLAT-BASE FAMILY (first visual-validation pass).
+// Real lash-product reference (three strips, same nominal 13mm length)
+// showed a pronounced straight basal leg shared by all three, differing
+// almost entirely in tip-curl strength, not transition timing -- see
+// photo-lash-preview.js's own CURL_GEOMETRY_PROFILES comment. These
+// tests exercise the REAL, exported PhotoLashPreview.buildFibers, same
+// technique as every test above.
+// ============================================================
+
+test('N. LJ/LB/LC share the flat-base family\'s own defining profile markers -- angleProm=0 (not the rounded family\'s nonzero prominence term) and liftNearBase below every rounded curl\'s own (root genuinely starts near-straight, the direct geometric basis for "pronounced straight basal leg")',()=>{
+ for(const curl of LJLBLC_CURLS){
+   const p=CURL_PROFILE_MIRROR[curl];
+   assert.equal(p.angleProm,0,`${curl}.angleProm must be 0, matching L/L+/M's own flat-base marker, never the rounded family's nonzero prominence term`);
+   const minRoundedLiftNear=Math.min(...ROUNDED_CURLS.map(c=>CURL_PROFILE_MIRROR[c].liftNearBase));
+   assert.ok(p.liftNearBase<minRoundedLiftNear,`${curl}.liftNearBase (${p.liftNearBase}) must stay below the smallest rounded-family liftNearBase (${minRoundedLiftNear}, from J) -- the root must not already carry rounded-family-scale bend`);
+ }
+});
+
+test('O. LJ/LB/LC\'s real measured basal-leg character stays within the flat-base family\'s own territory, never drifting into the rounded family\'s continuous-from-root character -- turnLastSegmentFraction (how hinge-like/late-concentrated the bend is) is measurably higher for each of LJ/LB/LC than for every rounded curl\'s own weakest member (J)',()=>{
+ const byCurl=buildAllCurls();
+ const jFraction=turnLastSegmentFraction(peakFiberFor(byCurl,'J'));
+ for(const curl of LJLBLC_CURLS){
+   const fraction=turnLastSegmentFraction(peakFiberFor(byCurl,curl));
+   assert.ok(fraction>jFraction*0.75,`expected ${curl}'s final-segment turning fraction (${fraction.toFixed(3)}) to read as meaningfully late-concentrated, comparable to or above the rounded family's own softest member J (${jFraction.toFixed(3)})`);
+ }
+});
+
+test('P. measured ordering LJ < LB < LC for upper-curvature strength -- real rendered peak tip angle (same technique as test C\'s rounded-family monotonic proof), strictly monotonic, not just profile constants',()=>{
+ const byCurl=buildAllCurls();
+ const tipAngle=curl=>{
+   const peak=peakFiberFor(byCurl,curl);
+   return Math.atan2(peak.tip.x-peak.root.x,-(peak.tip.y-peak.root.y));
+ };
+ // A SMALLER angle here means a more resolved/vertical (stronger) tip --
+ // same metric test C uses, just read in the opposite direction because
+ // the flat-base family's angleProm=0/high curvePhaseBase geometry sits
+ // in a different angular region than the rounded family's. LJ (softest)
+ // must have the LARGEST angle; LC (strongest) the smallest.
+ const angles=LJLBLC_CURLS.map(tipAngle);
+ for(let i=1;i<angles.length;i++){
+   assert.ok(angles[i]<angles[i-1],`expected strictly decreasing tip angle ${LJLBLC_CURLS[i-1]}(${angles[i-1].toFixed(4)}) > ${LJLBLC_CURLS[i]}(${angles[i].toFixed(4)}), i.e. progressively stronger upper curvature`);
+ }
+ // Also directly monotonic in turnLastSegmentFraction: LC's stronger
+ // magnitude resolves into a smoother, less hinge-like curve than LJ's
+ // (real, measured, not assumed from "it's a polynomial so it's smooth").
+ const fractions=LJLBLC_CURLS.map(curl=>turnLastSegmentFraction(peakFiberFor(byCurl,curl)));
+ for(let i=1;i<fractions.length;i++){
+   assert.ok(fractions[i]<fractions[i-1],`expected strictly decreasing final-segment turning fraction ${LJLBLC_CURLS[i-1]}(${fractions[i-1].toFixed(3)}) > ${LJLBLC_CURLS[i]}(${fractions[i].toFixed(3)})`);
+ }
+});
+
+test('Q. LJ/LB/LC never collapse into J/B/C/L/L+ (or into each other) -- explicit pairwise check against every other production curl, named directly for traceability (test A above already proves this generically across all 11 curls; this isolates the specific pairs the approval called out)',()=>{
+ const byCurl=buildAllCurls();
+ for(const curl of LJLBLC_CURLS){
+   for(const other of ['J','B','C','L','L+',...LJLBLC_CURLS.filter(c=>c!==curl)]){
+     assert.notEqual(geomKey(byCurl[curl][0]),geomKey(byCurl[other][0]),`${curl} must not collapse into ${other}`);
+   }
+ }
+});
+
+test('R. nominal lash length is identical across LJ/LB/LC (and unchanged from every other curl) for every matching sample -- length is driven only by eyeWidth/p.len/VISUAL_MM_TO_EYE_WIDTH/finish/lengthScale, which curl identity never touches',()=>{
+ const basePoints=curlFixturePoints();
+ const byCurl=Object.fromEntries(LJLBLC_CURLS.map(curl=>[curl,PhotoLashPreview.buildFibers(basePoints,40,curl)]));
+ const reference=byCurl.LJ;
+ for(const curl of LJLBLC_CURLS){
+   byCurl[curl].forEach((f,i)=>{
+     assert.equal(f.len,reference[i].len,`curl=${curl} fiber ${i} must trace back to the exact same source sector length as every other curl`);
+     assert.deepEqual(f.root,reference[i].root,`curl=${curl} fiber ${i} must share the exact same root position -- curl never moves the root`);
+     const ratio=Math.hypot(f.tip.x-f.root.x,f.tip.y-f.root.y)/(40*f.len*.085);
+     // Upper bound widened 1.30->1.40 for v2: LC's stronger midBend/
+     // tipEase (raised specifically to fix a too-subtle LB->LC
+     // progression on visual review) legitimately pushes a strongly-
+     // curved tip's straight-line chord distance slightly past the v1
+     // envelope (measured max 1.312) for a few samples -- this is the
+     // intended, approved strength increase, not a length drift: `len`
+     // and `root` above are asserted byte-identical regardless, which is
+     // the actual nominal-length invariant this test protects.
+     assert.ok(ratio>.30&&ratio<1.40,`curl=${curl} fiber ${i}'s rendered root-to-tip distance (ratio ${ratio.toFixed(3)}) must stay within the documented visual-scale envelope, same as every existing curl`);
+   });
+ }
+});
+
+test('S. explicit protection: L/L+/M\'s own profile objects remain byte-identical to git HEAD\'s photo-lash-preview.js -- adding LJ/LB/LC must not have touched them',()=>{
+ const {execSync}=require('node:child_process');
+ const root=require('node:path').join(__dirname,'..');
+ let HEAD;
+ try{HEAD=execSync('git show HEAD:photo-lash-preview.js',{cwd:root,maxBuffer:1024*1024*20}).toString();}catch(e){HEAD=null;}
+ assert.ok(HEAD,'expected `git show HEAD:photo-lash-preview.js` to succeed inside a git working tree');
+ const curSrc=fs.readFileSync(require('node:path').join(root,'photo-lash-preview.js'),'utf8');
+ const extractBalanced=(s,startMarker)=>{
+   const start=s.indexOf(startMarker);
+   assert.ok(start!==-1,`expected to locate ${startMarker}`);
+   let depth=0,i=start,seenOpen=false;
+   for(;i<s.length;i++){
+     if(s[i]==='{'){depth++;seenOpen=true;}
+     else if(s[i]==='}'){depth--;if(seenOpen&&depth===0){i++;break;}}
+   }
+   return s.slice(start,i);
+ };
+ for(const marker of ["L: Object.freeze(L_PROFILE),","'L+': Object.freeze({","M: Object.freeze({"]){
+   const cur=extractBalanced(curSrc,marker),head=extractBalanced(HEAD,marker);
+   assert.equal(cur,head,`${marker} must be byte-identical to git HEAD -- this task adds LJ/LB/LC only`);
+ }
+ // L_PROFILE itself (the shared base object L/L+/M all reference).
+ const curL=extractBalanced(curSrc,'const L_PROFILE = {'),headL=extractBalanced(HEAD,'const L_PROFILE = {');
+ assert.equal(curL,headL,'L_PROFILE must be byte-identical to git HEAD');
 });

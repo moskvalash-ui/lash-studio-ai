@@ -144,7 +144,11 @@ test('Application Plan remains isolated while PHOTO uses its own canonical bound
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.strictEqual((src.match(/generateApplicationPlan\(/g) || []).length, 2, 'one definition and one canonical call');
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
-  assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
+  // WYSIWYG PHOTO EDITOR: the primary photo-editing surface is now
+  // PhotoLashEditorWorkspace (ProfessionalEyeMap/LegacyProfessionalEyeMap
+  // remain in the file, untouched, just no longer the default view) --
+  // still reads from the SAME photoClientDesign canonical boundary.
+  assert.ok(src.includes('<PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign}'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));
   assert.ok(src.includes("const [customRight, setCustomRight] = useState(design.rightZones);"));

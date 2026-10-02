@@ -75,7 +75,15 @@ test('Custom map remains five editable controls and expansion does not mutate it
   assert.deepStrictEqual(custom, before);
   assert.ok(rendered.length > custom.length);
   assert.ok(rendered.length>=9&&rendered.length<=14);
-  assert.ok(src.includes("const next = [...base]; next[idx] = Math.max(5, Math.min(16, val));"));
+  // PHASE 1 MANUAL ZONE-LENGTH DRAG refactor: the 5-16mm clamp was
+  // factored out into its own clampZoneMm(v) helper (reused by the new
+  // PHOTO zone-length drag handle), with setCustomZoneForSide's own
+  // array-update line now calling it instead of inlining the clamp --
+  // same non-mutating `[...base]` pattern, same 5-16 bounds, just split
+  // across two lines. Both are asserted directly so this test's original
+  // intent (array copied, not mutated; bounds still 5-16) still holds.
+  assert.ok(src.includes("const clampZoneMm = v => Math.max(5, Math.min(16, v));"));
+  assert.ok(src.includes("const next = [...base]; next[idx] = clampZoneMm(val);"));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));
   assert.ok(src.includes("const [customRight, setCustomRight] = useState(design.rightZones);"));
 });

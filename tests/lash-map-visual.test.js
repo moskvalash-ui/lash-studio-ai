@@ -159,7 +159,15 @@ test('responsive SVG scaling preserves normalized projection coordinates',()=>{
   const small=atSize(320,180),large=atSize(640,360);
   assert.strictEqual(large.x,small.x*2);
   assert.strictEqual(large.y,small.y*2);
-  assert.ok(src.includes('viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`}'));
+  // SCOPED PHOTO WORKSPACE ZOOM/PAN: viewBox now derives from the
+  // zoom/pan-aware effX/effY/effW/effH rather than photoCrop directly --
+  // at the default 1x/no-pan state these are defined to equal
+  // photoCrop.x/y/width/height exactly (see effW/effH's own clamp logic),
+  // so this test's original guarantee (responsive scaling preserves
+  // normalized projection coordinates) still holds unchanged by default;
+  // zoom/pan tests live in lash-map-manual-zone-drag.test.js.
+  assert.ok(src.includes('viewBox={`${effX} ${effY} ${effW} ${effH}`}'));
+  assert.ok(src.includes('const effW=photoCrop.width/view.zoom,effH=photoCrop.height/view.zoom;'));
   assert.ok(src.includes('preserveAspectRatio="xMidYMid meet"'));
 });
 
@@ -423,11 +431,11 @@ test('unstable degenerate upper-lid tangent fails closed to vertical projection'
   assert.ok(mapped.points.every(point=>point.profileX===point.x&&point.profileY===point.y-point.profileHeight));
 });
 
-test('both professional eye cards receive independent engine maps',()=>{
-  assert.ok(src.includes('side="left" active={activeEye===\'left\'}'));
-  assert.ok(src.includes('side="right" active={activeEye===\'right\'}'));
+test('both eyes continue to receive independent engine maps -- WYSIWYG PHOTO EDITOR: the two separate per-eye cards (side="left"/"right") were replaced by one shared PhotoLashEditorWorkspace that reads activeEye directly (buildPhotoPreviewEyes already computes BOTH eyes independently every render, same as the read-only PhotoLashPreviewPanel above it) -- the underlying per-eye zone derivation is unchanged',()=>{
+  assert.ok(src.includes('activeEye={activeEye} editingEye={editingPhotoEye}'));
   assert.ok(src.includes("const leftZones=activeEye==='left'?zones:otherZones"));
   assert.ok(src.includes("const rightZones=activeEye==='right'?zones:otherZones"));
+  assert.ok(src.includes("return ['left','right'].map(side=>{"), 'buildPhotoPreviewEyes must still independently compute both eyes every call');
 });
 
 test('manual PHOTO adjustment has a pixel-identical automatic zero state and deterministic RESET',()=>{
@@ -487,22 +495,44 @@ test('mobile editing has large hit targets, pointer capture, constrained PEAK, a
   assert.ok(professionalEyeMapSource.includes('<use data-manual-map-drag="true"'));
 });
 
-test('mobile PHOTO places EDIT MAP visibly inside the image overlay and exposes RESET/DONE only while editing',()=>{
+test('mobile PHOTO places EDIT MAP visibly inside the image overlay and exposes RESET/DONE (now MASK FIT / DESIGN EDIT toggle + context Reset + Done) only while editing',()=>{
+  // MASK FIT / DESIGN EDIT mode separation: the single generic "EDITING
+  // MAP" label + ternary fragment was replaced by an if/else branch
+  // (not-editing: unchanged single Edit entry; editing: a 2-way mode
+  // toggle row above a context-sensitive Reset + Done row) -- see
+  // tests/lash-map-manual-zone-drag.test.js section F for behavioral
+  // coverage of the new toggle/reset-context logic itself. This test's
+  // original intent (controls live inside the photo overlay before the
+  // summary panel, 44px+ touch targets, no responsive hiding, DIAGRAM
+  // never shows these controls) still holds and is re-asserted below
+  // against the new structure.
   const controlsIndex=professionalEyeMapSource.indexOf('data-photo-edit-controls="true"'),svgIndex=professionalEyeMapSource.indexOf('<svg dir="ltr" ref={svgRef}'),summaryIndex=professionalEyeMapSource.indexOf('<div className="border-t border-white/[.07] p-3">'),controls=professionalEyeMapSource.slice(controlsIndex,summaryIndex);
   assert.ok(svgIndex>=0&&controlsIndex>svgIndex&&summaryIndex>controlsIndex,'controls must be inside PHOTO image area before summary panel');
   assert.ok(controls.includes('className="absolute inset-x-3 top-3 z-20'));
-  assert.ok(controls.includes("editing?t('lashMapEditing',lang)"));
-  assert.ok(controls.includes("editing?<><button type=\"button\""));
-  assert.ok(controls.includes("{t('lashMapReset',lang)}</button>"));assert.ok(controls.includes("{t('lashMapDone',lang)}</button>"));assert.ok(controls.includes("{t('lashMapEdit',lang)}</button>"));
+  assert.ok(controls.includes('editing ? ('),'expected the not-editing/editing branches to be a plain if/else JSX conditional');
+  assert.ok(controls.includes("t('photoEditModeFit',lang)")&&controls.includes("t('photoEditModeDesign',lang)"),'editing state must show the Mask Fit / Design Edit toggle instead of a generic "EDITING MAP" label');
+  assert.ok(controls.includes("editMode==='mask'?t('lashMapResetFit',lang):t('lashMapResetDesign',lang)"),'Reset must be context-sensitive to the active sub-mode');
+  assert.ok(controls.includes("{t('lashMapDone',lang)}</button>"));assert.ok(controls.includes("{t('lashMapEdit',lang)}</button>"));
   assert.ok(controls.includes('onEdit();'));assert.ok(controls.includes('onReset();'));assert.ok(controls.includes('onDone();'));
-  assert.strictEqual((controls.match(/min-h-\[44px\]/g)||[]).length,3);assert.strictEqual((controls.match(/min-w-\[44px\]/g)||[]).length,3);
+  // 5 buttons now get the 44px MIN-HEIGHT touch target (Edit, the 2 mode-
+  // toggle buttons, Reset, Done); only the original 3 (Edit/Reset/Done)
+  // also get the 44px MIN-WIDTH -- the 2 mode-toggle buttons are text-
+  // sized pills, matching this file's own existing convention for
+  // non-icon-only chip buttons elsewhere (e.g. the ai/custom and left/
+  // right tabs), not every single button in this overlay.
+  assert.strictEqual((controls.match(/min-h-\[44px\]/g)||[]).length,5);assert.strictEqual((controls.match(/min-w-\[44px\]/g)||[]).length,3);
   assert.ok(!/\bhidden\b|opacity-0|invisible|md:|lg:/.test(controls),'mobile control must have no responsive or visibility suppression');
   const diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(!diagram.includes('EDIT MAP'));assert.ok(!diagram.includes('data-photo-edit-controls'));
 });
 
-test('manual PHOTO controls use live RU/EN localization without coupling language to adjustment state',()=>{
-  for(const [key,ru,en,ar] of [['lashMapEdit','НАСТРОИТЬ СХЕМУ','EDIT MAP','تخصيص الخريطة'],['lashMapEditing','НАСТРОЙКА СХЕМЫ','EDITING MAP','جارٍ تخصيص الخريطة'],['lashMapReset','СБРОСИТЬ','RESET','إعادة تعيين'],['lashMapDone','ГОТОВО','DONE','تم']]){
+test('manual PHOTO controls use live RU/EN/AR localization without coupling language to adjustment state',()=>{
+  // lashMapEditing/lashMapReset are no longer called by this component
+  // (replaced by the mode-toggle labels and the two context-sensitive
+  // Reset keys below) -- their STRINGS entries are left in place
+  // (harmless, unused) rather than deleted, to keep this change's diff
+  // minimal; only the keys this component ACTUALLY calls are asserted.
+  for(const [key,ru,en,ar] of [['lashMapEdit','НАСТРОИТЬ СХЕМУ','EDIT MAP','تخصيص الخريطة'],['lashMapDone','ГОТОВО','DONE','تم'],['photoEditModeFit','Подогнать по глазу','Fit to Eye','ملاءمة للعين'],['photoEditModeDesign','Изменить схему','Edit Design','تعديل التصميم'],['lashMapResetFit','СБРОСИТЬ ПОСАДКУ','RESET FIT','إعادة تعيين الملاءمة'],['lashMapResetDesign','СБРОСИТЬ СХЕМУ','RESET DESIGN','إعادة تعيين التصميم']]){
     assert.ok(src.includes(`${key}: {ru:'${ru}', en:'${en}', ar:'${ar}'}`));
     assert.ok(professionalEyeMapSource.includes(`t('${key}',lang)`));
   }

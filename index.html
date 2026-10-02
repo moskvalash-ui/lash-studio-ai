@@ -681,6 +681,13 @@
       lashMapEditing: {ru:'НАСТРОЙКА СХЕМЫ', en:'EDITING MAP', ar:'جارٍ تخصيص الخريطة'},
       lashMapReset: {ru:'СБРОСИТЬ', en:'RESET', ar:'إعادة تعيين'},
       lashMapDone: {ru:'ГОТОВО', en:'DONE', ar:'تم'},
+      // PHASE 1 MASK FIT / DESIGN EDIT mode separation: user-facing labels
+      // only -- never expose manualPhotoAdjustment/translationX/zone-array
+      // terminology to the artist.
+      photoEditModeFit: {ru:'Подогнать по глазу', en:'Fit to Eye', ar:'ملاءمة للعين'},
+      photoEditModeDesign: {ru:'Изменить схему', en:'Edit Design', ar:'تعديل التصميم'},
+      lashMapResetFit: {ru:'СБРОСИТЬ ПОСАДКУ', en:'RESET FIT', ar:'إعادة تعيين الملاءمة'},
+      lashMapResetDesign: {ru:'СБРОСИТЬ СХЕМУ', en:'RESET DESIGN', ar:'إعادة تعيين التصميم'},
       zoneInner: {ru:'ВНУТРЕННЯЯ', en:'INNER', ar:'الداخلية'},
       zoneTransition: {ru:'ПЕРЕХОД', en:'TRANSITION', ar:'الانتقالية'},
       zoneBody: {ru:'ОСНОВНАЯ ЗОНА', en:'BODY', ar:'الأساسية'},
@@ -4431,6 +4438,15 @@
       { id:'L', liftStrength:4, geometry:{ru:'плоское основание с резким подъёмом у кончика',en:'flat base with a sharp lift near the tip',ar:'قاعدة مسطحة مع رفع حاد قرب الطرف'}, suitable:{ru:'нависшее веко, ресницы растут вниз',en:'hooded eyelids, downward-growing natural lashes',ar:'جفون مترهلة، رموش طبيعية تنمو نحو الأسفل'} },
       { id:'L+', liftStrength:5, geometry:{ru:'усиленный вариант L с более выраженным плоским основанием',en:'stronger L variant with a more pronounced flat base',ar:'نسخة أقوى من L بقاعدة مسطحة أكثر وضوحًا'}, suitable:{ru:'выраженное нависание века',en:'pronounced eyelid hooding',ar:'ترهل واضح في الجفن'} },
       { id:'M', liftStrength:4.5, geometry:{ru:'похож на L, но с более мягким переходом',en:'similar to L with a softer transition',ar:'يشبه L لكن بانتقال أكثر نعومة'}, suitable:{ru:'нависание, если нужен менее резкий подъём чем у L',en:'hooding, when a less abrupt lift than L is preferred',ar:'الترهل، عند تفضيل رفع أقل حدة من L'} },
+      // LJ/LB/LC -- NEW FLAT-BASE FAMILY, first visual-validation pass
+      // (not yet final production geometry -- see photo-lash-preview.js's
+      // own CURL_GEOMETRY_PROFILES comment for the full rationale).
+      // Appended after M, never inserted earlier in this array: recommendCurl's
+      // alternatives lookup is array-position-based, so appending here cannot
+      // change any existing design's computed alternatives.
+      { id:'LJ', liftStrength:3.5, geometry:{ru:'плоское основание с мягким, постепенным подъёмом у кончика',en:'flat base with a soft, gradual lift near the tip',ar:'قاعدة مسطحة مع رفع ناعم وتدريجي قرب الطرف'}, suitable:{ru:'нависшее веко, если нужен более мягкий завиток на кончике, чем у L',en:'hooded eyelids, when a softer tip curl than L is preferred',ar:'جفون مترهلة، عند تفضيل انحناء أكثر نعومة عند الطرف من L'} },
+      { id:'LB', liftStrength:4.2, geometry:{ru:'плоское основание со средним подъёмом у кончика (по типу B)',en:'flat base with a medium, B-style lift near the tip',ar:'قاعدة مسطحة مع رفع متوسط عند الطرف (بنمط B)'}, suitable:{ru:'нависшее веко, если нужен завиток средней силы на кончике',en:'hooded eyelids, when a medium-strength tip curl is preferred',ar:'جفون مترهلة، عند تفضيل انحناء متوسط القوة عند الطرف'} },
+      { id:'LC', liftStrength:4.8, geometry:{ru:'плоское основание с выраженным округлым подъёмом у кончика (по типу C)',en:'flat base with a pronounced, round C-style lift near the tip',ar:'قاعدة مسطحة مع رفع دائري واضح عند الطرف (بنمط C)'}, suitable:{ru:'нависшее веко, если нужен сильный округлый завиток на кончике',en:'hooded eyelids, when a strong, round tip curl is preferred',ar:'جفون مترهلة، عند تفضيل انحناء قوي ومستدير عند الطرف'} },
     ];
     function recommendCurl(c, design, lang) {
       let primary = design.baseCurl;
@@ -4694,12 +4710,41 @@
       };
     }
 
-    const createManualPhotoAdjustment=()=>({translationX:0,translationY:0,innerDelta:{x:0,y:0},peakDelta:{x:0,y:0},outerDelta:{x:0,y:0}});
-    const isAutomaticPhotoAdjustment=adjustment=>!adjustment||(adjustment.translationX===0&&adjustment.translationY===0&&adjustment.innerDelta.x===0&&adjustment.innerDelta.y===0&&adjustment.peakDelta.x===0&&adjustment.peakDelta.y===0&&adjustment.outerDelta.x===0&&adjustment.outerDelta.y===0);
+    const createManualPhotoAdjustment=()=>({translationX:0,translationY:0,innerDelta:{x:0,y:0},innerMidDelta:{x:0,y:0},peakDelta:{x:0,y:0},outerMidDelta:{x:0,y:0},outerDelta:{x:0,y:0}});
+    const isAutomaticPhotoAdjustment=adjustment=>!adjustment||(adjustment.translationX===0&&adjustment.translationY===0&&adjustment.innerDelta.x===0&&adjustment.innerDelta.y===0&&adjustment.innerMidDelta.x===0&&adjustment.innerMidDelta.y===0&&adjustment.peakDelta.x===0&&adjustment.peakDelta.y===0&&adjustment.outerMidDelta.x===0&&adjustment.outerMidDelta.y===0&&adjustment.outerDelta.x===0&&adjustment.outerDelta.y===0);
 
-    // Presentation-only cubic deformation. The three manual anchor deltas
-    // are interpolated by a quadratic displacement field at t=0/PEAK/1.
-    // Adding that field to the automatic cubic remains one finite, smooth
+    // Generic Lagrange interpolation: given N (node,value) pairs, returns
+    // the value of the unique degree-(N-1) polynomial through them at t.
+    // Used instead of hand-expanded per-node weight formulas so the
+    // 5-anchor Mask Fit math below is verifiable by generic properties
+    // (reproduces each node's own value exactly, weights sum to 1) rather
+    // than by algebra review alone.
+    function lagrangeValue(nodes,values,t) {
+      let result=0;
+      for(let i=0;i<nodes.length;i++) {
+        let weight=1;
+        for(let j=0;j<nodes.length;j++) {
+          if(j===i)continue;
+          weight*=(t-nodes[j])/(nodes[i]-nodes[j]);
+        }
+        result+=weight*values[i];
+      }
+      return result;
+    }
+
+    // Presentation-only cubic deformation. Five manual anchor deltas
+    // (INNER/INNER-MID/PEAK/OUTER-MID/OUTER, at t=0/p/2/PEAK/(PEAK+1)/2/1)
+    // are interpolated by a quartic displacement field via lagrangeValue.
+    // INNER-MID/OUTER-MID's own interpolation target is defined as "what
+    // the previous 3-node (INNER/PEAK/OUTER) quadratic alone would already
+    // produce at that t" plus that anchor's own delta -- so when
+    // innerMidDelta/outerMidDelta are both {x:0,y:0}, all five target
+    // values already lie exactly on that same quadratic, and by
+    // uniqueness of polynomial interpolation the 5-node quartic IS that
+    // quadratic (zero cubic/quartic coefficients) for every t, not just
+    // at the sample points. See tests/lash-map-5-anchor-interpolation.
+    // test.js for the direct numerical proof of this reduction. Adding
+    // this field to the automatic cubic remains one finite, smooth
     // cubic; engine t/length/key/PEAK fields are copied byte-for-byte.
     function applyManualPhotoAdjustment(eye,points,adjustment,peakT) {
       const automatic=buildProfessionalPhotoLine(eye,points);
@@ -4709,9 +4754,15 @@
       const base=[{x:controls[0],y:controls[1]},{x:controls[2],y:controls[3]},{x:controls[4],y:controls[5]},{x:controls[6],y:controls[7]}];
       const baseAt=t=>{const u=1-t;return {x:u*u*u*base[0].x+3*u*u*t*base[1].x+3*u*t*t*base[2].x+t*t*t*base[3].x,y:u*u*u*base[0].y+3*u*u*t*base[1].y+3*u*t*t*base[2].y+t*t*t*base[3].y};};
       const baseDerivative=t=>{const u=1-t;return {x:3*u*u*(base[1].x-base[0].x)+6*u*t*(base[2].x-base[1].x)+3*t*t*(base[3].x-base[2].x),y:3*u*u*(base[1].y-base[0].y)+6*u*t*(base[2].y-base[1].y)+3*t*t*(base[3].y-base[2].y)};};
-      const deltas=[a.innerDelta,a.peakDelta,a.outerDelta];
-      const displacement=t=>{const weights=[(t-p)*(t-1)/p,t*(t-1)/(p*(p-1)),t*(t-p)/(1-p)];return {x:a.translationX+weights.reduce((sum,w,i)=>sum+w*deltas[i].x,0),y:a.translationY+weights.reduce((sum,w,i)=>sum+w*deltas[i].y,0)};};
-      const displacementDerivative=t=>{const weights=[(2*t-p-1)/p,(2*t-1)/(p*(p-1)),(2*t-p)/(1-p)];return {x:weights.reduce((sum,w,i)=>sum+w*deltas[i].x,0),y:weights.reduce((sum,w,i)=>sum+w*deltas[i].y,0)};};
+      const pInnerMid=p/2,pOuterMid=(p+1)/2;
+      const quad3Nodes=[0,p,1],deltas3=[a.innerDelta,a.peakDelta,a.outerDelta];
+      const quad3Value=(axis,t)=>lagrangeValue(quad3Nodes,deltas3.map(d=>d[axis]),t);
+      const nodes5=[0,pInnerMid,p,pOuterMid,1];
+      const values5=axis=>[a.innerDelta[axis],quad3Value(axis,pInnerMid)+a.innerMidDelta[axis],a.peakDelta[axis],quad3Value(axis,pOuterMid)+a.outerMidDelta[axis],a.outerDelta[axis]];
+      const valuesX=values5('x'),valuesY=values5('y');
+      const displacement=t=>({x:a.translationX+lagrangeValue(nodes5,valuesX,t),y:a.translationY+lagrangeValue(nodes5,valuesY,t)});
+      const DERIV_H=1e-4;
+      const displacementDerivative=t=>{const d1=displacement(t-DERIV_H),d2=displacement(t+DERIV_H);return {x:(d2.x-d1.x)/(2*DERIV_H),y:(d2.y-d1.y)/(2*DERIV_H)};};
       const at=t=>{const b=baseAt(t),d=displacement(t);return {x:b.x+d.x,y:b.y+d.y};};
       const derivative=t=>{const b=baseDerivative(t),d=displacementDerivative(t);return {x:b.x+d.x,y:b.y+d.y};};
       const c0=at(0),c3=at(1),d0=derivative(0),d1=derivative(1),c1={x:c0.x+d0.x/3,y:c0.y+d0.y/3},c2={x:c3.x-d1.x/3,y:c3.y-d1.y/3};
@@ -10714,6 +10765,7 @@
         const projection=buildProfessionalEyeProjection(eye,samples,result.imageWidth,result.imageHeight);
         if(!projection)throw new Error('geometry');
         const peakT=props.items.find(item=>item.isPeak)?.t??.5;
+        const automaticLine=buildProfessionalPhotoLine(eye,projection.points);
         const line=applyManualPhotoAdjustment(eye,projection.points,props.adjustment,peakT);
         if(!line)throw new Error('geometry');
         // Remove only the map-label offset; retain the existing manual displacement.
@@ -10721,7 +10773,19 @@
         const eyeWidth=Math.hypot(eye[3].x-eye[0].x,eye[3].y-eye[0].y);
         const fibers=PhotoLashPreview.buildFibers(points,eyeWidth,props.curl);
         if(fibers.some(f=>f.root.x<0||f.root.x>result.imageWidth||f.root.y<0||f.root.y>result.imageHeight))throw new Error('geometry');
-        return {side,fibers};
+        // WYSIWYG PHOTO EDITOR: additive fields alongside the existing
+        // `fibers` (the ONLY field any caller before this change ever
+        // read -- see photo-lash-preview.test.js's own determinism/
+        // non-mutation tests, which still pass unmodified against this
+        // richer return shape). `eye`/`projection points (via `line`,
+        // UN-offset)/`adjustment` give PhotoLashEditorWorkspace exactly
+        // the same raw-space geometry LegacyProfessionalEyeMap's drag
+        // math already used, and `points`/`offset` are the SAME offset-
+        // adjusted root positions `fibers` were just built from -- so an
+        // overlay drawn from them is guaranteed to coincide with the
+        // real, currently-visible fiber roots, not a separately
+        // recomputed approximation.
+        return {side,fibers,eye,automaticLine,line,points,offset:line.offset,peakT,eyeWidth,curl:props.curl,adjustment:props.adjustment,items:props.items};
       });
     }
 
@@ -10771,6 +10835,412 @@
           <p className="text-xs text-textMuted mt-2">{t('photoPreviewHint',lang)}</p>
         </div>}
       </div>;
+    }
+
+    // ============================================================
+    // WYSIWYG PHOTO EDITOR — unified Mask Fit / Design Edit workspace.
+    // ------------------------------------------------------------
+    // Replaces LegacyProfessionalEyeMap's schematic profile-line/dots/
+    // leader-label composition as the PRIMARY editing surface: the
+    // artist now edits directly on the SAME real photo + SAME real
+    // rendered lash fibers buildPhotoPreviewEyes/PhotoLashPreview.draw
+    // already produce for the read-only PhotoLashPreviewPanel above --
+    // not a separate abstract diagram. LegacyProfessionalEyeMap/
+    // ProfessionalEyeMap are deliberately left in the file, untouched
+    // and unused by LashMapScreen's default view -- no aggressive
+    // deletion/cleanup this pass (that's an explicit later step, only
+    // once this new editor is proven on a real phone).
+    //
+    // Shows BOTH eyes' real fibers at all times (same as
+    // PhotoLashPreviewPanel); editing handles for only ONE eye
+    // (whichever LashMapScreen's existing activeEye/editingPhotoEye
+    // already points to) appear on top when editing. Mask Fit/Design
+    // Edit handle sets stay mutually exclusive by the same editMode
+    // gate proven in LegacyProfessionalEyeMap this same session.
+    //
+    // DATA FLOW (no new architecture, pure reuse): every drag calls the
+    // SAME onAdjustmentChange/onZoneLengthChange callbacks LashMapScreen
+    // already wires to setPhotoAdjustment/applyZoneDrag ->
+    // manualPhotoAdjustments/customLeft/customRight state ->
+    // withPhotoRuntime (clones, never mutates the canonical
+    // runtimeCanonicalBase) -> new clientDesign reference -> this
+    // component's own render-body call to buildPhotoPreviewEyes
+    // recomputes fibers fresh -> canvas redraws. This exact chain
+    // already existed and already worked for PhotoLashPreviewPanel
+    // before any of this session's editing work; this component is the
+    // first place to show it feeding an EDITABLE view instead of a
+    // read-only one.
+    //
+    // ZOOM: a single CSS transform (scale+translate, computed from a
+    // {zoom,panX,panY} view state over the FULL photo, not a per-eye
+    // crop) on ONE wrapper div containing the img + canvas + SVG handle
+    // overlay together -- registration between photo/fibers/handles
+    // cannot drift since all three are the same transformed box's
+    // children. This is a fresh port of the proven pinch/drag pointer-
+    // tracking logic from LegacyProfessionalEyeMap (same algorithms:
+    // multi-touch cancels any single-pointer drag, pinch anchors on the
+    // gesture midpoint via getBoundingClientRect, 1x-4x clamped, a
+    // lone leftover finger never resumes a drag) -- NOT the previous,
+    // not-yet-validated SVG-viewBox zoom, which stays only on the old
+    // schematic editor and is not extended further.
+    // ============================================================
+    function PhotoLashEditorWorkspace({ result, clientDesign, lang, activeEye, editingEye, editMode, onEdit, onDone, onEditModeChange, onAdjustmentChange, onZoneLengthChange, onResetFit, onResetDesign }) {
+      const wrapRef=useRef(null),svgRef=useRef(null),imageRef=useRef(null),canvasRef=useRef(null);
+      const dragRef=useRef(null),pinchRef=useRef(null),activePointersRef=useRef(new Map());
+      // TEMPORARY DIAGNOSTIC -- ISOLATION EXPERIMENT (real-device report:
+      // "Fit to Eye" causes a full document reload; the EFFECT-level
+      // auto-focus-enter/-computed entries never appear, while globally-
+      // registered lifecycle listeners -- visibilitychange/pagehide, in
+      // the separate, already-mounted LashDiagOverlay -- DO fire. React
+      // effects only run AFTER a render fully commits; if something
+      // during THIS component's own RENDER (not its effects) is the real
+      // cause, that would exactly explain this pattern. These 4
+      // checkpoints are plain lashDiagLog calls placed directly in the
+      // render body -- synchronous, each one persisted to sessionStorage
+      // immediately (see lashDiagLog) -- at the exact points that
+      // distinguish: (A) did rendering even start for this edit entry;
+      // (B) did the real buildPhotoPreviewEyes call (the SAME production
+      // function, not reimplemented here) complete; (C) did the
+      // handle-geometry derivation (inner/peak/outer lookup) complete;
+      // (D) what was the EXACT computed CSS transform string hand off to
+      // the DOM. Fired exactly ONCE per genuine entry into edit mode
+      // (guarded by renderCheckpointRef, reset when editing ends) -- NOT
+      // on every render during an active drag, so this adds no
+      // measurable overhead and cannot itself skew the next real-device
+      // test. Whichever checkpoint is the LAST one to appear in the log
+      // before the reload tells us exactly how far execution got.
+      // Remove together with the rest of this diagnostic round once the
+      // real cause is confirmed.
+      const renderCheckpointRef=useRef({loggedFor:null});
+      const [dragZoneIndex,setDragZoneIndex]=useState(null);
+      const [status,setStatus]=useState('loading');
+      const editing=editingEye!=null;
+      if(!editing)renderCheckpointRef.current.loggedFor=null;
+      const isFirstRenderForThisEdit=editing&&renderCheckpointRef.current.loggedFor!==editingEye;
+      if(isFirstRenderForThisEdit){
+        renderCheckpointRef.current.loggedFor=editingEye;
+        lashDiagLog({type:'render-checkpoint-A-start',editingEye,editMode,...lashDiagViewport()});
+      }
+      // Viewport-only state -- see the file-header comment above. Never
+      // read by onAdjustmentChange/onZoneLengthChange, never written by
+      // them either; resets to 1x/no-pan whenever editing ends.
+      const [view,setView]=useState({zoom:1,panX:0,panY:0});
+      // MOBILE UX REFINEMENT: auto-focus the eye actually being edited,
+      // through the SAME {zoom,panX,panY} viewport state pinch/pan
+      // already drives -- not a second transform, not a separate crop/
+      // re-render of the photo. Fires only on [editing,editingEye]
+      // (entering edit mode, or switching which eye editingEye points
+      // to -- e.g. the LEFT/RIGHT tabs while already editing) so a drag
+      // mid-edit (which changes clientDesign, re-rendering this
+      // component) never yanks the view back to the auto-focus framing
+      // the user may have already zoomed/panned away from. Reads the
+      // CURRENT (adjustment-inclusive) fiber-root points via the real,
+      // unmodified buildPhotoPreviewEyes -- the same call already used
+      // for the canvas/overlay above -- so the focus box reflects
+      // wherever the mask/design currently actually renders, not just
+      // the raw detected landmark position. Generous padding (no fine-
+      // tuned constant -- "a large useful part of the workspace", not
+      // pixel-fit) keeps the lash tips (which extend upward from the
+      // root line) and the inner/outer/whole-fit handles in view.
+      useEffect(()=>{
+        // TEMPORARY DIAGNOSTIC -- real-device report: entering Fit to Eye
+        // (editing false->true) alone, with ZERO multi-touch, appears to
+        // reset/kick the user out. Logged BEFORE any computation so this
+        // entry is recorded even if something below throws synchronously.
+        lashDiagLog({type:'auto-focus-enter',editing,editingEye,imgNaturalWidth:imageRef.current?.naturalWidth,imgNaturalHeight:imageRef.current?.naturalHeight,resultImageWidth:result?.imageWidth,resultImageHeight:result?.imageHeight,wrapRect:wrapRef.current?(r=>({width:Math.round(r.width),height:Math.round(r.height)}))(wrapRef.current.getBoundingClientRect()):null,...lashDiagViewport()});
+        if(!editing){setView({zoom:1,panX:0,panY:0});return;}
+        try{
+          const eyes=buildPhotoPreviewEyes(result,clientDesign);
+          const target=eyes.find(eye=>eye.side===editingEye);
+          if(!target){lashDiagLog({type:'auto-focus-no-target',editingEye,sides:eyes.map(e=>e.side)});return;}
+          const xs=target.points.map(p=>p.x),ys=target.points.map(p=>p.y);
+          const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+          const boxW=Math.max(1,maxX-minX),boxH=Math.max(1,maxY-minY);
+          const padTop=target.eyeWidth*.9,padSide=target.eyeWidth*.4,padBottom=target.eyeWidth*.3;
+          const focusX=minX-padSide,focusY=minY-padTop,focusW=boxW+padSide*2,focusH=boxH+padTop+padBottom;
+          const fitZoom=Math.min(result.imageWidth/focusW,result.imageHeight/focusH);
+          const zoom=Math.max(1,Math.min(4,fitZoom));
+          const ew=result.imageWidth/zoom,eh=result.imageHeight/zoom;
+          const centerX=focusX+focusW/2,centerY=focusY+focusH/2;
+          const panX=Math.max(0,Math.min(result.imageWidth-ew,centerX-ew/2));
+          const panY=Math.max(0,Math.min(result.imageHeight-eh,centerY-eh/2));
+          const allFinite=[zoom,panX,panY].every(Number.isFinite);
+          lashDiagLog({type:'auto-focus-computed',pointCount:xs.length,minX:Math.round(minX),maxX:Math.round(maxX),minY:Math.round(minY),maxY:Math.round(maxY),boxW:Math.round(boxW),boxH:Math.round(boxH),eyeWidth:Math.round(target.eyeWidth),focusX:Math.round(focusX),focusY:Math.round(focusY),focusW:Math.round(focusW),focusH:Math.round(focusH),fitZoom:Number.isFinite(fitZoom)?Math.round(fitZoom*1000)/1000:fitZoom,zoom:Math.round(zoom*1000)/1000,panX:Math.round(panX),panY:Math.round(panY),finite:{zoom:Number.isFinite(zoom),panX:Number.isFinite(panX),panY:Number.isFinite(panY),focusW:Number.isFinite(focusW),focusH:Number.isFinite(focusH)}});
+          if(allFinite){lashDiagLog({type:'auto-focus-setView',zoom,panX:Math.round(panX),panY:Math.round(panY)});setView({zoom,panX,panY});}
+        }catch(error){
+          // Previously silently swallowed -- now logged, since an
+          // uncaught exception HERE would be fully invisible otherwise.
+          lashDiagLog({type:'auto-focus-error',message:String(error?.message||error),stack:String(error?.stack||'').slice(0,300)});
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately NOT depending on result/clientDesign: a drag changes clientDesign every frame and must never re-trigger auto-focus.
+      },[editing,editingEye]);
+      useEffect(()=>lashDiagMount('PhotoLashEditorWorkspace'),[]);
+
+      useEffect(()=>{
+        let cancelled=false;
+        const img=imageRef.current;
+        setStatus('loading');
+        const render=()=>{
+          if(cancelled)return;
+          try{
+            if(!img.naturalWidth)throw new Error('image');
+            const eyes=buildPhotoPreviewEyes(result,clientDesign);
+            const canvas=canvasRef.current,ctx=canvas.getContext('2d');
+            if(!ctx)throw new Error('canvas');
+            const scale=Math.min(2,2048/Math.max(result.imageWidth,result.imageHeight));
+            canvas.width=Math.round(result.imageWidth*scale);canvas.height=Math.round(result.imageHeight*scale);
+            ctx.setTransform(canvas.width/result.imageWidth,0,0,canvas.height/result.imageHeight,0,0);
+            eyes.forEach(eye=>PhotoLashPreview.draw(ctx,eye.fibers));
+            setStatus('ready');
+          }catch(error){
+            const ctx=canvasRef.current?.getContext('2d');
+            if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);}
+            setStatus(['geometry','mapping'].includes(error.message)?'geometry':error.message==='image'?'image':'error');
+          }
+        };
+        const fail=()=>{if(!cancelled)setStatus('image');};
+        img.addEventListener('load',render);img.addEventListener('error',fail);
+        if(img.complete)render();
+        const timer=setTimeout(()=>{if(!cancelled&&!img.complete){cancelled=true;setStatus('image');}},15000);
+        return ()=>{cancelled=true;clearTimeout(timer);img.removeEventListener('load',render);img.removeEventListener('error',fail);};
+      },[result,clientDesign]);
+
+      if(result.source!=='photo')return null;
+      // Synchronous (not effect-gated) overlay geometry -- handles must
+      // track every render, not wait for the async image-load redraw
+      // above. Uses the EXACT same buildPhotoPreviewEyes call (and
+      // therefore the exact same points fibers were just built from),
+      // wrapped defensively since it can throw on invalid geometry.
+      let overlayEyes=null,overlayEyesError=null;
+      try{overlayEyes=buildPhotoPreviewEyes(result,clientDesign);}catch(error){overlayEyes=null;overlayEyesError=error;}
+      const eyeData=editing&&overlayEyes?overlayEyes.find(e=>e.side===editingEye):null;
+      if(isFirstRenderForThisEdit){
+        lashDiagLog({type:'render-checkpoint-B-overlayEyes',hasOverlayEyes:!!overlayEyes,hasEyeData:!!eyeData,totalFiberCount:overlayEyes?overlayEyes.reduce((sum,eye)=>sum+eye.fibers.length,0):null,error:overlayEyesError?String(overlayEyesError.message||overlayEyesError):null});
+      }
+      const unit=Math.max(result.imageWidth,result.imageHeight)/100;
+      const PHOTO_ZOOM_MIN=1,PHOTO_ZOOM_MAX=4;
+      const effW=result.imageWidth/view.zoom,effH=result.imageHeight/view.zoom;
+      const effX=Math.max(0,Math.min(result.imageWidth-effW,view.panX));
+      const effY=Math.max(0,Math.min(result.imageHeight-effH,view.panY));
+      const cssTransform=`translate(${-(effX/effW)*100}%, ${-(effY/effH)*100}%) scale(${view.zoom})`;
+      if(isFirstRenderForThisEdit){
+        lashDiagLog({type:'render-checkpoint-D-transform',cssTransform,zoom:view.zoom,panX:view.panX,panY:view.panY,effX,effY,effW,effH,finite:{zoom:Number.isFinite(view.zoom),effW:Number.isFinite(effW),effH:Number.isFinite(effH),effX:Number.isFinite(effX),effY:Number.isFinite(effY)}});
+      }
+
+      const svgPoint=event=>{const svg=svgRef.current,matrix=svg&&svg.getScreenCTM();if(!svg||!matrix)return null;const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;return point.matrixTransform(matrix.inverse());};
+      const registerPointer=event=>{activePointersRef.current.set(event.pointerId,{x:event.clientX,y:event.clientY});};
+      const unregisterPointer=event=>{activePointersRef.current.delete(event.pointerId);};
+      const beginPinch=()=>{
+        const ids=[...activePointersRef.current.keys()].slice(0,2);
+        const p1=activePointersRef.current.get(ids[0]),p2=activePointersRef.current.get(ids[1]);
+        if(!p1||!p2||!wrapRef.current)return;
+        const rect=wrapRef.current.getBoundingClientRect();
+        if(rect.width<1||rect.height<1)return;
+        const distance=Math.max(1,Math.hypot(p1.x-p2.x,p1.y-p2.y));
+        const midX=(p1.x+p2.x)/2,midY=(p1.y+p2.y)/2;
+        const fracX=(midX-rect.left)/rect.width,fracY=(midY-rect.top)/rect.height;
+        pinchRef.current={ids,rect,startDistance:distance,anchorImageX:effX+fracX*effW,anchorImageY:effY+fracY*effH,startZoom:view.zoom};
+        lashDiagLog({type:'pinch-start',workspace:'wysiwyg',editingEye,editMode,startZoom:view.zoom,...lashDiagViewport()});
+      };
+      const updatePinch=()=>{
+        const g=pinchRef.current;if(!g)return;
+        const p1=activePointersRef.current.get(g.ids[0]),p2=activePointersRef.current.get(g.ids[1]);
+        if(!p1||!p2)return;
+        const distance=Math.hypot(p1.x-p2.x,p1.y-p2.y);
+        const scaleFactor=distance/g.startDistance;
+        const newZoom=Number.isFinite(scaleFactor)?Math.max(PHOTO_ZOOM_MIN,Math.min(PHOTO_ZOOM_MAX,g.startZoom*scaleFactor)):g.startZoom;
+        const midX=(p1.x+p2.x)/2,midY=(p1.y+p2.y)/2;
+        const fracX=(midX-g.rect.left)/g.rect.width,fracY=(midY-g.rect.top)/g.rect.height;
+        const newW=result.imageWidth/newZoom,newH=result.imageHeight/newZoom;
+        const newX=g.anchorImageX-fracX*newW,newY=g.anchorImageY-fracY*newH;
+        const allFinite=[newZoom,newX,newY,newW,newH].every(Number.isFinite);
+        lashDiagLog({type:'pinch-update',workspace:'wysiwyg',finite:allFinite,zoom:Math.round(newZoom*1000)/1000},{throttleMs:80});
+        if(!allFinite)return;
+        setView({zoom:newZoom,panX:newX,panY:newY});
+      };
+      const beginDrag=(event,kind)=>{
+        if(!editing||!eyeData)return;event.preventDefault();event.stopPropagation();
+        svgRef.current.setPointerCapture(event.pointerId);
+        registerPointer(event);
+        if(activePointersRef.current.size>=2){
+          // Multi-touch must never be interpreted as a mask/zone drag --
+          // cancel whatever single-pointer drag this (or an earlier)
+          // pointer may have just started and switch to pinch/pan.
+          dragRef.current=null;setDragZoneIndex(null);
+          beginPinch();
+          return;
+        }
+        const start=svgPoint(event);if(!start)return;
+        if(typeof kind==='string'&&kind.indexOf('zone:')===0){
+          const index=Number(kind.slice(5));
+          const zonePoint=eyeData.points.find(p=>p.keyZoneIndex===index);
+          if(!zonePoint)return;
+          const pxPerMm=(eyeData.eyeWidth*.22)/(16-5);
+          dragRef.current={kind:'zone',index,start,startLen:zonePoint.len,pxPerMm};
+          setDragZoneIndex(index);
+          return;
+        }
+        dragRef.current={kind,start,adjustment:{...eyeData.adjustment,innerDelta:{...eyeData.adjustment.innerDelta},innerMidDelta:{...eyeData.adjustment.innerMidDelta},peakDelta:{...eyeData.adjustment.peakDelta},outerMidDelta:{...eyeData.adjustment.outerMidDelta},outerDelta:{...eyeData.adjustment.outerDelta}}};
+      };
+      const moveDrag=event=>{
+        if(!editing)return;
+        if(activePointersRef.current.has(event.pointerId))registerPointer(event);
+        if(pinchRef.current){event.preventDefault();updatePinch();return;}
+        const drag=dragRef.current;if(!drag||!eyeData)return;event.preventDefault();
+        const current=svgPoint(event);if(!current)return;
+        if(drag.kind==='zone'){
+          const dy=current.y-drag.start.y,mm=Math.round(Math.max(5,Math.min(16,drag.startLen-dy/drag.pxPerMm)));
+          if(Number.isFinite(mm))onZoneLengthChange(editingEye,drag.index,mm);
+          return;
+        }
+        const dx=current.x-drag.start.x,dy=current.y-drag.start.y,start=drag.adjustment,next={...start,innerDelta:{...start.innerDelta},innerMidDelta:{...start.innerMidDelta},peakDelta:{...start.peakDelta},outerMidDelta:{...start.outerMidDelta},outerDelta:{...start.outerDelta}},pad=unit*2;
+        const autoPoints=eyeData.automaticLine.points;
+        if(drag.kind==='map'){
+          const xs=autoPoints.map(p=>p.mapX),ys=autoPoints.map(p=>p.mapY),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+          next.translationX=Math.max(pad-minX,Math.min(result.imageWidth-pad-maxX,start.translationX+dx));
+          next.translationY=Math.max(pad-minY,Math.min(result.imageHeight-pad-maxY,start.translationY+dy));
+        }else if(drag.kind==='inner'||drag.kind==='outer'){
+          const key=drag.kind==='inner'?'innerDelta':'outerDelta',automatic=drag.kind==='inner'?autoPoints[0]:autoPoints.at(-1),candidate={x:start[key].x+dx,y:start[key].y+dy};
+          next[key]={x:Math.max(pad,Math.min(result.imageWidth-pad,automatic.mapX+start.translationX+candidate.x))-automatic.mapX-start.translationX,y:Math.max(pad,Math.min(result.imageHeight-pad,automatic.mapY+start.translationY+candidate.y))-automatic.mapY-start.translationY};
+          const inner=autoPoints[0],outer=autoPoints.at(-1),vx=outer.mapX-inner.mapX,vy=outer.mapY-inner.mapY,length=Math.max(1,Math.hypot(vx,vy)),ux=vx/length,uy=vy/length,innerPosition=start.innerDelta.x*ux+start.innerDelta.y*uy,outerPosition=length+start.outerDelta.x*ux+start.outerDelta.y*uy,position=(drag.kind==='inner'?next.innerDelta.x*ux+next.innerDelta.y*uy:length+next.outerDelta.x*ux+next.outerDelta.y*uy),limit=drag.kind==='inner'?Math.min(position,outerPosition-length*.08):Math.max(position,innerPosition+length*.08),correction=limit-position;
+          next[key]={x:next[key].x+ux*correction,y:next[key].y+uy*correction};
+        }else if(drag.kind==='peak'){
+          const inner=autoPoints[0],outer=autoPoints.at(-1),vx=outer.mapX-inner.mapX,vy=outer.mapY-inner.mapY,length=Math.max(1,Math.hypot(vx,vy)),ux=vx/length,uy=vy/length,along=dx*ux+dy*uy,automatic=autoPoints.find(p=>p.isPeak),candidate={x:start.peakDelta.x+ux*along,y:start.peakDelta.y+uy*along};
+          const innerAdjusted={x:inner.mapX+start.translationX+start.innerDelta.x,y:inner.mapY+start.translationY+start.innerDelta.y},outerAdjusted={x:outer.mapX+start.translationX+start.outerDelta.x,y:outer.mapY+start.translationY+start.outerDelta.y},spanX=outerAdjusted.x-innerAdjusted.x,spanY=outerAdjusted.y-innerAdjusted.y,span=Math.max(1,Math.hypot(spanX,spanY)),sx=spanX/span,sy=spanY/span,desired={x:automatic.mapX+start.translationX+candidate.x,y:automatic.mapY+start.translationY+candidate.y},position=(desired.x-innerAdjusted.x)*sx+(desired.y-innerAdjusted.y)*sy,clamped=Math.max(span*.08,Math.min(span*.92,position)),correction=clamped-position;
+          next.peakDelta={x:candidate.x+sx*correction,y:candidate.y+sy*correction};
+        }else if(drag.kind==='innerMid'||drag.kind==='outerMid'){
+          // Two new Mask Fit anchors (approved 5-anchor extension). Each
+          // sits between two existing anchors (innerMid between inner
+          // & peak, outerMid between peak & outer) and is clamped the
+          // same way peak above is clamped against inner/outer: project
+          // onto the shared inner->outer axis, keep a minimum margin
+          // from its own two immediate neighbors' CURRENT (delta-
+          // inclusive) axis positions, then correct along that axis.
+          const key=drag.kind==='innerMid'?'innerMidDelta':'outerMidDelta';
+          const pClamped=Math.max(.08,Math.min(.92,+eyeData.peakT||.5)),targetT=drag.kind==='innerMid'?pClamped/2:(pClamped+1)/2;
+          const automatic=autoPoints.reduce((best,point)=>Math.abs(point.t-targetT)<Math.abs(best.t-targetT)?point:best);
+          const candidate={x:start[key].x+dx,y:start[key].y+dy};
+          next[key]={x:Math.max(pad,Math.min(result.imageWidth-pad,automatic.mapX+start.translationX+candidate.x))-automatic.mapX-start.translationX,y:Math.max(pad,Math.min(result.imageHeight-pad,automatic.mapY+start.translationY+candidate.y))-automatic.mapY-start.translationY};
+          const inner=autoPoints[0],outer=autoPoints.at(-1),peakPoint=autoPoints.find(p=>p.isPeak),vx=outer.mapX-inner.mapX,vy=outer.mapY-inner.mapY,spanLength=Math.max(1,Math.hypot(vx,vy)),ux=vx/spanLength,uy=vy/spanLength;
+          const axisPos=(point,delta)=>((point.mapX-inner.mapX)+delta.x)*ux+((point.mapY-inner.mapY)+delta.y)*uy;
+          const lowPoint=drag.kind==='innerMid'?inner:peakPoint,lowDelta=drag.kind==='innerMid'?start.innerDelta:start.peakDelta;
+          const highPoint=drag.kind==='innerMid'?peakPoint:outer,highDelta=drag.kind==='innerMid'?start.peakDelta:start.outerDelta;
+          const lowPos=axisPos(lowPoint,lowDelta),highPos=axisPos(highPoint,highDelta),margin=Math.max(1,(highPos-lowPos)*.12);
+          const candidatePos=axisPos(automatic,next[key]),clampedPos=Math.max(lowPos+margin,Math.min(highPos-margin,candidatePos)),correction=clampedPos-candidatePos;
+          next[key]={x:next[key].x+ux*correction,y:next[key].y+uy*correction};
+        }
+        onAdjustmentChange(editingEye,next);
+      };
+      const endDrag=event=>{
+        unregisterPointer(event);
+        if(svgRef.current?.hasPointerCapture(event.pointerId))svgRef.current.releasePointerCapture(event.pointerId);
+        if(pinchRef.current){
+          if(activePointersRef.current.size<2)pinchRef.current=null;
+          return;
+        }
+        if(!dragRef.current)return;
+        event.preventDefault();dragRef.current=null;setDragZoneIndex(null);
+      };
+      const handleBackgroundPointerDown=event=>{
+        if(!editing)return;event.preventDefault();
+        svgRef.current.setPointerCapture(event.pointerId);
+        registerPointer(event);
+        if(activePointersRef.current.size>=2){
+          dragRef.current=null;setDragZoneIndex(null);
+          beginPinch();
+        }
+      };
+      const handleReset=()=>editMode==='mask'?onResetFit(editingEye):onResetDesign(editingEye);
+
+      // Five Mask Fit anchors (approved 5-anchor extension). inner/peak/
+      // outer are named sample points (t=0/PEAK/1); inner-mid/outer-mid
+      // have no such named point, so their handle position is the
+      // CURRENT sample closest to t=PEAK/2 / (PEAK+1)/2 -- the same two
+      // nodes applyManualPhotoAdjustment interpolates through.
+      const nearestLinePoint=(pts,targetT)=>pts.reduce((best,point)=>Math.abs(point.t-targetT)<Math.abs(best.t-targetT)?point:best);
+      const handlePoints=eyeData?(()=>{
+        const pClamped=Math.max(.08,Math.min(.92,+eyeData.peakT||.5));
+        return {
+          inner:eyeData.line.points[0],
+          innerMid:nearestLinePoint(eyeData.line.points,pClamped/2),
+          peak:eyeData.line.points.find(p=>p.isPeak),
+          outerMid:nearestLinePoint(eyeData.line.points,(pClamped+1)/2),
+          outer:eyeData.line.points.at(-1),
+        };
+      })():null;
+      const keyZonePoints=eyeData?eyeData.points.filter(p=>p.isKey):[];
+      const draggedZonePoint=eyeData&&dragZoneIndex!=null?eyeData.points.find(p=>p.keyZoneIndex===dragZoneIndex):null;
+      if(isFirstRenderForThisEdit){
+        lashDiagLog({type:'render-checkpoint-C-handlePoints',hasHandlePoints:!!handlePoints,hasInner:!!(handlePoints&&handlePoints.inner),hasInnerMid:!!(handlePoints&&handlePoints.innerMid),hasPeak:!!(handlePoints&&handlePoints.peak),hasOuterMid:!!(handlePoints&&handlePoints.outerMid),hasOuter:!!(handlePoints&&handlePoints.outer),keyZoneCount:keyZonePoints.length});
+        // If this entry is ever missing while C above is present, the
+        // crash happened constructing the JSX itself (e.g. the
+        // Object.entries(handlePoints).map(...) below reading a property
+        // off an undefined handle) rather than in the plain data prep
+        // above -- still before React ever gets to commit/paint.
+        lashDiagLog({type:'render-checkpoint-E-about-to-return'});
+      }
+
+      return (
+        <div data-photo-lash-editor-workspace-container="true" className="mb-4">
+          {/* MOBILE UX REFINEMENT: the mode toggle now lives in its own
+              compact bar ABOVE the photo, and Reset/Done in a compact
+              bar BELOW it (see the end of this return) -- neither
+              overlays the photo/eye anymore. Only the not-editing eye-
+              label+Edit pill (small, shown before any zoom/handles are
+              active) and the small "1x" zoom-reset chip stay inside the
+              photo box itself, per "nothing except the actual editing
+              overlay/handles should cover the active eye". */}
+          {editing&&<div data-photo-edit-mode-bar="true" className="mb-2 flex items-center gap-1.5">
+            <button type="button" onClick={()=>onEditModeChange('mask')} className={`min-h-[36px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${editMode==='mask'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>{t('photoEditModeFit',lang)}</button>
+            <button type="button" onClick={()=>onEditModeChange('design')} className={`min-h-[36px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${editMode==='design'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>{t('photoEditModeDesign',lang)}</button>
+          </div>}
+          <div data-photo-lash-editor-workspace="true" ref={wrapRef} className="relative w-full overflow-hidden rounded-lg border border-border bg-surface" style={{aspectRatio:`${result.imageWidth} / ${result.imageHeight}`}}>
+            <div style={{position:'absolute',inset:0,transform:cssTransform,transformOrigin:'0 0'}}>
+              <img ref={imageRef} src={result.nativeImage||result.originalImage} alt={t('photoPreviewImage',lang)} className="absolute inset-0 w-full h-full"/>
+              <canvas ref={canvasRef} data-editor-status={status} aria-label="Lash Preview" className="absolute inset-0 w-full h-full pointer-events-none"/>
+              <svg dir="ltr" ref={svgRef} viewBox={`0 0 ${result.imageWidth} ${result.imageHeight}`} className="absolute inset-0 w-full h-full" onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={event=>lashDiagLog({type:'lostpointercapture',workspace:'wysiwyg',pointerId:event.pointerId,activeCount:activePointersRef.current.size})}>
+                {/* INTENTIONALLY minimal: no profile line, no per-sample
+                    dots, no leader-line length labels over the real
+                    photo -- the rendered fibers themselves already show
+                    the design; this overlay exists only to carry drag
+                    handles. Visible circles stay small (r=unit*.75,
+                    shrunk further for the 5-anchor extension so 5
+                    handles don't crowd the eye any more than 3 did);
+                    the transparent r=unit*4.2 circle underneath is the
+                    real, generous finger target -- unchanged. */}
+                <rect x="0" y="0" width={result.imageWidth} height={result.imageHeight} fill="transparent" onPointerDown={editing?handleBackgroundPointerDown:undefined} style={editing?{touchAction:'none'}:undefined}/>
+                {editing&&eyeData&&editMode==='mask'&&<>
+                  <path id={`wysiwyg-root-line-${editingEye}`} d={eyeData.line.path} transform={`translate(0,${eyeData.offset})`} fill="none" stroke="rgba(10,140,255,.4)" strokeWidth={unit*.22} strokeDasharray={`${unit*.5} ${unit*.4}`} strokeLinecap="round"/>
+                  <use href={`#wysiwyg-root-line-${editingEye}`} onPointerDown={event=>beginDrag(event,'map')} fill="none" stroke="transparent" strokeWidth={unit*5.5} strokeLinecap="round" style={{touchAction:'none'}}/>
+                  {Object.entries(handlePoints).map(([kind,point])=><g key={kind} onPointerDown={event=>beginDrag(event,kind)} style={{touchAction:'none'}}>
+                    <circle cx={point.mapX} cy={point.mapY+eyeData.offset} r={unit*4.2} fill="transparent"/>
+                    <circle cx={point.mapX} cy={point.mapY+eyeData.offset} r={unit*.75} fill="rgba(10,140,255,.9)" stroke="#D8F3FF" strokeWidth={unit*.2}/>
+                  </g>)}
+                </>}
+                {editing&&eyeData&&editMode==='design'&&keyZonePoints.map(point=><g key={`zone-${point.keyZoneIndex}`} onPointerDown={event=>beginDrag(event,`zone:${point.keyZoneIndex}`)} style={{touchAction:'none'}}>
+                  <circle cx={point.x} cy={point.y} r={unit*4.2} fill="transparent"/>
+                  <circle cx={point.x} cy={point.y} r={unit*1.1} fill="rgba(244,247,250,.95)" stroke="rgba(10,140,255,.9)" strokeWidth={unit*.32}/>
+                </g>)}
+                {editing&&draggedZonePoint&&<g style={{pointerEvents:'none'}}>
+                  <rect x={draggedZonePoint.x-unit*10} y={draggedZonePoint.y-unit*8.2} width={unit*20} height={unit*4.4} rx={unit*1} fill="rgba(2,6,11,.88)" stroke="rgba(10,140,255,.6)" strokeWidth={unit*.22}/>
+                  <text x={draggedZonePoint.x} y={draggedZonePoint.y-unit*5.3} textAnchor="middle" fill="#53C7FF" fontSize={unit*2.1} fontWeight="700">{`${zoneLabel(draggedZonePoint.label,lang)} · ${draggedZonePoint.len} mm`}</text>
+                </g>}
+              </svg>
+            </div>
+            {editing&&view.zoom>1&&<button type="button" onClick={()=>setView({zoom:1,panX:0,panY:0})} className="absolute bottom-2 right-2 z-20 min-h-[28px] min-w-[28px] rounded-full border border-white/25 bg-bg/70 px-1.5 text-[9px] font-semibold text-white/90 backdrop-blur-sm">1×</button>}
+            {!editing&&<div data-photo-edit-controls="true" className="absolute inset-x-3 top-3 z-20 flex items-center justify-between gap-2">
+              <span className="whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[.08em] backdrop-blur-sm border-white/15 bg-bg/75 text-white">{activeEye==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
+              <button type="button" onClick={onEdit} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/45 bg-bg/80 px-2.5 text-[8px] font-semibold tracking-wide text-cyan backdrop-blur-sm">{t('lashMapEdit',lang)}</button>
+            </div>}
+          </div>
+          {editing&&<div data-photo-edit-action-bar="true" className="mt-2 flex items-center justify-end gap-1.5">
+            <button type="button" onClick={handleReset} className="min-h-[36px] whitespace-nowrap rounded-full border border-border bg-surface px-2.5 text-[9px] font-semibold text-textSecondary">{editMode==='mask'?t('lashMapResetFit',lang):t('lashMapResetDesign',lang)}</button>
+            <button type="button" onClick={onDone} className="min-h-[36px] whitespace-nowrap rounded-full border border-accent/50 bg-accent px-3 text-[9px] font-semibold text-white">{t('lashMapDone',lang)}</button>
+          </div>}
+          {status==='loading'&&<p role="status" className="mt-2 text-[10px] text-textMuted">{t('photoPreviewLoading',lang)}</p>}
+          {!['loading','ready'].includes(status)&&<p role="alert" className="mt-2 text-[10px] text-peak">{t(status==='image'?'photoPreviewImageError':status==='geometry'?'photoPreviewGeometryError':'photoPreviewError',lang)}</p>}
+        </div>
+      );
     }
 
     function HeroScreen({ result, naturalLashProfile, onViewMap, onDetails, onAllDesigns, onScanLashes, onViewLashProfile, onBack, onSaveToClient }) {
@@ -11217,8 +11687,30 @@
     // Artist-facing map over the exact captured eye. SVG image and
     // landmarks share the analysis-image coordinate system, so the
     // responsive crop cannot drift through CSS object-fit behavior.
-    function LegacyProfessionalEyeMap({ result, side, zones, peakIdx, items, curve, design, curl, technique, texture, active, onActivate, lang, editing, adjustment, onAdjustmentChange, onEdit, onReset, onDone }) {
+    function LegacyProfessionalEyeMap({ result, side, zones, peakIdx, items, curve, design, curl, technique, texture, active, onActivate, lang, editing, adjustment, onAdjustmentChange, onEdit, onReset, onDone, onZoneLengthChange, editMode, onEditModeChange }) {
       const svgRef=useRef(null),dragRef=useRef(null);
+      // TEMPORARY DIAGNOSTIC -- pinch "reset" bug (see LashDiagOverlay).
+      useEffect(() => lashDiagMount('LegacyProfessionalEyeMap', { side }), [side]);
+      // PHASE 1 MANUAL ZONE-LENGTH DRAG: which of the 5 key zones (if any)
+      // is currently being dragged, purely to show/position the live
+      // "ZONE NAME · XX mm" readout below -- the actual mm value always
+      // reads straight from profilePoints (the same live data already
+      // driving Photo Lash Preview), never a separately-tracked number, so
+      // the readout can never drift from what is actually rendered.
+      const [dragZoneIndex,setDragZoneIndex]=useState(null);
+      // SCOPED PHOTO WORKSPACE ZOOM/PAN (viewport state only -- never
+      // touches lash geometry/manual adjustments/zone lengths/canonical
+      // mapping). zoom/panX/panY describe a window INTO photoCrop's own
+      // coordinate space; the real viewBox computed from them below
+      // (effX/effY/effW/effH) is what actually changes on screen -- every
+      // existing drag (position AND zone-length) keeps working unchanged
+      // at any zoom level, since svgPoint()'s getScreenCTM() call already
+      // reflects whatever viewBox is currently active. Resets to 1x
+      // whenever editing ends, so each new Edit session starts unzoomed.
+      const [view,setView]=useState({zoom:1,panX:0,panY:0});
+      useEffect(()=>{if(!editing)setView({zoom:1,panX:0,panY:0});},[editing]);
+      const activePointersRef=useRef(new Map());
+      const pinchRef=useRef(null);
       const normalized=getPhysicalEyeLandmarks(result.landmarks,side).eye;
       const projection=buildProfessionalEyeProjection(normalized,items,result.imageWidth,result.imageHeight);
       if(!projection)return null;
@@ -11251,6 +11743,15 @@
       const automaticProfilePoints=withProfileOffset(automaticLine.points);
       const photoCrop=buildProfessionalPhotoCrop(normalized,automaticProfilePoints,result.imageWidth,result.imageHeight);
       if(!photoCrop)return null;
+      // Effective (zoomed/panned) viewBox window, always clamped to stay
+      // fully within photoCrop -- "prevent panning the photo completely
+      // out of view". At zoom===1, effW/effH===photoCrop.width/height, so
+      // the clamp forces effX/effY===photoCrop.x/y exactly (no panning
+      // possible at the floor zoom, matching the zoom-limits brief).
+      const PHOTO_ZOOM_MIN=1,PHOTO_ZOOM_MAX=4;
+      const effW=photoCrop.width/view.zoom,effH=photoCrop.height/view.zoom;
+      const effX=Math.max(photoCrop.x,Math.min(photoCrop.x+photoCrop.width-effW,photoCrop.x+view.panX));
+      const effY=Math.max(photoCrop.y,Math.min(photoCrop.y+photoCrop.height-effH,photoCrop.y+view.panY));
       const enginePeak=points.find(point=>point.isPeak),workingLine=applyManualPhotoAdjustment(normalized,points,adjustment,enginePeak?.t);
       const profilePoints=withProfileOffset(workingLine.points);
       const labels=selectProfessionalEyeLabels(profilePoints,photoCrop);
@@ -11261,8 +11762,106 @@
       const peak=points.find(p=>p.isPeak);
       const curlSpec=[curl,...design.curlRec.alternatives.filter(v=>v!==curl)].slice(0,2).join(' / ');
       const svgPoint=event=>{const svg=svgRef.current,matrix=svg&&svg.getScreenCTM();if(!svg||!matrix)return null;const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;return point.matrixTransform(matrix.inverse());};
-      const beginDrag=(event,kind)=>{if(!editing)return;event.preventDefault();event.stopPropagation();onActivate();const start=svgPoint(event);if(!start)return;svgRef.current.setPointerCapture(event.pointerId);dragRef.current={kind,start,adjustment:{...adjustment,innerDelta:{...adjustment.innerDelta},peakDelta:{...adjustment.peakDelta},outerDelta:{...adjustment.outerDelta}}};};
-      const moveDrag=event=>{const drag=dragRef.current;if(!editing||!drag)return;event.preventDefault();const current=svgPoint(event);if(!current)return;const dx=current.x-drag.start.x,dy=current.y-drag.start.y,start=drag.adjustment,next={...start,innerDelta:{...start.innerDelta},peakDelta:{...start.peakDelta},outerDelta:{...start.outerDelta}},pad=unit*2;
+      // SCOPED PHOTO WORKSPACE ZOOM/PAN -- two-finger pinch. Deliberately
+      // NOT implemented via getScreenCTM()/svgPoint (those depend on the
+      // CURRENT viewBox, which this gesture is itself changing every
+      // frame -- using it would create a feedback loop). Instead works in
+      // plain CLIENT pixels plus getBoundingClientRect(), which reflects
+      // only the svg element's on-screen CSS box and is unaffected by
+      // viewBox changes, so the math stays stable and simple: distance
+      // between the two tracked pointers (client px) drives zoom, and the
+      // image-space point under the gesture's own midpoint is held fixed
+      // under that midpoint as zoom changes ("zoom around the gesture
+      // midpoint"); finger translation is absorbed automatically since the
+      // midpoint's CURRENT screen position is re-read every move.
+      const registerPointer=event=>{activePointersRef.current.set(event.pointerId,{x:event.clientX,y:event.clientY});};
+      const unregisterPointer=event=>{activePointersRef.current.delete(event.pointerId);};
+      const beginPinch=()=>{
+        const ids=[...activePointersRef.current.keys()].slice(0,2);
+        const p1=activePointersRef.current.get(ids[0]),p2=activePointersRef.current.get(ids[1]);
+        if(!p1||!p2||!svgRef.current)return;
+        const rect=svgRef.current.getBoundingClientRect();
+        if(rect.width<1||rect.height<1)return;
+        const distance=Math.max(1,Math.hypot(p1.x-p2.x,p1.y-p2.y));
+        const midX=(p1.x+p2.x)/2,midY=(p1.y+p2.y)/2;
+        const fracX=(midX-rect.left)/rect.width,fracY=(midY-rect.top)/rect.height;
+        pinchRef.current={ids,rect,startDistance:distance,anchorImageX:effX+fracX*effW,anchorImageY:effY+fracY*effH,startZoom:view.zoom};
+        lashDiagLog({type:'pinch-start',side,editMode,ids,rect:{width:Math.round(rect.width),height:Math.round(rect.height)},startDistance:Math.round(distance),startZoom:view.zoom,effX,effY,effW,effH,...lashDiagViewport()});
+      };
+      const updatePinch=()=>{
+        const g=pinchRef.current;if(!g)return;
+        const p1=activePointersRef.current.get(g.ids[0]),p2=activePointersRef.current.get(g.ids[1]);
+        if(!p1||!p2)return;
+        const distance=Math.hypot(p1.x-p2.x,p1.y-p2.y);
+        const scale=distance/g.startDistance;
+        const newZoom=Number.isFinite(scale)?Math.max(PHOTO_ZOOM_MIN,Math.min(PHOTO_ZOOM_MAX,g.startZoom*scale)):g.startZoom;
+        const midX=(p1.x+p2.x)/2,midY=(p1.y+p2.y)/2;
+        const fracX=(midX-g.rect.left)/g.rect.width,fracY=(midY-g.rect.top)/g.rect.height;
+        const newW=photoCrop.width/newZoom,newH=photoCrop.height/newZoom;
+        const newX=g.anchorImageX-fracX*newW,newY=g.anchorImageY-fracY*newH;
+        const allFinite=[newZoom,newX,newY,newW,newH].every(Number.isFinite);
+        lashDiagLog({type:'pinch-update',side,finite:allFinite,zoom:Math.round(newZoom*1000)/1000,panX:Math.round(newX-photoCrop.x),panY:Math.round(newY-photoCrop.y),effX:Math.round(newX),effY:Math.round(newY),effW:Math.round(newW),effH:Math.round(newH)},{throttleMs:80});
+        if(!allFinite)return;
+        setView({zoom:newZoom,panX:newX-photoCrop.x,panY:newY-photoCrop.y});
+      };
+      // PHASE 1 MANUAL ZONE-LENGTH DRAG: a zone-length drag (kind
+      // 'zone:<index>') is a SEPARATE operation from the existing
+      // map/inner/outer/peak POSITION drags above -- it writes mm values
+      // via onZoneLengthChange(index,mm), never via onAdjustmentChange/
+      // `adjustment`, so it can never be confused with or corrupt the
+      // existing presentation-only manual position adjustment. Sensitivity
+      // is a fixed px-per-mm derived once at drag start from this eye's own
+      // width and the same maxProfileAmplitude (eyeW*.22) constant
+      // buildProfessionalEyeProjection uses for its own (explicitly
+      // display-only, non-physically-calibrated -- see its comment) profile
+      // height, mapped across the full professional 5-16mm range -- a
+      // stable, predictable drag feel that does not need to re-solve that
+      // function's nonlinear per-render saturation curve on every move.
+      const beginDrag=(event,kind)=>{
+        if(!editing)return;event.preventDefault();event.stopPropagation();
+        svgRef.current.setPointerCapture(event.pointerId);
+        registerPointer(event);
+        lashDiagLog({type:'pointerdown',on:'handle',kind,side,editMode,pointerId:event.pointerId,pointerType:event.pointerType,activeCount:activePointersRef.current.size});
+        if(activePointersRef.current.size>=2){
+          // Multi-touch must never be interpreted as a mask/zone drag --
+          // cancel whatever single-pointer drag this (or an earlier)
+          // pointer may have just started and switch to pinch/pan.
+          lashDiagLog({type:'multi-touch-cancel-drag',side,hadDrag:!!dragRef.current,dragKind:dragRef.current?.kind||null});
+          dragRef.current=null;setDragZoneIndex(null);
+          beginPinch();
+          return;
+        }
+        onActivate();
+        const start=svgPoint(event);if(!start)return;
+        if(typeof kind==='string'&&kind.indexOf('zone:')===0){
+          const index=Number(kind.slice(5));
+          const zonePoint=profilePoints.find(point=>point.keyZoneIndex===index);
+          if(!zonePoint)return;
+          const eyeXs=normalized.map(point=>point.x),eyeW=Math.max(1,Math.max(...eyeXs)-Math.min(...eyeXs));
+          const pxPerMm=(eyeW*.22)/(16-5);
+          dragRef.current={kind:'zone',index,start,startLen:zonePoint.len,pxPerMm};
+          setDragZoneIndex(index);
+          return;
+        }
+        dragRef.current={kind,start,adjustment:{...adjustment,innerDelta:{...adjustment.innerDelta},peakDelta:{...adjustment.peakDelta},outerDelta:{...adjustment.outerDelta}}};
+      };
+      const moveDrag=event=>{
+        if(!editing)return;
+        if(activePointersRef.current.has(event.pointerId))registerPointer(event);
+        if(pinchRef.current){event.preventDefault();updatePinch();return;}
+        const drag=dragRef.current;if(!drag)return;event.preventDefault();const current=svgPoint(event);if(!current)return;
+        if(drag.kind==='zone'){
+          const dy=current.y-drag.start.y,mm=Math.round(Math.max(5,Math.min(16,drag.startLen-dy/drag.pxPerMm)));
+          // Defensive: never propagate a non-finite mm (e.g. a momentary
+          // getScreenCTM()/pxPerMm edge case on a real device) into
+          // customLeft/customRight -- an invalid zone length would poison
+          // every downstream Math.max/expandLashMapSectors call for BOTH
+          // eyes and could make this very component's own geometry
+          // (projection/photoCrop) return null mid-gesture.
+          if(Number.isFinite(mm))onZoneLengthChange(drag.index,mm);
+          return;
+        }
+        const dx=current.x-drag.start.x,dy=current.y-drag.start.y,start=drag.adjustment,next={...start,innerDelta:{...start.innerDelta},peakDelta:{...start.peakDelta},outerDelta:{...start.outerDelta}},pad=unit*2;
         if(drag.kind==='map'){
           const xs=automaticLine.points.map(point=>point.mapX),ys=automaticLine.points.map(point=>point.mapY),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
           next.translationX=Math.max(photoCrop.x+pad-minX,Math.min(photoCrop.x+photoCrop.width-pad-maxX,start.translationX+dx));
@@ -11279,15 +11878,44 @@
         }
         onAdjustmentChange(next);
       };
-      const endDrag=event=>{if(!dragRef.current)return;event.preventDefault();dragRef.current=null;if(svgRef.current?.hasPointerCapture(event.pointerId))svgRef.current.releasePointerCapture(event.pointerId);};
+      const endDrag=event=>{
+        unregisterPointer(event);
+        if(svgRef.current?.hasPointerCapture(event.pointerId))svgRef.current.releasePointerCapture(event.pointerId);
+        lashDiagLog({type:event.type,side,editMode,pointerId:event.pointerId,activeCountAfter:activePointersRef.current.size,hadPinch:!!pinchRef.current,hadDrag:!!dragRef.current});
+        if(pinchRef.current){
+          // Ending the gesture entirely once fewer than 2 pointers remain --
+          // a lone leftover finger never resumes into a single-pointer
+          // drag; it must be pressed again to start a new one.
+          if(activePointersRef.current.size<2)pinchRef.current=null;
+          return;
+        }
+        if(!dragRef.current)return;
+        event.preventDefault();dragRef.current=null;setDragZoneIndex(null);
+      };
+      const handleBackgroundPointerDown=event=>{
+        if(!editing)return;event.preventDefault();
+        svgRef.current.setPointerCapture(event.pointerId);
+        registerPointer(event);
+        lashDiagLog({type:'pointerdown',on:'background',side,editMode,pointerId:event.pointerId,pointerType:event.pointerType,activeCount:activePointersRef.current.size});
+        if(activePointersRef.current.size>=2){
+          lashDiagLog({type:'multi-touch-cancel-drag',side,hadDrag:!!dragRef.current,dragKind:dragRef.current?.kind||null,via:'background'});
+          dragRef.current=null;setDragZoneIndex(null);
+          beginPinch();
+        }
+        // Exactly 1 active pointer landing on open background: no-op,
+        // same as before this change -- only recognized handles (map-
+        // line/inner/outer/peak/zone) are single-finger draggable.
+      };
       const handlePoints={inner:workingLine.points[0],peak:workingLine.points.find(point=>point.isPeak),outer:workingLine.points.at(-1)};
+      const keyZonePoints=profilePoints.filter(point=>point.isKey);
+      const draggedZonePoint=dragZoneIndex==null?null:profilePoints.find(point=>point.keyZoneIndex===dragZoneIndex);
       return (
         <article className={`overflow-hidden rounded-xl border transition-colors ${active?'border-accent/60 bg-accent/[0.04]':'border-border bg-surface/70'}`}>
           <div role="button" tabIndex="0" onClick={onActivate} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onActivate();}}} className="relative block w-full aspect-[16/9] overflow-hidden text-start" aria-label={`${side==='left'?'Left':'Right'} eye map`}>
             {/* RTL geometry isolation (Phase 2): dir="ltr" is presentation-
                 only; the crop/drag/adjustment coordinate math below never
                 reads dir/lang. */}
-            <svg dir="ltr" ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 h-full w-full" viewBox={`${photoCrop.x} ${photoCrop.y} ${photoCrop.width} ${photoCrop.height}`} preserveAspectRatio="xMidYMid meet">
+            <svg dir="ltr" ref={svgRef} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={event=>lashDiagLog({type:'lostpointercapture',side,editMode,pointerId:event.pointerId,activeCount:activePointersRef.current.size,hadPinch:!!pinchRef.current,hadDrag:!!dragRef.current})} className="absolute inset-0 h-full w-full" viewBox={`${effX} ${effY} ${effW} ${effH}`} preserveAspectRatio="xMidYMid meet">
               {/* RELEASE POLISH — source from the full-resolution photo
                   (result.nativeImage, Photo Analysis only) when present,
                   falling back to the existing analysis-canvas image
@@ -11300,10 +11928,18 @@
                   more real detail than the old 900px-canvas source did.
                   No landmark/ROI/crop-coordinate math changes at all. */}
               <image href={result.nativeImage || result.originalImage} x="0" y="0" width={result.imageWidth} height={result.imageHeight} preserveAspectRatio="none" />
-              <rect x={photoCrop.x} y={photoCrop.y} width={photoCrop.width} height={photoCrop.height} fill="rgba(2,6,11,.12)" />
+              {/* touchAction:'none' only while editing -- scoped exactly to
+                  this photo workspace's own interactive background, never
+                  the global body/viewport. Outside Edit mode this rect
+                  keeps the default (native pinch/scroll still works there,
+                  completely unaffected by this change). onPointerDown here
+                  is what lets a pinch that starts on open photo (not on a
+                  handle) register its 2nd finger and switch into pinch/pan
+                  -- a single finger here remains a no-op, same as before. */}
+              <rect x={photoCrop.x} y={photoCrop.y} width={photoCrop.width} height={photoCrop.height} fill="rgba(2,6,11,.12)" onPointerDown={editing?handleBackgroundPointerDown:undefined} style={editing?{touchAction:'none'}:undefined} />
               {/* Anatomical eyelid baseline: demoted to a subtle reference -- no longer the lash-length profile. */}
               <path id={`photo-map-line-${side}`} data-photo-map-line="true" d={workingLine.path} fill="none" stroke="rgba(244,247,250,.32)" strokeWidth={unit*.2} strokeDasharray={`${unit*.5} ${unit*.4}`} strokeLinecap="round" />
-              {editing&&<use data-manual-map-drag="true" onPointerDown={event=>beginDrag(event,'map')} href={`#photo-map-line-${side}`} fill="none" stroke="transparent" strokeWidth={unit*5.5} strokeLinecap="round" style={{touchAction:'none'}} />}
+              {editing&&editMode==='mask'&&<use data-manual-map-drag="true" onPointerDown={event=>beginDrag(event,'map')} href={`#photo-map-line-${side}`} fill="none" stroke="transparent" strokeWidth={unit*5.5} strokeLinecap="round" style={{touchAction:'none'}} />}
               {/* Lash-length profile: the visually dominant, data-driven line + ribbon fill between it and the eyelid baseline. */}
               <path data-photo-lash-profile-fill="true" d={profileFillPath} fill="rgba(10,140,255,.16)" stroke="none"/>
               <path data-photo-lash-profile-line="true" d={profileLinePath} fill="none" stroke="rgba(10,140,255,.92)" strokeWidth={unit*.4} strokeLinejoin="round" strokeLinecap="round"/>
@@ -11315,14 +11951,68 @@
                   {point.isKey&&<g data-photo-zone={point.label}><line x1={point.mapX} y1={point.mapY+unit*1.7} x2={point.mapX} y2={leaderEnd} stroke={point.isPeak?'#0A8CFF':'rgba(244,247,250,.82)'} strokeWidth={unit*.2}/><text x={point.mapX} y={leaderEnd+unit*2.1} textAnchor="middle" paintOrder="stroke" stroke="rgba(2,6,11,.94)" strokeWidth={unit*.62} fill={point.isPeak?'#53C7FF':'rgba(244,247,250,.86)'} fontSize={unit*1.65} fontWeight={point.isPeak?'700':'600'}>{`${zoneLabel(point.label,lang)} ${point.len}`}</text></g>}
                 </g>;
               })}
-              {editing&&Object.entries(handlePoints).map(([kind,point])=><g key={kind} data-manual-handle={kind} onPointerDown={event=>beginDrag(event,kind)} style={{touchAction:'none'}}>
+              {editing&&editMode==='mask'&&Object.entries(handlePoints).map(([kind,point])=><g key={kind} data-manual-handle={kind} onPointerDown={event=>beginDrag(event,kind)} style={{touchAction:'none'}}>
                 <circle cx={point.mapX} cy={point.mapY} r={unit*4.2} fill="transparent"/>
                 <circle cx={point.mapX} cy={point.mapY} r={unit*1.35} fill="rgba(10,140,255,.9)" stroke="#D8F3FF" strokeWidth={unit*.28}/>
               </g>)}
+              {/* MASK FIT / DESIGN EDIT mode separation: the zone-length
+                  handles are now gated to editMode==='design', and the
+                  mask-position handles (map/inner/outer/peak, above) are
+                  gated to editMode==='mask' -- the two handle sets can
+                  never be simultaneously interactive. This removes the
+                  earlier overlap (the INNER zone-length point frequently
+                  coincided pixel-for-pixel with the pre-existing 'inner'
+                  position handle, since INNER is this eye's own shortest
+                  sector -- profileHeight 0 -- in most real DESIGN_CATALOG
+                  profiles) by construction rather than by the previous
+                  visual offset workaround, which is no longer needed and
+                  has been removed -- the handle renders directly on its
+                  real zone point again. */}
+              {editing&&editMode==='design'&&keyZonePoints.map(point=><g key={`zone-${point.keyZoneIndex}`} data-manual-zone-handle={point.keyZoneIndex} onPointerDown={event=>beginDrag(event,`zone:${point.keyZoneIndex}`)} style={{touchAction:'none'}}>
+                <circle cx={point.mapX} cy={point.mapY} r={unit*4.2} fill="transparent"/>
+                <circle cx={point.mapX} cy={point.mapY} r={unit*1.1} fill="rgba(244,247,250,.95)" stroke="rgba(10,140,255,.9)" strokeWidth={unit*.32}/>
+              </g>)}
+              {editing&&draggedZonePoint&&<g data-zone-drag-readout="true" style={{pointerEvents:'none'}}>
+                <rect x={draggedZonePoint.mapX-unit*10} y={draggedZonePoint.mapY-unit*8.2} width={unit*20} height={unit*4.4} rx={unit*1} fill="rgba(2,6,11,.88)" stroke="rgba(10,140,255,.6)" strokeWidth={unit*.22}/>
+                <text x={draggedZonePoint.mapX} y={draggedZonePoint.mapY-unit*5.3} textAnchor="middle" fill="#53C7FF" fontSize={unit*2.1} fontWeight="700">{`${zoneLabel(draggedZonePoint.label,lang)} · ${draggedZonePoint.len} mm`}</text>
+              </g>}
             </svg>
-            <div data-photo-edit-controls="true" className="absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2 pointer-events-none">
-              <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[.08em] backdrop-blur-sm ${editing?'border-accent/45 bg-accent/20 text-cyan':'border-white/15 bg-bg/75 text-white'}`}>{editing?t('lashMapEditing',lang):side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
-              <div className="flex items-center gap-1 pointer-events-auto">{editing?<><button type="button" onClick={event=>{event.stopPropagation();onReset();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-white/20 bg-bg/80 px-2 text-[8px] font-semibold text-white backdrop-blur-sm">{t('lashMapReset',lang)}</button><button type="button" onClick={event=>{event.stopPropagation();onDone();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/50 bg-accent px-2 text-[8px] font-semibold text-white shadow-[0_0_14px_rgba(10,140,255,.25)]">{t('lashMapDone',lang)}</button></>:<button type="button" onClick={event=>{event.stopPropagation();onEdit();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/45 bg-bg/80 px-2.5 text-[8px] font-semibold tracking-wide text-cyan backdrop-blur-sm">{t('lashMapEdit',lang)}</button>}</div>
+            {/* Obvious way back to 1x, shown only once actually zoomed --
+                a single small button, not a toolbar, in a different
+                corner from the top edit-controls row to avoid clutter. */}
+            {editing&&view.zoom>1&&<button type="button" data-photo-zoom-reset="true" onClick={event=>{event.stopPropagation();setView({zoom:1,panX:0,panY:0});}} className="absolute bottom-3 right-3 z-20 min-h-[36px] min-w-[36px] rounded-full border border-white/25 bg-bg/80 px-2 text-[10px] font-semibold text-white backdrop-blur-sm pointer-events-auto">1×</button>}
+            <div data-photo-edit-controls="true" className="absolute inset-x-3 top-3 z-20 pointer-events-none">
+              {/* MASK FIT / DESIGN EDIT mode separation: while editing, a
+                  compact 2-way toggle (own row, above Reset/Done) switches
+                  editMode -- this is both the in-mode switcher AND, via
+                  handle gating above, what actually makes only ONE handle
+                  set interactive at a time. Reset is intentionally
+                  context-sensitive: it resets whichever concept (fit vs
+                  design) is currently active, never both, per the Phase 1
+                  Mask Fit brief's independent-reset requirement. Not-
+                  editing markup/classes are unchanged from before this
+                  change (same single Edit entry point; editMode always
+                  starts at 'mask' on next entry, matching the intended
+                  fit-first-then-design workflow). */}
+              {editing ? (
+                <div className="flex flex-col gap-1.5 pointer-events-auto">
+                  <div className="flex items-center gap-1.5">
+                    <button type="button" onClick={event=>{event.stopPropagation();onEditModeChange('mask');}} className={`min-h-[44px] whitespace-nowrap rounded-full border px-2.5 text-[8px] font-semibold tracking-[.04em] backdrop-blur-sm ${editMode==='mask'?'border-accent/60 bg-accent/25 text-cyan':'border-white/15 bg-bg/60 text-white/70'}`}>{t('photoEditModeFit',lang)}</button>
+                    <button type="button" onClick={event=>{event.stopPropagation();onEditModeChange('design');}} className={`min-h-[44px] whitespace-nowrap rounded-full border px-2.5 text-[8px] font-semibold tracking-[.04em] backdrop-blur-sm ${editMode==='design'?'border-accent/60 bg-accent/25 text-cyan':'border-white/15 bg-bg/60 text-white/70'}`}>{t('photoEditModeDesign',lang)}</button>
+                  </div>
+                  <div className="flex items-center justify-end gap-1">
+                    <button type="button" onClick={event=>{event.stopPropagation();onReset();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-white/20 bg-bg/80 px-2 text-[8px] font-semibold text-white backdrop-blur-sm">{editMode==='mask'?t('lashMapResetFit',lang):t('lashMapResetDesign',lang)}</button>
+                    <button type="button" onClick={event=>{event.stopPropagation();onDone();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/50 bg-accent px-2 text-[8px] font-semibold text-white shadow-[0_0_14px_rgba(10,140,255,.25)]">{t('lashMapDone',lang)}</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <span className="whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[.08em] backdrop-blur-sm border-white/15 bg-bg/75 text-white">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
+                  <div className="flex items-center gap-1 pointer-events-auto">
+                    <button type="button" onClick={event=>{event.stopPropagation();onEdit();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/45 bg-bg/80 px-2.5 text-[8px] font-semibold tracking-wide text-cyan backdrop-blur-sm">{t('lashMapEdit',lang)}</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="border-t border-white/[.07] p-3">
@@ -11346,9 +12036,9 @@
 
     // Phase 2C consumer boundary: PHOTO reads canonical runtime data while
     // the established projection/SVG renderer above remains unchanged.
-    function ProfessionalEyeMap({ clientDesign, result, side, active, onActivate, lang, editing, onAdjustmentChange, onEdit, onReset, onDone }) {
+    function ProfessionalEyeMap({ clientDesign, result, side, active, onActivate, lang, editing, onAdjustmentChange, onEdit, onReset, onDone, onZoneLengthChange, editMode, onEditModeChange }) {
       const photoProps=LashDesignDomain.photoPropsFromClientDesign(clientDesign,side);
-      return <LegacyProfessionalEyeMap {...photoProps} result={result} active={active} onActivate={onActivate} lang={lang} editing={editing} onAdjustmentChange={onAdjustmentChange} onEdit={onEdit} onReset={onReset} onDone={onDone}/>;
+      return <LegacyProfessionalEyeMap {...photoProps} result={result} active={active} onActivate={onActivate} lang={lang} editing={editing} onAdjustmentChange={onAdjustmentChange} onEdit={onEdit} onReset={onReset} onDone={onDone} onZoneLengthChange={onZoneLengthChange} editMode={editMode} onEditModeChange={onEditModeChange}/>;
     }
 
     function CopyLashMapOrientationDebugButton({ data }) {
@@ -11370,9 +12060,18 @@
       // generateApplicationPlan below, which reads design.* text
       // fields) always reflects the current language.
       const design = localizeDesign(designProp, result.eyeProfile, lang);
+      // TEMPORARY DIAGNOSTIC -- pinch "reset" bug (see LashDiagOverlay).
+      useEffect(() => lashDiagMount('LashMapScreen', { hasResult: !!result, hasDesign: !!design, imageSource: result?.source }), []);
       const [activeEye, setActiveEye] = useState('left');
       const [viewMode,setViewMode]=useState('photo');
       const [editingPhotoEye,setEditingPhotoEye]=useState(null);
+      // MASK FIT / DESIGN EDIT mode separation: a single global sub-mode
+      // (not per-eye -- only one eye is ever being edited at a time via
+      // editingPhotoEye) selecting which of the two existing handle sets
+      // is currently interactive. Always starts at 'mask' on each new
+      // Edit entry, matching the intended fit-the-base-line-first, then-
+      // adjust-lengths workflow.
+      const [photoEditMode,setPhotoEditMode]=useState('mask');
       const [manualPhotoAdjustments,setManualPhotoAdjustments]=useState(()=>({left:createManualPhotoAdjustment(),right:createManualPhotoAdjustment()}));
       const [hoveredZone,setHoveredZone]=useState(null);
       const [mode, setMode] = useState('ai');
@@ -11436,14 +12135,54 @@
       const lashObsAvailable = !!(naturalLashProfile && (naturalLashProfile.left?.hasData || naturalLashProfile.right?.hasData));
       const lashNotes = lashObsAvailable ? generateLashApplicationNotes(naturalLashProfile.left, naturalLashProfile.right, naturalLashProfile.comparison, lang) : null;
 
-      const setCustomZone = (idx, val) => {
-        const setter = activeEye === 'left' ? setCustomLeft : setCustomRight;
-        const base = activeEye === 'left' ? customLeft : customRight;
-        const next = [...base]; next[idx] = Math.max(5, Math.min(16, val));
+      // clampZoneMm/setCustomZoneForSide factor out setCustomZone's existing
+      // per-side array-update rule (unchanged behavior/bounds) so the new
+      // PHOTO zone-length drag handle (applyZoneDrag below) reuses the exact
+      // same business rule instead of duplicating it.
+      const clampZoneMm = v => Math.max(5, Math.min(16, v));
+      const setCustomZoneForSide = (side, idx, val) => {
+        const setter = side === 'left' ? setCustomLeft : setCustomRight;
+        const base = side === 'left' ? customLeft : customRight;
+        const next = [...base]; next[idx] = clampZoneMm(val);
         setter(next);
       };
+      const setCustomZone = (idx, val) => setCustomZoneForSide(activeEye, idx, val);
       const setPhotoAdjustment=(side,next)=>setManualPhotoAdjustments(current=>({...current,[side]:next}));
       const resetPhotoAdjustment=side=>setManualPhotoAdjustments(current=>({...current,[side]:createManualPhotoAdjustment()}));
+      // PHASE 1 MANUAL ZONE-LENGTH DRAG (direct-manipulation input method
+      // for the EXISTING customLeft/customRight values the +/- steppers
+      // already write to -- no new canonical override field/architecture).
+      // First drag while still in 'ai' mode seeds BOTH eyes' custom arrays
+      // from their current AI-derived values (design.*Zones + lengthDelta,
+      // i.e. exactly what is on screen right now) in a single pass -- not
+      // via setCustomZoneForSide's own (stale, not-yet-updated-this-tick)
+      // customLeft/customRight closures -- then applies the dragged zone on
+      // top and switches mode. "Preserve all other AI-generated zone
+      // lengths" therefore holds for BOTH eyes, not just the dragged one,
+      // because `mode` is a single global toggle shared by both sides.
+      const applyZoneDrag = (side, idx, mm) => {
+        if (mode === 'ai') {
+          const left = design.leftZones.map(v => clampZoneMm(v + lengthDelta));
+          const right = design.rightZones.map(v => clampZoneMm(v + lengthDelta));
+          (side === 'left' ? left : right)[idx] = clampZoneMm(mm);
+          setCustomLeft(left);
+          setCustomRight(right);
+          setMode('custom');
+        } else {
+          setCustomZoneForSide(side, idx, mm);
+        }
+      };
+      // DESIGN EDIT's "Reset design to AI" -- restores ONLY the given
+      // eye's zone lengths to their current AI-derived values (same
+      // design.*Zones+lengthDelta formula applyZoneDrag's own AI-seeding
+      // uses), without touching the OTHER eye's custom array and without
+      // touching `mode`/manualPhotoAdjustments at all -- reuses the
+      // existing customLeft/customRight setters, no new state/architecture.
+      const resetDesignForSide = side => {
+        const base = side === 'left' ? design.leftZones : design.rightZones;
+        const seeded = base.map(v => clampZoneMm(v + lengthDelta));
+        (side === 'left' ? setCustomLeft : setCustomRight)(seeded);
+      };
 
       return (
         <div className="h-full flex flex-col fade-in">
@@ -11490,10 +12229,9 @@
               <div className="mb-3 flex rounded-md border border-border bg-surface p-1" aria-label="Lash Map view">
                 {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
               </div>
-              {viewMode==='photo'?<div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <ProfessionalEyeMap clientDesign={photoClientDesign} result={result} side="left" active={activeEye==='left'} onActivate={()=>setActiveEye('left')} lang={lang} editing={editingPhotoEye==='left'} onAdjustmentChange={next=>setPhotoAdjustment('left',next)} onEdit={()=>{setActiveEye('left');setEditingPhotoEye('left');}} onReset={()=>resetPhotoAdjustment('left')} onDone={()=>setEditingPhotoEye(null)}/>
-                <ProfessionalEyeMap clientDesign={photoClientDesign} result={result} side="right" active={activeEye==='right'} onActivate={()=>setActiveEye('right')} lang={lang} editing={editingPhotoEye==='right'} onAdjustmentChange={next=>setPhotoAdjustment('right',next)} onEdit={()=>{setActiveEye('right');setEditingPhotoEye('right');}} onReset={()=>resetPhotoAdjustment('right')} onDone={()=>setEditingPhotoEye(null)}/>
-              </div>:<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
+              {viewMode==='photo'?
+                <PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign} lang={lang} activeEye={activeEye} editingEye={editingPhotoEye} editMode={photoEditMode} onEdit={()=>{setEditingPhotoEye(activeEye);setPhotoEditMode('mask');}} onDone={()=>setEditingPhotoEye(null)} onEditModeChange={setPhotoEditMode} onAdjustmentChange={setPhotoAdjustment} onZoneLengthChange={applyZoneDrag} onResetFit={resetPhotoAdjustment} onResetDesign={resetDesignForSide}/>
+              :<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
                 <LashMapDiagram clientDesign={diagramClientDesign} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} lang={lang}/>
               </div>}
 
@@ -14919,6 +15657,165 @@
       );
     }
 
+    // ============================================================
+    // TEMPORARY DIAGNOSTIC — PHOTO workspace pinch-zoom "reset" bug.
+    // ------------------------------------------------------------
+    // Purpose-built, short-lived instrumentation to find the real cause
+    // of a real-device-reported issue (the app visually resets the
+    // instant a two-finger pinch begins on the PHOTO Lash Map). Entirely
+    // inert unless isDebugModeEnabled() (?debug=1) -- zero behavior
+    // change for real users. Never logs the photo/image data itself,
+    // only event metadata (pointer ids/types/counts, computed zoom/pan/
+    // viewBox numbers, mount/unmount markers, viewport dimensions).
+    //
+    // Stored on `window` (NOT React state/refs) specifically so the log
+    // survives even if the React tree the bug affects remounts --
+    // window persists across a React remount within the same page load,
+    // only a REAL navigation/reload would lose it. ALSO mirrored to
+    // sessionStorage, which survives even an actual page reload, so the
+    // last events are still recoverable afterward. sessionId is a random
+    // value generated once at this script's own first evaluation (i.e.
+    // this exact page load) -- if it changes after the "reset", that is
+    // direct evidence of a real document reload/navigation, not a React-
+    // level remount.
+    //
+    // Deliberately placed here, immediately before App() (the LAST
+    // component defined in this file, not interleaved with any earlier
+    // subsystem) -- NOT near isDebugModeEnabled's own definition, which
+    // sits INSIDE a source range several unrelated test files (eyelid
+    // classification/hooding, live-scan-tilt, etc.) slice out and eval
+    // as plain JS; JSX anywhere in that range breaks those extractions.
+    //
+    // Remove this whole block (and its call sites) once the real cause
+    // is found and fixed -- this is not meant to ship long-term.
+    // ============================================================
+    const LASH_DIAG_SESSION_ID = Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+    // DIAGNOSTICS-ONLY USABILITY IMPROVEMENT: the leading hypothesis for
+    // the "Fit to Eye kicks back to HOME" report is a real document
+    // reload, which wipes `window` -- so the log built up right before
+    // it died was never visible. sessionStorage survives a reload (same
+    // tab), so restore the PRIOR session's recent history here, at the
+    // very top of this fresh script evaluation, before anything else
+    // runs. Only restored when the stored sessionId differs from this
+    // fresh one (a genuine new document, not a same-page re-eval) and
+    // only under ?debug=1 (no sessionStorage read at all otherwise).
+    // Does not change ANY application behavior -- purely what the debug
+    // overlay displays.
+    window.__LASH_DIAG__ = window.__LASH_DIAG__ || (function () {
+      const fresh = { sessionId: LASH_DIAG_SESSION_ID, previousSessionId: null, log: [], mounts: {} };
+      if (!isDebugModeEnabled()) return fresh;
+      try {
+        const raw = sessionStorage.getItem('lashDiagLog');
+        if (raw) {
+          const prior = JSON.parse(raw);
+          if (prior && Array.isArray(prior.log) && prior.sessionId && prior.sessionId !== LASH_DIAG_SESSION_ID) {
+            fresh.previousSessionId = prior.sessionId;
+            // Keep a generous tail (well past the requested ~20-30) so the
+            // moments immediately before the reload are never trimmed,
+            // while leaving most of the 300-entry cap free for whatever
+            // happens in this new session -- that's the evidence this
+            // round actually needs.
+            const carried = prior.log.slice(-60);
+            fresh.log = carried.concat([{ t: 0, type: 'new-document-session', previousSessionId: prior.sessionId, newSessionId: LASH_DIAG_SESSION_ID }]);
+          }
+        }
+      } catch (_e) {}
+      return fresh;
+    })();
+    let lashDiagLastPinchLog = 0;
+    function lashDiagLog(entry, opts) {
+      if (!isDebugModeEnabled()) return;
+      try {
+        if (opts && opts.throttleMs) {
+          const now = performance.now();
+          if (now - lashDiagLastPinchLog < opts.throttleMs) return;
+          lashDiagLastPinchLog = now;
+        }
+        const e = { t: Math.round(performance.now()), ...entry };
+        const store = window.__LASH_DIAG__;
+        store.log.push(e);
+        if (store.log.length > 300) store.log.shift();
+        try {
+          sessionStorage.setItem('lashDiagLog', JSON.stringify({ sessionId: store.sessionId, mounts: store.mounts, log: store.log }));
+        } catch (_e) {}
+      } catch (_e) {}
+    }
+    function lashDiagMount(component, extra) {
+      if (!isDebugModeEnabled()) return () => {};
+      const store = window.__LASH_DIAG__;
+      store.mounts[component] = (store.mounts[component] || 0) + 1;
+      lashDiagLog({ type: 'mount', component, count: store.mounts[component], ...extra });
+      return () => lashDiagLog({ type: 'unmount', component, ...extra });
+    }
+    function lashDiagViewport() {
+      const vv = window.visualViewport;
+      return {
+        innerWidth: window.innerWidth, innerHeight: window.innerHeight,
+        vvWidth: vv ? Math.round(vv.width) : null, vvHeight: vv ? Math.round(vv.height) : null, vvScale: vv ? Math.round(vv.scale * 100) / 100 : null,
+      };
+    }
+    function LashDiagOverlay() {
+      const [tick, setTick] = useState(0);
+      useEffect(() => {
+        if (!isDebugModeEnabled()) return;
+        const onError = event => lashDiagLog({ type: 'error', message: String(event?.error?.message || event?.message || 'unknown') });
+        const onRejection = event => lashDiagLog({ type: 'unhandledrejection', message: String(event?.reason?.message || event?.reason || 'unknown') });
+        const onResize = () => lashDiagLog({ type: 'resize', ...lashDiagViewport() });
+        const onOrientation = () => lashDiagLog({ type: 'orientationchange', ...lashDiagViewport() });
+        const onVvResize = () => lashDiagLog({ type: 'visualViewport-resize', ...lashDiagViewport() });
+        // TEMPORARY DIAGNOSTIC -- real-device report: entering Fit to Eye
+        // alone (no pinch) appears to reset the app. These distinguish an
+        // actual document navigation/reload (pagehide/beforeunload would
+        // fire, LASH_DIAG_SESSION_ID would change on reload) from a pure
+        // React-level remount (session id stable, mount counts change).
+        const onVisibility = () => lashDiagLog({ type: 'visibilitychange', state: document.visibilityState });
+        const onPageHide = event => lashDiagLog({ type: 'pagehide', persisted: event.persisted });
+        const onPageShow = event => lashDiagLog({ type: 'pageshow', persisted: event.persisted });
+        const onBeforeUnload = () => lashDiagLog({ type: 'beforeunload' });
+        window.addEventListener('error', onError);
+        window.addEventListener('unhandledrejection', onRejection);
+        window.addEventListener('resize', onResize);
+        window.addEventListener('orientationchange', onOrientation);
+        window.visualViewport?.addEventListener('resize', onVvResize);
+        document.addEventListener('visibilitychange', onVisibility);
+        window.addEventListener('pagehide', onPageHide);
+        window.addEventListener('pageshow', onPageShow);
+        window.addEventListener('beforeunload', onBeforeUnload);
+        const poll = setInterval(() => setTick(x => x + 1), 400);
+        return () => {
+          window.removeEventListener('error', onError);
+          window.removeEventListener('unhandledrejection', onRejection);
+          window.removeEventListener('resize', onResize);
+          window.removeEventListener('orientationchange', onOrientation);
+          window.visualViewport?.removeEventListener('resize', onVvResize);
+          document.removeEventListener('visibilitychange', onVisibility);
+          window.removeEventListener('pagehide', onPageHide);
+          window.removeEventListener('pageshow', onPageShow);
+          window.removeEventListener('beforeunload', onBeforeUnload);
+          clearInterval(poll);
+        };
+      }, []);
+      if (!isDebugModeEnabled()) return null;
+      const store = window.__LASH_DIAG__ || { sessionId: '?', previousSessionId: null, log: [], mounts: {} };
+      // Show a generous tail (well past the requested ~20-30) -- after a
+      // real reload this comfortably covers both the carried-over
+      // pre-reload entries AND the new session's own, on either side of
+      // the NEW DOCUMENT SESSION separator.
+      const recent = store.log.slice(-70).reverse();
+      return (
+        <div data-lash-diag-overlay="true" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, maxHeight: '58vh', overflowY: 'auto', background: 'rgba(2,6,11,.96)', color: '#7FE3B4', fontSize: '10.5px', lineHeight: 1.45, fontFamily: 'ui-monospace,Menlo,monospace', padding: '8px 9px', zIndex: 2147483000, borderTop: '1px solid rgba(255,255,255,.2)', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4, position: 'sticky', top: 0, background: 'rgba(2,6,11,.96)', paddingBottom: 3 }}>
+            <div>LASH DIAG · current session {store.sessionId}</div>
+            {store.previousSessionId && <div style={{ color: '#FFB454' }}>↳ restored after reload -- previous session {store.previousSessionId}</div>}
+            <div style={{ color: '#9AA4B2', fontWeight: 400 }}>mounts {Object.entries(store.mounts).map(([k, v]) => `${k}:${v}`).join(' ') || '(none yet)'}</div>
+          </div>
+          {recent.map((e, i) => e.type === 'new-document-session'
+            ? <div key={i} style={{ color: '#FFB454', fontWeight: 700, margin: '4px 0', borderTop: '1px dashed rgba(255,180,84,.5)', borderBottom: '1px dashed rgba(255,180,84,.5)', padding: '2px 0' }}>── NEW DOCUMENT SESSION ── prev {e.previousSessionId} → new {e.newSessionId}</div>
+            : <div key={i}>{e.t}ms {JSON.stringify(e)}</div>)}
+        </div>
+      );
+    }
+
     function App() {
       // PHASE 0: both the initial read and setLang below are guarded by
       // the exact same SUPPORTED_LANGUAGES check, so the app can never
@@ -15368,6 +16265,13 @@
               <ClientDataConsentPrompt lang={lang} onAccept={handleSaveConsentAccept} onDecline={handleSaveConsentDecline} />
             )}
             <SaveVisitToast toast={saveVisitToast} lang={lang} onDismiss={() => setSaveVisitToast(null)} />
+            {/* TEMPORARY DIAGNOSTIC (see LashDiagOverlay's own definition
+                above isDebugModeEnabled() for full context) -- rendered
+                here, outside every screen conditional, so it stays
+                mounted and visible across ANY screen/navigation change,
+                including whatever the pinch "reset" turns out to be.
+                Internally gated to ?debug=1; renders nothing otherwise. */}
+            <LashDiagOverlay/>
           </div>
         </LangContext.Provider>
       );

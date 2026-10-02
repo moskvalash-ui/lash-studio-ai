@@ -208,7 +208,10 @@ test('index integration keeps only explicitly migrated consumer boundaries canon
   assert.strictEqual((src.match(/getCanonicalClientLashDesign\(/g) || []).length, 2, 'only the Phase 2D Recommendation boundary may consume the canonical registry getter');
   assert.ok(src.includes('const canonicalBase=getCanonicalClientLashDesign(legacyDesign)||LashDesignDomain.legacyToClientLashDesign({'));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
-  assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
+  // WYSIWYG PHOTO EDITOR: PhotoLashEditorWorkspace is now the default
+  // photo-editing surface (ProfessionalEyeMap remains defined, unused
+  // by default) -- still the same photoClientDesign boundary.
+  assert.ok(src.includes('<PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign}'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));

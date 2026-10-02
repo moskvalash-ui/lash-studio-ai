@@ -95,7 +95,7 @@ test('A. every entry in STRINGS and its 4 sibling dictionaries has a non-empty r
 });
 
 test('A2. CURL_CATALOG geometry/suitable descriptive fields (additive, previously undiscovered {ru,en}-only data) now also carry ar', () => {
-  assert.strictEqual(CURL_CATALOG.length, 8);
+  assert.strictEqual(CURL_CATALOG.length, 11);
   for (const entry of CURL_CATALOG) {
     for (const field of ['geometry', 'suitable']) {
       assert.ok(entry[field].ru && entry[field].en && entry[field].ar, `${entry.id}.${field} missing a language`);

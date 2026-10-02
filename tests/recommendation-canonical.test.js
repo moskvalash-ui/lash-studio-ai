@@ -64,7 +64,10 @@ test('Phase 2D isolation guards protect ranking and forbidden consumers',()=>{
   assert.strictEqual(digest(mapSource),'8f3124becb3cf6e4b811b6f96e1414a5f0c840b352aa34324d8b3881841245ca');
   assert.ok(src.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
-  assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
+  // WYSIWYG PHOTO EDITOR: PhotoLashEditorWorkspace is now the default
+  // photo-editing surface (ProfessionalEyeMap remains defined, unused
+  // by default) -- still the same photoClientDesign boundary.
+  assert.ok(src.includes('<PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign}'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   const naturalStart=src.indexOf('    function NaturalLashScanScreen('),naturalEnd=src.indexOf('\n    function ',naturalStart+20);

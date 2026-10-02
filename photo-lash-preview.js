@@ -24,11 +24,12 @@
 
   // ------------------------------------------------------------
   // CURL GEOMETRY PROFILES — one explicit, immutable trajectory profile
-  // per professional curl identity (the 8 CURL_CATALOG ids owned by
-  // index.html: J/B/C/CC/D/L/L+/M). Replaces the old binary
+  // per professional curl identity (the CURL_CATALOG ids owned by
+  // index.html: J/B/C/CC/D/L/L+/M, plus LJ/LB/LC -- a visual-validation-
+  // stage flat-base family, see below). Replaces the old binary
   // isLCurl=/L/.test(curlFamily) switch: every curl now resolves to its
-  // own profile instead of collapsing 6 of 8 names into one shared
-  // shape. Curl identity ONLY ever selects one of these 8 fixed
+  // own profile instead of collapsing most names into one shared
+  // shape. Curl identity ONLY ever selects one of these fixed
   // objects — it never mutates points/eyeWidth/length/width/opacity/
   // taper/layer/noise, all of which stay exactly as before.
   //
@@ -183,6 +184,67 @@
       curvePhaseBase: .20, curvePhaseJitter: .045,
       liftNearBase: .020, liftNearSweep: .010,
       midBendRatio: .52, tipEaseRatio: 1.02,
+    }),
+    // LJ/LB/LC -- NEW FLAT-BASE FAMILY (visual-validation values, not yet
+    // production-approved). Real-product reference (three lash strips,
+    // same nominal 13mm length) showed a pronounced straight/flat basal
+    // leg shared by all three, differing almost entirely in how tightly
+    // the tip curls -- NOT in how early the transition begins. That is
+    // the opposite shape of L->L+->M (which vary transition TIMING a
+    // great deal, curvePhaseBase .82 -> .69 -> .20) or J->B->C->D (a
+    // single continuous ladder). So unlike either existing family,
+    // LJ/LB/LC hold angleBase/angleSweep/angleProm IDENTICAL to
+    // L_PROFILE (angleProm=0 is the flat-base family's own defining
+    // marker -- the longest/peak fiber must not become the most
+    // vertical one) and keep curvePhaseBase high/late (never approaching
+    // L+'s .69 or M's .20) so the flat leg reads as long and
+    // "pronounced" in all three, exactly like the reference photo.
+    // Values deliberately kept distinct from every existing profile at
+    // multiple fields simultaneously (not just one axis), so none of the
+    // three can numerically collapse into L, L+, M, or any rounded-
+    // family member -- see tests/photo-lash-preview.test.js's own
+    // distinctness/ordering/no-collapse proofs. length is untouched by
+    // any of this -- curl profiles never read length (eyeWidth*p.len*
+    // VISUAL_MM_TO_EYE_WIDTH*... is curl-independent), so nominal length
+    // cannot drift between LJ/LB/LC by construction.
+    //
+    // VISUAL REVIEW PASS v2 (against the real-renderer comparison board
+    // and the supplied physical LJ/LB/LC reference): v1's progression
+    // read correctly in concept (flat base retained, LJ<LB<LC visible,
+    // distinct from M) but was judged too subtle, especially LB->LC. LJ
+    // v1 was approved as close to the reference character and is FROZEN
+    // here unchanged. LB and LC both keep their curvePhaseBase close to
+    // v1 (the flat leg must not shorten) and instead raise midBendRatio/
+    // tipEaseRatio substantially -- the upper-curvature magnitude is
+    // where the visible strength difference was missing, exactly as
+    // directed: solve this with lift strength, not by moving the
+    // transition earlier.
+    LJ: Object.freeze({
+      ...L_PROFILE,
+      curvePhaseBase: .79, curvePhaseJitter: .04,
+      liftNearBase: .010, liftNearSweep: .006,
+      midBendRatio: .38, tipEaseRatio: .75,
+    }),
+    LB: Object.freeze({
+      ...L_PROFILE,
+      curvePhaseBase: .78, curvePhaseJitter: .04,
+      liftNearBase: .013, liftNearSweep: .009,
+      midBendRatio: .66, tipEaseRatio: 1.28,
+    }),
+    // LC v3 (LJ v1 and LB v2 approved and FROZEN as of this pass): v2's
+    // flat basal leg and transition point (curvePhaseBase/liftNearBase/
+    // liftNearSweep) were confirmed correct and are kept byte-identical
+    // here. The only remaining note was that the post-transition upper
+    // section should read more like a true C-shaped hook rather than
+    // just a stronger sweep -- addressed by raising midBendRatio/
+    // tipEaseRatio only, same lever used for v1->v2, never by moving
+    // curvePhaseBase earlier (that would shorten the flat leg, which is
+    // explicitly NOT the goal here).
+    LC: Object.freeze({
+      ...L_PROFILE,
+      curvePhaseBase: .76, curvePhaseJitter: .04,
+      liftNearBase: .016, liftNearSweep: .012,
+      midBendRatio: .86, tipEaseRatio: 1.78,
     }),
   });
   // Deterministic, never-throwing fallback for an unrecognized/missing

@@ -145,7 +145,10 @@ test('canonical wrapper feeds the unchanged legacy SVG renderer and no other con
   assert.ok(!wrapper.includes('<svg'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
-  assert.ok(src.includes('<ProfessionalEyeMap clientDesign={photoClientDesign}'));
+  // WYSIWYG PHOTO EDITOR: PhotoLashEditorWorkspace is now the default
+  // photo-editing surface (ProfessionalEyeMap remains defined, unused
+  // by default) -- still the same photoClientDesign boundary.
+  assert.ok(src.includes('<PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign}'));
   assert.ok(src.includes("const [customLeft, setCustomLeft] = useState(design.leftZones);"));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));
   assert.ok(!naturalSource.includes('LashDesignDomain'));

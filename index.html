@@ -8790,6 +8790,45 @@
           setStageKey('stageCameraStopped'); setPhase('cameraStopped'); setHintKey('hintRestartScan');
         };
 
+        // LIVE SCAN STARTUP WATCHDOG — getUserMedia, video.play() and the
+        // first decoded frame can each stay pending/zero forever (e.g. an
+        // unanswered permission prompt, a stalled iOS video pipeline),
+        // which previously left a plain black camera area with no error.
+        // One-shot check: if by the deadline the scan loop has not started
+        // AND the video has real dimensions, route to the SAME
+        // stageNoCamera / Retry UI the rejection path already uses.
+        // `cancelled` is flipped first so a late getUserMedia resolution
+        // stops its own stream and a late play() resolution never starts
+        // this (now dead) session's scan loop; Retry bumps
+        // cameraRetryToken and this effect re-runs as a clean new session.
+        // window.__LIVE_SCAN_CAMERA_WATCHDOG_MS is a test-only override
+        // (same pattern as the boot watchdog).
+        let cameraFailed = false;
+        // Single place that renders the camera-error UI and reports
+        // camera_failed, shared by the getUserMedia/play() rejection path
+        // and the startup watchdog below (denied=true only for a real
+        // NotAllowedError; a timeout is always 'unavailable').
+        const showCameraError = (denied) => {
+          setStageKey('stageNoCamera');
+          setCameraErrorKind(denied ? 'denied' : 'unavailable');
+          setHintKey(null);
+          // ANALYTICS — instruments this existing failure path only;
+          // same NotAllowedError distinction cameraErrorKind already
+          // makes for the UI, never the raw error name/message.
+          if (typeof Analytics !== 'undefined') Analytics.track('camera_failed', { reason_code: denied ? 'permission_denied' : 'unavailable' });
+        };
+        const cameraWatchdog = setTimeout(() => {
+          if (cancelled || cameraFailed) return;
+          const v = videoRef.current;
+          if (loopRef.current && v && v.videoWidth > 0 && v.videoHeight > 0) return;
+          cancelled = true;
+          if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null; }
+          doneRef.current = true;
+          if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+          if (v) v.srcObject = null;
+          showCameraError(false);
+        }, window.__LIVE_SCAN_CAMERA_WATCHDOG_MS || 12000);
+
         const start = async () => {
           try {
             // FIRST-LAUNCH ZOOM FIX (Phase 1, minimal): request an explicit
@@ -8838,20 +8877,16 @@
             // OverconstrainedError, etc.) falls back to the generic
             // camera-unavailable message. e itself is never stored or
             // rendered.
+            cameraFailed = true; clearTimeout(cameraWatchdog);
             if (!cancelled) {
               const deniedByOS = e && e.name === 'NotAllowedError';
-              setStageKey('stageNoCamera');
-              setCameraErrorKind(deniedByOS ? 'denied' : 'unavailable');
-              setHintKey(null);
-              // ANALYTICS — instruments this existing failure path only;
-              // same NotAllowedError distinction cameraErrorKind already
-              // makes for the UI, never the raw error name/message.
-              if (typeof Analytics !== 'undefined') Analytics.track('camera_failed', { reason_code: deniedByOS ? 'permission_denied' : 'unavailable' });
+              showCameraError(deniedByOS);
             }
             return;
           }
           if (cancelled) return;
           loopRef.current = setInterval(() => tickImplRef.current(), 200);
+          { const v = videoRef.current; if (v && v.videoWidth > 0 && v.videoHeight > 0) clearTimeout(cameraWatchdog); }
         };
         start();
 
@@ -8860,6 +8895,7 @@
           // we stop tracks below, since `.stop()` can synchronously
           // fire the 'ended' listener registered above.
           cancelled = true;
+          clearTimeout(cameraWatchdog);
           if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null; }
           if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
           if (videoRef.current) videoRef.current.srcObject = null;

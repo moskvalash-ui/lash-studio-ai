@@ -381,8 +381,8 @@ test('D. the existing map/inner/outer/peak position-drag branch is byte-identica
   assert.ok(src.includes(expected), 'the existing map/inner/outer/peak position-drag code must be byte-identical to before Phase 1 -- it is a completely separate operation from the new zone-length drag and must not be touched');
 });
 
-test('D2. createManualPhotoAdjustment/applyManualPhotoAdjustment (the position-adjustment engine) still create/reset the same 3 legacy fields untouched by the 5-anchor extension, which only adds innerMidDelta/outerMidDelta alongside them -- Reset-to-AI for POSITION still zeroes everything', () => {
-  assert.ok(src.includes("const createManualPhotoAdjustment=()=>({translationX:0,translationY:0,innerDelta:{x:0,y:0},innerMidDelta:{x:0,y:0},peakDelta:{x:0,y:0},outerMidDelta:{x:0,y:0},outerDelta:{x:0,y:0}});"));
+test('D2. createManualPhotoAdjustment/applyManualPhotoAdjustment (the position-adjustment engine) still create/reset the same 3 legacy fields untouched by the 5-anchor extension, which only adds innerMidDelta/outerMidDelta alongside them -- Reset-to-AI for POSITION still zeroes everything. (RIGID MASK FIT, approved separate task, added one further field, widthScale, identity value 1 -- the 3 legacy fields and translationX/Y this test pins are unaffected by that addition.)', () => {
+  assert.ok(src.includes("const createManualPhotoAdjustment=()=>({translationX:0,translationY:0,innerDelta:{x:0,y:0},innerMidDelta:{x:0,y:0},peakDelta:{x:0,y:0},outerMidDelta:{x:0,y:0},outerDelta:{x:0,y:0},widthScale:1});"));
   assert.ok(src.includes('function applyManualPhotoAdjustment(eye,points,adjustment,peakT) {'));
 });
 

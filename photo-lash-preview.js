@@ -9,7 +9,7 @@
   const STRAND_COUNT=294; // MAIN root count per eye -- continuous, never skipped.
   // buildFibers OVERLAYS additional support/accent strands on top of every
   // MAIN root (never instead of one), so the visible set has no gaps.
-  const VISUAL_MM_TO_EYE_WIDTH=.085; // px = eyeWidth * canonical mm * .085 (1.55x the prior .055 scale).
+  const VISUAL_MM_TO_EYE_WIDTH=.045; // px = eyeWidth * canonical mm * .045 (release length scale; was .085, which read ~2.5x too long on real photos).
   // Previous renderer used 1/30 (.03333), then .024, then .0408, then .055.
   // Neither scale is mm calibration. This step specifically addresses the
   // canvas-buffer -> CSS display compression measured against the real
@@ -270,9 +270,26 @@
       return {...items[sector],t};
     });
   }
-  function buildFibers(points,eyeWidth,curlFamily){
+  // PHOTOREALISTIC RENDERER v2-A BASE -- isolated optical rendering
+  // experiment (approved, visual-validation only). Entirely additive and
+  // gated behind an explicit 4th `options.variant==='v2A'` argument that
+  // every existing caller omits, so CURRENT's output is provably
+  // untouched: every branch below that reads `variant`/`layer==='back'`
+  // is simply never taken unless a caller opts in. No canonical
+  // geometry/length/mapping/curl trajectory is touched by this -- only
+  // which/how many presentation fibers get drawn on top of the exact
+  // same root points. See the "v2-A BASE" comments at each touched site
+  // below for what changed and why; everything NOT mentioned there
+  // (angle variation, MAIN length variation, tip-to-zero convergence,
+  // canvas/DPR, color, crossing, micro-grouping, compositing) is
+  // deliberately unchanged, per the approved minimal-first-pass scope.
+  function buildFibers(points,eyeWidth,curlFamily,options){
     if(!Array.isArray(points)||!points.length||!Number.isFinite(eyeWidth)||eyeWidth<2)throw new Error('geometry');
     for(const p of points)if(![p.x,p.y,p.t,p.len,p.normal?.x,p.normal?.y,p.tangent?.x,p.tangent?.y].every(Number.isFinite)||p.len<=0)throw new Error('geometry');
+    // v2-A BASE: optional 4th argument, defaulting to undefined for every
+    // existing call site -- `variant` is only ever 'v2A' when a caller
+    // explicitly opts in (see index.html's debug-only comparison toggle).
+    const variant=options&&options.variant;
     // Curl family from the existing professional design data (clientDesign.
     // curl.global -> photoCurl -> props.curl, e.g. 'C'/'CC'/'D'/'L'/'L+'/'M')
     // -- an optional 3rd argument, so any caller that omits it (tests, a
@@ -313,17 +330,37 @@
     // point's own local tangent so they overlap/cluster with their neighbor
     // instead of stacking exactly on it -- perceived root density comes
     // from this overlap, never from a drawn baseline/stroke.
-    function makeFiber(p,i,layer,salt){
+    function makeFiber(p,i,layer,salt,fiberVariant){
       const inner=smooth(0,.18,p.t),outer=1-smooth(.86,1,p.t),prom=prominence(p);
       const finish=(.58+.42*inner)*(.78+.22*outer);
       const tm=Math.hypot(p.tangent.x,p.tangent.y)||1;
       const tangentUnit={x:p.tangent.x/tm,y:p.tangent.y/tm};
       const rootOffset=layer==='main'?0:(.35+.25*noise(i,salt+40))*spacing*(noise(i,salt+41)<0?-1:1);
-      const root={x:p.x+tangentUnit.x*rootOffset,y:p.y+tangentUnit.y*rootOffset};
-      const curlScale=layer==='support'?.58:layer==='accent'?1.12:1;
-      const lengthScale=layer==='support'?.72:layer==='accent'?1.10+.06*noise(i,salt+1):1;
+      // v2-A BASE, root depth (#4): BACK keeps the existing tangential
+      // term above unchanged, and additionally receives a very small
+      // offset along the point's own normal -- opposite the outward
+      // direction (p.normal faces away from the eye aperture, same
+      // direction lashes grow), so BACK's root sits a hair toward the
+      // skin/lid side rather than exactly on the visible growth line,
+      // reading as "slightly behind" without a second visible baseline.
+      // MAIN is untouched (0 either way) -- only 'back' (v2A-only layer)
+      // is affected; CURRENT never produces a 'back' layer fiber.
+      const nm=Math.hypot(p.normal.x,p.normal.y)||1;
+      const normalUnit={x:p.normal.x/nm,y:p.normal.y/nm};
+      const normalOffset=layer==='back'?spacing*.10:0;
+      const root={x:p.x+tangentUnit.x*rootOffset-normalUnit.x*normalOffset,y:p.y+tangentUnit.y*rootOffset-normalUnit.y*normalOffset};
+      const curlScale=(layer==='support'||layer==='back')?.58:layer==='accent'?1.12:1;
+      // v2-A BASE, BACK length (#3): the single most important change in
+      // this experiment. CURRENT's SUPPORT compounds lengthScale .72 with
+      // a second .85+-.05*noise term, landing around 58-65% of canonical
+      // visual length. BACK instead targets .90+-.03 directly as ONE
+      // factor (the second multiplicative term below is held at a flat 1
+      // for 'back' specifically, so nothing else compounds on top of it)
+      // -- "slightly shorter than canonical", not "much shorter". MAIN's
+      // own length and its +-2% jitter are completely unchanged.
+      const lengthScale=layer==='support'?.72:layer==='accent'?1.10+.06*noise(i,salt+1):layer==='back'?.90+.03*noise(i,salt+2):1;
       const length=eyeWidth*p.len*VISUAL_MM_TO_EYE_WIDTH*finish*lengthScale*
-        (layer==='support'?.85+.05*noise(i,salt+2):1+.02*noise(i,salt+3));
+        (layer==='support'?.85+.05*noise(i,salt+2):layer==='back'?1:1+.02*noise(i,salt+3));
       // Root frame follows the REAL local lid curve (p.tangent/p.normal),
       // not just one fixed chord for the whole eye -- this is what lets
       // direction progressively sweep with the eyelid instead of every
@@ -357,7 +394,7 @@
       // the most vertical one for that family) while the rounded family
       // (J/B/C/CC/D) keeps a real, strength-scaled prominence term.
       const angle=curlProfile.angleBase+curlProfile.angleSweep*smooth(0,1,p.t)+curlProfile.angleProm*prom*smooth(.2,1,p.t)+
-        (layer==='support'?.05:.03)*noise(i,salt+4);
+        ((layer==='support'||layer==='back')?.05:.03)*noise(i,salt+4);
       const direction={x:localFrameUp.x*Math.cos(angle)+localFrameOutward.x*Math.sin(angle),y:localFrameUp.y*Math.cos(angle)+localFrameOutward.y*Math.sin(angle)};
       const lateral={x:localFrameOutward.x*Math.cos(angle)-localFrameUp.x*Math.sin(angle),y:localFrameOutward.y*Math.cos(angle)-localFrameUp.y*Math.sin(angle)};
       const at=(along,across)=>({x:root.x+direction.x*length*along+lateral.x*length*across,y:root.y+direction.y*length*along+lateral.y*length*across});
@@ -389,33 +426,60 @@
       // Mid/outer strands read thicker within their own layer; the inner
       // corner stays thinnest (finish/lightness above are unchanged).
       const bold=.80+.42*smooth(.12,.55,p.t);
-      const widthBase=layer==='support'?.0028:layer==='accent'?.0042:.0038;
-      const opacityBase=layer==='support'?.60+.06*noise(i,salt+6):layer==='accent'?.95+.03*noise(i,salt+6):.90+.05*noise(i,salt+6);
-      const opacityCap=layer==='support'?.75:layer==='accent'?.99:.98;
+      const widthBase=(layer==='support'||layer==='back')?.0028:layer==='accent'?.0042:.0038;
+      const opacityBase=(layer==='support'||layer==='back')?.60+.06*noise(i,salt+6):layer==='accent'?.95+.03*noise(i,salt+6):.90+.05*noise(i,salt+6);
+      const opacityCap=(layer==='support'||layer==='back')?.75:layer==='accent'?.99:.98;
       // Bounded apparent-depth dither: some fibers read very slightly
       // closer/bolder, others further/softer -- never a density/opacity
       // policy change, just per-fiber variation within the existing caps.
       const depth=noise(i,salt+7);
+      // v2-A BASE, opacity variation (#5): the depth-dither COEFFICIENT on
+      // opacity only (width's own 1+.14*depth below is untouched -- it
+      // serves a different, still-useful apparent-depth cue) is reduced
+      // from .08 to .04 for v2A fibers, applied uniformly to whichever
+      // layers v2A renders (MAIN included, not just BACK) -- CURRENT
+      // fibers (fiberVariant undefined) keep exactly .08, unchanged.
+      const opacityDepthCoefficient=fiberVariant==='v2A'?.04:.08;
       return {root,
         c1:at(.24,-(liftNear+.010*noise(i,salt+8))),c2:at(curvePhase,-midBend),tip:at(.97,-(tipEase-.035*noise(i,salt+9))),
         width:Math.max(widthFloor,Math.min(widthCap,eyeWidth*widthBase*bold*(1+.14*depth)*Math.sqrt(lightness))),
-        opacity:Math.min(opacityCap,opacityBase*lightness*(1+.08*depth)),
-        depth,layer,len:p.len,t:p.t};
+        opacity:Math.min(opacityCap,opacityBase*lightness*(1+opacityDepthCoefficient*depth)),
+        depth,layer,len:p.len,t:p.t,
+        // v2-A BASE, taper (#6): draw() reads this per-fiber (falling back
+        // to its own existing .08 literal when absent), so CURRENT fibers
+        // -- which never carry this field -- are completely unaffected.
+        // The tip itself still converges to zero width/opacity regardless
+        // of this value; it only changes how early the narrowing begins.
+        ...(fiberVariant==='v2A'?{tipTaperWeight:.15}:null)};
     }
     const fibers=[];
     points.forEach((p,i)=>{
       // MAIN: unconditional, one per sampled root -- the continuous
       // structural population that defines the visible set's silhouette.
-      fibers.push(makeFiber(p,i,'main',10));
-      // SUPPORT: interleaved on nearly all roots -- additional shorter/
-      // softer fibers, never a replacement for this point's MAIN. The
-      // preview panel's fixed on-screen size (not changed this pass, see
-      // report) leaves individual-fiber resolution physically unreachable
-      // on a real phone; maximizing base density/contrast within that
-      // constraint is what actually reads as a finished set there.
-      if(noise(i,20)>-.7)fibers.push(makeFiber(p,i,'support',20));
-      // ACCENT: sparse, only where THIS eye's own Lash Map profile peaks.
-      if(prominence(p)>.68&&noise(i,22)>.05)fibers.push(makeFiber(p,i,'accent',30));
+      // Identical for CURRENT and v2A (variant only affects the opacity
+      // depth-dither coefficient inside makeFiber, never root/geometry).
+      fibers.push(makeFiber(p,i,'main',10,variant));
+      if(variant==='v2A'){
+        // v2-A BASE, layers (#1) + BACK population (#2): exactly two
+        // layers for this experiment -- BACK + MAIN, no ACCENT. Gate
+        // loosened from CURRENT SUPPORT's `>-.7` (~85% inclusion) to
+        // `>-.5` (~75% inclusion) so BACK lands at roughly 44% of the
+        // combined BACK+MAIN visual population (MAIN ~56%), per the
+        // approved target.
+        if(noise(i,20)>-.5)fibers.push(makeFiber(p,i,'back',20,variant));
+      }else{
+        // CURRENT: byte-identical to before v2-A existed.
+        // SUPPORT: interleaved on nearly all roots -- additional shorter/
+        // softer fibers, never a replacement for this point's MAIN. The
+        // preview panel's fixed on-screen size (not changed this pass, see
+        // report) leaves individual-fiber resolution physically unreachable
+        // on a real phone; maximizing base density/contrast within that
+        // constraint is what actually reads as a finished set there.
+        if(noise(i,20)>-.7)fibers.push(makeFiber(p,i,'support',20));
+        // ACCENT: sparse, only where THIS eye's own Lash Map profile peaks.
+        // Not rendered in v2-A BASE per the approved scope (#1).
+        if(prominence(p)>.68&&noise(i,22)>.05)fibers.push(makeFiber(p,i,'accent',30));
+      }
     });
     return fibers;
   }
@@ -427,8 +491,12 @@
     // preview panel's real on-screen size individual fibers are sub-pixel,
     // so contrast against skin (not per-fiber color nuance) is what
     // actually reads there. Still not flat pure black, still per-layer.
-    const palette={support:'34,24,21',main:'16,11,10',accent:'10,7,6'};
-    for(const layer of ['support','main','accent']){
+    // 'back' is v2-A-only (CURRENT never produces a fiber with this layer
+    // name) -- added to the palette/loop purely additively, same brown as
+    // 'support' per the approved scope ("do not implement color changes
+    // yet"). An empty 'back' group for CURRENT fibers is simply a no-op.
+    const palette={support:'34,24,21',main:'16,11,10',accent:'10,7,6',back:'34,24,21'};
+    for(const layer of ['support','main','accent','back']){
       // Depth-sorted within each layer (back to front) so overlapping
       // fibers occlude each other in a varied, layered order instead of
       // strictly by sample index -- this is where visible depth comes from,
@@ -449,9 +517,16 @@
         const w1x=-dy1/m1*f.width/2,w1y=dx1/m1*f.width/2;
         const dx2=f.tip.x-f.c2.x,dy2=f.tip.y-f.c2.y,m2=Math.hypot(dx2,dy2)||1;
         const w2x=-dy2/m2*f.width/2,w2y=dx2/m2*f.width/2;
+        // v2-A BASE, taper (#6): tip-side control-point weight read per-
+        // fiber (CURRENT fibers never carry tipTaperWeight, so this is
+        // exactly the pre-existing .08 literal for every CURRENT fiber).
+        // Both bezier curves still converge exactly at f.tip.x/f.tip.y
+        // regardless of this weight -- zero width/opacity at the tip is
+        // unaffected; only how early the narrowing visibly begins changes.
+        const tipWeight=f.tipTaperWeight??.08;
         ctx.beginPath();ctx.moveTo(f.root.x+w1x,f.root.y+w1y);
-        ctx.bezierCurveTo(f.c1.x+w1x*.68,f.c1.y+w1y*.68,f.c2.x+w2x*.08,f.c2.y+w2y*.08,f.tip.x,f.tip.y);
-        ctx.bezierCurveTo(f.c2.x-w2x*.08,f.c2.y-w2y*.08,f.c1.x-w1x*.68,f.c1.y-w1y*.68,f.root.x-w1x,f.root.y-w1y);
+        ctx.bezierCurveTo(f.c1.x+w1x*.68,f.c1.y+w1y*.68,f.c2.x+w2x*tipWeight,f.c2.y+w2y*tipWeight,f.tip.x,f.tip.y);
+        ctx.bezierCurveTo(f.c2.x-w2x*tipWeight,f.c2.y-w2y*tipWeight,f.c1.x-w1x*.68,f.c1.y-w1y*.68,f.root.x-w1x,f.root.y-w1y);
         ctx.closePath();ctx.fill();
       }
     }

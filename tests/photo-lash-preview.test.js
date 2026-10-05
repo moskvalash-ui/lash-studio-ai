@@ -81,7 +81,7 @@ test('visual defaults: root/width clamp holds so dense roots never merge into a 
  assert.ok(fibers.every(f=>f.opacity>=.20&&f.opacity<=.995));
  assert.ok(new Set(fibers.map(f=>f.opacity)).size>250);
  fibers.forEach(f=>{
-   const distance=Math.hypot(f.tip.x-f.root.x,f.tip.y-f.root.y)/(40*f.len*.085);
+   const distance=Math.hypot(f.tip.x-f.root.x,f.tip.y-f.root.y)/(40*f.len*.045);
    assert.ok(distance>.30&&distance<1.25,'visual layers are bounded by the documented scale; canonical len is preserved');
  });
  const sparse=PhotoLashPreview.sampleSectors(items);
@@ -166,13 +166,14 @@ test('zone density: MAIN is a continuous population (never skipped), support/acc
  assert.ok(meanO(support)<meanO(main)&&meanO(main)<meanO(accent));
  assert.ok(accent.length<fibers.length*.25,'accent stays a minority layer, never the bulk of the eye');
 });
-test('MAIN roots stay exactly on the existing upper-lid cubic; support/accent only nestle a bounded micro-offset away',()=>{
+test('MAIN roots stay exactly on the existing upper-lid cubic lifted by the anatomical lash-line offset (eyeW*.055); support/accent only nestle a bounded micro-offset away',()=>{
  const fibers=buildPhotoPreviewEyes(result,client)[0].fibers;
  const spacing=40/294; // eyeWidth / STRAND_COUNT for this fixture
+ const upperXs=left.slice(0,4).map(p=>p.x),lift=Math.max(1,Math.max(1,Math.max(...upperXs)-Math.min(...upperXs))*.055);
  for(const f of fibers){
    const u=1-f.t,expected={
      x:u*u*u*left[0].x+3*u*u*f.t*left[1].x+3*u*f.t*f.t*left[2].x+f.t**3*left[3].x,
-     y:u*u*u*left[0].y+3*u*u*f.t*left[1].y+3*u*f.t*f.t*left[2].y+f.t**3*left[3].y};
+     y:u*u*u*left[0].y+3*u*u*f.t*left[1].y+3*u*f.t*f.t*left[2].y+f.t**3*left[3].y-lift};
    const d=Math.hypot(f.root.x-expected.x,f.root.y-expected.y);
    if(f.layer==='main')assert.ok(d<1e-9,'MAIN never displaces its root off the real lid curve');
    else assert.ok(d<spacing,'support/accent nestle close to their neighbor, never drifting past one root-spacing away');
@@ -187,7 +188,7 @@ test('map-driven length: the main layer renders the real Lash Map length near-un
  const midMain=main.filter(f=>f.t>.4&&f.t<.6);
  assert.ok(midMain.length>0);
  midMain.forEach(f=>{
-   const ratio=Math.hypot(f.tip.x-f.root.x,f.tip.y-f.root.y)/(40*f.len*.085);
+   const ratio=Math.hypot(f.tip.x-f.root.x,f.tip.y-f.root.y)/(40*f.len*.045);
    assert.ok(ratio>.95&&ratio<1.03,'main-layer mid-zone strands stay close to the documented, unscaled map length');
  });
 });
@@ -518,7 +519,7 @@ test('R. nominal lash length is identical across LJ/LB/LC (and unchanged from ev
    byCurl[curl].forEach((f,i)=>{
      assert.equal(f.len,reference[i].len,`curl=${curl} fiber ${i} must trace back to the exact same source sector length as every other curl`);
      assert.deepEqual(f.root,reference[i].root,`curl=${curl} fiber ${i} must share the exact same root position -- curl never moves the root`);
-     const ratio=Math.hypot(f.tip.x-f.root.x,f.tip.y-f.root.y)/(40*f.len*.085);
+     const ratio=Math.hypot(f.tip.x-f.root.x,f.tip.y-f.root.y)/(40*f.len*.045);
      // Upper bound widened 1.30->1.40 for v2: LC's stronger midBend/
      // tipEase (raised specifically to fix a too-subtle LB->LC
      // progression on visual review) legitimately pushes a strongly-

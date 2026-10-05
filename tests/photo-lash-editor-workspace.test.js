@@ -65,13 +65,17 @@ test('A3. the editable overlay draws NO technical profile line, per-sample dots,
 test('B1. the overlay geometry (handles) and the canvas fibers are built from the SAME buildPhotoPreviewEyes call result -- not two separate, potentially-divergent computations', () => {
   // MOBILE UX REFINEMENT added a 3rd call site, inside the auto-focus
   // effect (needs the target eye's current root points to compute the
-  // focus box) -- all three call the identical real function with
-  // identical arguments; none duplicates or re-derives the math.
-  assert.strictEqual((workspaceSource.match(/buildPhotoPreviewEyes\(result,clientDesign\)/g) || []).length, 3, 'canvas-draw effect, auto-focus effect, and the synchronous overlay-geometry computation -- all three call the identical real function with identical arguments');
+  // focus box) -- all three call the identical real function with the
+  // identical first two (result,clientDesign) arguments; none duplicates
+  // or re-derives the math. PHOTOREALISTIC RENDERER v2-A BASE added an
+  // optional 3rd argument (renderVariant) to the canvas-draw effect's own
+  // call only -- the prefix match below tolerates that without weakening
+  // the "same first two args, same real function" claim.
+  assert.strictEqual((workspaceSource.match(/buildPhotoPreviewEyes\(result,clientDesign[,)]/g) || []).length, 3, 'canvas-draw effect, auto-focus effect, and the synchronous overlay-geometry computation -- all three call the identical real function with the identical (result,clientDesign) arguments');
 });
 
-test('B2. the canvas-draw effect depends on [result, clientDesign] -- any change to clientDesign (from either Mask Fit or Design Edit, both of which flow through LashMapScreen state into a freshly-cloned clientDesign) triggers a redraw', () => {
-  assert.ok(workspaceSource.includes('},[result,clientDesign]);'));
+test('B2. the canvas-draw effect depends on [result, clientDesign, renderVariant] -- any change to clientDesign (from either Mask Fit or Design Edit) or to the v2-A debug toggle triggers a redraw', () => {
+  assert.ok(workspaceSource.includes('},[result,clientDesign,renderVariant]);'));
 });
 
 test('B3. Mask Fit drags (map/inner/outer/peak) call ONLY onAdjustmentChange, never onZoneLengthChange -- Mask Fit cannot mutate zone lengths', () => {
@@ -94,14 +98,14 @@ test('B5. the real buildPhotoPreviewEyes determinism/non-mutation guarantees (ph
   // ("real canonical bridge renders both physical eyes deterministically
   // without mutation", "manual PHOTO displacement moves roots without
   // changing mapping or other eye").
-  assert.ok(src.includes('function buildPhotoPreviewEyes(result, clientDesign) {'));
+  assert.ok(src.includes('function buildPhotoPreviewEyes(result, clientDesign, options) {'));
 });
 
 // ------------------------------------------------------------
 // C. Mutual exclusivity + LEFT/RIGHT correctness in the new workspace.
 // ------------------------------------------------------------
-test('C1. the Mask Fit overlay (root line + inner/outer/peak handles) renders only when editMode==="mask"; the Design Edit overlay (zone handles) only when editMode==="design" -- same mutually-exclusive gate proven for the old editor, now on the primary surface', () => {
-  assert.ok(workspaceSource.includes("editing&&eyeData&&editMode==='mask'&&<>"));
+test('C1. the Mask Fit overlay (RIGID MASK FIT: the debug-only root-line guide, no handles) renders only when editMode==="mask"; the Design Edit overlay (zone handles) only when editMode==="design" -- same mutually-exclusive gate proven for the old editor, now on the primary surface', () => {
+  assert.ok(workspaceSource.includes("editing&&eyeData&&editMode==='mask'&&isDebugModeEnabled()&&<path"));
   assert.ok(workspaceSource.includes("editing&&eyeData&&editMode==='design'&&keyZonePoints.map("));
 });
 
@@ -121,7 +125,7 @@ test('D1. buildPhotoPreviewEyes is called read-only here (its result is only eve
 });
 
 test('D2. zoom/pan (beginPinch/updatePinch/the 1x reset button) only ever call setView -- never onAdjustmentChange or onZoneLengthChange -- proving zoom/pan cannot alter lash geometry/data', () => {
-  const pinchBlock = workspaceSource.slice(workspaceSource.indexOf('const beginPinch=()=>{'), workspaceSource.indexOf('const beginDrag=(event,kind)=>{'));
+  const pinchBlock = workspaceSource.slice(workspaceSource.indexOf('const beginPinch=()=>{'), workspaceSource.indexOf('const beginDrag=(event,kind,frozenT)=>{'));
   assert.ok(!pinchBlock.includes('onAdjustmentChange(') && !pinchBlock.includes('onZoneLengthChange('), 'pinch/pan code must never call either data-mutating callback');
   assert.ok(src.includes("onClick={()=>setView({zoom:1,panX:0,panY:0})}"), 'the 1x reset button must only touch view state');
 });

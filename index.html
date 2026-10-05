@@ -99,6 +99,17 @@
        on the legacy recommendation/map objects in this phase. -->
   <script src="lash-design-domain.js"></script>
   <script src="photo-lash-preview.js"></script>
+  <!-- AUTO LASH FIT — Hybrid MVP C (approved, corridorBoundFrac=0.05
+       CLOSED): local, hard-bounded pixel refinement layered on top of
+       buildProfessionalPhotoLine's existing landmark baseline. Same
+       dual-load pattern as the other plain scripts here. Exports land
+       on window as bare globals (computeHybridCDisplacementSamples,
+       computeChordFrame, gateCandidatesByCorridorBound, ...). Never
+       replaces the landmark baseline -- only refines it within the
+       closed bound, falling back to the untouched baseline when no
+       usable pixel evidence exists. See auto-lash-fit-hybrid-c.js's own
+       header for the full approved-architecture note. -->
+  <script src="auto-lash-fit-hybrid-c.js"></script>
   <!-- Consent foundation (Phase 1): pure consent-state logic, extracted
        to its own plain script for the same reason as lash-scan-core.js
        above — zero-duplication Node testability via require(). Exports
@@ -688,6 +699,15 @@
       photoEditModeDesign: {ru:'Изменить схему', en:'Edit Design', ar:'تعديل التصميم'},
       lashMapResetFit: {ru:'СБРОСИТЬ ПОСАДКУ', en:'RESET FIT', ar:'إعادة تعيين الملاءمة'},
       lashMapResetDesign: {ru:'СБРОСИТЬ СХЕМУ', en:'RESET DESIGN', ar:'إعادة تعيين التصميم'},
+      // DIRECT CURVE MASK FIT, PHASE 1: small, visually secondary whole-
+      // mask-translate affordance (replaces the old root-corridor-wide
+      // behavior) -- never exposes internal terms (translationX/kind:'map').
+      lashMapMoveAll: {ru:'Переместить', en:'Move All', ar:'نقل الكل'},
+      // RIGID MASK FIT (approved real-device prototype, replaces anatomical
+      // point/curve editing): widthScale step buttons -- never expose
+      // "widthScale" terminology to the artist.
+      photoMaskFitNarrower: {ru:'Уже', en:'Narrower', ar:'أضيق'},
+      photoMaskFitWider: {ru:'Шире', en:'Wider', ar:'أوسع'},
       zoneInner: {ru:'ВНУТРЕННЯЯ', en:'INNER', ar:'الداخلية'},
       zoneTransition: {ru:'ПЕРЕХОД', en:'TRANSITION', ar:'الانتقالية'},
       zoneBody: {ru:'ОСНОВНАЯ ЗОНА', en:'BODY', ar:'الأساسية'},
@@ -4710,8 +4730,15 @@
       };
     }
 
-    const createManualPhotoAdjustment=()=>({translationX:0,translationY:0,innerDelta:{x:0,y:0},innerMidDelta:{x:0,y:0},peakDelta:{x:0,y:0},outerMidDelta:{x:0,y:0},outerDelta:{x:0,y:0}});
-    const isAutomaticPhotoAdjustment=adjustment=>!adjustment||(adjustment.translationX===0&&adjustment.translationY===0&&adjustment.innerDelta.x===0&&adjustment.innerDelta.y===0&&adjustment.innerMidDelta.x===0&&adjustment.innerMidDelta.y===0&&adjustment.peakDelta.x===0&&adjustment.peakDelta.y===0&&adjustment.outerMidDelta.x===0&&adjustment.outerMidDelta.y===0&&adjustment.outerDelta.x===0&&adjustment.outerDelta.y===0);
+    // RIGID MASK FIT (approved real-device prototype): widthScale is the
+    // ONLY new field this prototype adds to the existing ephemeral
+    // presentation-layer manualPhotoAdjustment shape -- never persisted,
+    // never written to canonical ClientLashDesign (same as every other
+    // field here; see withPhotoRuntime's presentation.photo.manualAdjustment
+    // runtime clone). Identity value is 1 (no width change), matching the
+    // existing deltas' identity value of 0.
+    const createManualPhotoAdjustment=()=>({translationX:0,translationY:0,innerDelta:{x:0,y:0},innerMidDelta:{x:0,y:0},peakDelta:{x:0,y:0},outerMidDelta:{x:0,y:0},outerDelta:{x:0,y:0},widthScale:1});
+    const isAutomaticPhotoAdjustment=adjustment=>!adjustment||(adjustment.translationX===0&&adjustment.translationY===0&&adjustment.innerDelta.x===0&&adjustment.innerDelta.y===0&&adjustment.innerMidDelta.x===0&&adjustment.innerMidDelta.y===0&&adjustment.peakDelta.x===0&&adjustment.peakDelta.y===0&&adjustment.outerMidDelta.x===0&&adjustment.outerMidDelta.y===0&&adjustment.outerDelta.x===0&&adjustment.outerDelta.y===0&&(adjustment.widthScale===undefined||adjustment.widthScale===1));
 
     // Generic Lagrange interpolation: given N (node,value) pairs, returns
     // the value of the unique degree-(N-1) polynomial through them at t.
@@ -4731,21 +4758,58 @@
       }
       return result;
     }
+    // LOCAL MASK FIT PROTOTYPE (approved, real-device UX experiment):
+    // clamped (monotone) cubic Hermite interpolation -- the textbook
+    // Fritsch-Carlson 1980 method (the same algorithm behind e.g. d3's
+    // curveMonotoneX). Reused instead of lagrangeValue (kept above,
+    // untouched, still the engine behind its own dedicated tests) because
+    // it has LOCAL support: each node's own value only directly shapes
+    // its two adjacent segments, with a bounded, decaying influence one
+    // segment further via tangent-sharing -- never the whole domain the
+    // way a single global polynomial through all nodes does. The
+    // monotonicity clamp (the alpha/beta/tau step below) additionally
+    // guarantees NO segment ever overshoots beyond the range of its own
+    // two endpoint values, regardless of how the 5 deltas are dragged --
+    // chosen directly, without first implementing and then discarding a
+    // raw/unclamped Catmull-Rom, because unclamped cardinal splines are
+    // textbook-known to be able to overshoot for non-monotonic control
+    // sequences, which arbitrary user drags cannot be assumed to avoid.
+    // Extrapolates linearly beyond the node range using the boundary
+    // tangent (needed by the +-1e-4 finite-difference derivative probe
+    // just past t=0/t=1, same as lagrangeValue's natural extrapolation).
+    function monotoneCubicValue(nodes,values,t) {
+      const n=nodes.length,d=[];
+      for(let k=0;k<n-1;k++)d.push((values[k+1]-values[k])/(nodes[k+1]-nodes[k]));
+      const m=new Array(n);
+      m[0]=d[0];m[n-1]=d[n-2];
+      for(let k=1;k<n-1;k++)m[k]=(d[k-1]+d[k])/2;
+      for(let k=0;k<n-1;k++) {
+        if(d[k]===0){m[k]=0;m[k+1]=0;continue;}
+        let alpha=m[k]/d[k],beta=m[k+1]/d[k];
+        if(alpha<0){m[k]=0;alpha=0;}
+        if(beta<0){m[k+1]=0;beta=0;}
+        const sq=alpha*alpha+beta*beta;
+        if(sq>9){const tau=3/Math.sqrt(sq);m[k]=tau*alpha*d[k];m[k+1]=tau*beta*d[k];}
+      }
+      if(t<=nodes[0])return values[0]+m[0]*(t-nodes[0]);
+      if(t>=nodes[n-1])return values[n-1]+m[n-1]*(t-nodes[n-1]);
+      let k=0;
+      while(k<n-2&&t>nodes[k+1])k++;
+      const h=nodes[k+1]-nodes[k],s=(t-nodes[k])/h,s2=s*s,s3=s2*s;
+      return values[k]*(2*s3-3*s2+1)+h*m[k]*(s3-2*s2+s)+values[k+1]*(-2*s3+3*s2)+h*m[k+1]*(s3-s2);
+    }
 
     // Presentation-only cubic deformation. Five manual anchor deltas
     // (INNER/INNER-MID/PEAK/OUTER-MID/OUTER, at t=0/p/2/PEAK/(PEAK+1)/2/1)
-    // are interpolated by a quartic displacement field via lagrangeValue.
-    // INNER-MID/OUTER-MID's own interpolation target is defined as "what
-    // the previous 3-node (INNER/PEAK/OUTER) quadratic alone would already
-    // produce at that t" plus that anchor's own delta -- so when
-    // innerMidDelta/outerMidDelta are both {x:0,y:0}, all five target
-    // values already lie exactly on that same quadratic, and by
-    // uniqueness of polynomial interpolation the 5-node quartic IS that
-    // quadratic (zero cubic/quartic coefficients) for every t, not just
-    // at the sample points. See tests/lash-map-5-anchor-interpolation.
-    // test.js for the direct numerical proof of this reduction. Adding
-    // this field to the automatic cubic remains one finite, smooth
-    // cubic; engine t/length/key/PEAK fields are copied byte-for-byte.
+    // are each used DIRECTLY as the local spline's own control value at
+    // that node (no composite baseline-plus-delta trick -- that was
+    // specific to extending the OLD 3-node global quadratic and no
+    // longer applies to this local-support replacement): when all 5
+    // deltas are {x:0,y:0}, every control value is exactly 0, so
+    // monotoneCubicValue returns exactly 0 everywhere and the curve is
+    // byte-identical to the unadjusted automatic one. Adding this field
+    // to the automatic cubic remains one finite, smooth cubic; engine
+    // t/length/key/PEAK fields are copied byte-for-byte.
     function applyManualPhotoAdjustment(eye,points,adjustment,peakT) {
       const automatic=buildProfessionalPhotoLine(eye,points);
       if(!automatic||isAutomaticPhotoAdjustment(adjustment))return automatic;
@@ -4755,12 +4819,10 @@
       const baseAt=t=>{const u=1-t;return {x:u*u*u*base[0].x+3*u*u*t*base[1].x+3*u*t*t*base[2].x+t*t*t*base[3].x,y:u*u*u*base[0].y+3*u*u*t*base[1].y+3*u*t*t*base[2].y+t*t*t*base[3].y};};
       const baseDerivative=t=>{const u=1-t;return {x:3*u*u*(base[1].x-base[0].x)+6*u*t*(base[2].x-base[1].x)+3*t*t*(base[3].x-base[2].x),y:3*u*u*(base[1].y-base[0].y)+6*u*t*(base[2].y-base[1].y)+3*t*t*(base[3].y-base[2].y)};};
       const pInnerMid=p/2,pOuterMid=(p+1)/2;
-      const quad3Nodes=[0,p,1],deltas3=[a.innerDelta,a.peakDelta,a.outerDelta];
-      const quad3Value=(axis,t)=>lagrangeValue(quad3Nodes,deltas3.map(d=>d[axis]),t);
       const nodes5=[0,pInnerMid,p,pOuterMid,1];
-      const values5=axis=>[a.innerDelta[axis],quad3Value(axis,pInnerMid)+a.innerMidDelta[axis],a.peakDelta[axis],quad3Value(axis,pOuterMid)+a.outerMidDelta[axis],a.outerDelta[axis]];
-      const valuesX=values5('x'),valuesY=values5('y');
-      const displacement=t=>({x:a.translationX+lagrangeValue(nodes5,valuesX,t),y:a.translationY+lagrangeValue(nodes5,valuesY,t)});
+      const valuesX=[a.innerDelta.x,a.innerMidDelta.x,a.peakDelta.x,a.outerMidDelta.x,a.outerDelta.x];
+      const valuesY=[a.innerDelta.y,a.innerMidDelta.y,a.peakDelta.y,a.outerMidDelta.y,a.outerDelta.y];
+      const displacement=t=>({x:a.translationX+monotoneCubicValue(nodes5,valuesX,t),y:a.translationY+monotoneCubicValue(nodes5,valuesY,t)});
       const DERIV_H=1e-4;
       const displacementDerivative=t=>{const d1=displacement(t-DERIV_H),d2=displacement(t+DERIV_H);return {x:(d2.x-d1.x)/(2*DERIV_H),y:(d2.y-d1.y)/(2*DERIV_H)};};
       const at=t=>{const b=baseAt(t),d=displacement(t);return {x:b.x+d.x,y:b.y+d.y};};
@@ -4769,6 +4831,107 @@
       const adjustedPoints=automatic.points.map(point=>{const mapped=at(point.t);return {...point,mapX:mapped.x,mapY:mapped.y};});
       if([c0,c1,c2,c3,...adjustedPoints.map(point=>({x:point.mapX,y:point.mapY}))].some(point=>!Number.isFinite(point.x)||!Number.isFinite(point.y)))return automatic;
       return {offset:automatic.offset,path:`M ${c0.x} ${c0.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${c3.x} ${c3.y}`,points:adjustedPoints,manual:true};
+    }
+
+    // RIGID MASK FIT (approved real-device prototype, replaces anatomical
+    // point/curve editing -- real-device testing found direct curve/point
+    // manipulation felt like the lash shape "rotates/twists" instead of
+    // simply sitting on the eye). This is a SEPARATE, additive step applied
+    // to the already-fully-resolved (translated, offset-corrected) root
+    // points -- it does not touch applyManualPhotoAdjustment/
+    // monotoneCubicValue at all, so every property already proven about
+    // that engine (locality, no-overshoot, ordering) is completely
+    // unaffected; width is a different, independent transform layered on
+    // top of its output, per the approved architecture audit.
+    //
+    // Decomposes each point relative to a FIXED anatomical center (the
+    // midpoint of the CURRENT inner/outer points -- i.e. after translation,
+    // so "wider/narrower" always happens around wherever the overlay
+    // currently sits, not the original automatic position) into the
+    // eye's own inner->outer chord component (ux,uy) and its perpendicular
+    // normal component (nx,ny) -- the SAME chord-frame convention this
+    // file's existing Mask Fit clamp code already establishes. ONLY the
+    // chord component is multiplied by widthScale; the normal component
+    // is copied through unchanged. Reconstructing cx+ux*scaled+nx*normal
+    // at widthScale=1 is algebraically identical to the original point
+    // (scaled===tangential when widthScale===1), so identity is exact, not
+    // approximate -- confirmed by test, not just by this derivation.
+    //
+    // This never changes zone mm lengths/values (those live in `p.len`,
+    // untouched here) and never changes PEAK's fractional position
+    // (scaling every point's tangential distance from the SAME center by
+    // the SAME factor preserves every ratio between points exactly).
+    function applyPhotoWidthScale(points,widthScale) {
+      if(!Array.isArray(points)||!points.length||!Number.isFinite(widthScale)||widthScale===1)return points;
+      const inner=points[0],outer=points.at(-1);
+      const vx=outer.x-inner.x,vy=outer.y-inner.y,length=Math.max(1,Math.hypot(vx,vy)),ux=vx/length,uy=vy/length,nx=-uy,ny=ux;
+      const cx=(inner.x+outer.x)/2,cy=(inner.y+outer.y)/2;
+      return points.map(point=>{
+        const dx=point.x-cx,dy=point.y-cy,tangential=dx*ux+dy*uy,normal=dx*nx+dy*ny,scaled=tangential*widthScale;
+        return {...point,x:cx+ux*scaled+nx*normal,y:cy+uy*scaled+ny*normal};
+      });
+    }
+
+    // AUTO LASH FIT — HYBRID MVP C (approved, corridorBoundFrac=0.05
+    // CLOSED). A SEPARATE, additive, independent transform layered on
+    // top of the fully-resolved points -- same spirit/spot as
+    // applyPhotoWidthScale directly above (never touches
+    // buildProfessionalPhotoLine/applyManualPhotoAdjustment, so every
+    // property already proven about those -- locality, no-overshoot,
+    // manual-adjustment correctness -- is completely unaffected).
+    // `pixelSource` is the real, loaded <img> element for this photo;
+    // when absent, not yet loaded, or anything about the pixel read
+    // throws (e.g. a tainted-canvas security error), this returns
+    // `points` COMPLETELY UNCHANGED -- the existing landmark baseline
+    // (plus any manual adjustment/width scale already applied) is the
+    // safe fallback, never replaced, only locally refined when real,
+    // in-bounds pixel evidence exists. See auto-lash-fit-hybrid-c.js
+    // for the actual (already-validated, closed-parameter) refinement
+    // math -- this function is only the production glue: crop a ROI,
+    // call the real module, apply its bounded per-t displacement via
+    // the SAME monotoneCubicValue already used by manual adjustment.
+    function applyHybridCRefinement(points,eye,pixelSource,imageWidth,imageHeight) {
+      if(!Array.isArray(points)||!points.length||!Array.isArray(eye)||eye.length<4)return points;
+      if(!pixelSource||!pixelSource.complete||!pixelSource.naturalWidth||typeof document==='undefined'||typeof computeHybridCDisplacementSamples!=='function')return points;
+      const upper=[eye[0],eye[1],eye[2],eye[3]].map(p=>({x:+p.x,y:+p.y}));
+      if(upper.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return points;
+      // SAME axis-aligned eyeWidth definition buildProfessionalPhotoLine
+      // itself uses (Math.max(x)-Math.min(x) over the upper 4 points) --
+      // deliberately NOT the Math.hypot(inner,outer) eyeWidth computed
+      // elsewhere in buildPhotoPreviewEyes, so the corridor bound here
+      // is measured in the EXACT same unit the approved 0.05 value was
+      // validated against.
+      const eyeWidth=Math.max(1,Math.max(...upper.map(p=>p.x))-Math.min(...upper.map(p=>p.x)));
+      let result;
+      try{
+        const xs=upper.map(p=>p.x),ys=upper.map(p=>p.y);
+        const marginFrac=.5;
+        const w0=Math.max(...xs)-Math.min(...xs),h0=Math.max(1,Math.max(...ys)-Math.min(...ys));
+        const mx=w0*marginFrac,my=Math.max(h0*marginFrac*4,w0*marginFrac);
+        const x0=Math.max(0,Math.round(Math.min(...xs)-mx)),y0=Math.max(0,Math.round(Math.min(...ys)-my));
+        // ROI bounds are in ANALYSIS space (the same space as eye/points);
+        // pixelSource is the native-resolution photo, so its source rect is
+        // mapped analysis -> native with independent sx/sy at drawImage.
+        const analysisW=imageWidth||pixelSource.naturalWidth,analysisH=imageHeight||pixelSource.naturalHeight;
+        const x1=Math.min(analysisW,Math.round(Math.max(...xs)+mx)),y1=Math.min(analysisH,Math.round(Math.max(...ys)+my));
+        const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext('2d',{willReadFrequently:true});
+        if(!ctx)return points;
+        const sx=pixelSource.naturalWidth/analysisW,sy=pixelSource.naturalHeight/analysisH;
+        ctx.drawImage(pixelSource,x0*sx,y0*sy,w*sx,h*sy,0,0,w,h);
+        const localUpper=upper.map(p=>({x:p.x-x0,y:p.y-y0}));
+        result=computeHybridCDisplacementSamples({w,h,ctx},localUpper,eyeWidth);
+      }catch(error){return points;}
+      if(!result||!result.usedPixelEvidence)return points;
+      const nodes=result.samples.map(s=>s.t),offsets=result.samples.map(s=>s.offset);
+      const refined=points.map(point=>{
+        const displacement=monotoneCubicValue(nodes,offsets,point.t);
+        return {...point,x:point.x+result.frame.nx*displacement,y:point.y+result.frame.ny*displacement};
+      });
+      if(refined.some(point=>!Number.isFinite(point.x)||!Number.isFinite(point.y)))return points;
+      return refined;
     }
 
     // PHOTO is rendered in a 16:9 card with `meet`, so its viewBox must
@@ -10751,8 +10914,18 @@
     }
 
     // PHOTO presentation bridge: canonical sectors and the existing eye projection.
-    function buildPhotoPreviewEyes(result, clientDesign) {
+    // v2-A BASE (approved optical-rendering experiment): optional 3rd
+    // argument, `options.renderVariant`, defaulting to undefined for
+    // every pre-existing call site -- threaded straight through to
+    // PhotoLashPreview.buildFibers' own `options.variant`. Affects ONLY
+    // the returned `fibers` field (the canvas-visible rendering); `eye`/
+    // `line`/`points`/`offset`/`adjustment` -- everything Mask Fit/Design
+    // Edit handle geometry reads -- are computed before this and never
+    // touched by it. No canonical clientDesign field is read or written
+    // by this parameter.
+    function buildPhotoPreviewEyes(result, clientDesign, options) {
       if(result.source!=='photo'||!result.landmarks||!result.imageWidth||!result.imageHeight)throw new Error('geometry');
+      const renderVariant=options&&options.renderVariant;
       const runtime=clientDesign.mapping.photo?clientDesign:LashDesignDomain.withPhotoRuntime(clientDesign,{
         physicalEyes:clientDesign.mapping.physicalEyes,topology:clientDesign.mapping.template.topology,
         technique:clientDesign.application.legacyLabel,curl:clientDesign.curl.global,
@@ -10769,9 +10942,23 @@
         const line=applyManualPhotoAdjustment(eye,projection.points,props.adjustment,peakT);
         if(!line)throw new Error('geometry');
         // Remove only the map-label offset; retain the existing manual displacement.
-        const points=line.points.map(p=>({...p,x:p.mapX,y:p.mapY+line.offset}));
+        const translatedPoints=line.points.map(p=>({...p,x:p.mapX,y:p.mapY}));
+        // RIGID MASK FIT: widthScale is applied AFTER translation/offset,
+        // BEFORE buildFibers -- so fiber roots (and everything else that
+        // reads `points` below, e.g. Design Edit's zone handles) are
+        // bound to the exact same width-adjusted path, never a second,
+        // divergent geometry representation. widthScale defaults to 1
+        // (exact no-op) for any adjustment that predates this field.
+        const widthScaledPoints=applyPhotoWidthScale(translatedPoints,props.adjustment?.widthScale??1);
+        // AUTO LASH FIT — HYBRID MVP C: a THIRD, independent, additive
+        // transform layered on top of automatic+manual+widthScale,
+        // same spot/spirit as widthScale itself (see its own comment
+        // above). options.pixelSource is the real, loaded <img> for
+        // this photo; absent/not-loaded/any-pixel-read-failure all fall
+        // back to widthScaledPoints UNCHANGED -- the existing baseline.
+        const points=applyHybridCRefinement(widthScaledPoints,eye,options&&options.pixelSource,result.imageWidth,result.imageHeight);
         const eyeWidth=Math.hypot(eye[3].x-eye[0].x,eye[3].y-eye[0].y);
-        const fibers=PhotoLashPreview.buildFibers(points,eyeWidth,props.curl);
+        const fibers=PhotoLashPreview.buildFibers(points,eyeWidth,props.curl,renderVariant?{variant:renderVariant}:undefined);
         if(fibers.some(f=>f.root.x<0||f.root.x>result.imageWidth||f.root.y<0||f.root.y>result.imageHeight))throw new Error('geometry');
         // WYSIWYG PHOTO EDITOR: additive fields alongside the existing
         // `fibers` (the ONLY field any caller before this change ever
@@ -10785,7 +10972,7 @@
         // overlay drawn from them is guaranteed to coincide with the
         // real, currently-visible fiber roots, not a separately
         // recomputed approximation.
-        return {side,fibers,eye,automaticLine,line,points,offset:line.offset,peakT,eyeWidth,curl:props.curl,adjustment:props.adjustment,items:props.items};
+        return {side,fibers,eye,automaticLine,line,points,offset:0,peakT,eyeWidth,curl:props.curl,adjustment:props.adjustment,items:props.items};
       });
     }
 
@@ -10801,7 +10988,7 @@
           if(cancelled)return;
           try {
             if(!img.naturalWidth)throw new Error('image');
-            const eyes=buildPhotoPreviewEyes(result,clientDesign);
+            const eyes=buildPhotoPreviewEyes(result,clientDesign,{pixelSource:img});
             const canvas=canvasRef.current,ctx=canvas.getContext('2d');
             if(!ctx)throw new Error('canvas');
             const scale=Math.min(2,2048/Math.max(result.imageWidth,result.imageHeight));
@@ -10914,6 +11101,16 @@
       const renderCheckpointRef=useRef({loggedFor:null});
       const [dragZoneIndex,setDragZoneIndex]=useState(null);
       const [status,setStatus]=useState('loading');
+      // PHOTOREALISTIC RENDERER v2-A BASE -- approved, temporary, debug-
+      // only A/B toggle. Affects ONLY which fiber-rendering variant
+      // buildPhotoPreviewEyes/PhotoLashPreview.buildFibers draws into the
+      // canvas below -- never clientDesign, never Mask Fit/Design Edit
+      // geometry, never canonical mapping/zone mm/curl identity. Defaults
+      // to 'current' (byte-identical to pre-v2-A behavior) on every mount;
+      // never persisted. Remove this state, the toggle button in the JSX
+      // below, and its one dependency-array entry to fully retire the
+      // experiment.
+      const [renderVariant,setRenderVariant]=useState('current');
       const editing=editingEye!=null;
       if(!editing)renderCheckpointRef.current.loggedFor=null;
       const isFirstRenderForThisEdit=editing&&renderCheckpointRef.current.loggedFor!==editingEye;
@@ -10950,7 +11147,7 @@
         lashDiagLog({type:'auto-focus-enter',editing,editingEye,imgNaturalWidth:imageRef.current?.naturalWidth,imgNaturalHeight:imageRef.current?.naturalHeight,resultImageWidth:result?.imageWidth,resultImageHeight:result?.imageHeight,wrapRect:wrapRef.current?(r=>({width:Math.round(r.width),height:Math.round(r.height)}))(wrapRef.current.getBoundingClientRect()):null,...lashDiagViewport()});
         if(!editing){setView({zoom:1,panX:0,panY:0});return;}
         try{
-          const eyes=buildPhotoPreviewEyes(result,clientDesign);
+          const eyes=buildPhotoPreviewEyes(result,clientDesign,{pixelSource:imageRef.current});
           const target=eyes.find(eye=>eye.side===editingEye);
           if(!target){lashDiagLog({type:'auto-focus-no-target',editingEye,sides:eyes.map(e=>e.side)});return;}
           const xs=target.points.map(p=>p.x),ys=target.points.map(p=>p.y);
@@ -10984,7 +11181,7 @@
           if(cancelled)return;
           try{
             if(!img.naturalWidth)throw new Error('image');
-            const eyes=buildPhotoPreviewEyes(result,clientDesign);
+            const eyes=buildPhotoPreviewEyes(result,clientDesign,{pixelSource:img,...(renderVariant==='v2A'?{renderVariant:'v2A'}:null)});
             const canvas=canvasRef.current,ctx=canvas.getContext('2d');
             if(!ctx)throw new Error('canvas');
             const scale=Math.min(2,2048/Math.max(result.imageWidth,result.imageHeight));
@@ -11003,7 +11200,7 @@
         if(img.complete)render();
         const timer=setTimeout(()=>{if(!cancelled&&!img.complete){cancelled=true;setStatus('image');}},15000);
         return ()=>{cancelled=true;clearTimeout(timer);img.removeEventListener('load',render);img.removeEventListener('error',fail);};
-      },[result,clientDesign]);
+      },[result,clientDesign,renderVariant]);
 
       if(result.source!=='photo')return null;
       // Synchronous (not effect-gated) overlay geometry -- handles must
@@ -11012,7 +11209,7 @@
       // therefore the exact same points fibers were just built from),
       // wrapped defensively since it can throw on invalid geometry.
       let overlayEyes=null,overlayEyesError=null;
-      try{overlayEyes=buildPhotoPreviewEyes(result,clientDesign);}catch(error){overlayEyes=null;overlayEyesError=error;}
+      try{overlayEyes=buildPhotoPreviewEyes(result,clientDesign,{pixelSource:imageRef.current});}catch(error){overlayEyes=null;overlayEyesError=error;}
       const eyeData=editing&&overlayEyes?overlayEyes.find(e=>e.side===editingEye):null;
       if(isFirstRenderForThisEdit){
         lashDiagLog({type:'render-checkpoint-B-overlayEyes',hasOverlayEyes:!!overlayEyes,hasEyeData:!!eyeData,totalFiberCount:overlayEyes?overlayEyes.reduce((sum,eye)=>sum+eye.fibers.length,0):null,error:overlayEyesError?String(overlayEyesError.message||overlayEyesError):null});
@@ -11023,6 +11220,20 @@
       const effX=Math.max(0,Math.min(result.imageWidth-effW,view.panX));
       const effY=Math.max(0,Math.min(result.imageHeight-effH,view.panY));
       const cssTransform=`translate(${-(effX/effW)*100}%, ${-(effY/effH)*100}%) scale(${view.zoom})`;
+      // DIRECT CURVE MASK FIT, PHASE 1 (#6): the root-curve touch corridor
+      // must stay approximately constant in SCREEN space across 1x-4x
+      // zoom. The SVG's own viewBox spans result.imageWidth units across
+      // the WRAPPER's live CSS width (the wrapper itself has a fixed
+      // aspectRatio box; the INNER content is what gets scale(view.zoom)
+      // applied), so screenPxPerSvgUnit = (wrapperWidthPx/imageWidth)*
+      // view.zoom -- inverted to convert a target screen-px corridor
+      // width into SVG units. Falls back to the old fixed unit*5.5 on the
+      // very first render, before wrapRef is attached. Clamped to a
+      // reasonable range so a transient zero-size rect read can never
+      // produce a degenerate (0 or huge) corridor.
+      const wrapperWidthPx=wrapRef.current?wrapRef.current.getBoundingClientRect().width:0;
+      const TOUCH_CORRIDOR_SCREEN_PX=28;
+      const touchCorridorWidth=wrapperWidthPx>0?Math.max(unit*2,Math.min(unit*20,TOUCH_CORRIDOR_SCREEN_PX*result.imageWidth/(wrapperWidthPx*view.zoom))):unit*5.5;
       if(isFirstRenderForThisEdit){
         lashDiagLog({type:'render-checkpoint-D-transform',cssTransform,zoom:view.zoom,panX:view.panX,panY:view.panY,effX,effY,effW,effH,finite:{zoom:Number.isFinite(view.zoom),effW:Number.isFinite(effW),effH:Number.isFinite(effH),effX:Number.isFinite(effX),effY:Number.isFinite(effY)}});
       }
@@ -11058,7 +11269,7 @@
         if(!allFinite)return;
         setView({zoom:newZoom,panX:newX,panY:newY});
       };
-      const beginDrag=(event,kind)=>{
+      const beginDrag=(event,kind,frozenT)=>{
         if(!editing||!eyeData)return;event.preventDefault();event.stopPropagation();
         svgRef.current.setPointerCapture(event.pointerId);
         registerPointer(event);
@@ -11080,7 +11291,51 @@
           setDragZoneIndex(index);
           return;
         }
-        dragRef.current={kind,start,adjustment:{...eyeData.adjustment,innerDelta:{...eyeData.adjustment.innerDelta},innerMidDelta:{...eyeData.adjustment.innerMidDelta},peakDelta:{...eyeData.adjustment.peakDelta},outerMidDelta:{...eyeData.adjustment.outerMidDelta},outerDelta:{...eyeData.adjustment.outerDelta}}};
+        // DIRECT CURVE MASK FIT, PHASE 1: 'curve' kind freezes the touched
+        // curve parameter t* for the lifetime of the gesture -- moveDrag
+        // reads drag.t0 below, never recomputed mid-drag (same "freeze at
+        // pointer-down" contract the spec requires).
+        dragRef.current={kind,start,t0:frozenT,adjustment:{...eyeData.adjustment,innerDelta:{...eyeData.adjustment.innerDelta},innerMidDelta:{...eyeData.adjustment.innerMidDelta},peakDelta:{...eyeData.adjustment.peakDelta},outerMidDelta:{...eyeData.adjustment.outerMidDelta},outerDelta:{...eyeData.adjustment.outerDelta}}};
+      };
+      // DIRECT CURVE MASK FIT, PHASE 1: reuses eyeData.line.points (the
+      // SAME 294-sample array handle positions already read -- no second
+      // geometry representation) for spatial nearest-point hit-testing.
+      // Points carry mapX/mapY un-offset; the rendered curve is drawn
+      // translated by eyeData.offset, so offset is added back here to
+      // compare against a real touch position in the same space.
+      const findNearestLineSample=touch=>{
+        if(!eyeData||!touch)return null;
+        const pts=eyeData.line.points;
+        let best=pts[0],bestDist=Infinity;
+        for(const point of pts){
+          const dx=point.mapX-touch.x,dy=(point.mapY+eyeData.offset)-touch.y,dist=dx*dx+dy*dy;
+          if(dist<bestDist){bestDist=dist;best=point;}
+        }
+        return best;
+      };
+      // Entry point for the root-curve touch corridor (replaces the old
+      // unconditional beginDrag(event,'map')). Resolves which existing
+      // kind a touch maps to -- 'inner'/'outer' near the true endpoints,
+      // 'curve' (new) elsewhere -- then delegates to the real, unmodified
+      // beginDrag for everything else (capture, multi-touch pinch
+      // cancellation, adjustment snapshot). Never duplicates that logic.
+      const ENDPOINT_T_THRESHOLD=.08;
+      const beginCurveDrag=event=>{
+        if(!editing||!eyeData){beginDrag(event,'curve');return;}
+        if(activePointersRef.current.size>=1){
+          // A 2nd+ finger is already down -- let beginDrag's own
+          // multi-touch check route straight to pinch; which kind is
+          // passed here is irrelevant in that branch.
+          beginDrag(event,'curve');
+          return;
+        }
+        const touch=svgPoint(event);
+        if(!touch){beginDrag(event,'curve');return;}
+        const nearest=findNearestLineSample(touch);
+        if(!nearest){beginDrag(event,'curve');return;}
+        if(nearest.t<=ENDPOINT_T_THRESHOLD)beginDrag(event,'inner');
+        else if(nearest.t>=1-ENDPOINT_T_THRESHOLD)beginDrag(event,'outer');
+        else beginDrag(event,'curve',nearest.t);
       };
       const moveDrag=event=>{
         if(!editing)return;
@@ -11128,6 +11383,178 @@
           const lowPos=axisPos(lowPoint,lowDelta),highPos=axisPos(highPoint,highDelta),margin=Math.max(1,(highPos-lowPos)*.12);
           const candidatePos=axisPos(automatic,next[key]),clampedPos=Math.max(lowPos+margin,Math.min(highPos-margin,candidatePos)),correction=clampedPos-candidatePos;
           next[key]={x:next[key].x+ux*correction,y:next[key].y+uy*correction};
+        }else if(drag.kind==='fitInner'||drag.kind==='fitApex'||drag.kind==='fitOuter'){
+          // 3-POINT ANATOMICAL FIT (approved replacement for Direct Curve
+          // Mask Fit real-device prototype -- freeform curve sculpting
+          // repeatedly failed real-device UX testing). The artist
+          // positions exactly 3 landmarks -- INNER/APEX/OUTER -- directly
+          // on the client's real upper lash line. Each is moved FREELY in
+          // both axes (unlike the legacy single-anchor 'inner'/'outer'/
+          // 'peak' kinds above, which constrain movement to a single
+          // chord direction and are kept byte-for-byte unchanged/unused
+          // by this new UI -- no shared code was weakened to add this).
+          // INNER-MID/OUTER-MID are never dragged; they are DERIVED below
+          // via a 3-node monotoneCubicValue interpolation through the
+          // just-updated INNER/APEX/OUTER deltas -- the exact same
+          // clamped monotone-cubic-Hermite engine applyManualPhotoAdjustment
+          // itself already uses for the real 5-node render curve, just
+          // evaluated at 3 nodes here to produce 2 derived values. This is
+          // why "arbitrary arch/wave/kink" is structurally impossible in
+          // this model: the Direct Curve bug came from an INDEPENDENTLY
+          // draggable mid-anchor moving far while its neighbors stayed
+          // fixed; here there is no independently draggable mid-anchor at
+          // all, only 3 anchors fully smoothly interpolated between.
+          const key=drag.kind==='fitInner'?'innerDelta':drag.kind==='fitApex'?'peakDelta':'outerDelta';
+          const inner=autoPoints[0],outer=autoPoints.at(-1),peakPoint=autoPoints.find(p=>p.isPeak);
+          const automatic=drag.kind==='fitInner'?inner:drag.kind==='fitApex'?peakPoint:outer;
+          const candidate={x:start[key].x+dx,y:start[key].y+dy};
+          next[key]={x:Math.max(pad,Math.min(result.imageWidth-pad,automatic.mapX+start.translationX+candidate.x))-automatic.mapX-start.translationX,y:Math.max(pad,Math.min(result.imageHeight-pad,automatic.mapY+start.translationY+candidate.y))-automatic.mapY-start.translationY};
+          // Anatomical ordering safety: exactly one of the 3 anchors moves
+          // per gesture, so the other two are always exactly fixed at
+          // their gesture-start (next[key] already-untouched) values --
+          // no "far-fixed-bound" complexity is needed (contrast with the
+          // retired Direct Curve clamp, which had to handle a touched
+          // PAIR). Clamp the moved anchor's tangential (inner->outer
+          // chord) position against whichever of its neighbors is
+          // relevant, with a minimum margin.
+          const vx=outer.mapX-inner.mapX,vy=outer.mapY-inner.mapY,length=Math.max(1,Math.hypot(vx,vy)),ux=vx/length,uy=vy/length;
+          const axisPos=(point,delta)=>((point.mapX-inner.mapX)+delta.x)*ux+((point.mapY-inner.mapY)+delta.y)*uy;
+          const margin=Math.max(1,length*.08);
+          if(drag.kind==='fitInner'){
+            const apexPos=axisPos(peakPoint,next.peakDelta),pos=Math.min(axisPos(inner,next.innerDelta),apexPos-margin),correction=pos-axisPos(inner,next.innerDelta);
+            next.innerDelta={x:next.innerDelta.x+ux*correction,y:next.innerDelta.y+uy*correction};
+          }else if(drag.kind==='fitApex'){
+            const innerPos=axisPos(inner,next.innerDelta),outerPos=axisPos(outer,next.outerDelta),pos=Math.max(innerPos+margin,Math.min(outerPos-margin,axisPos(peakPoint,next.peakDelta))),correction=pos-axisPos(peakPoint,next.peakDelta);
+            next.peakDelta={x:next.peakDelta.x+ux*correction,y:next.peakDelta.y+uy*correction};
+          }else{
+            const apexPos=axisPos(peakPoint,next.peakDelta),pos=Math.max(axisPos(outer,next.outerDelta),apexPos+margin),correction=pos-axisPos(outer,next.outerDelta);
+            next.outerDelta={x:next.outerDelta.x+ux*correction,y:next.outerDelta.y+uy*correction};
+          }
+          const pClamped=Math.max(.08,Math.min(.92,+eyeData.peakT||.5)),nodes3=[0,pClamped,1];
+          const valuesX=[next.innerDelta.x,next.peakDelta.x,next.outerDelta.x],valuesY=[next.innerDelta.y,next.peakDelta.y,next.outerDelta.y];
+          next.innerMidDelta={x:monotoneCubicValue(nodes3,valuesX,pClamped/2),y:monotoneCubicValue(nodes3,valuesY,pClamped/2)};
+          next.outerMidDelta={x:monotoneCubicValue(nodes3,valuesX,(pClamped+1)/2),y:monotoneCubicValue(nodes3,valuesY,(pClamped+1)/2)};
+        }else if(drag.kind==='curve'&&Number.isFinite(drag.t0)){
+          // LOCAL MASK FIT PROTOTYPE (approved real-device UX experiment,
+          // replaces the earlier global-Lagrange-weight Phase-1 approach).
+          // The frozen t0 falls in exactly one of the 4 segments between
+          // adjacent anchors; the raw pointer displacement D=(dx,dy) is
+          // distributed ONLY to that segment's two bracketing anchors,
+          // using the cubic Hermite basis weights H00(s)/H01(s) (s = t0's
+          // position within the segment) -- the SAME basis functions
+          // monotoneCubicValue (applyManualPhotoAdjustment) evaluates the
+          // curve with, so this is "reuse the interpolation's own local
+          // basis for distribution", the same engineering pattern the
+          // retired global approach used, just with a local basis this
+          // time. H00(0)=1/H00(1)=0 and H01(0)=0/H01(1)=1, so a touch
+          // exactly at a node still reduces to moving only that single
+          // anchor; H00(s)+H01(s)=1 identically, so the two weights
+          // always fully (never partially) account for D. Every OTHER
+          // anchor's delta is left EXACTLY at its gesture-start value --
+          // not just "small", untouched -- the direct, strong form of
+          // "distant anchors stay unchanged whenever possible". Only the
+          // (at most 2) touched anchors then run their EXISTING safety
+          // clamp, left-to-right, each reading whatever state its own
+          // neighbors are currently in (already-clamped this pass if also
+          // touched, exactly unchanged otherwise) -- same clamp formulas
+          // every other branch above already uses, scoped down to just
+          // the anchors this gesture actually moved.
+          const t0=drag.t0;
+          const pClamped=Math.max(.08,Math.min(.92,+eyeData.peakT||.5));
+          const nodes5=[0,pClamped/2,pClamped,(pClamped+1)/2,1];
+          const keys=['innerDelta','innerMidDelta','peakDelta','outerMidDelta','outerDelta'];
+          let segIdx=0;
+          while(segIdx<3&&t0>nodes5[segIdx+1])segIdx++;
+          const segStart=nodes5[segIdx],segEnd=nodes5[segIdx+1],segLen=Math.max(1e-6,segEnd-segStart),s=Math.max(0,Math.min(1,(t0-segStart)/segLen)),s2=s*s,s3=s2*s;
+          const H00=2*s3-3*s2+1,H01=-2*s3+3*s2;
+          const leftKey=keys[segIdx],rightKey=keys[segIdx+1];
+          keys.forEach(key=>{next[key]={x:start[key].x,y:start[key].y};});
+          next[leftKey]={x:start[leftKey].x+dx*H00,y:start[leftKey].y+dy*H00};
+          next[rightKey]={x:start[rightKey].x+dx*H01,y:start[rightKey].y+dy*H01};
+          const inner=autoPoints[0],outer=autoPoints.at(-1),peakPoint=autoPoints.find(p=>p.isPeak);
+          const innerMidAutomatic=autoPoints.reduce((best,point)=>Math.abs(point.t-nodes5[1])<Math.abs(best.t-nodes5[1])?point:best);
+          const outerMidAutomatic=autoPoints.reduce((best,point)=>Math.abs(point.t-nodes5[3])<Math.abs(best.t-nodes5[3])?point:best);
+          const vx=outer.mapX-inner.mapX,vy=outer.mapY-inner.mapY,spanLength=Math.max(1,Math.hypot(vx,vy)),ux=vx/spanLength,uy=vy/spanLength;
+          const axisPos=(point,delta)=>((point.mapX-inner.mapX)+delta.x)*ux+((point.mapY-inner.mapY)+delta.y)*uy;
+          const clampBounds=(key,automatic)=>{next[key]={x:Math.max(pad,Math.min(result.imageWidth-pad,automatic.mapX+start.translationX+next[key].x))-automatic.mapX-start.translationX,y:Math.max(pad,Math.min(result.imageHeight-pad,automatic.mapY+start.translationY+next[key].y))-automatic.mapY-start.translationY};};
+          // ANATOMICAL DEFORMATION LIMIT (approved real-device fix: the
+          // local model's locality was correct, but nothing previously
+          // bounded how far a touched anchor could move PERPENDICULAR to
+          // the inner->outer chord -- only the tangential (along-chord)
+          // ordering was clamped. A drag mostly in the normal direction
+          // could pull a mid anchor into an arbitrarily large arch/wave,
+          // since ordering alone barely changes for a purely-perpendicular
+          // move. nx,ny is the chord normal; maxNormal is derived from
+          // THIS eye's own automatic (unadjusted) curve -- its own
+          // measured maximum perpendicular deviation from the chord
+          // (naturalBulge, real per-eye/per-photo geometry, not a fixed
+          // pixel constant) times a fixed, generous headroom multiplier,
+          // floored to a small fraction of spanLength so correction stays
+          // possible even for a nearly-flat automatic line. This keeps
+          // "small/medium fitting correction" (a modest fraction of the
+          // eye's own natural curve height) easy while making the
+          // screenshot's huge-arch result (many times the eye's own
+          // natural bulge) geometrically unreachable, for every anchor
+          // this gesture can touch (including INNER/OUTER when touched
+          // via the curve corridor, not the separate endpoint-drag path).
+          const nx=-uy,ny=ux;
+          let naturalBulge=0;
+          for(const point of autoPoints){const d=Math.abs((point.mapX-inner.mapX)*nx+(point.mapY-inner.mapY)*ny);if(d>naturalBulge)naturalBulge=d;}
+          const maxNormal=Math.max(spanLength*.05,naturalBulge*2);
+          const clampNormal=(key,automatic)=>{
+            const normalPos=(automatic.mapX-inner.mapX+next[key].x)*nx+(automatic.mapY-inner.mapY+next[key].y)*ny;
+            const clamped=Math.max(-maxNormal,Math.min(maxNormal,normalPos)),correction=clamped-normalPos;
+            next[key]={x:next[key].x+nx*correction,y:next[key].y+ny*correction};
+          };
+          // PEAK, local model: constrained to the inner->outer axis only
+          // first (same restriction the single-anchor peak drag already
+          // applies), exactly like before.
+          if(segIdx===1||segIdx===2){
+            const along=(next.peakDelta.x-start.peakDelta.x)*ux+(next.peakDelta.y-start.peakDelta.y)*uy;
+            next.peakDelta={x:start.peakDelta.x+ux*along,y:start.peakDelta.y+uy*along};
+          }
+          // Ordering safety, local model (required fix found during this
+          // pass -- see this session's report): clamp the touched PAIR
+          // directly against the TRUE FIXED (this-gesture-unchanged)
+          // neighbor positions just outside them, not just against each
+          // other's immediate CURRENT value. In the retired global model,
+          // every anchor moved together proportionally, so bounding only
+          // against an immediate neighbor's current position was enough.
+          // In this local model, a touched pair can move far while its
+          // own next-nearest neighbor (e.g. PEAK, when INNER/INNER-MID
+          // are touched) stays exactly fixed -- bounding only against the
+          // FAR endpoint (inner vs outer's full span) is not narrow
+          // enough to stop the touched pair from passing that fixed
+          // neighbor. farLeftPos/farRightPos are null at the true chain
+          // ends (inner has no left neighbor, outer has no right one),
+          // where only the image-bounds clamp above applies.
+          const clampPair=(leftKey,leftAutomatic,rightKey,rightAutomatic,farLeftPos,farRightPos)=>{
+            clampBounds(leftKey,leftAutomatic);
+            clampBounds(rightKey,rightAutomatic);
+            const refSpan=Math.max(1,(farRightPos!=null?farRightPos:spanLength)-(farLeftPos!=null?farLeftPos:0));
+            const margin=Math.max(1,refSpan*.08);
+            let leftPos=axisPos(leftAutomatic,next[leftKey]);
+            const leftLow=farLeftPos!=null?farLeftPos+margin:-Infinity,leftHigh=farRightPos!=null?farRightPos-2*margin:Infinity;
+            leftPos=Math.max(leftLow,Math.min(leftHigh,leftPos));
+            let correction=leftPos-axisPos(leftAutomatic,next[leftKey]);
+            next[leftKey]={x:next[leftKey].x+ux*correction,y:next[leftKey].y+uy*correction};
+            let rightPos=axisPos(rightAutomatic,next[rightKey]);
+            const rightLow=leftPos+margin,rightHigh=farRightPos!=null?farRightPos-margin:Infinity;
+            rightPos=Math.max(rightLow,Math.min(rightHigh,rightPos));
+            correction=rightPos-axisPos(rightAutomatic,next[rightKey]);
+            next[rightKey]={x:next[rightKey].x+ux*correction,y:next[rightKey].y+uy*correction};
+            clampNormal(leftKey,leftAutomatic);
+            clampNormal(rightKey,rightAutomatic);
+          };
+          if(segIdx===0){
+            clampPair('innerDelta',inner,'innerMidDelta',innerMidAutomatic,null,axisPos(peakPoint,next.peakDelta));
+          }else if(segIdx===1){
+            clampPair('innerMidDelta',innerMidAutomatic,'peakDelta',peakPoint,axisPos(inner,next.innerDelta),axisPos(outerMidAutomatic,next.outerMidDelta));
+          }else if(segIdx===2){
+            clampPair('peakDelta',peakPoint,'outerMidDelta',outerMidAutomatic,axisPos(innerMidAutomatic,next.innerMidDelta),axisPos(outer,next.outerDelta));
+          }else{
+            clampPair('outerMidDelta',outerMidAutomatic,'outerDelta',outer,axisPos(peakPoint,next.peakDelta),null);
+          }
         }
         onAdjustmentChange(editingEye,next);
       };
@@ -11141,8 +11568,19 @@
         if(!dragRef.current)return;
         event.preventDefault();dragRef.current=null;setDragZoneIndex(null);
       };
+      // RIGID MASK FIT: a single-finger press anywhere on the photo, while
+      // Mask Fit is active, now grabs the whole lash overlay directly --
+      // delegates entirely to the real, unmodified beginDrag(event,'map')
+      // (same kind, same translationX/Y-only effect, same clamp, the Move
+      // All button already used) rather than reimplementing capture/
+      // multi-touch/pinch-entry here. Design Edit's background press is
+      // UNCHANGED -- it still does nothing for a single finger (zone
+      // handles are the only draggable elements there), only entering
+      // pinch for a 2nd finger, exactly as before this pass.
       const handleBackgroundPointerDown=event=>{
-        if(!editing)return;event.preventDefault();
+        if(!editing)return;
+        if(editMode==='mask'){beginDrag(event,'map');return;}
+        event.preventDefault();
         svgRef.current.setPointerCapture(event.pointerId);
         registerPointer(event);
         if(activePointersRef.current.size>=2){
@@ -11151,6 +11589,19 @@
         }
       };
       const handleReset=()=>editMode==='mask'?onResetFit(editingEye):onResetDesign(editingEye);
+      // RIGID MASK FIT: WIDTH is a simple bounded step control (never a
+      // freeform gesture) -- presentation-only, scales ONLY along the
+      // eye's own chord via applyPhotoWidthScale (index.html, defined
+      // next to applyManualPhotoAdjustment). Range/step chosen as the
+      // smallest reasonable fitting correction (see this session's own
+      // report for the measured rationale) -- not creative distortion.
+      const WIDTH_SCALE_MIN=.85,WIDTH_SCALE_MAX=1.15,WIDTH_SCALE_STEP=.05;
+      const adjustWidth=delta=>{
+        if(!eyeData)return;
+        const base=eyeData.adjustment||createManualPhotoAdjustment(),current=+base.widthScale||1;
+        const next={...base,widthScale:Math.max(WIDTH_SCALE_MIN,Math.min(WIDTH_SCALE_MAX,current+delta))};
+        onAdjustmentChange(editingEye,next);
+      };
 
       // Five Mask Fit anchors (approved 5-anchor extension). inner/peak/
       // outer are named sample points (t=0/PEAK/1); inner-mid/outer-mid
@@ -11173,10 +11624,11 @@
       if(isFirstRenderForThisEdit){
         lashDiagLog({type:'render-checkpoint-C-handlePoints',hasHandlePoints:!!handlePoints,hasInner:!!(handlePoints&&handlePoints.inner),hasInnerMid:!!(handlePoints&&handlePoints.innerMid),hasPeak:!!(handlePoints&&handlePoints.peak),hasOuterMid:!!(handlePoints&&handlePoints.outerMid),hasOuter:!!(handlePoints&&handlePoints.outer),keyZoneCount:keyZonePoints.length});
         // If this entry is ever missing while C above is present, the
-        // crash happened constructing the JSX itself (e.g. the
-        // Object.entries(handlePoints).map(...) below reading a property
-        // off an undefined handle) rather than in the plain data prep
-        // above -- still before React ever gets to commit/paint.
+        // crash happened constructing the JSX itself rather than in the
+        // plain data prep above -- still before React ever gets to
+        // commit/paint. (handlePoints is no longer rendered as circles,
+        // but stays computed/logged here -- Direct Curve Mask Fit reuses
+        // the same underlying eyeData.line.points.)
         lashDiagLog({type:'render-checkpoint-E-about-to-return'});
       }
 
@@ -11194,29 +11646,57 @@
             <button type="button" onClick={()=>onEditModeChange('mask')} className={`min-h-[36px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${editMode==='mask'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>{t('photoEditModeFit',lang)}</button>
             <button type="button" onClick={()=>onEditModeChange('design')} className={`min-h-[36px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${editMode==='design'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>{t('photoEditModeDesign',lang)}</button>
           </div>}
-          <div data-photo-lash-editor-workspace="true" ref={wrapRef} className="relative w-full overflow-hidden rounded-lg border border-border bg-surface" style={{aspectRatio:`${result.imageWidth} / ${result.imageHeight}`}}>
+          {/* PHOTOREALISTIC RENDERER v2-A BASE -- approved, temporary,
+              debug-only A/B comparison toggle (?debug=1 only; invisible
+              otherwise). Switches ONLY which fiber-rendering variant is
+              drawn into the canvas above, on the exact same photo/eye/
+              Mask Fit/mapping/zone-mm/curl state -- never touches
+              clientDesign, never changes editing/Mask Fit/Design Edit
+              behavior. Safe to delete this block (plus the renderVariant
+              state and its one dependency-array entry above) to fully
+              retire the experiment. */}
+          {isDebugModeEnabled()&&<div data-render-variant-toggle="true" className="mb-2 flex items-center gap-1.5">
+            <span className="text-[9px] font-semibold tracking-[.04em] text-textMuted">RENDERER (DEBUG):</span>
+            <button type="button" onClick={()=>setRenderVariant('current')} className={`min-h-[28px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${renderVariant==='current'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>CURRENT</button>
+            <button type="button" onClick={()=>setRenderVariant('v2A')} className={`min-h-[28px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${renderVariant==='v2A'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>v2-A BASE</button>
+          </div>}
+          {/* MASK FIT UX FIX (one-finger ambiguity): touch-action:none was
+              already set on the SVG's own background rect/root-curve
+              corridor, but SVG descendant touch-action has a known history
+              of inconsistent enforcement in mobile Safari specifically --
+              the browser can still start its own native pan/zoom/rotate
+              gesture recognition at this OUTER, plain-HTML wrapper level
+              even when an inner SVG child declares touch-action:none. Set
+              here too (same editing-gated condition, same value) as a
+              robust, redundant guarantee at a DOM level with no such
+              quirks -- this changes no pointer-handling logic at all, only
+              whether the browser's OWN native gesture recognizer is ever
+              allowed to engage anywhere inside the editor while a 1- or
+              2-finger gesture is in progress. The existing JS pointer-
+              event-driven pinch/pan (beginPinch/updatePinch) is unaffected
+              -- touch-action only suppresses native browser handling, not
+              React's own pointer event dispatch. */}
+          <div data-photo-lash-editor-workspace="true" ref={wrapRef} className="relative w-full overflow-hidden rounded-lg border border-border bg-surface" style={{aspectRatio:`${result.imageWidth} / ${result.imageHeight}`,touchAction:editing?'none':undefined}}>
             <div style={{position:'absolute',inset:0,transform:cssTransform,transformOrigin:'0 0'}}>
               <img ref={imageRef} src={result.nativeImage||result.originalImage} alt={t('photoPreviewImage',lang)} className="absolute inset-0 w-full h-full"/>
               <canvas ref={canvasRef} data-editor-status={status} aria-label="Lash Preview" className="absolute inset-0 w-full h-full pointer-events-none"/>
               <svg dir="ltr" ref={svgRef} viewBox={`0 0 ${result.imageWidth} ${result.imageHeight}`} className="absolute inset-0 w-full h-full" onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={event=>lashDiagLog({type:'lostpointercapture',workspace:'wysiwyg',pointerId:event.pointerId,activeCount:activePointersRef.current.size})}>
-                {/* INTENTIONALLY minimal: no profile line, no per-sample
-                    dots, no leader-line length labels over the real
-                    photo -- the rendered fibers themselves already show
-                    the design; this overlay exists only to carry drag
-                    handles. Visible circles stay small (r=unit*.75,
-                    shrunk further for the 5-anchor extension so 5
-                    handles don't crowd the eye any more than 3 did);
-                    the transparent r=unit*4.2 circle underneath is the
-                    real, generous finger target -- unchanged. */}
+                {/* RIGID MASK FIT (approved real-device prototype, replaces
+                    anatomical point/curve editing -- both the 5-handle and
+                    3-point/INNER-APEX-OUTER prototypes repeatedly failed
+                    real-device UX testing: moving any single landmark felt
+                    like the lash shape rotated/twisted rather than simply
+                    sitting on the eye). Mask Fit now has NO anatomical
+                    handles and NO curve-touch corridor at all -- the whole
+                    photo area is the drag target (see
+                    handleBackgroundPointerDown, which now delegates a
+                    single-finger press straight to the existing,
+                    unmodified beginDrag(event,'map')). The dashed root-
+                    line guide is hidden by default (engineering geometry,
+                    not what the artist should judge fit against) and
+                    shown only in debug mode for development use. */}
                 <rect x="0" y="0" width={result.imageWidth} height={result.imageHeight} fill="transparent" onPointerDown={editing?handleBackgroundPointerDown:undefined} style={editing?{touchAction:'none'}:undefined}/>
-                {editing&&eyeData&&editMode==='mask'&&<>
-                  <path id={`wysiwyg-root-line-${editingEye}`} d={eyeData.line.path} transform={`translate(0,${eyeData.offset})`} fill="none" stroke="rgba(10,140,255,.4)" strokeWidth={unit*.22} strokeDasharray={`${unit*.5} ${unit*.4}`} strokeLinecap="round"/>
-                  <use href={`#wysiwyg-root-line-${editingEye}`} onPointerDown={event=>beginDrag(event,'map')} fill="none" stroke="transparent" strokeWidth={unit*5.5} strokeLinecap="round" style={{touchAction:'none'}}/>
-                  {Object.entries(handlePoints).map(([kind,point])=><g key={kind} onPointerDown={event=>beginDrag(event,kind)} style={{touchAction:'none'}}>
-                    <circle cx={point.mapX} cy={point.mapY+eyeData.offset} r={unit*4.2} fill="transparent"/>
-                    <circle cx={point.mapX} cy={point.mapY+eyeData.offset} r={unit*.75} fill="rgba(10,140,255,.9)" stroke="#D8F3FF" strokeWidth={unit*.2}/>
-                  </g>)}
-                </>}
+                {editing&&eyeData&&editMode==='mask'&&isDebugModeEnabled()&&<path id={`wysiwyg-root-line-${editingEye}`} d={eyeData.line.path} transform={`translate(0,${eyeData.offset})`} fill="none" stroke="rgba(10,140,255,.4)" strokeWidth={unit*.22} strokeDasharray={`${unit*.5} ${unit*.4}`} strokeLinecap="round"/>}
                 {editing&&eyeData&&editMode==='design'&&keyZonePoints.map(point=><g key={`zone-${point.keyZoneIndex}`} onPointerDown={event=>beginDrag(event,`zone:${point.keyZoneIndex}`)} style={{touchAction:'none'}}>
                   <circle cx={point.x} cy={point.y} r={unit*4.2} fill="transparent"/>
                   <circle cx={point.x} cy={point.y} r={unit*1.1} fill="rgba(244,247,250,.95)" stroke="rgba(10,140,255,.9)" strokeWidth={unit*.32}/>
@@ -11234,6 +11714,18 @@
             </div>}
           </div>
           {editing&&<div data-photo-edit-action-bar="true" className="mt-2 flex items-center justify-end gap-1.5">
+            {/* RIGID MASK FIT: the dedicated Move All button is removed --
+                it is now redundant, since a single-finger press anywhere
+                on the photo already drags the whole overlay (see
+                handleBackgroundPointerDown above). WIDTH (Уже/Шире) is
+                the only new control: a bounded, discrete step (never a
+                freeform gesture) that calls the real, unmodified
+                onAdjustmentChange with the SAME 5-field adjustment plus
+                widthScale -- no new prop, no new callback. */}
+            {editMode==='mask'&&<>
+              <button type="button" data-width-narrower="true" onClick={()=>adjustWidth(-WIDTH_SCALE_STEP)} className="min-h-[36px] whitespace-nowrap rounded-full border border-border/60 bg-surface/70 px-2.5 text-[9px] font-medium text-textMuted">{t('photoMaskFitNarrower',lang)}</button>
+              <button type="button" data-width-wider="true" onClick={()=>adjustWidth(WIDTH_SCALE_STEP)} className="min-h-[36px] whitespace-nowrap rounded-full border border-border/60 bg-surface/70 px-2.5 text-[9px] font-medium text-textMuted">{t('photoMaskFitWider',lang)}</button>
+            </>}
             <button type="button" onClick={handleReset} className="min-h-[36px] whitespace-nowrap rounded-full border border-border bg-surface px-2.5 text-[9px] font-semibold text-textSecondary">{editMode==='mask'?t('lashMapResetFit',lang):t('lashMapResetDesign',lang)}</button>
             <button type="button" onClick={onDone} className="min-h-[36px] whitespace-nowrap rounded-full border border-accent/50 bg-accent px-3 text-[9px] font-semibold text-white">{t('lashMapDone',lang)}</button>
           </div>}

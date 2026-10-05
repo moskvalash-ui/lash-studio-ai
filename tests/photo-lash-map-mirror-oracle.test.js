@@ -53,7 +53,7 @@ const { expandLashMapSectors } = new Function(zoneNamesLine + '\n' + expandSrc +
 const projectionSrc = slice('    function buildProfessionalEyeProjection(', '\n    // PHOTO labels all five source anchors').text;
 const { buildProfessionalEyeProjection } = new Function(projectionSrc + '\nreturn { buildProfessionalEyeProjection };')();
 
-const photoLineSrc = slice('    function buildProfessionalPhotoLine(', '\n\n    const createManualPhotoAdjustment').text;
+const photoLineSrc = slice('    function buildProfessionalPhotoLine(', '    const createManualPhotoAdjustment').text;
 const { buildProfessionalPhotoLine } = new Function(photoLineSrc + '\nreturn { buildProfessionalPhotoLine };')();
 
 // ------------------------------------------------------------

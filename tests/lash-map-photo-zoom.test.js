@@ -206,7 +206,7 @@ test('B6. beginPinch is a no-op (sets no pinch state) when fewer than 2 pointers
 //    proven for the old editor, now re-proven for the primary surface.
 // ------------------------------------------------------------
 test('C1. beginDrag cancels any single-pointer drag (and the zone readout) the moment a 2nd pointer is registered, before starting pinch', () => {
-  const beginDragSrc = workspaceSource.slice(workspaceSource.indexOf('const beginDrag=(event,kind)=>{'), workspaceSource.indexOf('const moveDrag=event=>{'));
+  const beginDragSrc = workspaceSource.slice(workspaceSource.indexOf('const beginDrag=(event,kind,frozenT)=>{'), workspaceSource.indexOf('const moveDrag=event=>{'));
   assert.ok(beginDragSrc.includes('if(activePointersRef.current.size>=2){'));
   assert.ok(beginDragSrc.indexOf('dragRef.current=null;setDragZoneIndex(null);') < beginDragSrc.indexOf('beginPinch();'), 'the single-pointer drag/readout must be cancelled BEFORE pinch starts');
 });

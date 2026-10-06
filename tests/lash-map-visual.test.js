@@ -345,8 +345,7 @@ test('RELEASE POLISH: PHOTO displays numeric labels for ONLY the 5 canonical zon
 });
 
 test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{
-  // Approved change: PHOTO is still the default for PHOTO results; live-scan results (no photo workspace) open on DIAGRAM.
-  assert.ok(src.includes("const [viewMode,setViewMode]=useState(result?.source==='photo'?'photo':'diagram')"));
+  assert.ok(src.includes("const [viewMode,setViewMode]=useState('photo')"));
   assert.ok(src.includes("viewMode==='photo'?"));
   const diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(diagram.includes('const items = expandLashMapSectors(zones, peakIdx, curve, zoneNames);'));
@@ -510,7 +509,11 @@ test('mobile PHOTO places EDIT MAP visibly inside the image overlay and exposes 
   const controlsIndex=professionalEyeMapSource.indexOf('data-photo-edit-controls="true"'),svgIndex=professionalEyeMapSource.indexOf('<svg dir="ltr" ref={svgRef}'),summaryIndex=professionalEyeMapSource.indexOf('<div className="border-t border-white/[.07] p-3">'),controls=professionalEyeMapSource.slice(controlsIndex,summaryIndex);
   assert.ok(svgIndex>=0&&controlsIndex>svgIndex&&summaryIndex>controlsIndex,'controls must be inside PHOTO image area before summary panel');
   assert.ok(controls.includes('className="absolute inset-x-3 top-3 z-20'));
-  assert.ok(controls.includes('editing ? ('),'expected the not-editing/editing branches to be a plain if/else JSX conditional');
+  // Approved layout fix: the editing controls moved from an overlay on the interactive SVG to an action bar BELOW it
+  // (same principle as PhotoLashEditorWorkspace), so they can never intercept handle pointer events. The two branches
+  // are now two mutually-exclusive conditionals: the overlay holds only the not-editing label + Edit entry point.
+  assert.ok(controls.includes('{!editing&&(')&&controls.includes('{editing&&<div data-photo-edit-action-bar="true"'),'expected not-editing overlay + editing action bar as mutually exclusive JSX conditionals');
+  assert.ok(controls.indexOf('{!editing&&(')<controls.indexOf('data-photo-edit-action-bar'),'the editing action bar must come after (below) the image overlay');
   assert.ok(controls.includes("t('photoEditModeFit',lang)")&&controls.includes("t('photoEditModeDesign',lang)"),'editing state must show the Mask Fit / Design Edit toggle instead of a generic "EDITING MAP" label');
   assert.ok(controls.includes("editMode==='mask'?t('lashMapResetFit',lang):t('lashMapResetDesign',lang)"),'Reset must be context-sensitive to the active sub-mode');
   assert.ok(controls.includes("{t('lashMapDone',lang)}</button>"));assert.ok(controls.includes("{t('lashMapEdit',lang)}</button>"));

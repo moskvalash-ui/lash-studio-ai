@@ -12552,18 +12552,7 @@
                   change (same single Edit entry point; editMode always
                   starts at 'mask' on next entry, matching the intended
                   fit-first-then-design workflow). */}
-              {editing ? (
-                <div className="flex flex-col gap-1.5 pointer-events-auto">
-                  <div className="flex items-center gap-1.5">
-                    <button type="button" onClick={event=>{event.stopPropagation();onEditModeChange('mask');}} className={`min-h-[44px] whitespace-nowrap rounded-full border px-2.5 text-[8px] font-semibold tracking-[.04em] backdrop-blur-sm ${editMode==='mask'?'border-accent/60 bg-accent/25 text-cyan':'border-white/15 bg-bg/60 text-white/70'}`}>{t('photoEditModeFit',lang)}</button>
-                    <button type="button" onClick={event=>{event.stopPropagation();onEditModeChange('design');}} className={`min-h-[44px] whitespace-nowrap rounded-full border px-2.5 text-[8px] font-semibold tracking-[.04em] backdrop-blur-sm ${editMode==='design'?'border-accent/60 bg-accent/25 text-cyan':'border-white/15 bg-bg/60 text-white/70'}`}>{t('photoEditModeDesign',lang)}</button>
-                  </div>
-                  <div className="flex items-center justify-end gap-1">
-                    <button type="button" onClick={event=>{event.stopPropagation();onReset();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-white/20 bg-bg/80 px-2 text-[8px] font-semibold text-white backdrop-blur-sm">{editMode==='mask'?t('lashMapResetFit',lang):t('lashMapResetDesign',lang)}</button>
-                    <button type="button" onClick={event=>{event.stopPropagation();onDone();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/50 bg-accent px-2 text-[8px] font-semibold text-white shadow-[0_0_14px_rgba(10,140,255,.25)]">{t('lashMapDone',lang)}</button>
-                  </div>
-                </div>
-              ) : (
+              {!editing&&(
                 <div className="flex items-start justify-between gap-2">
                   <span className="whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-semibold tracking-[.08em] backdrop-blur-sm border-white/15 bg-bg/75 text-white">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</span>
                   <div className="flex items-center gap-1 pointer-events-auto">
@@ -12573,6 +12562,20 @@
               )}
             </div>
           </div>
+          {/* EDIT CONTROLS live BELOW the interactive eye/map area (same principle as PhotoLashEditorWorkspace's
+              data-photo-edit-action-bar): nothing overlays the SVG, so no control can intercept a handle's pointer events. */}
+          {editing&&<div data-photo-edit-action-bar="true" className="border-t border-white/[.07] p-3">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <button type="button" onClick={event=>{event.stopPropagation();onEditModeChange('mask');}} className={`min-h-[44px] whitespace-nowrap rounded-full border px-2.5 text-[8px] font-semibold tracking-[.04em] backdrop-blur-sm ${editMode==='mask'?'border-accent/60 bg-accent/25 text-cyan':'border-white/15 bg-bg/60 text-white/70'}`}>{t('photoEditModeFit',lang)}</button>
+                    <button type="button" onClick={event=>{event.stopPropagation();onEditModeChange('design');}} className={`min-h-[44px] whitespace-nowrap rounded-full border px-2.5 text-[8px] font-semibold tracking-[.04em] backdrop-blur-sm ${editMode==='design'?'border-accent/60 bg-accent/25 text-cyan':'border-white/15 bg-bg/60 text-white/70'}`}>{t('photoEditModeDesign',lang)}</button>
+                  </div>
+                  <div className="flex items-center justify-end gap-1">
+                    <button type="button" onClick={event=>{event.stopPropagation();onReset();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-white/20 bg-bg/80 px-2 text-[8px] font-semibold text-white backdrop-blur-sm">{editMode==='mask'?t('lashMapResetFit',lang):t('lashMapResetDesign',lang)}</button>
+                    <button type="button" onClick={event=>{event.stopPropagation();onDone();}} className="min-h-[44px] min-w-[44px] whitespace-nowrap rounded-full border border-accent/50 bg-accent px-2 text-[8px] font-semibold text-white shadow-[0_0_14px_rgba(10,140,255,.25)]">{t('lashMapDone',lang)}</button>
+                  </div>
+                </div>
+          </div>}
           <div className="border-t border-white/[.07] p-3">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div><p className="text-sm font-semibold text-textPrimary">{design.name}</p><p className="text-[10px] uppercase tracking-widest text-textMuted">{side==='left'?t('leftEye',lang):t('rightEye',lang)}</p></div>
@@ -12621,8 +12624,7 @@
       // TEMPORARY DIAGNOSTIC -- pinch "reset" bug (see LashDiagOverlay).
       useEffect(() => lashDiagMount('LashMapScreen', { hasResult: !!result, hasDesign: !!design, imageSource: result?.source }), []);
       const [activeEye, setActiveEye] = useState('left');
-      // The PHOTO workspace only renders for photo results; live-scan results open on the DIAGRAM.
-      const [viewMode,setViewMode]=useState(result?.source==='photo'?'photo':'diagram');
+      const [viewMode,setViewMode]=useState('photo');
       const [editingPhotoEye,setEditingPhotoEye]=useState(null);
       // MASK FIT / DESIGN EDIT mode separation: a single global sub-mode
       // (not per-eye -- only one eye is ever being edited at a time via
@@ -12788,7 +12790,11 @@
               <div className="mb-3 flex rounded-md border border-border bg-surface p-1" aria-label="Lash Map view">
                 {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
               </div>
-              {viewMode==='photo'?
+              {viewMode==='photo'&&result.source!=='photo'?<div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                {/* LIVE SCAN results: the proven per-eye visual maps (captured frame + lash-length overlay).
+                    PhotoLashEditorWorkspace intentionally renders only for source:'photo'. */}
+                {['left','right'].map(side=><ProfessionalEyeMap key={side} clientDesign={photoClientDesign} result={result} side={side} active={activeEye===side} onActivate={()=>setActiveEye(side)} lang={lang} editing={editingPhotoEye===side} onAdjustmentChange={next=>setPhotoAdjustment(side,next)} onEdit={()=>{setActiveEye(side);setEditingPhotoEye(side);setPhotoEditMode('mask');}} onReset={()=>photoEditMode==='mask'?resetPhotoAdjustment(side):resetDesignForSide(side)} onDone={()=>setEditingPhotoEye(null)} onZoneLengthChange={(idx,mm)=>applyZoneDrag(side,idx,mm)} editMode={photoEditMode} onEditModeChange={setPhotoEditMode}/>)}
+              </div>:viewMode==='photo'?
                 <PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign} lang={lang} activeEye={activeEye} editingEye={editingPhotoEye} editMode={photoEditMode} onEdit={()=>{setEditingPhotoEye(activeEye);setPhotoEditMode('mask');}} onDone={()=>setEditingPhotoEye(null)} onEditModeChange={setPhotoEditMode} onAdjustmentChange={setPhotoAdjustment} onZoneLengthChange={applyZoneDrag} onResetFit={resetPhotoAdjustment} onResetDesign={resetDesignForSide}/>
               :<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
                 <LashMapDiagram clientDesign={diagramClientDesign} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} lang={lang}/>

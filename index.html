@@ -11240,6 +11240,8 @@
       useEffect(()=>{
         let cancelled=false;
         const img=imageRef.current;
+        // No <img> is rendered for non-photo (live-scan) results -- this component returns null for them below.
+        if(!img)return;
         setStatus('loading');
         const render=()=>{
           if(cancelled)return;
@@ -12619,7 +12621,8 @@
       // TEMPORARY DIAGNOSTIC -- pinch "reset" bug (see LashDiagOverlay).
       useEffect(() => lashDiagMount('LashMapScreen', { hasResult: !!result, hasDesign: !!design, imageSource: result?.source }), []);
       const [activeEye, setActiveEye] = useState('left');
-      const [viewMode,setViewMode]=useState('photo');
+      // The PHOTO workspace only renders for photo results; live-scan results open on the DIAGRAM.
+      const [viewMode,setViewMode]=useState(result?.source==='photo'?'photo':'diagram');
       const [editingPhotoEye,setEditingPhotoEye]=useState(null);
       // MASK FIT / DESIGN EDIT mode separation: a single global sub-mode
       // (not per-eye -- only one eye is ever being edited at a time via

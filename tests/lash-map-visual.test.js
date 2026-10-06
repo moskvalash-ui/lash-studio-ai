@@ -345,7 +345,8 @@ test('RELEASE POLISH: PHOTO displays numeric labels for ONLY the 5 canonical zon
 });
 
 test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{
-  assert.ok(src.includes("const [viewMode,setViewMode]=useState('photo')"));
+  // Approved change: PHOTO is still the default for PHOTO results; live-scan results (no photo workspace) open on DIAGRAM.
+  assert.ok(src.includes("const [viewMode,setViewMode]=useState(result?.source==='photo'?'photo':'diagram')"));
   assert.ok(src.includes("viewMode==='photo'?"));
   const diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(diagram.includes('const items = expandLashMapSectors(zones, peakIdx, curve, zoneNames);'));

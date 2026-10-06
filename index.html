@@ -8050,6 +8050,9 @@
       // no new stream-management logic, no duplicate active streams.
       const [cameraErrorKind, setCameraErrorKind] = useState(null);
       const [cameraRetryToken, setCameraRetryToken] = useState(0);
+      // Bumped at the start of every camera-acquisition effect run so an
+      // in-flight scan tick from an earlier session can detect it is stale.
+      const cameraSessionRef = useRef(0);
       // EYELID CREASE V2 — DEBUG SHADOW MODE ONLY. debugAvailable gates
       // whether detectEyelidCreaseV2 runs AT ALL (see the tick handler
       // below) — in normal mode it never executes, so it costs nothing.
@@ -8206,6 +8209,7 @@
         if (!modelsLoadedRef.current) return;
         markTiming('T5_first_frame_eligible');
         busyRef.current = true;
+        const tickSession = cameraSessionRef.current;
         let diagnosticGeometry = null;
         const diagnosticDecision = {};
         const decideStage = key => { if (cameraLayoutDebugEnabled) diagnosticDecision.stageKey = key; setStageKey(key); };
@@ -8238,6 +8242,13 @@
           markTiming('T6_first_inference_begins');
           const det = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks();
           markTiming('T7_first_inference_completes');
+          // STALE-TICK GUARD — this tick may have been mid-await when the
+          // session ended (startup watchdog / camera track ended set
+          // doneRef and showed their own stage, or Retry/unmount started a
+          // new session). It must not then overwrite that stage with
+          // stageSearching/stageLost/etc. or feed a dead session's frame
+          // into the new one.
+          if (doneRef.current || tickSession !== cameraSessionRef.current) return;
           const now = performance.now();
           bufferRef.current = bufferRef.current.filter(e => now - e.t < BUFFER_WINDOW_MS);
 
@@ -8754,6 +8765,7 @@
         // `.stop()` calls below sees cancelled=true and no-ops instead
         // of treating our own teardown as an unexpected camera loss.
         let cancelled = false;
+        cameraSessionRef.current += 1;
         doneRef.current = false;
         busyRef.current = false;
         bufferRef.current = [];
@@ -8915,7 +8927,7 @@
       useEffect(() => {
         const draw = () => {
           const canvas = overlayCanvasRef.current, container = containerRef.current;
-          if (!canvas || !container) { overlayRafRef.current = requestAnimationFrame(draw); return; }
+          if (!canvas || !container) return;
           const rect = container.getBoundingClientRect();
           const dpr = window.devicePixelRatio || 1;
           const w = Math.max(1, Math.round(rect.width)), h = Math.max(1, Math.round(rect.height));
@@ -8942,7 +8954,10 @@
           const mirrored = facingModeRef.current === 'user';
           const previewVideo = videoRef.current;
           if (previewVideo && previewVideo.videoWidth && previewVideo.videoHeight) {
-            drawVideoCover(ctx, previewVideo, w, h, mirrored);
+            // A transient WebKit drawImage failure must cost one frame,
+            // never the overlay (or, below, the whole paint loop).
+            try { drawVideoCover(ctx, previewVideo, w, h, mirrored); }
+            catch (e) { lashDiagLog({ type: 'preview-video-draw-error', message: String(e && e.message || e) }, { throttleMs: 1000 }); }
           }
 
           const time = performance.now();
@@ -9085,9 +9100,22 @@
             }
           }
 
-          overlayRafRef.current = requestAnimationFrame(draw);
         };
-        overlayRafRef.current = requestAnimationFrame(draw);
+        // PAINT-LOOP LIVENESS — the next frame used to be scheduled only
+        // as the very last statement of the draw body, so ANY exception
+        // (null/invalid 2D context, a transient WebKit canvas/video
+        // state, a non-finite gradient argument in an overlay helper)
+        // ended the loop permanently: the stream, video dimensions and
+        // the startup watchdog all stayed "healthy" while the canvas —
+        // the only user-visible camera surface — stayed black. The next
+        // frame is now scheduled unconditionally; a failed frame costs
+        // only that frame. Errors are visible under ?debug=1 only.
+        const paintLoop = () => {
+          try { draw(); }
+          catch (e) { lashDiagLog({ type: 'preview-draw-error', message: String(e && e.message || e) }, { throttleMs: 1000 }); }
+          overlayRafRef.current = requestAnimationFrame(paintLoop);
+        };
+        overlayRafRef.current = requestAnimationFrame(paintLoop);
         return () => { if (overlayRafRef.current) cancelAnimationFrame(overlayRafRef.current); };
       }, []);
 

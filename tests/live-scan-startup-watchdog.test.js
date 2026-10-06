@@ -54,3 +54,13 @@ test('presentation untouched: video stays an opacity:0 decode source, constraint
   assert.ok(src.includes("style={{ opacity: 0, pointerEvents: 'none' }} playsInline muted"));
   assert.ok(effect.includes('{ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }'));
 });
+
+test('stale-tick guard: a tick that was mid-detection when the session ended cannot write state afterwards', () => {
+  const tickStart = src.indexOf('tickImplRef.current = async () => {');
+  const tick = src.slice(tickStart, src.indexOf('markTiming(\'T7_first_inference_completes\');', tickStart) + 700);
+  assert.ok(tick.includes('const tickSession = cameraSessionRef.current;'), 'tick captures its session before awaiting detection');
+  const awaitIdx = tick.indexOf('await faceapi.detectSingleFace'), guardIdx = tick.indexOf('if (doneRef.current || tickSession !== cameraSessionRef.current) return;');
+  assert.ok(awaitIdx > 0 && guardIdx > awaitIdx, 'guard sits immediately after the detection await, before any state write');
+  assert.ok(!tick.slice(awaitIdx, guardIdx).includes('setStageKey') && !tick.slice(awaitIdx, guardIdx).includes('decideStage'));
+  assert.ok(effect.includes('cameraSessionRef.current += 1;'), 'every camera-effect run starts a new session');
+});

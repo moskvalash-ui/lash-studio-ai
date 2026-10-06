@@ -145,3 +145,26 @@ test('7. Retry after a watchdog timeout starts a clean, working session', async 
   await expect(noCamera(page)).toHaveCount(0);
   expect(await page.evaluate(() => { const v = document.querySelector('video'); return v.videoWidth > 0 && v.srcObject === window.__gum.streams[0]; })).toBe(true);
 });
+
+test('8. a scan tick that is mid-detection when the watchdog fires cannot overwrite the error UI when it resolves later', async ({ page }) => {
+  test.setTimeout(90000);
+  await install(page, { modes: ['ok'], zeroDims: true });
+  await page.goto('/index.html');
+  const reject = page.getByRole('button', { name: 'Отказаться', exact: true });
+  await reject.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+  if (await reject.isVisible()) await reject.click();
+  const live = page.getByRole('button', { name: 'Начать Live Scan', exact: true });
+  await expect(live).toBeEnabled({ timeout: 30000 });
+  // Hold the FIRST detection in flight (a real detection can take seconds on a slow device).
+  await page.evaluate(() => {
+    window.__detCalls = 0;
+    faceapi.detectSingleFace = () => ({ withFaceLandmarks: () => new Promise(res => { window.__detCalls++; window.__releaseDet = () => res(undefined); }) });
+  });
+  await live.click();
+  await page.waitForFunction(() => window.__detCalls >= 1, null, { timeout: 30000 }); // tick is now mid-await
+  await expect(retryBtn(page)).toBeVisible({ timeout: WD + 20000 });
+  await page.evaluate(() => window.__releaseDet()); // stale tick resolves: "no face" -> used to set stageSearching
+  await page.waitForTimeout(800);
+  await expect(noCamera(page)).toBeVisible();
+  await expect(retryBtn(page)).toBeVisible();
+});

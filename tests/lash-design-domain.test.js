@@ -42,7 +42,7 @@ const { recommendCurl } = new Function(
 const EXPECTED_IDS = [
   'natural', 'naturalRounded', 'naturalElongated', 'angel', 'doll', 'rounded', 'squirrel',
   'kitten', 'cat', 'softcat', 'fox', 'softfox', 'eyeliner', 'wispy', 'wispycat',
-  'wispydoll', 'kim', 'manga', 'wet', 'reverse', 'correction',
+  'wispydoll', 'kim', 'manga', 'wet', 'reverse', 'correction', 'arabic',
 ];
 
 const profile = {
@@ -103,13 +103,13 @@ const adapt = (design, entry, extra = {}) => Domain.legacyToClientLashDesign({
   design, catalogEntry: entry, eyeProfile: profile, expandSectors: expandLashMapSectors, ...extra,
 });
 
-test('canonical taxonomy preserves all 21 legacy IDs in exact catalog order', () => {
+test('canonical taxonomy preserves all 22 legacy IDs in exact catalog order', () => {
   assert.deepStrictEqual(DESIGN_CATALOG.map(entry => entry.id), EXPECTED_IDS);
   assert.deepStrictEqual(Domain.LEGACY_TAXONOMY.map(entry => entry.legacyId), EXPECTED_IDS);
-  assert.strictEqual(new Set(EXPECTED_IDS).size, 21);
+  assert.strictEqual(new Set(EXPECTED_IDS).size, 22);
 });
 
-test('all 21 adapters preserve legacy mapping, peak, score, curl, texture, aliases, and derived sectors', () => {
+test('all 22 adapters preserve legacy mapping, peak, score, curl, texture, aliases, and derived sectors', () => {
   for (const entry of DESIGN_CATALOG) {
     const design = legacyDesign(entry);
     const canonical = adapt(design, entry);

@@ -234,7 +234,7 @@ test('G. DESIGN_CATALOG source (all 21 canonical baseZones sequences, e.g. 5-5-8
   const catalogStart = src.indexOf('    const DESIGN_CATALOG = ');
   const catalogEnd = src.indexOf('\n\n    function calculateEyeLashMap(', catalogStart);
   const digest = require('node:crypto').createHash('sha256').update(src.slice(catalogStart, catalogEnd)).digest('hex');
-  assert.strictEqual(digest, '15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181', 'DESIGN_CATALOG (all canonical baseZones numeric sequences) must be byte-identical -- Phase 1 must never touch analytical/geometry data');
+  assert.strictEqual(digest, '5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843', 'DESIGN_CATALOG (all canonical baseZones numeric sequences) must be byte-identical -- Phase 1 must never touch analytical/geometry data');
 });
 
 test('G2. ZONE_NAMES canonical order is unchanged', () => {

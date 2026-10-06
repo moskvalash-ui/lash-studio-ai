@@ -26,7 +26,7 @@ test('construction.jellyfish is the populated, expert-reviewed, non-numeric, pro
 
 test('no production DESIGN_CATALOG Jellyfish entry exists, and the only debug-preview mention stays confined to the isolated presentation layer',()=>{
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end),catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
-  assert.strictEqual(catalog.length,21);
+  assert.strictEqual(catalog.length,22);
   assert.ok(!catalog.some(entry=>/jellyfish/i.test(entry.id)));
   // A presentation-only Russian display-name lookup keyed by canonicalId
   // (added for the debug preview's RU translation layer) legitimately
@@ -222,12 +222,12 @@ test('protected professional definitions remain byte-identical after populating 
   assert.strictEqual(digest(JSON.stringify(ray)),'3e23c055de03aa7c238df7182c808983475d5d46e89062743d06066caa48aefb');
 });
 
-test('production is untouched: activation stays inactive and all 21 legacy IDs and consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(indexSource),'32e011d9e8a543f4a317d52141945d69f50a03c4c4626cf2d95bea6342fb3266');
-  assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
+test('production is untouched: activation stays inactive and all 22 legacy IDs and consumers remain byte-identical',()=>{
+  assert.strictEqual(digest(indexSource),'f95afcda54e91f56ea5ff2ebb74efce9a39866c90ee83de0a0403baa1ed300f0');
+  assert.strictEqual(digest(domainSource),'2dcc53ccf283f83dd228752f824c19c10ba91bb95fb7a7ebca287ac0ca9f9581');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end),catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
-  assert.strictEqual(catalog.length,21);
-  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction']);
+  assert.strictEqual(catalog.length,22);
+  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction','arabic']);
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);
 });

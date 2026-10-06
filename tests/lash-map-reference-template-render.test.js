@@ -254,16 +254,16 @@ test('L. the professional-lash-library.js data file itself is byte-identical to 
 
 test('L2. lash-design-domain.js remains byte-identical -- the 21 production designs still go through their existing unmodified path', () => {
   const digest = require('crypto').createHash('sha256').update(domainSource).digest('hex');
-  assert.strictEqual(digest, '11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
+  assert.strictEqual(digest, '2dcc53ccf283f83dd228752f824c19c10ba91bb95fb7a7ebca287ac0ca9f9581');
 });
 
 test('L3. all 21 DESIGN_CATALOG legacy IDs and their exact production geometry remain unchanged', () => {
   const catalogStart = src.indexOf('    const DESIGN_CATALOG = ');
   const catalogEnd = src.indexOf('\n\n    function calculateEyeLashMap(', catalogStart);
   const catalog = new Function('const clampScore=n=>n;' + src.slice(catalogStart, catalogEnd) + ';return DESIGN_CATALOG;')();
-  assert.deepStrictEqual(catalog.map(e => e.id), ['natural', 'naturalRounded', 'naturalElongated', 'angel', 'doll', 'rounded', 'squirrel', 'kitten', 'cat', 'softcat', 'fox', 'softfox', 'eyeliner', 'wispy', 'wispycat', 'wispydoll', 'kim', 'manga', 'wet', 'reverse', 'correction']);
+  assert.deepStrictEqual(catalog.map(e => e.id), ['natural', 'naturalRounded', 'naturalElongated', 'angel', 'doll', 'rounded', 'squirrel', 'kitten', 'cat', 'softcat', 'fox', 'softfox', 'eyeliner', 'wispy', 'wispycat', 'wispydoll', 'kim', 'manga', 'wet', 'reverse', 'correction','arabic']);
   const digest = require('crypto').createHash('sha256').update(src.slice(catalogStart, catalogEnd)).digest('hex');
-  assert.strictEqual(digest, '15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
+  assert.strictEqual(digest, '5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843');
 });
 
 // ------------------------------------------------------------

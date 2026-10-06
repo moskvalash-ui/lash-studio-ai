@@ -74,10 +74,10 @@ test('Doll and every professional definition remain production-inactive',()=>{
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
 });
 
-test('all 21 legacy IDs and exact legacy Doll production inputs remain unchanged',()=>{
+test('all 22 legacy IDs and exact legacy Doll production inputs remain unchanged',()=>{
   const catalogStart=indexSource.indexOf('    const DESIGN_CATALOG = '),catalogEnd=indexSource.indexOf('\n\n    function calculateEyeLashMap(',catalogStart),catalogSource=indexSource.slice(catalogStart,catalogEnd);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
-  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction']);
+  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction','arabic']);
   const legacyDoll=catalog.find(entry=>entry.id==='doll');
   assert.deepStrictEqual(legacyDoll.baseZones,[8,9,10,10,9]);
   assert.strictEqual(legacyDoll.peakZone,2);
@@ -85,13 +85,13 @@ test('all 21 legacy IDs and exact legacy Doll production inputs remain unchanged
   assert.strictEqual(legacyDoll.plateauShape,'shoulder');
   assert.strictEqual(legacyDoll.postPeakShape,'gradual');
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
+  assert.strictEqual(digest(catalogSource),'5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843');
 });
 
 test('Recommendation, PHOTO, DIAGRAM, Application Plan, and domain source remain unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource),'32e011d9e8a543f4a317d52141945d69f50a03c4c4626cf2d95bea6342fb3266');
-  assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
+  assert.strictEqual(digest(indexSource),'f95afcda54e91f56ea5ff2ebb74efce9a39866c90ee83de0a0403baa1ed300f0');
+  assert.strictEqual(digest(domainSource),'2dcc53ccf283f83dd228752f824c19c10ba91bb95fb7a7ebca287ac0ca9f9581');
   assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, rank);'));
   assert.ok(indexSource.includes('<PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign}'));
   assert.ok(indexSource.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));

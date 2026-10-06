@@ -5153,6 +5153,16 @@
         why: (c,l) => l==='en' ? 'Base natural geometry with amplified left/right compensation.' : 'Базовая natural-геометрия с усиленной L/R компенсацией.',
         goal: (c,l) => l==='en' ? 'Visually balance a measured left/right asymmetry.' : 'Визуально сбалансировать измеренную асимметрию левого/правого глаза.',
         cautions: () => [], correctionMultiplier: 2 },
+      // ARABIC: three-length (SHORT/MEDIUM/LONG) layered groups. score 0 + last position => never ranks above an existing
+      // design (Array.sort is stable), so it is manually selectable but not an AI recommendation in this release.
+      { id:'arabic', category:'textured', ruName:'Арабский', enName:'Arabic', arName:'عربي', aliases:['Arabic Effect'],
+        baseZones:[6,7,9,12,10], peakZone:3, baseCurl:'LC', curlOptions:['C','LC','L','L+'], defaultTechnique:'Volume 3D',
+        zonePositions:[0,.20,.46,.74,1], postPeakShape:'gradual',
+        texture:{ pattern:'arabic', frequency:3, baseToSpikeDiff:3, groups:6, mediumDiff:1.5, longDiff:3.0, taperEnd:.6, spread:.062 },
+        score: () => 0,
+        why: (c,l) => l==='en' ? 'Repeating short, medium and long lash groups that follow the eye map.' : 'Повторяющиеся группы из коротких, средних и длинных ресниц по карте глаза.',
+        goal: (c,l) => l==='en' ? 'Create a layered Arabic lash rhythm.' : 'Создать многослойный арабский ритм ресниц.',
+        cautions: () => [] },
     ];
 
     function calculateEyeLashMap(entry, c, side) {
@@ -5273,7 +5283,7 @@
       const curlRec = recommendCurl(c, entry, lang);
       const legacyDesign = {
         id: entry.id, category: entry.category,
-        name: lang === 'en' ? entry.enName : entry.ruName,
+        name: lang === 'en' ? entry.enName : (lang === 'ar' && entry.arName ? entry.arName : entry.ruName),
         ruName: entry.ruName, enName: entry.enName, aliases: entry.aliases,
         score, whyItWorks: entry.why(c, lang), correctionGoal: entry.goal(c, lang),
         limitations: entry.cautions(c, lang), baseCurl: entry.baseCurl, curlOptions: entry.curlOptions,
@@ -5311,7 +5321,7 @@
       if (!entry) return design;
       return {
         ...design,
-        name: lang === 'en' ? entry.enName : entry.ruName,
+        name: lang === 'en' ? entry.enName : (lang === 'ar' && entry.arName ? entry.arName : entry.ruName),
         whyItWorks: entry.why(c, lang),
         correctionGoal: entry.goal(c, lang),
         limitations: entry.cautions(c, lang),
@@ -5406,8 +5416,54 @@
     // ------------------------------------------------------------
     function pseudoJitter(i) { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); }
 
-    function computeSpikeGeometry(zones, texture) {
+    // ARABIC texture: repeating three-lash GROUPS (SHORT -> MEDIUM -> LONG), each group one layered cluster.
+    // All three lashes of a group share ONE local base length: the map sampled at the GROUP CENTRE.
+    //   SHORT = base, MEDIUM = base + mediumDiff, LONG = base + longDiff (approved: +1.5 / +3.0 mm).
+    // Additions taper linearly to taperEnd (60%) of their size from the peak to the outer end; a 1 mm minimum step keeps
+    // the levels separate where the taper would shrink them. Group centres sit at (k+1/2)/groups; the three lashes are
+    // spread +-(spread/groups) around the centre (approved tight spread 0.062 for 6 groups ~ 3.0 renderer units apart).
+    // Existing patterns (uniform/kim/manga) never reach this function.
+    function computeArabicSpikeGeometry(zones, texture, peakIdx, positions) {
+      const n = zones.length;
+      const pos = Array.isArray(positions) && positions.length === n ? positions : zones.map((_, i) => i / (n - 1));
+      const baseAt = t => {
+        if (t <= pos[0]) return zones[0];
+        for (let i = 0; i < n - 1; i++) if (t <= pos[i + 1]) return zones[i] + (zones[i + 1] - zones[i]) * (t - pos[i]) / (pos[i + 1] - pos[i]);
+        return zones[n - 1];
+      };
+      const peakT = pos[Number.isInteger(peakIdx) ? peakIdx : zones.indexOf(Math.max(...zones))];
+      const groups = Math.max(1, Math.round(texture.groups || 6));
+      const longDiff = texture.longDiff ?? texture.baseToSpikeDiff ?? 3.0;
+      const mediumDiff = texture.mediumDiff ?? longDiff / 2;
+      const taperEnd = texture.taperEnd ?? 0.6, spread = texture.spread ?? 0.062, MIN_STEP = 1;
+      const taper = t => t <= peakT ? 1 : 1 - (1 - taperEnd) * Math.min(1, (t - peakT) / Math.max(1 - peakT, 1e-6));
+      const r1 = v => Math.round(v * 10) / 10;
+      const spikes = [];
+      for (let k = 0; k < groups; k++) {
+        const tc = (k + 0.5) / groups, step = spread / groups, baseLen = baseAt(tc), tp = taper(tc);
+        const levels = [{ dt: -step, add: 0, tall: false }, { dt: 0, add: mediumDiff, tall: false }, { dt: step, add: longDiff, tall: true }];
+        let prevLen = -Infinity;
+        levels.forEach((lv, li) => {
+          let spikeLen = baseLen + lv.add * tp;
+          if (li > 0) spikeLen = Math.max(spikeLen, prevLen + MIN_STEP);
+          spikeLen = r1(spikeLen); prevLen = spikeLen;
+          const t = tc + lv.dt;
+          spikes.push({ t, zoneIdx: Math.min(n - 2, Math.floor(t * (n - 1))), tall: lv.tall, level: ['short', 'medium', 'long'][li], group: k, baseLen: r1(baseLen), spikeLen, diff: r1(spikeLen - baseLen) });
+        });
+      }
+      const tallSpikes = spikes.filter(sp => sp.tall);
+      const mainSpike = tallSpikes.reduce((best, sp) => !best || sp.spikeLen > best.spikeLen ? sp : best, null);
+      return {
+        spikes, count: tallSpikes.length, groups,
+        baseMin: Math.min(...zones), baseMax: Math.max(...zones),
+        spikeMin: Math.min(...spikes.map(sp => sp.spikeLen)), spikeMax: Math.max(...spikes.map(sp => sp.spikeLen)),
+        diff: longDiff, pattern: 'arabic',
+        mainSpikeZone: mainSpike ? ZONE_NAMES[Math.min(mainSpike.zoneIdx + 1, ZONE_NAMES.length - 1)] : ZONE_NAMES[3],
+      };
+    }
+    function computeSpikeGeometry(zones, texture, peakIdx, positions) {
       if (!texture) return null;
+      if (texture.pattern === 'arabic') return computeArabicSpikeGeometry(zones, texture, peakIdx, positions);
       const n = zones.length;
       const spikes = [];
       for (let i = 0; i < n - 1; i++) {
@@ -12672,7 +12728,7 @@
       const effectiveTexture = mode === 'custom'
         ? (customSpikesOn ? { pattern: customSpikePattern, frequency: customSpikeFreq, baseToSpikeDiff: customSpikeDiff } : null)
         : design.texture;
-      const spikeGeom = computeSpikeGeometry(zones, effectiveTexture);
+      const spikeGeom = computeSpikeGeometry(zones, effectiveTexture, peakIdx, design.curve && design.curve.zonePositions);
       const runtimeCanonicalBase=LashDesignDomain.legacyToClientLashDesign({
         design,catalogEntry:DESIGN_CATALOG.find(entry=>entry.id===design.id),eyeProfile:p,expandSectors:expandLashMapSectors,
       });

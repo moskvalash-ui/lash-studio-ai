@@ -86,8 +86,8 @@ function canonicalPlan(design, entry, side, zones, otherZones, technique, curl, 
   return generateApplicationPlan(client, lang);
 }
 
-test('Application Plan canonical consumer is byte-for-byte equivalent for all 21 IDs in RU and EN', () => {
-  assert.strictEqual(DESIGN_CATALOG.length, 21);
+test('Application Plan canonical consumer is byte-for-byte equivalent for all 22 IDs in RU and EN', () => {
+  assert.strictEqual(DESIGN_CATALOG.length, 22);
   for (const lang of ['ru', 'en']) {
     for (const entry of DESIGN_CATALOG) {
       const design = legacyDesign(entry, lang);

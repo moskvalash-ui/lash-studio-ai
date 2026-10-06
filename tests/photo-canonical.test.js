@@ -57,8 +57,8 @@ function structural(eye, props) {
   return {projection,automatic,crop,working,labels:selectProfessionalEyeLabels(working.points,crop)};
 }
 
-test('PHOTO canonical props and structural geometry equal legacy inputs for all 21 IDs and both physical eyes',()=>{
-  assert.strictEqual(DESIGN_CATALOG.length,21);
+test('PHOTO canonical props and structural geometry equal legacy inputs for all 22 IDs and both physical eyes',()=>{
+  assert.strictEqual(DESIGN_CATALOG.length,22);
   for(const entry of DESIGN_CATALOG){
     const design=legacyDesign(entry),adjustment={left:createManualPhotoAdjustment(),right:{...createManualPhotoAdjustment(),translationX:2.25,translationY:-1.5}};
     const base=Domain.legacyToClientLashDesign({design,catalogEntry:entry,eyeProfile:profile,expandSectors:expandLashMapSectors});
@@ -112,7 +112,7 @@ test('PHOTO anatomical and mirror contract is explicit at the canonical wrapper 
 
 test('Phase 2C isolation guards keep forbidden consumers and professional sources unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181','DESIGN_CATALOG changed');
+  assert.strictEqual(digest(catalogSource),'5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843','DESIGN_CATALOG changed');
   assert.strictEqual(digest(mapSource),'8f3124becb3cf6e4b811b6f96e1414a5f0c840b352aa34324d8b3881841245ca','calculateEyeLashMap/buildEyeZones changed');
   assert.ok(src.includes('const plan = generateApplicationPlan(planClientDesign, lang);'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));

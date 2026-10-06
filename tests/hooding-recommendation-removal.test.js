@@ -100,8 +100,8 @@ const NON_HOODED = { ...BASE_PROFILE, isHooded: false, hoodedConfidence: .1, hoo
 const UNCERTAIN = { ...BASE_PROFILE, isHooded: false, hoodedConfidence: .25, hoodingLevel: 'none', hoodingState: 'uncertain' };
 const MISSING = { ...BASE_PROFILE }; // isHooded/hoodedConfidence/hoodingLevel/hoodingState entirely absent
 
-test('DESIGN_CATALOG has all 21 entries and every score/cautions call runs without throwing for hooded/non-hooded/uncertain/missing hooding data', () => {
-  assert.strictEqual(catalog.length, 21);
+test('DESIGN_CATALOG has all 22 entries and every score/cautions call runs without throwing for hooded/non-hooded/uncertain/missing hooding data', () => {
+  assert.strictEqual(catalog.length, 22);
   for (const profile of [HOODED, NON_HOODED, UNCERTAIN, MISSING]) {
     for (const entry of catalog) {
       assert.doesNotThrow(() => entry.score(profile));

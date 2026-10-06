@@ -93,7 +93,7 @@ const neutralProfile = {
 };
 
 test('every catalog design preserves all five professional template offsets at neutral geometry', () => {
-  assert.strictEqual(DESIGN_CATALOG.length, 21);
+  assert.strictEqual(DESIGN_CATALOG.length, 22);
   for (const entry of DESIGN_CATALOG) {
     const map = calculateEyeLashMap(entry, neutralProfile, 'left');
     assert.strictEqual(map.zones.length, 5, entry.id);

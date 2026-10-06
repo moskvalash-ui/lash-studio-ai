@@ -442,7 +442,7 @@ test('ISOLATION: Lash Map LEFT/RIGHT mirror formula and DESIGN_CATALOG are uncha
   const catalogEnd = src.indexOf('\n\n    function calculateEyeLashMap(', catalogStart);
   const catalogSource = src.slice(catalogStart, catalogEnd);
   const digest = require('node:crypto').createHash('sha256').update(catalogSource).digest('hex');
-  assert.strictEqual(digest, '15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
+  assert.strictEqual(digest, '5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843');
 });
 test('ISOLATION: iris.name/confidence are never referenced by scoring/ranking/curl/recommendation code', () => {
   const rankStart = src.indexOf('function rankDesignsAll(');

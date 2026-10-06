@@ -26,8 +26,8 @@ function legacy(entry,profile,lang){const maps=buildEyeZones(entry,profile),curl
 function canonicalProps(design,entry,profile,rank){const base=Domain.legacyToClientLashDesign({design,catalogEntry:entry,eyeProfile:profile,expandSectors:expandLashMapSectors,rank});const runtime=Domain.withRecommendationRuntime(base,{rank,localizedLegacy:design});return Domain.recommendationPropsFromClientDesign(runtime);}
 const plain=props=>{const {clientDesign,...values}=props;return values;};
 
-test('all 21 IDs preserve exact Recommendation output in RU and EN across representative profiles',()=>{
-  assert.strictEqual(DESIGN_CATALOG.length,21);
+test('all 22 IDs preserve exact Recommendation output in RU and EN across representative profiles',()=>{
+  assert.strictEqual(DESIGN_CATALOG.length,22);
   for(const profile of profiles)for(const lang of ['ru','en'])for(const [rank,entry] of DESIGN_CATALOG.entries()){
     const design=legacy(entry,profile,lang),props=canonicalProps(design,entry,profile,rank);
     assert.deepStrictEqual(plain(props),{...design,rank},`${entry.id}/${lang}/profile${profiles.indexOf(profile)}`);
@@ -60,7 +60,7 @@ test('selected canonical recommendation hands the identical legacy ID and Lash M
 
 test('Phase 2D isolation guards protect ranking and forbidden consumers',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
+  assert.strictEqual(digest(catalogSource),'5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843');
   assert.strictEqual(digest(mapSource),'8f3124becb3cf6e4b811b6f96e1414a5f0c840b352aa34324d8b3881841245ca');
   assert.ok(src.includes('function rankDesignsAll(c, lang) { return DESIGN_CATALOG.map(e => buildDesignResult(e, c, lang)).sort((a,b) => b.score - a.score); }'));
   assert.ok(src.includes('function rankDesigns(c, lang) { return rankDesignsAll(c, lang).slice(0, 6); }'));

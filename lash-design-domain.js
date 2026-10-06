@@ -51,6 +51,7 @@
     ['wet', 'legacyWet', 'wetSetTechnique', 'wet', 'RECLASSIFY'],
     ['reverse', 'reverseBalance', 'lightVolume2D', 'smooth', 'KEEP'],
     ['correction', 'asymmetryCorrectionBase', 'classicOneToOne', 'smooth', 'LEGACY_PRESET'],
+    ['arabic', 'arabicRhythm', 'volume3D', 'arabic', 'KEEP'],
   ].map(([legacyId, geometryId, techniqueId, textureRecipeId, migrationAction]) => ({
     legacyId, geometryId, techniqueId, textureRecipeId, migrationAction,
   }));

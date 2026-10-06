@@ -74,8 +74,8 @@ function canonicalDiagramProps(design, entry, side, zones, peakIdx, spikeGeom, c
   return Domain.diagramPropsFromClientDesign(runtime);
 }
 
-test('canonical DIAGRAM props equal legacy props for all 21 IDs, LEFT and RIGHT', () => {
-  assert.strictEqual(DESIGN_CATALOG.length, 21);
+test('canonical DIAGRAM props equal legacy props for all 22 IDs, LEFT and RIGHT', () => {
+  assert.strictEqual(DESIGN_CATALOG.length, 22);
   for (const entry of DESIGN_CATALOG) {
     const design = legacyDesign(entry);
     for (const side of ['left', 'right']) {

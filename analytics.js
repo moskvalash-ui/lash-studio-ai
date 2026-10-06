@@ -150,8 +150,7 @@
     'natural', 'naturalRounded', 'naturalElongated', 'angel', 'doll',
     'rounded', 'squirrel', 'kitten', 'cat', 'softcat', 'fox', 'softfox',
     'eyeliner', 'wispy', 'wispycat', 'wispydoll', 'kim', 'manga', 'wet',
-    'reverse', 'correction',
-  ];
+    'reverse', 'correction', 'arabic'];
   function isDesignId(v) { return DESIGN_IDS.indexOf(v) !== -1; }
 
   function isLashMapOrigin(v) {

@@ -134,16 +134,16 @@ test('validation includes provenance, review, revision, and explicit uncertainty
 });
 
 test('all 21 legacy outputs and production consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(indexSource),'32e011d9e8a543f4a317d52141945d69f50a03c4c4626cf2d95bea6342fb3266');
-  assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
+  assert.strictEqual(digest(indexSource),'f95afcda54e91f56ea5ff2ebb74efce9a39866c90ee83de0a0403baa1ed300f0');
+  assert.strictEqual(digest(domainSource),'2dcc53ccf283f83dd228752f824c19c10ba91bb95fb7a7ebca287ac0ca9f9581');
   const start=indexSource.indexOf('    const DESIGN_CATALOG = '),end=indexSource.indexOf('\n\n    function calculateEyeLashMap(',start),catalogSource=indexSource.slice(start,end);
   const catalog=new Function('const clampScore=n=>n;'+catalogSource+';return DESIGN_CATALOG;')();
   const legacy=catalog.find(x=>x.id==='kim');
-  assert.strictEqual(catalog.length,21);
+  assert.strictEqual(catalog.length,22);
   assert.deepStrictEqual(legacy.baseZones,[6,10,7,11,8]);
   assert.strictEqual(legacy.peakZone,3);
   assert.deepStrictEqual(legacy.texture,{pattern:'kim',frequency:3,baseToSpikeDiff:3});
   assert.strictEqual(legacy.defaultTechnique,'Volume 3D');
-  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
+  assert.strictEqual(digest(catalogSource),'5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843');
   for(const marker of ['function computeSpikeGeometry(','function rankDesignsAll(','<PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign}','<LashMapDiagram clientDesign={diagramClientDesign}','const plan = generateApplicationPlan(planClientDesign, lang);','const d = canonicalRecommendationProps(raw, p, lang, rank);'])assert.ok(indexSource.includes(marker),marker);
 });

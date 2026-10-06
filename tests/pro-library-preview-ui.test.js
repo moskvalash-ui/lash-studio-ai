@@ -191,12 +191,12 @@ test('12. the preview/detail code never calls production ranking/scoring functio
 });
 
 test('13. DESIGN_CATALOG stays byte-identical and exactly 21 entries',()=>{
-  assert.strictEqual(catalog.length,21);
-  assert.strictEqual(digest(catalogSource),'15982679009bb39778371a57689fe9f8ad944222f8e7f259e2e19d7d089b4181');
+  assert.strictEqual(catalog.length,22);
+  assert.strictEqual(digest(catalogSource),'5a1aceb59195b724a75e8ac0f212c526bafe25cd74e4b1b8b9805c751ad2c843');
 });
 
-test('14. all 21 legacy IDs remain unchanged',()=>{
-  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction']);
+test('14. all 22 legacy IDs remain unchanged',()=>{
+  assert.deepStrictEqual(catalog.map(entry=>entry.id),['natural','naturalRounded','naturalElongated','angel','doll','rounded','squirrel','kitten','cat','softcat','fox','softfox','eyeliner','wispy','wispycat','wispydoll','kim','manga','wet','reverse','correction','arabic']);
 });
 
 test('15-16. productionEnabled stays false and activeDefinitionIds stays empty',()=>{
@@ -255,7 +255,7 @@ test('the Rays presentation gap is resolved via the existing reviewed RAY primit
 });
 
 test('production is untouched: activation stays inactive and all legacy production consumers remain byte-identical',()=>{
-  assert.strictEqual(digest(domainSource),'11ee9f0d581307fdb24651560e0f2e822c18acb1a6a289aaeaa535aa4866a54d');
+  assert.strictEqual(digest(domainSource),'2dcc53ccf283f83dd228752f824c19c10ba91bb95fb7a7ebca287ac0ca9f9581');
   assert.ok(!domainSource.includes('ProfessionalLashLibrary'));
   assert.strictEqual(Library.library.activation.productionEnabled,false);
   assert.deepStrictEqual(Library.library.activation.activeDefinitionIds,[]);

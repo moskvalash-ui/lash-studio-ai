@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0c070b" />
+<meta name="robots" content="noindex,nofollow,noarchive" />
+<title>KUKOLKA — Открой свой секрет · Интерактивное демо</title>
+<style>
+:root{--black:#0a0609;--dark:#150b10;--wine:#3f101f;--claret:#6d273d;--cream:#f7e7da;--muted:#c5b0a6;--gold:#e7c299;--gold2:#f5dfbe;--line:rgba(233,190,157,.23)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{background:var(--black);margin:0;color:var(--cream);font-family:Arial,Helvetica,sans-serif;overflow-x:hidden}button,input{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #f7e2bf;outline-offset:4px}a{color:inherit}.site{min-height:100vh;position:relative;overflow:hidden;background:radial-gradient(ellipse at 87% 13%,rgba(113,33,55,.3),transparent 40%),radial-gradient(ellipse at 12% 90%,rgba(64,20,36,.3),transparent 45%),#0b070a}.site::after{content:"";inset:0;position:fixed;z-index:20;pointer-events:none;opacity:.14;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 250 250' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.48' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='white' filter='url(%23n)' d='M0 0h250v250H0z' opacity='.14'/%3E%3C/svg%3E")}.ambient{position:absolute;inset:0;pointer-events:none;overflow:hidden}.ambient::before{content:"";position:absolute;left:-150px;top:20%;height:570px;width:400px;transform:rotate(-27deg);filter:blur(20px);background:linear-gradient(90deg,transparent,rgba(87,20,44,.26),transparent)}.ambient::after{content:"";position:absolute;right:-170px;top:13%;height:530px;width:400px;transform:rotate(22deg);filter:blur(30px);background:linear-gradient(90deg,transparent,rgba(131,42,57,.2),transparent)}
+header{height:91px;max-width:1280px;margin:auto;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(21px,5vw,76px);position:relative;z-index:8;border-bottom:1px solid rgba(235,191,164,.09)}.logo{text-align:center;font:29px/.95 Georgia,'Times New Roman',serif;letter-spacing:.075em}.logo span{display:block;font:9px Arial,sans-serif;letter-spacing:.36em;color:var(--gold);margin-top:10px}.header-right{font-size:10px;letter-spacing:.22em;color:#b98d8e}.screen{min-height:calc(100svh - 91px);display:none;position:relative;z-index:3;padding:25px clamp(18px,5vw,75px) 50px}.screen.active{display:flex;flex-direction:column;align-items:center;justify-content:center}.eyebrow{text-transform:uppercase;color:#d0ac9b;letter-spacing:.3em;font-size:10px;text-align:center;margin:0 0 20px}.title{font:normal clamp(50px,7.5vw,91px)/.99 Georgia,'Times New Roman',serif;text-align:center;letter-spacing:-.043em;margin:0 0 18px}.title em{font-style:italic;color:var(--gold2)}.sub{max-width:480px;color:var(--muted);font-size:14px;line-height:1.85;text-align:center;margin:0 auto}.ornament{color:var(--gold);opacity:.7;text-align:center;font:20px Georgia,serif;letter-spacing:.3em;margin:19px auto 17px}.btn{border:1px solid rgba(255,246,225,.7);background:linear-gradient(110deg,#ba8f76 0%,#f9e5c9 25%,#d5a981 55%,#f6dbc0 100%);color:#221013;font-weight:700;font-size:11px;letter-spacing:.17em;padding:18px 32px;border-radius:100px;box-shadow:inset 0 1px 2px white,0 6px 28px rgba(208,142,115,.21);min-height:54px;transition:filter .2s,transform .2s}.btn:hover{filter:brightness(1.09);transform:translateY(-2px)}.btn.dark{color:var(--gold2);background:transparent;box-shadow:none;border-color:var(--line)}.aside{font-size:10px;line-height:1.7;color:#927d7b;letter-spacing:.06em;text-align:center;margin:18px auto 0;max-width:460px}.cta{margin-top:28px}.nav-back{background:none;border:0;color:var(--gold);font-size:11px;letter-spacing:.16em;margin-top:23px;padding:15px}
+/* Dramatic hero with one lacquer box */
+.hero-wrap{display:grid;grid-template-columns:minmax(0,1.07fr) minmax(0,.93fr);width:100%;max-width:1120px;align-items:center;gap:25px}.hero-copy{display:flex;flex-direction:column;align-items:start}.hero-copy .eyebrow{text-align:left}.hero-copy .title{text-align:left;font-size:clamp(52px,6.6vw,102px)}.hero-copy .sub{text-align:left}.hero-visual{height:min(70vh,620px);min-height:360px;position:relative;display:flex;align-items:center;justify-content:center;isolation:isolate}.hero-visual:before{position:absolute;content:"";inset:12%;background:radial-gradient(ellipse,#8c2c5188,transparent 63%);filter:blur(24px);z-index:-1}.circle{position:absolute;width:88%;max-width:450px;aspect-ratio:1;border:1px solid rgba(238,180,154,.13);border-radius:100%;transform:rotate(-24deg)}.circle:after{content:"";position:absolute;inset:33px;border:1px solid rgba(238,180,154,.12);border-radius:50%}.hero-visual .box-unit{transform:scale(1.25) rotate(-9deg);filter:drop-shadow(0 46px 44px #000b)}.hero-letter{position:absolute;font:italic 480px/1 Georgia,serif;color:#efabaf0b;right:-40px;top:-20px;pointer-events:none}
+/* Actual stylized boxes with 3D lid movement */
+.box-unit{--accent:#b07678;--shine:#dcb1a4;position:relative;width:250px;height:222px;display:block;perspective:700px;transform-style:preserve-3d}.box-halo{position:absolute;left:15%;right:15%;top:18%;bottom:10%;border-radius:50%;filter:blur(33px);background:var(--accent);opacity:.35}.box-ground{position:absolute;left:8%;right:8%;bottom:4px;height:37px;border-radius:100%;background:#000b;filter:blur(14px)}.box-base{position:absolute;left:8%;right:8%;bottom:20px;height:108px;border-radius:10px 10px 20px 20px;background:linear-gradient(112deg,#1a080f 0,#713041 16%,#3b1425 38%,#b26c6c 52%,#411425 68%,#11070d 100%);border:2px solid #9b6556;box-shadow:inset 0 5px 5px #f8d4bd32,inset 0 -14px 16px #10060bbe,0 15px 15px #0008;z-index:2}.box-base::before{content:"";position:absolute;inset:5px 6px 10px;border:1px solid #ebac9366;border-radius:5px 5px 14px 14px}.box-base::after{content:"";position:absolute;left:46%;right:46%;top:0;bottom:0;background:linear-gradient(90deg,#ae7b53,#f6ddaa,#956044);opacity:.94;box-shadow:0 0 3px #f3ddaf55}.box-lid{position:absolute;left:4%;right:4%;bottom:112px;height:76px;border-radius:11px;transform-origin:50% 100%;transform:rotateX(9deg);background:linear-gradient(135deg,#15070f,#8b3d51 20%,#350f20 51%,#9c5864 79%,#180911);border:2px solid #dfab82;box-shadow:inset 0 2px 15px #f7dcc041,0 17px 18px #0007;z-index:4;transition:transform .95s cubic-bezier(.2,.75,.25,1),box-shadow .95s ease}.box-lid::before{content:"";position:absolute;inset:8px;border:1px solid #efcb9a96;border-radius:8px}.box-lid::after{content:"K";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#f0d2b9;font:italic 42px Georgia,serif;text-shadow:0 1px 7px #ffeeccb0}.box-lock{position:absolute;z-index:5;bottom:101px;left:50%;transform:translateX(-50%);height:26px;width:35px;border-radius:3px 3px 9px 9px;border:1px solid #fce5be;background:linear-gradient(90deg,#754428,#ffe9ad 50%,#9e6438);box-shadow:0 3px 8px #0009;transition:opacity .2s}.box-inside{position:absolute;left:18%;right:18%;bottom:94px;height:58px;background:radial-gradient(ellipse,#ffcfa7aa,#bd729f33 37%,transparent 74%);filter:blur(5px);opacity:0;transition:opacity .5s .3s;z-index:3}.box-inside:after{content:"✦";font:36px Georgia,serif;position:absolute;color:#f7e3c5;top:-5px;left:45%;filter:drop-shadow(0 0 11px #fff2d5)}.box-unit.open .box-lid{transform:rotateX(-116deg) translateY(-18px);box-shadow:inset 0 3px 18px #f6e3cd66,0 -15px 23px #d8a09824}.box-unit.open .box-inside{opacity:1}.box-unit.open .box-lock{opacity:0}.box-unit.gold{--accent:#bc7955}.box-unit.gold .box-base{background:linear-gradient(112deg,#281411,#ac6445 16%,#623023 38%,#d89f72 52%,#6d3528 68%,#150b0b);border-color:#d8ae7d}.box-unit.gold .box-lid{background:linear-gradient(135deg,#351c17,#c68a59 19%,#74462b 52%,#e0b583 78%,#462419);border-color:#f9d9ac}.box-unit.black{--accent:#875e6d}.box-unit.black .box-base{background:linear-gradient(112deg,#080609,#5b4546 16%,#20191c 38%,#a57c76 52%,#291b23 68%,#080609)}.box-unit.black .box-lid{background:linear-gradient(130deg,#0f0d11,#665058 21%,#1b141d 50%,#79545a 79%,#09080b)}
+/* selection */
+.box-gallery{width:100%;max-width:1100px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0 2px}.box-choice{appearance:none;width:100%;min-height:350px;color:inherit;background:radial-gradient(circle at 50% 42%,#511f3080,transparent 65%),linear-gradient(160deg,#201118 10%,#120a10);border:1px solid var(--line);padding:10px 10px 23px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;transition:transform .25s, border-color .25s}.box-choice:nth-child(2){background:radial-gradient(circle at 50% 42%,#69432788,transparent 65%),linear-gradient(160deg,#261b17 10%,#110a0c)}.box-choice:nth-child(3){background:radial-gradient(circle at 50% 42%,#4a344880,transparent 65%),linear-gradient(160deg,#1f1b23 10%,#0c080d)}.box-choice:hover{transform:translateY(-3px);border-color:#edba9f99}.box-choice .box-unit{transform:scale(.93);margin-top:-5px;margin-bottom:-2px}.box-num{font:11px Arial,sans-serif;letter-spacing:.22em;color:var(--gold);opacity:.86;margin-top:auto}.box-choice strong{font:normal 29px Georgia,serif;margin:1px 0 7px}.box-choice small{color:var(--muted);line-height:1.6;font-size:11px;max-width:190px}.chosen-look{margin-top:12px;font:normal 25px Georgia,serif;color:var(--gold2);text-align:center}.teaser{font:normal 11px Arial,sans-serif;color:#bb9b92;letter-spacing:.12em;margin-top:13px}.logo-mini{font:normal 42px Georgia,serif;color:var(--gold);text-align:center;margin:8px auto 20px}
+/* view and result */
+.form-panel,.reveal-panel{background:radial-gradient(ellipse at top,#43203255,transparent 65%),linear-gradient(160deg,#1c1017,#0e080b);border:1px solid var(--line);width:min(100%,475px);padding:clamp(24px,5vw,46px);box-shadow:0 25px 55px #0006;text-align:center}.form-panel .title,.reveal-panel .title{font-size:clamp(41px,9vw,57px)}label{display:block;text-align:left;margin-top:24px;font-size:10px;color:var(--gold);letter-spacing:.18em}.field{background:#10090e;color:white;border:1px solid var(--line);width:100%;padding:16px 14px;margin-top:9px;border-radius:0}.demo-note{font-size:11px;line-height:1.65;color:var(--muted);text-align:left}.demo-note strong{color:var(--gold2)}.form-panel .btn,.reveal-panel .btn{width:100%}.reward-icon{font:normal 95px Georgia,serif;color:var(--gold);text-shadow:0 0 35px #f8d5ad80}.reveal-copy{color:var(--muted);font-size:14px;line-height:1.75}.footer{padding:17px 22px 25px;text-align:center;border-top:1px solid #f8deaa10;color:#957e7e;letter-spacing:.1em;font-size:9px}
+@media(max-width:850px){.hero-wrap{grid-template-columns:1fr;gap:0}.hero-copy{order:2;align-items:center;margin-top:0}.hero-copy .title{text-align:center;font-size:clamp(56px,12vw,80px)}.hero-copy .eyebrow{text-align:center}.hero-copy .sub{text-align:center}.hero-visual{order:1;height:300px;min-height:300px}.hero-visual .box-unit{transform:scale(1.03) rotate(-7deg)}.hero-letter{font-size:330px;right:15%}.circle{width:285px}.screen{padding-top:12px}.box-gallery{grid-template-columns:1fr;gap:12px;max-width:460px}.box-choice{min-height:170px;display:grid;grid-template-columns:150px 1fr;grid-template-rows:repeat(3,auto);justify-items:start;text-align:left;align-items:center;padding:11px 13px;column-gap:5px}.box-choice .box-unit{transform:scale(.60);transform-origin:top left;margin:0;width:145px;height:150px;grid-column:1;grid-row:1 / span 3}.box-choice .box-num{grid-column:2;grid-row:1;margin-top:0}.box-choice strong{font-size:24px;grid-column:2;grid-row:2}.box-choice small{grid-column:2;grid-row:3}.header-right{font-size:9px;max-width:120px;text-align:right}.title{font-size:clamp(48px,10.6vw,68px)}}
+@media(max-width:420px){header{height:77px}.logo{font-size:23px}.logo span{font-size:8px}.screen{padding:10px 16px 35px;min-height:calc(100svh - 77px)}.hero-visual{height:275px;min-height:275px}.hero-visual .box-unit{transform:scale(.87) rotate(-7deg)}.hero-copy .title{font-size:52px}.hero-copy .sub{font-size:13px}.box-choice strong{font-size:21px}.box-choice small{font-size:10px}.box-choice{grid-template-columns:135px 1fr;min-height:154px}.box-choice .box-unit{transform:scale(.54);height:130px}.header-right{max-width:105px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@media(max-width:850px){
+ .box-choice{min-height:278px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8px 15px 24px;gap:4px}
+ .box-choice .box-unit{width:250px;height:176px;flex:none;transform:scale(.77);transform-origin:center center;margin:-5px 0 -12px}
+ .box-choice .box-num{margin:0;grid-column:auto;grid-row:auto}
+ .box-choice strong{font-size:25px;grid-column:auto;grid-row:auto}
+ .box-choice small{grid-column:auto;grid-row:auto;max-width:265px;font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="site">
+ <div class="ambient" aria-hidden="true"></div>
+ <header><div class="logo">KUKOLKA <span>СТУДИЯ РЕСНИЦ</span></div><span class="header-right">ПЕРСОНАЛЬНАЯ ДЕМО-КОНЦЕПЦИЯ</span></header>
+ <main>
+ <section class="screen active" id="welcome">
+  <div class="hero-wrap">
+   <div class="hero-copy">
+    <p class="eyebrow">Красота, в которой есть тайна</p>
+    <h1 class="title">Секрет<br><em>KUKOLKA</em></h1>
+    <p class="sub">В каждой шкатулке скрыт особенный взгляд. Выбери свою, открой секрет и узнай, какой образ станет твоим.</p>
+    <button class="btn cta" type="button" onclick="toScreen('boxes')">ОТКРЫТЬ СВОЙ СЕКРЕТ&nbsp; ↗</button>
+    <p class="aside">Создано как персональный пример для студии. Неофициальная акция, без сбора данных.</p>
+   </div>
+   <div class="hero-visual" aria-hidden="true"><span class="hero-letter">K</span><div class="circle"></div><div class="box-unit hero-jewel"><div class="box-halo"></div><div class="box-ground"></div><div class="box-base"></div><div class="box-inside"></div><div class="box-lid"></div><div class="box-lock"></div></div></div>
+  </div>
+ </section>
+ <section class="screen" id="boxes">
+  <p class="eyebrow">Три шкатулки · Три настроения</p>
+  <h2 class="title">Выбери свою<br><em>тайну</em></h2>
+  <p class="sub">Нажми на шкатулку. Она откроется, а внутри появится твой персональный образ.</p>
+  <div class="box-gallery">
+   <button class="box-choice" type="button" data-box="0" onclick="selectBox(0)" aria-label="Открыть шкатулку Верхние и нижние ресницы">
+    <div class="box-unit"><div class="box-halo"></div><div class="box-ground"></div><div class="box-base"></div><div class="box-inside"></div><div class="box-lid"></div><div class="box-lock"></div></div>
+    <span class="box-num">ШКАТУЛКА 01</span><strong>Магнетизм</strong><small>Верхние и нижние ресницы. Выразительность с любого ракурса.</small>
+   </button>
+   <button class="box-choice" type="button" data-box="1" onclick="selectBox(1)" aria-label="Открыть шкатулку Лучи">
+    <div class="box-unit gold"><div class="box-halo"></div><div class="box-ground"></div><div class="box-base"></div><div class="box-inside"></div><div class="box-lid"></div><div class="box-lock"></div></div>
+    <span class="box-num">ШКАТУЛКА 02</span><strong>Искра</strong><small>Лучи. Графичный, яркий взгляд с характером.</small>
+   </button>
+   <button class="box-choice" type="button" data-box="2" onclick="selectBox(2)" aria-label="Открыть шкатулку Лисий эффект">
+    <div class="box-unit black"><div class="box-halo"></div><div class="box-ground"></div><div class="box-base"></div><div class="box-inside"></div><div class="box-lid"></div><div class="box-lock"></div></div>
+    <span class="box-num">ШКАТУЛКА 03</span><strong>Загадка</strong><small>Лисий эффект. Удлинённый силуэт, журнальное настроение.</small>
+   </button>
+  </div>
+  <div id="openingStatus" class="teaser" role="status" aria-live="polite">КАСАЙСЯ, ЧТОБЫ ОТКРЫТЬ</div>
+  <button class="nav-back" onclick="toScreen('welcome')">← НАЗАД</button>
+ </section>
+ <section class="screen" id="details">
+  <div class="form-panel">
+   <p class="eyebrow">Шкатулка открыта</p>
+   <div class="logo-mini">✦</div>
+   <h2 class="title" style="font-size:45px">Твой секрет<br><em>почти раскрыт</em></h2>
+   <p class="sub">Ты выбрала <span id="selectedName" style="color:var(--gold2)">Магнетизм</span>. Осталось одно маленькое действие.</p>
+   <label for="demoName">КАК ТЕБЯ ЗОВУТ?</label>
+   <input class="field" id="demoName" maxlength="36" placeholder="Твоё имя" autocomplete="off" />
+   <p class="demo-note"><strong>Демонстрационная версия:</strong> здесь не нужно указывать телефон. Мы ничего не отправляем и не сохраняем.</p>
+   <button class="btn" type="button" onclick="showSecret()">РАСКРЫТЬ МОЙ СЕКРЕТ&nbsp; ↗</button>
+  </div>
+  <button class="nav-back" onclick="toScreen('boxes')">← К ШКАТУЛКАМ</button>
+ </section>
+ <section class="screen" id="secret">
+  <div class="reveal-panel">
+   <p class="eyebrow">KUKOLKA · Твой секрет</p>
+   <div class="reward-icon" aria-hidden="true">✧</div>
+   <h2 class="title"><em>Секрет</em><br>раскрыт</h2>
+   <div class="chosen-look" id="resultTitle">Взгляд с характером</div>
+   <p class="reveal-copy" id="resultText">Секрет красивого взгляда — в деталях.</p>
+   <div style="height:1px;background:linear-gradient(90deg,transparent,#e7c299aa,transparent);margin:24px 0 18px"></div>
+   <p class="demo-note" style="text-align:center">В настоящей акции здесь появится подарок, согласованный со студией, и кнопка записи. Сейчас это персональная демонстрация.</p>
+   <a class="btn" href="https://www.instagram.com/kukolka05_05/" target="_blank" rel="noopener" style="display:block;text-decoration:none;margin-top:25px">ПОСМОТРЕТЬ РАБОТЫ KUKOLKA&nbsp; ↗</a>
+  </div>
+  <button class="nav-back" onclick="toScreen('boxes')">← ОТКРЫТЬ ДРУГУЮ ШКАТУЛКУ</button>
+ </section>
+ </main>
+ <footer class="footer">KUKOLKA · КОНЦЕПТ ДЛЯ СОГЛАСОВАНИЯ · НЕ ЯВЛЯЕТСЯ ДЕЙСТВУЮЩЕЙ АКЦИЕЙ</footer>
+</div>
+<script>
+(()=>{
+const LOOKS=[{name:'Магнетизм',title:'Выразительность в деталях',description:'Верхние и нижние ресницы создают акцент, который невозможно не заметить.'},{name:'Искра',title:'Твой особенный ритм',description:'Эффект «лучи» для взгляда с характером, графикой и выразительной текстурой.'},{name:'Загадка',title:'Загадочный лисий взгляд',description:'Лисий эффект для изящного вытянутого силуэта и модного настроения.'}];
+let selected=0;let busy=false;let revealTimer=null;
+window.toScreen=id=>{clearTimeout(revealTimer);busy=false;document.querySelectorAll('.screen').forEach(el=>el.classList.toggle('active',el.id===id));if(id==='boxes'){document.querySelectorAll('.box-unit').forEach(el=>el.classList.remove('open'));document.getElementById('openingStatus').textContent='КАСАЙСЯ, ЧТОБЫ ОТКРЫТЬ';}window.scrollTo({top:0,behavior:'instant'});};
+window.selectBox=i=>{if(busy)return;busy=true;selected=i;document.querySelectorAll('.box-choice').forEach(el=>el.disabled=true);const target=document.querySelector(`.box-choice[data-box="${i}"] .box-unit`);target.classList.add('open');document.getElementById('openingStatus').textContent='ОТКРЫВАЕМ ТВОЮ ШКАТУЛКУ…';revealTimer=setTimeout(()=>{document.getElementById('selectedName').textContent=LOOKS[i].name;document.querySelectorAll('.box-choice').forEach(el=>el.disabled=false);window.toScreen('details');},1180)};
+window.showSecret=()=>{const name=document.getElementById('demoName').value.trim();if(!name){document.getElementById('demoName').focus();return;}document.getElementById('resultTitle').textContent=LOOKS[selected].title;document.getElementById('resultText').textContent=name+', '+LOOKS[selected].description;window.toScreen('secret')};
+})();
+</script>
+</body>
+</html>

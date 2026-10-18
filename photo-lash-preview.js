@@ -253,6 +253,74 @@
   function curlProfileFor(curlFamily) {
     return (typeof curlFamily === 'string' && CURL_GEOMETRY_PROFILES[curlFamily]) || CURL_GEOMETRY_PROFILES.C;
   }
+
+  // ------------------------------------------------------------
+  // EXPERIMENTAL -- PRO EFFECTS V1 (variant==='proV1', opt-in only,
+  // see buildFibers below). Entirely additive, same discipline as the
+  // v2-A BASE experiment above: every existing caller (CURRENT, v2A)
+  // is byte-identical because none of them ever set `options.variant`
+  // to 'proV1', so none of this is ever reached unless a caller
+  // explicitly opts in. No curl trajectory, no point/length/mapping
+  // geometry is touched by this table -- only which support/accent
+  // fibers get drawn (density), their width/opacity (finish), and,
+  // for 'manga' only, a per-fiber length read (never a `points`
+  // write) driven by the SAME professional texture descriptor
+  // (`pattern`/`frequency`/`baseToSpikeDiff`) index.html's own
+  // DESIGN_CATALOG + computeSpikeGeometry already define and already
+  // use for the real Application Plan text -- no new length scheme is
+  // invented here.
+  //
+  // Technique identity comes from the design's own real
+  // `applicationTechnique`/`defaultTechnique` label (TECHNIQUE_CATALOG
+  // in index.html: 'Classic 1:1' / 'Light Volume 2D' / 'Volume 3D' /
+  // 'Wet Technique / Wet Set', among others) -- an optional
+  // `options.technique` string. Any technique not listed here
+  // (including every technique this first experimental pass does not
+  // yet model) falls back to CURRENT's own existing density/width
+  // constants exactly (see techniqueProfileFor below) -- this
+  // experiment only ever adds behavior for the four techniques it
+  // explicitly models, never changes anything for the rest.
+  const TECHNIQUE_VISUAL_PROFILES = Object.freeze({
+    // Classic 1:1 (natural): one real extension per natural lash --
+    // the thickest diameter class of any technique (0.15-0.20mm) and
+    // deliberately the least additional support/accent of any
+    // profile here, but NOT zero -- "light texture", not "bare".
+    'Classic 1:1': Object.freeze({
+      supportThreshold: .62, accentThreshold: .82, accentNoise: .12,
+      widthMultiplier: 1.18, opacityMultiplier: 1.0, clump: null, glossy: false,
+    }),
+    // Light Volume 2D (fox/cat): small 2-fiber fans -- byte-identical
+    // density thresholds to CURRENT's own existing default (this is
+    // the technique CURRENT's unlabeled density already approximates),
+    // only a mild width reduction for the thinner 0.07mm diameter class.
+    'Light Volume 2D': Object.freeze({
+      supportThreshold: -.7, accentThreshold: .68, accentNoise: .05,
+      widthMultiplier: .95, opacityMultiplier: 1.0, clump: null, glossy: false,
+    }),
+    // Volume 3D (doll/manga): fuller 3+ fiber fans -- denser support
+    // inclusion and much broader accent coverage than Light Volume 2D,
+    // thinner strands (same 0.07mm diameter class) compounding into a
+    // visibly fuller base.
+    'Volume 3D': Object.freeze({
+      supportThreshold: -.86, accentThreshold: .50, accentNoise: 0,
+      widthMultiplier: .88, opacityMultiplier: 1.05, clump: null, glossy: false,
+    }),
+    // Wet Technique / Wet Set: the design's own `why` text already
+    // says "minimal density at the root" -- sparse overall inclusion,
+    // thinnest diameter class (0.05-0.10mm), PLUS a clustered
+    // ray/clump structure (`clump`, read by buildFibers below) so it
+    // reads as grouped, separated "wet" fans with visible gaps between
+    // them, not merely fewer/darker ordinary lashes, plus a glossy tip
+    // highlight (see draw()'s `f.glossy` pass).
+    'Wet Technique / Wet Set': Object.freeze({
+      supportThreshold: .35, accentThreshold: .95, accentNoise: .3,
+      widthMultiplier: .80, opacityMultiplier: .92,
+      clump: Object.freeze({ groupSize: 3, gapSize: 4 }), glossy: true,
+    }),
+  });
+  function techniqueProfileFor(technique) {
+    return (typeof technique === 'string' && TECHNIQUE_VISUAL_PROFILES[technique]) || null;
+  }
   function sampleSectors(items){
     if(!Array.isArray(items)||items.length<2||items.some((s,i)=>!Number.isFinite(s.t)||s.t<0||s.t>1||!Number.isFinite(s.len)||s.len<=0||(i&&s.t<=items[i-1].t)))throw new Error('mapping');
     let sector=0;
@@ -290,6 +358,11 @@
     // existing call site -- `variant` is only ever 'v2A' when a caller
     // explicitly opts in (see index.html's debug-only comparison toggle).
     const variant=options&&options.variant;
+    // EXPERIMENTAL proV1 (see TECHNIQUE_VISUAL_PROFILES above): both
+    // undefined/null unless a caller explicitly passes variant:'proV1'
+    // -- CURRENT and v2A never read either of these.
+    const techProfile=variant==='proV1'?techniqueProfileFor(options&&options.technique):null;
+    const textureDescriptor=variant==='proV1'?((options&&options.texture)||null):null;
     // Curl family from the existing professional design data (clientDesign.
     // curl.global -> photoCurl -> props.curl, e.g. 'C'/'CC'/'D'/'L'/'L+'/'M')
     // -- an optional 3rd argument, so any caller that omits it (tests, a
@@ -331,6 +404,11 @@
     // instead of stacking exactly on it -- perceived root density comes
     // from this overlap, never from a drawn baseline/stroke.
     function makeFiber(p,i,layer,salt,fiberVariant){
+      // EXPERIMENTAL proV1, WET clump cadence: which population cycle
+      // (clustered "ray" group vs. gap between rays) this root index
+      // falls into. null/no-clump techniques (every technique except
+      // Wet Technique / Wet Set) always read false here.
+      const inGap=!!(techProfile&&techProfile.clump&&(i%(techProfile.clump.groupSize+techProfile.clump.gapSize))>=techProfile.clump.groupSize);
       const inner=smooth(0,.18,p.t),outer=1-smooth(.86,1,p.t),prom=prominence(p);
       const finish=(.58+.42*inner)*(.78+.22*outer);
       const tm=Math.hypot(p.tangent.x,p.tangent.y)||1;
@@ -359,7 +437,23 @@
       // -- "slightly shorter than canonical", not "much shorter". MAIN's
       // own length and its +-2% jitter are completely unchanged.
       const lengthScale=layer==='support'?.72:layer==='accent'?1.10+.06*noise(i,salt+1):layer==='back'?.90+.03*noise(i,salt+2):1;
-      const length=eyeWidth*p.len*VISUAL_MM_TO_EYE_WIDTH*finish*lengthScale*
+      // EXPERIMENTAL proV1, MANGA spike/base contrast: reuses the real
+      // production texture descriptor's own `pattern`/`baseToSpikeDiff`
+      // (index.html's DESIGN_CATALOG + computeSpikeGeometry already
+      // define and already use these exact numbers for the real
+      // Application Plan text -- no new length scheme invented here).
+      // `p.isKey` marks this sample's nearest professional zone anchor
+      // (the exact mm value from the design's own baseZones/template) --
+      // those stay completely untouched; only the in-between,
+      // already-presentational interpolated samples (which never
+      // correspond to a specific professional mm value even in
+      // CURRENT/v2A) gain the spike boost, matching production's own
+      // manga rule (`tall` is unconditionally true for every non-anchor
+      // spike sample -- see computeSpikeGeometry). Purely a local
+      // length READ for this fiber; `p.len`/`p` itself is never mutated.
+      const mangaSpikeMm=(textureDescriptor&&textureDescriptor.pattern==='manga'&&!p.isKey)?(textureDescriptor.baseToSpikeDiff||0):0;
+      const effectiveLenMm=p.len+mangaSpikeMm;
+      const length=eyeWidth*effectiveLenMm*VISUAL_MM_TO_EYE_WIDTH*finish*lengthScale*
         (layer==='support'?.85+.05*noise(i,salt+2):layer==='back'?1:1+.02*noise(i,salt+3));
       // Root frame follows the REAL local lid curve (p.tangent/p.normal),
       // not just one fixed chord for the whole eye -- this is what lets
@@ -440,11 +534,22 @@
       // layers v2A renders (MAIN included, not just BACK) -- CURRENT
       // fibers (fiberVariant undefined) keep exactly .08, unchanged.
       const opacityDepthCoefficient=fiberVariant==='v2A'?.04:.08;
+      // EXPERIMENTAL proV1, technique finish: width/opacity multipliers
+      // only (never curl/angle/length-scale/layer-gating formulas
+      // above) -- 1 for every non-proV1 call and for any technique
+      // this experiment doesn't model, so CURRENT/v2A stay exactly as
+      // they were. WET additionally dims/thins MAIN itself inside a
+      // clump gap (no support/accent fiber is emitted there either,
+      // see buildFibers below) -- this is what makes the "ray" clumps
+      // read as separated groups rather than one continuous fringe.
+      const techWidthMultiplier=techProfile?techProfile.widthMultiplier*(inGap?.55:1):1;
+      const techOpacityMultiplier=techProfile?techProfile.opacityMultiplier*(inGap?.6:1):1;
       return {root,
         c1:at(.24,-(liftNear+.010*noise(i,salt+8))),c2:at(curvePhase,-midBend),tip:at(.97,-(tipEase-.035*noise(i,salt+9))),
-        width:Math.max(widthFloor,Math.min(widthCap,eyeWidth*widthBase*bold*(1+.14*depth)*Math.sqrt(lightness))),
-        opacity:Math.min(opacityCap,opacityBase*lightness*(1+opacityDepthCoefficient*depth)),
+        width:Math.max(widthFloor,Math.min(widthCap,eyeWidth*widthBase*bold*(1+.14*depth)*Math.sqrt(lightness)*techWidthMultiplier)),
+        opacity:Math.min(opacityCap,opacityBase*lightness*(1+opacityDepthCoefficient*depth)*techOpacityMultiplier),
         depth,layer,len:p.len,t:p.t,
+        ...(techProfile&&techProfile.glossy&&layer==='main'&&!inGap?{glossy:true}:null),
         // v2-A BASE, taper (#6): draw() reads this per-fiber (falling back
         // to its own existing .08 literal when absent), so CURRENT fibers
         // -- which never carry this field -- are completely unaffected.
@@ -467,6 +572,27 @@
         // combined BACK+MAIN visual population (MAIN ~56%), per the
         // approved target.
         if(noise(i,20)>-.5)fibers.push(makeFiber(p,i,'back',20,variant));
+      }else if(variant==='proV1'){
+        // EXPERIMENTAL proV1: support/accent inclusion driven by the
+        // design's own technique profile (see TECHNIQUE_VISUAL_PROFILES)
+        // instead of CURRENT's single fixed density -- this is what
+        // makes Classic 1:1 (natural) read visibly sparser than Volume
+        // 3D (doll/manga), independent of curl/length differences.
+        // Falls back to CURRENT's own -.7/.68/.05 constants when the
+        // technique isn't modeled, so an unlisted technique still gets
+        // a sane, non-empty result under proV1.
+        const inGap=!!(techProfile&&techProfile.clump&&(i%(techProfile.clump.groupSize+techProfile.clump.gapSize))>=techProfile.clump.groupSize);
+        const supportThreshold=techProfile?techProfile.supportThreshold:-.7;
+        const accentThreshold=techProfile?techProfile.accentThreshold:.68;
+        const accentNoiseThreshold=techProfile?techProfile.accentNoise:.05;
+        if(!inGap&&noise(i,20)>supportThreshold)fibers.push(makeFiber(p,i,'support',20));
+        // WET ray clusters: one extra clustered support fiber inside
+        // every non-gap group (never in a gap), distinct salt so it
+        // doesn't stack exactly on the first support root -- this, plus
+        // the gap itself, is what reads as "grouped rays" rather than
+        // uniformly thinner coverage.
+        if(!inGap&&techProfile&&techProfile.clump)fibers.push(makeFiber(p,i,'support',25));
+        if(!inGap&&prominence(p)>accentThreshold&&noise(i,22)>accentNoiseThreshold)fibers.push(makeFiber(p,i,'accent',30));
       }else{
         // CURRENT: byte-identical to before v2-A existed.
         // SUPPORT: interleaved on nearly all roots -- additional shorter/
@@ -528,6 +654,27 @@
         ctx.bezierCurveTo(f.c1.x+w1x*.68,f.c1.y+w1y*.68,f.c2.x+w2x*tipWeight,f.c2.y+w2y*tipWeight,f.tip.x,f.tip.y);
         ctx.bezierCurveTo(f.c2.x-w2x*tipWeight,f.c2.y-w2y*tipWeight,f.c1.x-w1x*.68,f.c1.y-w1y*.68,f.root.x-w1x,f.root.y-w1y);
         ctx.closePath();ctx.fill();
+        // EXPERIMENTAL proV1, WET glossy finish: an additive, purely
+        // cosmetic highlight sliver along the tip-side half of this
+        // SAME fiber's own already-computed path (c2->tip) -- never a
+        // second strand, never read by any geometry/determinism check.
+        // Only ever present when f.glossy was set in makeFiber (Wet
+        // Technique / Wet Set, MAIN layer, outside a clump gap).
+        if(f.glossy){
+          const hw=f.width*.16;
+          const hx=-dy2/m2*hw/2,hy=dx2/m2*hw/2;
+          const glossAlpha=f.opacity*.55;
+          const gloss=ctx.createLinearGradient(f.c2.x,f.c2.y,f.tip.x,f.tip.y);
+          gloss.addColorStop(0,`rgba(255,250,240,0)`);
+          gloss.addColorStop(.6,`rgba(255,250,240,${glossAlpha.toFixed(3)})`);
+          gloss.addColorStop(1,`rgba(255,250,240,0)`);
+          ctx.fillStyle=gloss;
+          ctx.beginPath();
+          ctx.moveTo(f.c2.x+hx,f.c2.y+hy);
+          ctx.lineTo(f.tip.x,f.tip.y);
+          ctx.lineTo(f.c2.x-hx,f.c2.y-hy);
+          ctx.closePath();ctx.fill();
+        }
       }
     }
   }

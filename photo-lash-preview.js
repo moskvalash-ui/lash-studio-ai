@@ -321,6 +321,45 @@
   function techniqueProfileFor(technique) {
     return (typeof technique === 'string' && TECHNIQUE_VISUAL_PROFILES[technique]) || null;
   }
+  // EXPERIMENTAL proV1, MANGA spike CADENCE (review fix -- the previous
+  // pass boosted every single non-isKey sample, so texture.frequency was
+  // read nowhere and nearly all support/accent/MAIN fibers got the same
+  // +baseToSpikeDiff, blending into general fullness instead of reading
+  // as separated spikes). This mirrors index.html's own
+  // computeSpikeGeometry structurally -- one "segment" is the run of
+  // samples between two real professional zone anchors (p.isKey, from
+  // expandLashMapSectors via derivedSectors -- untouched, read-only
+  // here) -- but instead of recomputing zone mm from scratch, it just
+  // marks WHICH already-sampled points in THIS renderer's own 294-point
+  // array fall on a spike position, same segment-by-segment idea,
+  // `texture.frequency` spike slots per segment, evenly spaced,
+  // deterministic (no noise/jitter -- a professional cadence, not a
+  // random one). Returns a plain Set of point-array indices; never
+  // mutates `points`, never reads/writes p.len/p.t/p.isKey.
+  function computeSpikePositions(points,frequency){
+    const spikeIndices=new Set();
+    const freq=Math.round(frequency);
+    if(!Array.isArray(points)||!points.length||!(freq>0))return spikeIndices;
+    let segStart=0;
+    for(let i=0;i<=points.length;i++){
+      const atBoundary=i===points.length||points[i].isKey;
+      if(!atBoundary)continue;
+      // [segStart, i) is one run of non-anchor samples between the
+      // previous anchor (or the array start) and this one (or the
+      // array end) -- exactly one computeSpikeGeometry-style "segment".
+      const segLen=i-segStart;
+      if(segLen>0){
+        for(let s=1;s<=freq;s++){
+          // Evenly spaced within the segment, same s/(frequency+1)
+          // fractional placement computeSpikeGeometry itself uses.
+          const idx=segStart+Math.round((segLen-1)*(s/(freq+1)));
+          if(idx>=segStart&&idx<i)spikeIndices.add(idx);
+        }
+      }
+      segStart=i+1; // skip the anchor sample itself -- it is never a spike.
+    }
+    return spikeIndices;
+  }
   function sampleSectors(items){
     if(!Array.isArray(items)||items.length<2||items.some((s,i)=>!Number.isFinite(s.t)||s.t<0||s.t>1||!Number.isFinite(s.len)||s.len<=0||(i&&s.t<=items[i-1].t)))throw new Error('mapping');
     let sector=0;
@@ -363,6 +402,14 @@
     // -- CURRENT and v2A never read either of these.
     const techProfile=variant==='proV1'?techniqueProfileFor(options&&options.technique):null;
     const textureDescriptor=variant==='proV1'?((options&&options.texture)||null):null;
+    // EXPERIMENTAL proV1, MANGA: computed ONCE per buildFibers call (not
+    // per-fiber) against the real `points` array -- see
+    // computeSpikePositions above for why/how. Empty Set (not manga, or
+    // no frequency) costs one Set.has(i) false lookup per point, same
+    // branch cost as the old `!p.isKey` check it replaces.
+    const mangaSpikePositions=(textureDescriptor&&textureDescriptor.pattern==='manga')
+      ?computeSpikePositions(points,textureDescriptor.frequency)
+      :new Set();
     // Curl family from the existing professional design data (clientDesign.
     // curl.global -> photoCurl -> props.curl, e.g. 'C'/'CC'/'D'/'L'/'L+'/'M')
     // -- an optional 3rd argument, so any caller that omits it (tests, a
@@ -438,20 +485,21 @@
       // own length and its +-2% jitter are completely unchanged.
       const lengthScale=layer==='support'?.72:layer==='accent'?1.10+.06*noise(i,salt+1):layer==='back'?.90+.03*noise(i,salt+2):1;
       // EXPERIMENTAL proV1, MANGA spike/base contrast: reuses the real
-      // production texture descriptor's own `pattern`/`baseToSpikeDiff`
-      // (index.html's DESIGN_CATALOG + computeSpikeGeometry already
-      // define and already use these exact numbers for the real
-      // Application Plan text -- no new length scheme invented here).
-      // `p.isKey` marks this sample's nearest professional zone anchor
-      // (the exact mm value from the design's own baseZones/template) --
-      // those stay completely untouched; only the in-between,
-      // already-presentational interpolated samples (which never
-      // correspond to a specific professional mm value even in
-      // CURRENT/v2A) gain the spike boost, matching production's own
-      // manga rule (`tall` is unconditionally true for every non-anchor
-      // spike sample -- see computeSpikeGeometry). Purely a local
-      // length READ for this fiber; `p.len`/`p` itself is never mutated.
-      const mangaSpikeMm=(textureDescriptor&&textureDescriptor.pattern==='manga'&&!p.isKey)?(textureDescriptor.baseToSpikeDiff||0):0;
+      // production texture descriptor's own `pattern`/`frequency`/
+      // `baseToSpikeDiff` (index.html's DESIGN_CATALOG + the real
+      // computeSpikeGeometry already define and use these exact numbers
+      // for the real Application Plan text -- no new length scheme
+      // invented here). `p.isKey` marks this sample's nearest
+      // professional zone anchor (the exact mm value from the design's
+      // own baseZones/template) -- those stay completely untouched.
+      // WHICH of the remaining, already-presentational in-between
+      // samples gets the spike boost is decided ONCE per call by
+      // computeSpikePositions (`frequency` spike slots per isKey-to-
+      // isKey segment, evenly spaced) -- not every non-anchor sample,
+      // so `frequency` actually controls cadence/sparsity instead of
+      // being read nowhere. Purely a local length READ for this fiber;
+      // `p.len`/`p` itself is never mutated.
+      const mangaSpikeMm=mangaSpikePositions.has(i)?(textureDescriptor.baseToSpikeDiff||0):0;
       const effectiveLenMm=p.len+mangaSpikeMm;
       const length=eyeWidth*effectiveLenMm*VISUAL_MM_TO_EYE_WIDTH*finish*lengthScale*
         (layer==='support'?.85+.05*noise(i,salt+2):layer==='back'?1:1+.02*noise(i,salt+3));

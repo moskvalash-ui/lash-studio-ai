@@ -11078,7 +11078,22 @@
         // back to widthScaledPoints UNCHANGED -- the existing baseline.
         const points=applyHybridCRefinement(widthScaledPoints,eye,options&&options.pixelSource,result.imageWidth,result.imageHeight);
         const eyeWidth=Math.hypot(eye[3].x-eye[0].x,eye[3].y-eye[0].y);
-        const fibers=PhotoLashPreview.buildFibers(points,eyeWidth,props.curl,renderVariant?{variant:renderVariant}:undefined);
+        // EXPERIMENTAL proV1 (local visual testing only, see
+        // photo-lash-preview.js's TECHNIQUE_VISUAL_PROFILES): technique/
+        // texture read from `props` -- the SAME already-computed fields
+        // photoPropsFromClientDesign returns (props.technique sources
+        // from clientDesign.application.photoTechnique, props.texture
+        // from clientDesign.texture.photoDescriptor; both were set by
+        // withPhotoRuntime from the real selected/default technique and
+        // texture one call above) -- never a second computation, never a
+        // different field than what the rest of this function already
+        // uses for curl (props.curl). CURRENT and v2A are unaffected:
+        // this options shape is only ever built when renderVariant is
+        // exactly 'proV1'.
+        const buildOptions=renderVariant==='proV1'
+          ?{variant:'proV1',technique:props.technique,texture:props.texture}
+          :(renderVariant?{variant:renderVariant}:undefined);
+        const fibers=PhotoLashPreview.buildFibers(points,eyeWidth,props.curl,buildOptions);
         if(fibers.some(f=>f.root.x<0||f.root.x>result.imageWidth||f.root.y<0||f.root.y>result.imageHeight))throw new Error('geometry');
         // WYSIWYG PHOTO EDITOR: additive fields alongside the existing
         // `fibers` (the ONLY field any caller before this change ever
@@ -11303,7 +11318,11 @@
           if(cancelled)return;
           try{
             if(!img.naturalWidth)throw new Error('image');
-            const eyes=buildPhotoPreviewEyes(result,clientDesign,{pixelSource:img,...(renderVariant==='v2A'?{renderVariant:'v2A'}:null)});
+            // Generalized from the v2A-only ternary: any non-'current'
+            // renderVariant (now also 'proV1') passes straight through to
+            // buildPhotoPreviewEyes's own options.renderVariant -- 'current'
+            // still omits the key entirely, byte-identical to before.
+            const eyes=buildPhotoPreviewEyes(result,clientDesign,{pixelSource:img,...(renderVariant!=='current'?{renderVariant}:null)});
             const canvas=canvasRef.current,ctx=canvas.getContext('2d');
             if(!ctx)throw new Error('canvas');
             const scale=Math.min(2,2048/Math.max(result.imageWidth,result.imageHeight));
@@ -11768,19 +11787,26 @@
             <button type="button" onClick={()=>onEditModeChange('mask')} className={`min-h-[36px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${editMode==='mask'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>{t('photoEditModeFit',lang)}</button>
             <button type="button" onClick={()=>onEditModeChange('design')} className={`min-h-[36px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${editMode==='design'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>{t('photoEditModeDesign',lang)}</button>
           </div>}
-          {/* PHOTOREALISTIC RENDERER v2-A BASE -- approved, temporary,
-              debug-only A/B comparison toggle (?debug=1 only; invisible
-              otherwise). Switches ONLY which fiber-rendering variant is
-              drawn into the canvas above, on the exact same photo/eye/
-              Mask Fit/mapping/zone-mm/curl state -- never touches
-              clientDesign, never changes editing/Mask Fit/Design Edit
-              behavior. Safe to delete this block (plus the renderVariant
-              state and its one dependency-array entry above) to fully
-              retire the experiment. */}
+          {/* PHOTOREALISTIC RENDERER v2-A BASE / PRO V1 -- approved,
+              temporary, debug-only comparison toggle (?debug=1 only;
+              invisible otherwise), now CURRENT / v2-A BASE / PRO V1.
+              Switches ONLY which fiber-rendering variant is drawn into
+              the canvas above, on the exact same photo/eye/Mask Fit/
+              mapping/zone-mm/curl state -- never touches clientDesign,
+              never changes editing/Mask Fit/Design Edit behavior, never
+              re-runs face detection (the effect below keys off this same
+              already-computed `result`). PRO V1 additionally reads
+              technique/texture from `props` inside buildPhotoPreviewEyes
+              (see that function) -- still presentation-only, see
+              photo-lash-preview.js's own TECHNIQUE_VISUAL_PROFILES
+              comment for the full contract. Safe to delete this block
+              (plus the renderVariant state and its one dependency-array
+              entry above) to fully retire the experiment. */}
           {isDebugModeEnabled()&&<div data-render-variant-toggle="true" className="mb-2 flex items-center gap-1.5">
             <span className="text-[9px] font-semibold tracking-[.04em] text-textMuted">RENDERER (DEBUG):</span>
             <button type="button" onClick={()=>setRenderVariant('current')} className={`min-h-[28px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${renderVariant==='current'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>CURRENT</button>
             <button type="button" onClick={()=>setRenderVariant('v2A')} className={`min-h-[28px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${renderVariant==='v2A'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>v2-A BASE</button>
+            <button type="button" onClick={()=>setRenderVariant('proV1')} className={`min-h-[28px] whitespace-nowrap rounded-full border px-2.5 text-[9px] font-semibold tracking-[.04em] ${renderVariant==='proV1'?'border-accent/60 bg-accent/20 text-cyan':'border-border bg-surface text-textSecondary'}`}>PRO V1</button>
           </div>}
           {/* MASK FIT UX FIX (one-finger ambiguity): touch-action:none was
               already set on the SVG's own background rect/root-curve

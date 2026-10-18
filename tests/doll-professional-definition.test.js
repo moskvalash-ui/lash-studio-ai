@@ -90,7 +90,7 @@ test('all 22 legacy IDs and exact legacy Doll production inputs remain unchanged
 
 test('Recommendation, PHOTO, DIAGRAM, Application Plan, and domain source remain unchanged',()=>{
   const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
-  assert.strictEqual(digest(indexSource),'f95afcda54e91f56ea5ff2ebb74efce9a39866c90ee83de0a0403baa1ed300f0');
+  assert.strictEqual(digest(indexSource),'5942f797d527587c5e3eccabc5e52ad0f056f0b502aa60205f3b57180c5129eb');
   assert.strictEqual(digest(domainSource),'2dcc53ccf283f83dd228752f824c19c10ba91bb95fb7a7ebca287ac0ca9f9581');
   assert.ok(indexSource.includes('const d = canonicalRecommendationProps(raw, p, lang, rank);'));
   assert.ok(indexSource.includes('<PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign}'));

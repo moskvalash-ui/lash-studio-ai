@@ -1,151 +1,123 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f5f2ed">
-  <meta name="description" content="Концепт интерактивной beauty-акции для SHINE LINE. Неофициальная демоверсия.">
-  <title>SHINE LINE — персональный комплимент | Демо</title>
-  <style>
-    :root{--ink:#393833;--muted:#878680;--paper:#fbfaf7;--cream:#f3f0eb;--beige:#e8e2da;--line:#e6e1d9;--olive:#787e70;--accent:#aa9c8a;--bronze:#a18b71;--white:#fff;--shadow:0 24px 60px rgba(60,51,42,.1)}
-    *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:#e9e6e1;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-weight:400;line-height:1.5} button,input,select{font:inherit} button{cursor:pointer} button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #989481;outline-offset:3px} a{color:inherit;text-decoration:none} .app{width:min(100%,560px);background:var(--paper);margin:0 auto;min-height:100vh;overflow:hidden;box-shadow:0 0 55px rgba(49,43,37,.08)} .demo-strip{display:flex;justify-content:center;gap:10px;align-items:center;min-height:34px;background:#454941;color:#f8f7f2;letter-spacing:.17em;font-size:9px;text-transform:uppercase;text-align:center;padding:9px 14px}.demo-strip .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#d3c6b5}
-    .nav{display:flex;align-items:center;justify-content:space-between;padding:22px 25px 19px;border-bottom:1px solid rgba(80,75,67,.08)} .brand{display:flex;flex-direction:column;line-height:1.0;gap:5px} .brand-name{font-size:22px;letter-spacing:.27em;font-weight:400;font-family:Georgia,"Times New Roman",serif} .brand-sub{font-size:8px;letter-spacing:.32em;text-transform:uppercase;text-align:center;color:#88867d}.nav-right{border:1px solid #d5cfc4;border-radius:100px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:8px 13px;color:#737063}
-    .hero{position:relative;min-height:550px;display:flex;flex-direction:column;align-items:center;text-align:center;overflow:hidden;background:linear-gradient(163deg,#f7f4ef 5%,#eee9e1 70%,#e8e3db 100%);padding:48px 27px 35px}.hero::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.075'/%3E%3C/svg%3E");opacity:.35;mix-blend-mode:multiply}.hero>*{position:relative;z-index:1}.eyebrow{text-transform:uppercase;letter-spacing:.28em;font-size:10px;color:#898075}.hero h1{font-size:clamp(39px,8.3vw,56px);line-height:1.05;font-family:Georgia,"Times New Roman",serif;font-weight:400;margin:17px auto 6px;max-width:475px;letter-spacing:-.035em}.hero h1 em{font-weight:400;color:#777e70}.hero-desc{font-size:13px;line-height:1.65;color:#77746f;max-width:330px;margin:9px auto 0}.sculpture{height:208px;width:290px;position:relative;margin:8px auto 15px;filter:drop-shadow(0 22px 26px rgba(86,78,65,.14))}.arc{position:absolute;left:74px;top:0;width:142px;height:201px;border:1px solid rgba(151,139,121,.26);border-radius:50% 50% 45% 45% / 57% 57% 43% 43%;background:linear-gradient(120deg,rgba(255,255,255,.7),rgba(222,215,203,.36) 28%,rgba(255,255,255,.58) 51%,rgba(184,181,165,.24) 75%,rgba(247,244,238,.66));transform:rotate(-12deg);box-shadow:inset -18px 0 28px rgba(162,154,138,.08),inset 11px 0 17px rgba(255,255,255,.7),0 10px 30px rgba(118,103,86,.09)}.orb{position:absolute;border-radius:50%;background:radial-gradient(circle at 29% 26%,#fff 0,#e6e1d6 26%,#c1b9aa 69%,#ebe8dc 91%);box-shadow:inset -12px -13px 30px rgba(124,119,110,.19),0 19px 25px rgba(109,100,87,.12)}.orb.one{width:89px;height:89px;left:13px;top:93px}.orb.two{width:46px;height:46px;right:30px;top:36px;opacity:.7}.ring{position:absolute;border:1px solid #c4b5a0;border-radius:50%;width:200px;height:48px;bottom:5px;left:45px;transform:rotate(-14deg);opacity:.7}.spark{position:absolute;color:#ae9c84;font-size:23px;font-weight:200}.spark.a{left:30px;top:33px}.spark.b{right:27px;bottom:19px;font-size:15px}.hero-cta{display:flex;align-items:center;justify-content:center;gap:14px;border-radius:3px;border:1px solid #4c5149;background:#474b44;color:white;min-height:51px;padding:0 24px;font-size:12px;letter-spacing:.13em;text-transform:uppercase;min-width:220px;transition:transform .2s,background .2s}.hero-cta:hover{transform:translateY(-2px);background:#585d53}.hero-small{color:#8a847b;font-size:10px;letter-spacing:.06em;margin-top:13px}
-    section{padding:48px 24px}.section-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;color:#8b857d;text-transform:uppercase;letter-spacing:.17em;font-size:10px}.section-index{font-family:Georgia,serif;font-size:16px;font-style:italic;letter-spacing:0}.heading{font-family:Georgia,"Times New Roman",serif;font-size:36px;line-height:1.12;letter-spacing:-.035em;font-weight:400;margin:0 0 13px}.heading em{font-weight:400;color:#797e71}.subtext{color:#807e78;font-size:13px;line-height:1.65;margin:0 0 26px}.offers{background:#fcfbf8}.offer-range{display:flex;align-items:center;justify-content:center;gap:13px;margin-bottom:19px}.offer-range span{color:#8b8073;font-family:Georgia,serif;font-size:21px}.offer-range i{height:1px;width:24px;background:#d5d0c7}
-    .tickets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ticket{min-width:0;border:1px solid #dcd6cd;border-radius:7px;background:linear-gradient(148deg,#f3f0eb 0,#e4dfd6 55%,#f9f7f3 100%);min-height:190px;position:relative;isolation:isolate;padding:15px 8px 13px;display:flex;align-items:center;justify-content:space-between;flex-direction:column;color:#756d64;overflow:hidden;transition:transform .25s,box-shadow .25s,border-color .25s}.ticket:before{content:"";position:absolute;inset:5px;border:1px solid rgba(255,255,255,.68);border-radius:4px;pointer-events:none}.ticket:after{content:"";position:absolute;height:1px;background:#cfc7b9;left:0;right:0;top:50%;opacity:.6}.ticket:hover:not(:disabled){transform:translateY(-5px);box-shadow:0 13px 25px rgba(55,49,43,.11)}.ticket:disabled{cursor:default}.ticket-num{font-family:Georgia,serif;font-style:italic;font-size:15px;color:#928779;z-index:1}.ticket-center{display:flex;flex-direction:column;align-items:center;line-height:1;gap:9px;z-index:1}.ticket-sun{font-size:32px;color:#9e907e;font-weight:200}.ticket-text{font-size:9px;letter-spacing:.13em;text-transform:uppercase}.ticket-footer{z-index:1;letter-spacing:.13em;font-size:8px;text-transform:uppercase;border-bottom:1px solid #b5a898;padding-bottom:3px}.ticket.selected{background:linear-gradient(145deg,#6b7367,#4c544c);border-color:#4e574e;color:#fff;box-shadow:0 15px 26px rgba(64,72,63,.18)}.ticket.selected .ticket-num,.ticket.selected .ticket-sun{color:#e9e0cf}.ticket.selected .ticket-footer{border-color:#c9c6b7}.ticket.muted{opacity:.5;filter:grayscale(.3)}.ticket-discount{font-size:36px;font-family:Georgia,serif;color:#fff}.ticket-discount span{font-size:21px}.chosen-hint{display:flex;align-items:center;gap:10px;margin:21px 0 0;color:#817b72;font-size:11px;line-height:1.45}.chosen-hint:before{content:"✦";color:#b7a591;font-size:18px}
-    .reveal{max-height:0;overflow:hidden;transition:max-height .5s ease,padding .5s ease;scroll-margin-top:16px}.reveal.show{max-height:900px;padding-top:30px}.coupon{position:relative;background:#414940;color:#fff;text-align:center;padding:29px 20px 30px;border-radius:5px;overflow:hidden}.coupon:before,.coupon:after{content:"";position:absolute;width:150px;height:150px;border:1px solid rgba(245,239,227,.12);border-radius:50%;pointer-events:none}.coupon:before{left:-83px;top:-70px}.coupon:after{right:-73px;bottom:-93px}.coupon-kicker{letter-spacing:.22em;text-transform:uppercase;font-size:9px;color:#d7d5cc}.coupon-value{font-family:Georgia,serif;font-size:96px;line-height:1.15;letter-spacing:-.08em;font-weight:400;margin-top:6px}.coupon-value span{font-size:45px;letter-spacing:-.06em}.coupon-text{font-family:Georgia,serif;font-size:22px;margin:0 0 13px}.coupon-rule{height:1px;background:rgba(255,255,255,.23);max-width:220px;margin:0 auto 15px}.coupon-note{color:#d7d9d0;font-size:11px;line-height:1.5;max-width:280px;margin:auto}.demo-watermark{display:inline-block;border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:1px 8px;color:#e4e1d5;font-size:9px;letter-spacing:.1em;margin-top:19px}.primary-btn{display:flex;justify-content:center;align-items:center;gap:12px;width:100%;padding:16px 19px;background:#4c554b;color:#fff;border:0;border-radius:3px;font-size:12px;letter-spacing:.09em;margin-top:14px;transition:background .2s}.primary-btn:hover{background:#636d61}.secondary-link{display:block;width:100%;text-align:center;border:none;background:transparent;color:#8d857a;font-size:12px;text-decoration:underline;text-underline-offset:3px;padding:17px 4px 3px}
-    .how{background:#f3f0eb;border-top:1px solid #eae5dd;border-bottom:1px solid #e5e0d8}.steps{display:flex;flex-direction:column;gap:21px}.step{display:grid;grid-template-columns:47px 1fr;column-gap:14px;align-items:start}.step-number{width:40px;height:40px;border:1px solid #c8c2b8;border-radius:50%;display:grid;place-items:center;font-family:Georgia,serif;color:#888276}.step h3{font-size:13px;font-weight:550;margin:0 0 4px}.step p{font-size:12px;line-height:1.55;color:#807c75;margin:0}
-    .form-section{background:#faf9f6;scroll-margin-top:10px}.form-section form{display:flex;flex-direction:column;gap:13px}.field label{display:block;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#8b8178;margin-bottom:7px}.field input,.field select{width:100%;border:1px solid #d9d4cb;background:#fff;color:#3e3d39;border-radius:4px;padding:14px;font-size:14px;min-height:49px;outline-offset:2px}.field input::placeholder{color:#b1aca6}.note{color:#888078;font-size:10px;line-height:1.55;margin-top:2px}.telegram{display:none;background:#e8eee9;border:1px solid #cfdbd2;border-radius:7px;padding:18px 17px;margin-top:18px}.telegram.show{display:block}.telegram-title{display:flex;align-items:center;gap:9px;font-weight:600;font-size:13px;margin-bottom:10px}.tg-icon{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#5f7767;font-size:16px}.telegram p{margin:6px 0;font-size:12px;color:#4b514b;overflow-wrap:anywhere}.telegram .disclaimer{font-size:10px;margin-top:13px;color:#707971}
-    .service-bar{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:22px}.service-bar span{border:1px solid #dfdad1;padding:11px;text-align:center;font-size:11px;color:#7e7c77;background:rgba(255,255,255,.55)}.foot{padding:34px 24px 40px;background:#343b35;color:#e9e9e1;text-align:center}.foot .brand-name{font-size:20px}.foot .brand-sub{color:#b6bbb1;margin-top:4px}.foot p{max-width:410px;margin:20px auto 0;font-size:10px;line-height:1.7;color:#b4baaf}.foot .divider{width:50px;height:1px;background:#8c998d;margin:18px auto}
-    @media(max-width:360px){.nav{padding-left:16px;padding-right:16px}.brand-name{font-size:20px}.hero{padding-left:17px;padding-right:17px;min-height:520px}.hero h1{font-size:39px}section{padding-left:16px;padding-right:16px}.ticket{min-height:175px;padding:12px 4px}.ticket-discount{font-size:31px}.ticket-text{font-size:8px}.sculpture{transform:scale(.89);margin-top:-5px;margin-bottom:0}}@media(min-width:700px){.app{margin:28px auto;border-radius:12px;box-shadow:var(--shadow)}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#faf9f7">
+<meta name="description" content="SHINE LINE — персональный комплимент. Неофициальная интерактивная демоверсия акции.">
+<title>SHINE LINE — ваш персональный подарок · демо</title>
+<style>
+:root{--white:#fff;--canvas:#faf9f7;--milk:#f5f2ee;--sand:#eae5dd;--champagne:#d8c7b5;--champagne-dark:#bca58e;--olive:#6a7067;--charcoal:#484941;--soft:#898880;--line:#e8e4df;--serif:Georgia,'Times New Roman',serif;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#ecebe8;color:var(--charcoal);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}a{text-decoration:none;color:inherit}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #9d9b88;outline-offset:4px} .site{max-width:590px;min-height:100vh;margin:0 auto;background:var(--canvas);overflow:hidden;box-shadow:0 20px 80px rgba(72,64,53,.07)}
+.topline{min-height:34px;display:flex;align-items:center;justify-content:center;background:#f0efec;color:#85847b;font-size:9px;letter-spacing:.14em;text-align:center;padding:9px 14px}.topline span{height:4px;width:4px;border-radius:50%;background:#bfb0a0;margin:0 10px;flex-shrink:0}
+.header{min-height:100px;display:flex;align-items:center;justify-content:space-between;padding:22px clamp(24px,7vw,41px);background:#fff}.wordmark{display:flex;flex-direction:column;align-items:center;gap:5px}.wordmark strong{font-family:var(--serif);font-weight:400;letter-spacing:.22em;font-size:23px;line-height:1}.wordmark small{font-size:9px;color:#9a968d;letter-spacing:.28em;text-transform:uppercase}.header-link{color:#77756e;font-size:11px;letter-spacing:.02em;border-bottom:1px solid #d6d1c9;padding-bottom:4px}
+.hero{position:relative;isolation:isolate;padding:52px 22px 48px;text-align:center;background:radial-gradient(ellipse 68% 36% at 51% 58%,#f0eae4 0%,rgba(245,240,235,.38) 70%,transparent 100%),linear-gradient(180deg,#fff 0%,#fdfcfa 49%,#f8f5f1 100%)}.hero:before{content:'';position:absolute;z-index:-1;width:260px;height:260px;top:170px;left:-183px;border-radius:50%;background:rgba(229,217,201,.28);filter:blur(45px)}.hero:after{content:'';position:absolute;z-index:-1;width:280px;height:280px;top:260px;right:-196px;border-radius:50%;background:rgba(221,216,207,.38);filter:blur(52px)}
+.kicker{color:#b29e8d;font-size:10px;font-weight:500;letter-spacing:.28em;text-transform:uppercase;display:flex;justify-content:center;gap:13px;align-items:center}.kicker:before,.kicker:after{content:'';width:22px;height:1px;background:#dacec1}.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:-.041em;font-size:clamp(45px,10.8vw,65px);line-height:1.07;margin:22px auto 16px;max-width:490px}.hero h1 em{color:#a19c92;font-weight:400;font-style:italic}.hero-copy{color:#8d8a84;line-height:1.8;font-size:13px;max-width:320px;margin:0 auto}.hero-copy strong{font-weight:500;color:#66665f}.hero-note{letter-spacing:.22em;text-transform:uppercase;font-size:10px;color:#aaa197;margin-top:10px}
+.gift-zone{width:100%;display:grid;place-items:center;margin:0 auto -4px;position:relative;padding:0 0 4px}.gift-halo{position:absolute;width:290px;height:290px;top:65px;left:50%;transform:translateX(-50%);border-radius:50%;background:radial-gradient(circle,#f4ece4 1%,rgba(250,247,244,0) 71%);opacity:.75;pointer-events:none}.gift-halo:after{content:'';position:absolute;inset:12px;border:1px solid rgba(212,194,173,.25);border-radius:50%}.gift-button{display:block;position:relative;width:min(100%,374px);height:338px;padding:0;border:0;background:none;-webkit-tap-highlight-color:transparent;transform:translateZ(0);}.gift-svg{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 18px 14px rgba(118,106,94,.075))}.gift-box-shift{transition:transform 750ms cubic-bezier(.22,1,.36,1)}.gift-lid-svg{transform-box:fill-box;transform-origin:50% 85%;transition:transform 950ms cubic-bezier(.22,1,.36,1)}.gift-button:not(.opened):hover .gift-box-shift{transform:translateY(-6px)}.gift-button.opened .gift-lid-svg{transform:translate(-25px,-80px) rotate(-13deg)}.gift-button.opened .gift-box-shift{transform:translateY(9px)}.gift-button.opened{cursor:default}.box-glint{animation:glimmer 4s ease-in-out infinite;transform-origin:center}@keyframes glimmer{0%,100%{opacity:.35}50%{opacity:.8}}.gift-subtitle{color:#b0a59a;font-size:10px;letter-spacing:.21em;text-transform:uppercase;margin-top:-9px}.gift-action{border:0;background:#777d72;color:#fff;padding:18px 28px;min-height:54px;border-radius:100px;margin:23px auto 0;min-width:255px;font-size:12px;letter-spacing:.07em;box-shadow:0 10px 22px rgba(108,116,104,.13);transition:transform .2s,background .2s}.gift-action:hover{background:#696f65;transform:translateY(-2px)}.gift-action:disabled{opacity:.68;cursor:default;transform:none}.gift-caption{color:#a09d95;font-size:10px;margin:16px 0 0}.gift-caption strong{color:#a6917e;font-weight:500}
+.reveal-panel{display:none;padding:2px 0 20px;scroll-margin-top:10px}.reveal-panel.is-visible{display:block;animation:appear .65s ease both}@keyframes appear{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}.surprise{max-width:410px;margin:12px auto 12px;border:1px solid #e8dfd5;background:linear-gradient(145deg,rgba(255,255,255,.96),#faf6f0);padding:32px 24px 29px;position:relative;box-shadow:0 16px 40px rgba(121,103,85,.07)}.surprise:before{content:'';position:absolute;inset:7px;border:1px solid rgba(214,198,180,.36);pointer-events:none}.surprise-label{font-size:10px;letter-spacing:.24em;color:#a29a90;text-transform:uppercase}.surprise-number{font-family:var(--serif);font-size:103px;line-height:1.13;letter-spacing:-.08em;color:#8a847a;white-space:nowrap}.surprise-number span{font-size:50px;color:#a69582}.surprise h2{font-family:var(--serif);font-weight:400;font-size:25px;margin:0 0 12px}.surprise p{max-width:265px;font-size:12px;color:#86847e;margin:0 auto;line-height:1.7}.demo-pill{display:inline-block;margin-top:17px;border:1px solid #e0d8ce;color:#afa195;padding:4px 10px;font-size:9px;letter-spacing:.12em}.cta{display:flex;align-items:center;justify-content:center;gap:12px;min-height:52px;padding:14px 23px;color:#fff;background:#73796e;border:0;border-radius:3px;width:100%;font-size:12px;letter-spacing:.07em}.cta:hover{background:#646a60}.reveal-panel .cta{max-width:410px;margin:19px auto 0}.retry{border:0;background:transparent;color:#929087;text-decoration:underline;text-underline-offset:5px;padding:19px 10px 0;font-size:11px}
+.content-section{padding:60px clamp(23px,7vw,46px)}.divider{height:1px;background:linear-gradient(90deg,transparent,#dcd6d0,transparent)}.eyebrow-row{display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:.16em;font-size:10px;color:#afa297;margin-bottom:18px}.small-index{font-family:var(--serif);font-style:italic;letter-spacing:0;font-size:17px}.section-heading{font-family:var(--serif);font-weight:400;line-height:1.12;letter-spacing:-.027em;font-size:40px;margin:0 0 16px}.section-heading em{font-weight:400;color:#9b9c91}.section-copy{color:#8f8d85;line-height:1.9;font-size:13px;margin:0 0 23px}.steps{background:linear-gradient(180deg,#fff,#faf8f5)}.step-list{margin-top:26px;display:flex;flex-direction:column}.step{display:grid;grid-template-columns:52px 1fr;gap:16px;border-top:1px solid #efebe5;padding:20px 0}.step:last-child{border-bottom:1px solid #efebe5}.step-num{font-family:var(--serif);font-style:italic;font-size:23px;color:#bfae9b}.step-title{font-size:13px;margin:0 0 5px;font-weight:520;color:#5f615a}.step-desc{color:#99968f;line-height:1.7;font-size:12px;margin:0}
+.form-section{background:#f5f3ef;scroll-margin-top:10px}.field{margin:15px 0}.field label{font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:#928c84;display:block;margin-bottom:10px}.field input,.field select{width:100%;background:rgba(255,255,255,.89);border:1px solid #e4e0d9;border-radius:2px;min-height:54px;padding:15px 16px;color:#60615b;outline-offset:2px}.field input::placeholder{color:#b3b0ab}.form-section .cta{margin-top:21px}.note{font-size:10px;line-height:1.8;color:#99958f;margin:15px 0 0}.telegram{display:none;background:#fff;border:1px solid #e9e4dc;padding:24px 20px 20px;margin-top:23px;box-shadow:0 11px 35px rgba(89,77,67,.04)}.telegram.is-visible{display:block;animation:appear .4s ease}.telegram h3{font-size:12px;font-weight:600;color:#555c51;margin:0 0 14px}.telegram .mock{font-size:12px;line-height:1.75;color:#72736d;margin:3px 0}.telegram .disclaimer{color:#a9a39b;font-size:10px;line-height:1.65;border-top:1px solid #ede9e2;padding-top:12px;margin:16px 0 0}.service-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}.service-tags span{border:1px solid #e3ddd4;border-radius:30px;padding:8px 11px;font-size:10px;color:#9c988e;background:#fff}
+footer{text-align:center;background:#fff;padding:38px 25px 40px}footer .wordmark strong{font-size:25px}footer .footer-line{max-width:65px;height:1px;background:#ded8d0;margin:23px auto}footer p{color:#a4a19a;font-size:10px;line-height:1.8;margin:0 auto;max-width:420px}.footer-copy{font-size:9px;letter-spacing:.15em;text-transform:uppercase;margin-top:18px;color:#aba69c}
+@media (max-width:375px){.header{padding:20px 24px}.wordmark strong{font-size:21px}.hero{padding-top:42px}.hero h1{font-size:46px}.gift-button{height:306px;width:min(100%,344px)}.surprise-number{font-size:89px}.section-heading{font-size:37px}.content-section{padding:53px 23px}}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.box-glint{animation:none}.gift-box-shift,.gift-lid-svg,.reveal-panel.is-visible,.telegram.is-visible{transition:none;animation:none}}
+</style>
 </head>
-<body>
-<div class="app">
-  <div class="demo-strip"><span class="dot"></span> Дизайн-концепция · Неофициальное демо <span class="dot"></span></div>
-  <header class="nav">
-    <div class="brand" aria-label="SHINE LINE medical clinic"><div class="brand-name">SHINE LINE</div><div class="brand-sub">medical clinic</div></div>
-    <div class="nav-right">Могилёв · demo</div>
-  </header>
-  <main>
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="eyebrow">Красота в деталях</div>
-      <h1 id="hero-title">Ваш момент.<br><em>Ваше сияние.</em></h1>
-      <p class="hero-desc">Персональный комплимент в эстетике SHINE LINE. Откройте свою карту и узнайте, какой бонус вас ждёт.</p>
-      <div class="sculpture" aria-hidden="true"><div class="ring"></div><div class="arc"></div><div class="orb one"></div><div class="orb two"></div><div class="spark a">✦</div><div class="spark b">✧</div></div>
-      <a href="#choose" class="hero-cta">Открыть свой бонус <span aria-hidden="true">↗</span></a>
-      <span class="hero-small">10% · 15% · 20% — демонстрационные варианты</span>
-    </section>
-    <section class="offers" id="choose" aria-labelledby="choose-title">
-      <div class="section-top"><span>Персональная акция</span><span class="section-index">01 / 03</span></div>
-      <h2 class="heading" id="choose-title">Три карты.<br><em>Один комплимент.</em></h2>
-      <p class="subtext">Выберите одну из трёх закрытых карт, чтобы увидеть персональную скидку. В демоверсии доступны 10%, 15% и 20%.</p>
-      <div class="offer-range" aria-label="Доступные скидки"><span>10%</span><i></i><span>15%</span><i></i><span>20%</span></div>
-      <div class="tickets" role="group" aria-label="Выберите подарочную карту">
-        <button type="button" class="ticket" data-index="0" data-discount="10" aria-label="Открыть карту 01"><span class="ticket-num">01</span><span class="ticket-center"><span class="ticket-sun" aria-hidden="true">✧</span><span class="ticket-text">Shine Line</span></span><span class="ticket-footer">Открыть</span></button>
-        <button type="button" class="ticket" data-index="1" data-discount="15" aria-label="Открыть карту 02"><span class="ticket-num">02</span><span class="ticket-center"><span class="ticket-sun" aria-hidden="true">✧</span><span class="ticket-text">Shine Line</span></span><span class="ticket-footer">Открыть</span></button>
-        <button type="button" class="ticket" data-index="2" data-discount="20" aria-label="Открыть карту 03"><span class="ticket-num">03</span><span class="ticket-center"><span class="ticket-sun" aria-hidden="true">✧</span><span class="ticket-text">Shine Line</span></span><span class="ticket-footer">Открыть</span></button>
-      </div>
-      <p class="chosen-hint">В настоящей акции правила выдачи бонусов и перечень услуг согласовываются с клиникой.</p>
-      <div class="reveal" id="reveal" aria-live="polite">
-        <div class="coupon">
-          <div class="coupon-kicker">SHINE LINE · персональная карта</div>
-          <div class="coupon-value"><span aria-label="Размер скидки" id="coupon-value">15</span><span>%</span></div>
-          <p class="coupon-text">Ваш beauty-бонус</p>
-          <div class="coupon-rule"></div>
-          <p class="coupon-note">Покажите администратору интерес к предложению — в рабочей версии заявки поступают в Telegram.</p>
-          <div class="demo-watermark">ДЕМО · НЕ ДЕЙСТВУЕТ</div>
-        </div>
-        <a href="#request" class="primary-btn">Посмотреть оформление заявки <span aria-hidden="true">↗</span></a>
-        <button type="button" class="secondary-link" id="retry">Попробовать другой билет (демо)</button>
-      </div>
-    </section>
-    <section class="how" aria-labelledby="how-title">
-      <div class="section-top"><span>Простой путь к записи</span><span class="section-index">02 / 03</span></div>
-      <h2 class="heading" id="how-title">От интереса<br><em>к заявке.</em></h2>
-      <div class="steps">
-        <div class="step"><span class="step-number">01</span><div><h3>Переход из Instagram или рекламы</h3><p>Клиент открывает короткую ссылку с телефона — без установки приложений.</p></div></div>
-        <div class="step"><span class="step-number">02</span><div><h3>Интерактивный бонус</h3><p>Выбирает карту и видит одно из трёх персональных предложений.</p></div></div>
-        <div class="step"><span class="step-number">03</span><div><h3>Контакт для записи</h3><p>В подключённой версии заявка передаётся администратору через Telegram-бота. Он связывается с клиентом.</p></div></div>
-      </div>
-    </section>
-    <section class="form-section" id="request" aria-labelledby="request-title">
-      <div class="section-top"><span>Пример экрана заявки</span><span class="section-index">03 / 03</span></div>
-      <h2 class="heading" id="request-title">Продолжим<br><em>знакомство?</em></h2>
-      <p class="subtext">Так клиент оставит контакт, чтобы администратор мог связаться и уточнить подходящую услугу и условия предложения.</p>
-      <form id="demo-form" novalidate>
-        <div class="field"><label for="client-name">Ваше имя</label><input id="client-name" name="name" autocomplete="off" placeholder="Например, Анна" maxlength="50"></div>
-        <div class="field"><label for="client-phone">Номер телефона</label><input id="client-phone" name="phone" type="tel" autocomplete="off" placeholder="+375 (__) ___-__-__" maxlength="30"></div>
-        <div class="field"><label for="client-service">Что вас интересует?</label><select id="client-service" name="service"><option value="Уточнить услугу с администратором">Пока выбираю</option><option value="Косметология">Косметология</option><option value="Лазерная эпиляция">Лазерная эпиляция</option><option value="Другие услуги">Другие услуги</option></select></div>
-        <button class="primary-btn" type="submit" style="margin-top:3px">Показать пример заявки <span aria-hidden="true">↗</span></button>
-        <p class="note">Это демонстрация. Ничего не отправляется и не сохраняется. Не вводите реальные персональные данные. Telegram-бот ещё не подключён.</p>
-      </form>
-      <div class="telegram" id="telegram" role="status" aria-live="polite">
-        <div class="telegram-title"><span class="tg-icon">↗</span> Как администратор увидит заявку</div>
-        <p id="tg-name"></p><p id="tg-phone"></p><p id="tg-service"></p><p id="tg-discount"></p>
-        <p class="disclaimer">Пример уведомления Telegram. Сообщение не отправлено — это демонстрация механики.</p>
-      </div>
-      <div class="service-bar" aria-label="Основные направления"><span>Косметология</span><span>Лазерная эпиляция</span><span>Дерматология</span><span>Трихология</span></div>
-    </section>
-  </main>
-  <footer class="foot"><div class="brand-name">SHINE LINE</div><div class="brand-sub">medical clinic · concept</div><div class="divider"></div><p>Неофициальная демонстрация дизайна, не связанная с запуском действующей акции SHINE LINE. Размеры скидок 10%, 15% и 20% приведены для презентации. Условия, перечень услуг и использование фирменного стиля требуют согласования с клиникой. Форма не обрабатывает и не передаёт заявки.</p></footer>
+<body><div class="site">
+<div class="topline">НЕОФИЦИАЛЬНАЯ ДЕМОВЕРСИЯ <span aria-hidden="true"></span> КОНЦЕПЦИЯ ДЛЯ SHINE LINE</div>
+<header class="header"><div class="wordmark" aria-label="SHINE LINE medical clinic"><strong>SHINE LINE</strong><small>medical clinic</small></div><a class="header-link" href="#how">Как это работает ↗</a></header>
+<main>
+<section class="hero" id="start">
+  <div class="kicker">Персональный комплимент</div>
+  <h1>Ваша красота.<br><em>Ваш момент.</em></h1>
+  <p class="hero-copy">Иногда достаточно маленького знака внимания. <strong>Откройте подарочную коробочку</strong> и узнайте, какой сюрприз ждёт вас внутри.</p>
+  <div class="gift-zone">
+    <div class="gift-halo" aria-hidden="true"></div>
+    <button class="gift-button" id="gift" type="button" aria-label="Открыть белую подарочную коробочку с лентой" aria-controls="reveal" aria-expanded="false">
+      <svg class="gift-svg" viewBox="0 0 374 338" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="boxFront" x1="0" y1="0" x2="1" y2=".65"><stop offset="0" stop-color="#fff"/><stop offset=".42" stop-color="#f9f7f5"/><stop offset="1" stop-color="#e8e3dd"/></linearGradient>
+        <linearGradient id="boxSide" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#efebe5"/><stop offset="1" stop-color="#ddd5cc"/></linearGradient>
+        <linearGradient id="boxTop" x1="0" y1="0" x2=".3" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#ebe7e2"/></linearGradient>
+        <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e9dcd0"/><stop offset=".24" stop-color="#f7e9dc"/><stop offset=".48" stop-color="#cdb7a2"/><stop offset=".73" stop-color="#ede0d2"/><stop offset="1" stop-color="#bba591"/></linearGradient>
+        <linearGradient id="ribbonDark" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d1baa5"/><stop offset=".5" stop-color="#f5eadf"/><stop offset="1" stop-color="#b49a83"/></linearGradient>
+        <linearGradient id="bowFill" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8ede0"/><stop offset=".5" stop-color="#e1cdb9"/><stop offset="1" stop-color="#c5a991"/></linearGradient>
+        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+      </defs>
+      <ellipse cx="188" cy="287" rx="116" ry="17" fill="#c7b9aa" opacity=".21" filter="url(#shadow)"/>
+      <path d="M71 88 L76 91 M73.5 85.5 L73.5 94" stroke="#cab8a6" stroke-width=".9" opacity=".8"/><path d="M298 88 L304 91 M301 85 L301 95" stroke="#c6b6a2" stroke-width=".8" opacity=".65"/>
+      <g class="gift-box-shift">
+        <!-- box with a gently angled satin-white front and shaded right side -->
+        <path d="M95 138 L262 138 L278 265 L112 265 Z" fill="url(#boxSide)" stroke="#e3dcd3" stroke-width=".6"/>
+        <path d="M91 136 L254 136 L254 269 L91 269 Z" fill="url(#boxFront)" stroke="#eee9e3" stroke-width="1"/>
+        <path d="M91 136 L254 136 L279 145 L111 145 Z" fill="url(#boxTop)" opacity=".67"/>
+        <rect x="165" y="140" width="26" height="129" fill="url(#ribbon)" opacity=".96"/>
+        <rect x="165" y="140" width="3" height="129" fill="#fff" opacity=".42"/>
+        <path d="M254 136 L279 145 L279 265 L254 269 Z" fill="url(#boxSide)" stroke="#e3dcd3" stroke-width=".8"/>
+        <path d="M254 136 L279 145 L279 164 L254 153 Z" fill="url(#ribbonDark)" opacity=".75"/>
+        <rect x="106" y="157" width="1" height="103" fill="#fff" opacity=".85"/>
+        <text x="135" y="214" font-size="8" letter-spacing="1.5" fill="#b0a79e" font-family="Georgia,serif">SHINE</text><text x="205" y="214" font-size="8" letter-spacing="1.4" fill="#b0a79e" font-family="Georgia,serif">LINE</text>
+        <g class="gift-lid-svg">
+          <path d="M77 124 L257 124 L289 137 L104 137 Z" fill="url(#boxTop)" stroke="#e4ded5" stroke-width=".8"/>
+          <path d="M77 124 L257 124 L257 157 L77 157 Z" fill="url(#boxFront)" stroke="#ded8d1" stroke-width=".7"/>
+          <path d="M257 124 L289 137 L289 158 L257 157 Z" fill="url(#boxSide)" stroke="#ded5ca" stroke-width=".7"/>
+          <path d="M166 124 L194 124 L197 157 L166 157 Z" fill="url(#ribbon)"/>
+          <path d="M166 124 L190 124 L224 137 L199 137 Z" fill="url(#ribbonDark)" opacity=".95"/>
+          <path d="M257 124 L289 137 L289 146 L257 133 Z" fill="#fff" opacity=".34"/>
+          <!-- sculptural ribbon loops -->
+          <path d="M180 126 C148 114 138 86 149 75 C163 64 185 91 181 125 Z" fill="url(#bowFill)" stroke="#cdb8a5" stroke-width="1"/>
+          <path d="M178 124 C168 99 154 83 148 82" fill="none" stroke="#fff" stroke-width="2" opacity=".65"/>
+          <path d="M179 125 C199 91 219 74 233 86 C250 101 217 124 180 125 Z" fill="url(#ribbon)" stroke="#cfbaa5" stroke-width="1"/>
+          <path d="M187 120 C207 101 221 92 232 92" fill="none" stroke="#fff" stroke-width="2.5" opacity=".55"/>
+          <path d="M181 124 C168 135 154 151 160 163 C167 174 181 157 186 131 Z" fill="url(#ribbonDark)" stroke="#c6ae9b" stroke-width=".6"/>
+          <path d="M188 126 C205 139 217 156 209 164 C201 172 190 144 183 129 Z" fill="url(#ribbon)" stroke="#c6ae9b" stroke-width=".6"/>
+          <ellipse cx="181" cy="127" rx="12" ry="9" transform="rotate(-14 181 127)" fill="url(#bowFill)" stroke="#c3ad99" stroke-width=".8"/>
+          <path d="M174 122 C182 120 188 123 191 127" fill="none" stroke="#fff" stroke-width="1.6" opacity=".67"/>
+        </g>
+      </g>
+      <g class="box-glint" fill="none" stroke="#d5c4b0" stroke-width=".8"><path d="M58 183h14m-7 -7v14"/><path d="M312 205h10m-5 -5v10"/></g>
+      </svg>
+    </button>
+  </div>
+  <div class="gift-subtitle" id="gift-subtitle">Нажмите на коробочку, чтобы открыть</div>
+  <button type="button" class="gift-action" id="open-gift">Открыть подарок <span aria-hidden="true">↗</span></button>
+  <div class="gift-caption">Внутри — <strong>10%, 15% или 20%</strong> · демонстрационные скидки</div>
+  <div class="reveal-panel" id="reveal" aria-live="polite">
+    <div class="surprise"><div class="surprise-label">Ваш персональный комплимент</div><div class="surprise-number"><span id="discount-number">15</span><span>%</span></div><h2>Маленькая радость для вас</h2><p>В рабочей версии ваш персональный бонус будет оформлен по правилам акции SHINE LINE.</p><div class="demo-pill">ДЕМО · НЕ ДЕЙСТВУЕТ</div></div>
+    <a href="#request" class="cta">Посмотреть оформление заявки <span aria-hidden="true">↗</span></a>
+    <button id="retry" type="button" class="retry">Открыть коробочку ещё раз · демо</button>
+  </div>
+</section>
+<div class="divider" role="presentation"></div>
+<section class="content-section steps" id="how" aria-labelledby="how-heading">
+  <div class="eyebrow-row"><span>Всё очень просто</span><span class="small-index">01 / 02</span></div>
+  <h2 class="section-heading" id="how-heading">Один жест —<br><em>приятный сюрприз.</em></h2>
+  <p class="section-copy">Лёгкий интерактивный формат для Instagram, рекламы или QR-кода. Красивое знакомство с клиникой превращается в обращение.</p>
+  <div class="step-list"><div class="step"><div class="step-num">01</div><div><p class="step-title">Откройте приглашение</p><p class="step-desc">Клиент переходит по ссылке, без установки приложения.</p></div></div><div class="step"><div class="step-num">02</div><div><p class="step-title">Распакуйте комплимент</p><p class="step-desc">Белая коробочка раскрывает один из бонусов: 10%, 15% или 20%.</p></div></div><div class="step"><div class="step-num">03</div><div><p class="step-title">Оставьте заявку</p><p class="step-desc">В рабочей версии заявка поступает администратору через Telegram-бота для обратной связи.</p></div></div></div>
+</section>
+<section class="content-section form-section" id="request" aria-labelledby="form-heading">
+  <div class="eyebrow-row"><span>Ваш следующий шаг</span><span class="small-index">02 / 02</span></div>
+  <h2 class="section-heading" id="form-heading">Пора подарить<br><em>себе заботу.</em></h2>
+  <p class="section-copy">Так выглядит пример заявки. Администратор сможет уточнить подходящую услугу и условия предложения после запуска настоящей акции.</p>
+  <form id="form" novalidate>
+    <div class="field"><label for="name">Ваше имя</label><input id="name" autocomplete="off" placeholder="Например, Анна" maxlength="50"></div>
+    <div class="field"><label for="phone">Номер телефона</label><input id="phone" type="tel" autocomplete="off" placeholder="+375 (__) ___-__-__" maxlength="30"></div>
+    <div class="field"><label for="service">Интересующая услуга</label><select id="service"><option>Пока выбираю</option><option>Косметология</option><option>Лазерная эпиляция</option><option>Дерматология</option><option>Трихология</option></select></div>
+    <button type="submit" class="cta">Показать пример заявки <span aria-hidden="true">↗</span></button>
+    <p class="note">Это презентация концепции. Не вводите реальные контактные данные: данные не сохраняются и не отправляются, Telegram-бот пока не подключён.</p>
+  </form>
+  <div id="telegram" class="telegram" role="status" aria-live="polite"><h3>↗ Уведомление администратору · пример</h3><p class="mock" id="tg-name"></p><p class="mock" id="tg-phone"></p><p class="mock" id="tg-service"></p><p class="mock" id="tg-discount"></p><p class="disclaimer">Визуальный пример Telegram-уведомления. Сообщение никуда не отправлено.</p></div>
+  <div class="service-tags"><span>Косметология</span><span>Лазерная эпиляция</span><span>Дерматология</span><span>Трихология</span></div>
+</section>
+</main>
+<footer><div class="wordmark"><strong>SHINE LINE</strong><small>medical clinic</small></div><div class="footer-line"></div><p>Неофициальная демонстрация дизайна. Скидки 10%, 15% и 20% приведены исключительно для примера, не являются действующим предложением клиники. Правила и услуги требуют согласования. Форма не собирает и не передаёт данные.</p><div class="footer-copy">Concept preview · beauty & aesthetics</div></footer>
 </div>
 <script>
-(() => {
-  'use strict';
-  const tickets = [...document.querySelectorAll('.ticket')];
-  const reveal = document.getElementById('reveal');
-  const output = document.getElementById('coupon-value');
-  const telegram = document.getElementById('telegram');
-  let chosen = null;
-  const reset = () => {
-    chosen = null;
-    tickets.forEach((button, i) => {
-      button.disabled = false;
-      button.classList.remove('selected', 'muted');
-      button.setAttribute('aria-label', `Открыть карту 0${i+1}`);
-      button.querySelector('.ticket-center').innerHTML = '<span class="ticket-sun" aria-hidden="true">✧</span><span class="ticket-text">Shine Line</span>';
-      button.querySelector('.ticket-footer').textContent = 'Открыть';
-    });
-    reveal.classList.remove('show');
-    telegram.classList.remove('show');
-  };
-  tickets.forEach(button => button.addEventListener('click', () => {
-    if (chosen !== null) return;
-    chosen = Number(button.dataset.discount);
-    output.textContent = String(chosen);
-    tickets.forEach(other => {
-      const isSelected = other === button;
-      other.disabled = true;
-      other.classList.toggle('selected', isSelected);
-      other.classList.toggle('muted', !isSelected);
-      if (isSelected) {
-        other.querySelector('.ticket-center').replaceChildren();
-        const value = document.createElement('span');
-        value.className = 'ticket-discount';
-        value.textContent = String(chosen) + '%';
-        other.querySelector('.ticket-center').appendChild(value);
-        other.querySelector('.ticket-footer').textContent = 'Ваш бонус';
-        other.setAttribute('aria-label', 'Открыта скидка ' + chosen + '%');
-      }
-    });
-    reveal.classList.add('show');
-    telegram.classList.remove('show');
-    window.setTimeout(() => reveal.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth', block:'start'}),200);
-  }));
-  document.getElementById('retry').addEventListener('click', () => {reset();document.getElementById('choose').scrollIntoView({behavior:'smooth',block:'start'});});
-  document.getElementById('demo-form').addEventListener('submit', event => {
-    event.preventDefault();
-    const name = document.getElementById('client-name').value.trim() || 'Анна (пример)';
-    const phone = document.getElementById('client-phone').value.trim() || '+375 XX XXX XX XX (пример)';
-    const service = document.getElementById('client-service').value;
-    document.getElementById('tg-name').textContent = 'Имя: ' + name;
-    document.getElementById('tg-phone').textContent = 'Телефон: ' + phone;
-    document.getElementById('tg-service').textContent = 'Интересует: ' + service;
-    document.getElementById('tg-discount').textContent = 'Демо-бонус: ' + (chosen===null?'не выбран':chosen+'%');
-    telegram.classList.add('show');
-    telegram.scrollIntoView({behavior:'smooth',block:'nearest'});
-  });
+(()=>{'use strict';
+const box=document.getElementById('gift'),openButton=document.getElementById('open-gift'),reveal=document.getElementById('reveal'),num=document.getElementById('discount-number'),subtitle=document.getElementById('gift-subtitle'),retry=document.getElementById('retry'),telegram=document.getElementById('telegram');
+let chosen=null,opens=0,timer=null;
+const discounts=[10,15,20];
+function openGift(){if(chosen!==null)return;chosen=discounts[(opens++ + Math.floor(Math.random()*3))%3];num.textContent=String(chosen);box.classList.add('opened');box.setAttribute('aria-expanded','true');box.setAttribute('aria-label','Подарочная коробочка открыта. Скидка '+chosen+' процентов');openButton.disabled=true;openButton.textContent='Коробочка открыта ✧';subtitle.textContent='Ваш сюрприз уже ждёт вас';if(timer)clearTimeout(timer);timer=setTimeout(()=>{reveal.classList.add('is-visible');reveal.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'nearest'});},650)}
+box.addEventListener('click',openGift);openButton.addEventListener('click',openGift);retry.addEventListener('click',()=>{if(timer)clearTimeout(timer);chosen=null;box.classList.remove('opened');box.setAttribute('aria-expanded','false');box.setAttribute('aria-label','Открыть белую подарочную коробочку с лентой');openButton.disabled=false;openButton.innerHTML='Открыть подарок <span aria-hidden="true">↗</span>';subtitle.textContent='Нажмите на коробочку, чтобы открыть';reveal.classList.remove('is-visible');telegram.classList.remove('is-visible');document.getElementById('start').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'})});
+document.getElementById('form').addEventListener('submit',e=>{e.preventDefault();const name=document.getElementById('name').value.trim()||'Анна (пример)',phone=document.getElementById('phone').value.trim()||'+375 XX XXX XX XX (пример)',service=document.getElementById('service').value;document.getElementById('tg-name').textContent='Имя: '+name;document.getElementById('tg-phone').textContent='Телефон: '+phone;document.getElementById('tg-service').textContent='Интересует: '+service;document.getElementById('tg-discount').textContent='Демо-бонус: '+(chosen===null?'не выбран':chosen+'%');telegram.classList.add('is-visible');telegram.scrollIntoView({behavior:'smooth',block:'nearest'})});
 })();
 </script>
 </body>

@@ -12,7 +12,7 @@ button[aria-pressed=true]{background:#6b447e}#notice{font-size:13px}
 </style></head><body>
 <h1>FOX V1 · эксперимент</h1>
 <p>Только верхние ресницы. Фото обрабатывается локально в браузере — не загружается на сервер. Тестовый рендерер, не готовый AI-результат.</p>
-<div class="panel"><label>1. Загрузить исходное фото <input id="photo" type="file" accept="image/*"></label><p id="notice">Фото не выбрано.</p><canvas id="view" width="800" height="600"></canvas></div>
+<div class="panel"><label>1. Загрузить исходное фото <input id="photo" type="file" accept="image/*"></label><p id="notice">Фото не выбрано. После выбора появится сообщение о загрузке.</p><canvas id="view" width="800" height="600"></canvas></div>
 <div class="panel"><p>2. Выбери глаз и расставь три точки по линии верхнего века: внутренний угол → центр → внешний угол. Повтори для второго глаза. Порядок точек должен идти от носа к виску.</p>
 <button id="left" aria-pressed="true">Левый на фото</button> <button id="right" aria-pressed="false">Правый на фото</button> <button id="reset">Сбросить точки глаза</button> <button id="toggle">До / После</button>
 <p id="status">Левый на фото: 0/3 точек</p></div>
@@ -43,7 +43,7 @@ function drawEye(points,settings,seed){
  for(let i=0;i<n;i++){
   const t=(i+.5)/n,base=curve(a,b,c,t),v=tangent(a,b,c,t);
   const mag=Math.hypot(v.x,v.y)||1,tx=v.x/mag,ty=v.y/mag;
-  const nx=ty,ny=-tx; // upper normal in photo coordinates
+  const sign=tx>=0?1:-1; const nx=ty*sign,ny=-tx*sign; // point up for either eye direction
   const variation=.82+.35*rand(i,seed);
   const fox=1+settings.fox*Math.pow(t,2.6);
   const inner=.45+.55*Math.min(1,t/.24);
@@ -73,11 +73,11 @@ function redraw(){
 }
 $('photo').addEventListener('change',e=>{
  const file=e.target.files?.[0];if(!file)return;
- const url=URL.createObjectURL(file),next=new Image();
+ $('notice').textContent='Загружаю фотографию…'; const url=URL.createObjectURL(file),next=new Image();
  next.onload=()=>{img=next;const max=1600,scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
  canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);
  eyes.left=[];eyes.right=[];$('notice').textContent='Фото загружено локально: '+file.name;redraw();URL.revokeObjectURL(url);};
- next.onerror=()=>{$('notice').textContent='Не удалось прочитать фото';URL.revokeObjectURL(url);};
+ next.onerror=()=>{$('notice').textContent='Не удалось прочитать фото. Попробуй JPEG или PNG.';URL.revokeObjectURL(url);};
  next.src=url;
 });
 canvas.addEventListener('pointerdown',e=>{

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FOX V1 — isolated lash preview</title><style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#f2edf5;background:#111016}*{box-sizing:border-box}
+body{margin:0;padding:18px;max-width:1040px;margin:auto}h1{font-size:26px;margin:8px 0}p,small{color:#bbb4c4}
+.panel{background:#1c1923;border:1px solid #393240;border-radius:18px;padding:16px;margin:12px 0}
+canvas{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;background:#27212e;border-radius:12px;touch-action:none}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+label{display:block;font-size:13px;color:#ddd}input[type=range]{width:100%;accent-color:#c7a2f4}
+button,input[type=file]{font:inherit}button{border:1px solid #65566f;background:#33263d;color:white;border-radius:10px;padding:10px;cursor:pointer}
+button[aria-pressed=true]{background:#6b447e}#notice{font-size:13px}
+</style></head><body>
+<h1>FOX V1 · эксперимент</h1>
+<p>Только верхние ресницы. Фото обрабатывается локально в браузере — не загружается на сервер. Тестовый рендерер, не готовый AI-результат.</p>
+<div class="panel"><label>1. Загрузить исходное фото <input id="photo" type="file" accept="image/*"></label><p id="notice">Фото не выбрано.</p><canvas id="view" width="800" height="600"></canvas></div>
+<div class="panel"><p>2. Выбери глаз и расставь три точки по линии верхнего века: внутренний угол → центр → внешний угол. Повтори для второго глаза. Порядок точек должен идти от носа к виску.</p>
+<button id="left" aria-pressed="true">Левый на фото</button> <button id="right" aria-pressed="false">Правый на фото</button> <button id="reset">Сбросить точки глаза</button> <button id="toggle">До / После</button>
+<p id="status">Левый на фото: 0/3 точек</p></div>
+<div class="panel controls">
+<label>Длина <output id="lengthValue"></output><input id="length" type="range" min="0.4" max="2" value="1" step=".05"></label>
+<label>Плотность <output id="densityValue"></output><input id="density" type="range" min="35" max="220" value="125" step="5"></label>
+<label>Изгиб <output id="curlValue"></output><input id="curl" type="range" min=".1" max="1.5" value=".75" step=".05"></label>
+<label>Лисий акцент <output id="foxValue"></output><input id="fox" type="range" min="0" max="1.8" value="1.2" step=".05"></label>
+<label>Толщина <output id="thicknessValue"></output><input id="thickness" type="range" min=".3" max="1.8" value=".75" step=".05"></label>
+<label>Прозрачность <output id="opacityValue"></output><input id="opacity" type="range" min=".2" max="1" value=".8" step=".05"></label>
+</div>
+<p><small>Ограничение V1: ручная разметка и процедурные волокна. Не является переносом реальных волосков с референса. Не меняет Lash Map и рабочий Photo Preview.</small></p>
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id),canvas=$('view'),ctx=canvas.getContext('2d');
+let img=null,eye='left',before=false;
+const eyes={left:[],right:[]},keys=['length','density','curl','fox','thickness','opacity'];
+const values=()=>Object.fromEntries(keys.map(k=>[k,+$(k).value]));
+function curve(a,b,c,t){const u=1-t;return {x:u*u*a.x+2*u*t*b.x+t*t*c.x,y:u*u*a.y+2*u*t*b.y+t*t*c.y};}
+function tangent(a,b,c,t){return {x:2*(1-t)*(b.x-a.x)+2*t*(c.x-b.x),y:2*(1-t)*(b.y-a.y)+2*t*(c.y-b.y)};}
+function rand(i,s){let v=Math.sin((i+1)*127.1+s*311.7)*43758.5453;return v-Math.floor(v);}
+function drawEye(points,settings,seed){
+ if(points.length!==3)return;
+ const [a,b,c]=points;
+ const span=Math.hypot(c.x-a.x,c.y-a.y);
+ const n=settings.density;
+ for(let i=0;i<n;i++){
+  const t=(i+.5)/n,base=curve(a,b,c,t),v=tangent(a,b,c,t);
+  const mag=Math.hypot(v.x,v.y)||1,tx=v.x/mag,ty=v.y/mag;
+  const nx=ty,ny=-tx; // upper normal in photo coordinates
+  const variation=.82+.35*rand(i,seed);
+  const fox=1+settings.fox*Math.pow(t,2.6);
+  const inner=.45+.55*Math.min(1,t/.24);
+  const endFade=1-.27*Math.max(0,(t-.91)/.09);
+  const len=span*.17*settings.length*fox*inner*endFade*variation;
+  const sweep=(.13+.38*t)*len, lift=(.48+.35*settings.curl)*len;
+  const x0=base.x+nx*span*.012,y0=base.y+ny*span*.012;
+  const x3=x0+nx*lift+tx*sweep,y3=y0+ny*lift+ty*sweep;
+  const width=Math.max(.35,span*.004*settings.thickness*(.7+.45*rand(i,seed+9)));
+  const alpha=settings.opacity*(.48+.48*rand(i,seed+4));
+  ctx.beginPath();ctx.moveTo(x0,y0);
+  ctx.bezierCurveTo(x0+nx*len*.20+tx*sweep*.12,y0+ny*len*.20+ty*sweep*.12,
+   x3-nx*len*.15-tx*sweep*.14,y3-ny*len*.15-ty*sweep*.14,x3,y3);
+  ctx.strokeStyle='rgba(20,13,17,'+alpha.toFixed(3)+')';ctx.lineWidth=width;
+  ctx.lineCap='round';ctx.stroke();
+ }
+}
+function redraw(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ if(img)ctx.drawImage(img,0,0,canvas.width,canvas.height);
+ if(!before){const s=values();drawEye(eyes.left,s,3);drawEye(eyes.right,s,7);}
+ for(const name of ['left','right']){
+  eyes[name].forEach((p,i)=>{ctx.beginPath();ctx.arc(p.x,p.y,Math.max(3,canvas.width*.004),0,Math.PI*2);ctx.fillStyle=name==='left'?'#d9a8ff':'#9ad9ff';ctx.fill();});
+ }
+ $('status').textContent=(eye==='left'?'Левый':'Правый')+' на фото: '+eyes[eye].length+'/3 точек';
+ for(const k of keys)$(k+'Value').textContent=$(k).value;
+}
+$('photo').addEventListener('change',e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ const url=URL.createObjectURL(file),next=new Image();
+ next.onload=()=>{img=next;const max=1600,scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+ canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);
+ eyes.left=[];eyes.right=[];$('notice').textContent='Фото загружено локально: '+file.name;redraw();URL.revokeObjectURL(url);};
+ next.onerror=()=>{$('notice').textContent='Не удалось прочитать фото';URL.revokeObjectURL(url);};
+ next.src=url;
+});
+canvas.addEventListener('pointerdown',e=>{
+ if(!img||eyes[eye].length>=3)return;
+ const r=canvas.getBoundingClientRect();
+ // account for object-fit: contain and actual canvas aspect ratio
+ const scale=Math.min(r.width/canvas.width,r.height/canvas.height);
+ const w=canvas.width*scale,h=canvas.height*scale;
+ const x=(e.clientX-r.left-(r.width-w)/2)/scale,y=(e.clientY-r.top-(r.height-h)/2)/scale;
+ if(x<0||y<0||x>canvas.width||y>canvas.height)return;
+ eyes[eye].push({x,y});redraw();
+});
+for(const name of ['left','right'])$(name).onclick=()=>{eye=name;for(const k of ['left','right'])$(k).setAttribute('aria-pressed',String(k===eye));redraw();};
+$('reset').onclick=()=>{eyes[eye]=[];redraw();};
+$('toggle').onclick=()=>{before=!before;$('toggle').textContent=before?'Показать после':'До / После';redraw();};
+for(const k of keys)$(k).addEventListener('input',redraw);
+redraw();
+})();
+</script></body></html>

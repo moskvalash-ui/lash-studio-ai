@@ -4,7 +4,7 @@
 :root{font-family:system-ui,-apple-system,sans-serif;color:#f2edf5;background:#111016}*{box-sizing:border-box}
 body{margin:0;padding:18px;max-width:1040px;margin:auto}h1{font-size:26px;margin:8px 0}p,small{color:#bbb4c4}
 .panel{background:#1c1923;border:1px solid #393240;border-radius:18px;padding:16px;margin:12px 0}
-canvas{display:block;width:100%;max-width:none;height:auto;background:#27212e;touch-action:none}#viewport{overflow:auto;max-height:65vh;border-radius:12px;background:#27212e;overscroll-behavior:contain}#zoomtools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}#zoomtools button{min-width:46px}#zoomlevel{font-variant-numeric:tabular-nums}
+canvas{display:block;width:100%;max-width:none;height:auto;background:#27212e;touch-action:none;flex:none}#viewport{overflow:auto;max-height:65vh;border-radius:12px;background:#27212e;overscroll-behavior:contain}#zoomtools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}#zoomtools button{min-width:46px}#zoomlevel{font-variant-numeric:tabular-nums}
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 label{display:block;font-size:13px;color:#ddd}input[type=range]{width:100%;accent-color:#c7a2f4}
 button,input[type=file]{font:inherit}button{border:1px solid #65566f;background:#33263d;color:white;border-radius:10px;padding:10px;cursor:pointer}
@@ -29,7 +29,7 @@ button[aria-pressed=true]{background:#6b447e}#notice{font-size:13px}
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id),canvas=$('view'),ctx=canvas.getContext('2d');
-let img=null,eye='left',before=false,zoom=1,moving=false,drag=null;
+let img=null,eye='left',before=false,zoom=1,moving=false,drag=null,baseWidth=0;
 const eyes={left:[],right:[]},keys=['length','density','curl','fox','thickness','opacity'];
 const values=()=>Object.fromEntries(keys.map(k=>[k,+$(k).value]));
 function curve(a,b,c,t){const u=1-t;return {x:u*u*a.x+2*u*t*b.x+t*t*c.x,y:u*u*a.y+2*u*t*b.y+t*t*c.y};}
@@ -80,13 +80,29 @@ $('photo').addEventListener('change',e=>{
  next.onerror=()=>{$('notice').textContent='Не удалось прочитать фото. Попробуй JPEG или PNG.';URL.revokeObjectURL(url);};
  next.src=url;
 });
-function setZoom(next){const vp=$('viewport');const prevW=canvas.getBoundingClientRect().width;const centerX=(vp.scrollLeft+vp.clientWidth/2)/Math.max(1,prevW);const centerY=(vp.scrollTop+vp.clientHeight/2)/Math.max(1,canvas.getBoundingClientRect().height);zoom=Math.max(1,Math.min(6,next));canvas.style.width=(zoom*100)+'%';$('zoomlevel').textContent=Math.round(zoom*100)+'%';const newW=canvas.getBoundingClientRect().width;vp.scrollLeft=centerX*newW-vp.clientWidth/2;vp.scrollTop=centerY*canvas.getBoundingClientRect().height-vp.clientHeight/2;}
+function setZoom(next){
+ const vp=$('viewport');
+ const oldW=canvas.getBoundingClientRect().width||1,oldH=canvas.getBoundingClientRect().height||1;
+ const centerX=(vp.scrollLeft+vp.clientWidth/2)/oldW,centerY=(vp.scrollTop+vp.clientHeight/2)/oldH;
+ zoom=Math.max(1,Math.min(6,next));
+ // Explicit CSS pixel dimensions, not percentage: avoids iOS WebKit percent-width issues.
+ baseWidth=vp.clientWidth||window.innerWidth-70;
+ const targetW=Math.round(baseWidth*zoom);
+ const targetH=Math.round(targetW*canvas.height/canvas.width);
+ canvas.style.setProperty('width',targetW+'px','important');
+ canvas.style.setProperty('height',targetH+'px','important');
+ canvas.style.setProperty('min-width',targetW+'px');
+ $('zoomlevel').textContent=Math.round(zoom*100)+'%';
+ vp.scrollLeft=Math.max(0,centerX*targetW-vp.clientWidth/2);
+ vp.scrollTop=Math.max(0,centerY*targetH-vp.clientHeight/2);
+ $('notice').textContent=img?'Фото загружено. Масштаб '+Math.round(zoom*100)+'%.':'Сначала выбери фото. Масштаб '+Math.round(zoom*100)+'%.';
+}
 $('plus').onclick=()=>setZoom(zoom*1.5);$('minus').onclick=()=>setZoom(zoom/1.5);$('fit').onclick=()=>{setZoom(1);$('viewport').scrollTo(0,0);};$('move').onclick=()=>{moving=!moving;$('move').setAttribute('aria-pressed',String(moving));$('move').textContent=moving?'✓ Двигать фото':'✋ Двигать фото';};
 canvas.addEventListener('pointerdown',e=>{
  if(moving){drag={x:e.clientX,y:e.clientY,left:$('viewport').scrollLeft,top:$('viewport').scrollTop};canvas.setPointerCapture(e.pointerId);return;}
  if(!img||eyes[eye].length>=3)return;
  const r=canvas.getBoundingClientRect();
- // account for object-fit: contain and actual canvas aspect ratio
+ // Map zoomed canvas touch coordinates back to image pixels
  const x=(e.clientX-r.left)*canvas.width/r.width,y=(e.clientY-r.top)*canvas.height/r.height;
  if(x<0||y<0||x>canvas.width||y>canvas.height)return;
  eyes[eye].push({x,y});redraw();

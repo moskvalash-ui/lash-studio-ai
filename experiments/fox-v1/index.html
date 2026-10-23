@@ -4,7 +4,7 @@
 :root{font-family:system-ui,-apple-system,sans-serif;color:#f2edf5;background:#111016}*{box-sizing:border-box}
 body{margin:0;padding:18px;max-width:1040px;margin:auto}h1{font-size:26px;margin:8px 0}p,small{color:#bbb4c4}
 .panel{background:#1c1923;border:1px solid #393240;border-radius:18px;padding:16px;margin:12px 0}
-canvas{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;background:#27212e;border-radius:12px;touch-action:none}
+canvas{display:block;width:100%;max-width:none;height:auto;background:#27212e;touch-action:none}#viewport{overflow:auto;max-height:65vh;border-radius:12px;background:#27212e;overscroll-behavior:contain}#zoomtools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}#zoomtools button{min-width:46px}#zoomlevel{font-variant-numeric:tabular-nums}
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
 label{display:block;font-size:13px;color:#ddd}input[type=range]{width:100%;accent-color:#c7a2f4}
 button,input[type=file]{font:inherit}button{border:1px solid #65566f;background:#33263d;color:white;border-radius:10px;padding:10px;cursor:pointer}
@@ -12,7 +12,7 @@ button[aria-pressed=true]{background:#6b447e}#notice{font-size:13px}
 </style></head><body>
 <h1>FOX V1 · эксперимент</h1>
 <p>Только верхние ресницы. Фото обрабатывается локально в браузере — не загружается на сервер. Тестовый рендерер, не готовый AI-результат.</p>
-<div class="panel"><label>1. Загрузить исходное фото <input id="photo" type="file" accept="image/*"></label><p id="notice">Фото не выбрано. После выбора появится сообщение о загрузке.</p><canvas id="view" width="800" height="600"></canvas></div>
+<div class="panel"><label>1. Загрузить исходное фото <input id="photo" type="file" accept="image/*"></label><p id="notice">Фото не выбрано. После выбора появится сообщение о загрузке.</p><div id="zoomtools"><button id="minus" type="button">−</button><strong id="zoomlevel">100%</strong><button id="plus" type="button">+</button><button id="fit" type="button">Весь снимок</button><button id="move" type="button" aria-pressed="false">✋ Двигать фото</button></div><p><small>Увеличь глаз кнопкой +. Для перемещения включи «Двигать фото» и веди пальцем. Выключи режим, чтобы ставить точки.</small></p><div id="viewport"><canvas id="view" width="800" height="600"></canvas></div></div>
 <div class="panel"><p>2. Выбери глаз и расставь три точки по линии верхнего века: внутренний угол → центр → внешний угол. Повтори для второго глаза. Порядок точек должен идти от носа к виску.</p>
 <button id="left" aria-pressed="true">Левый на фото</button> <button id="right" aria-pressed="false">Правый на фото</button> <button id="reset">Сбросить точки глаза</button> <button id="toggle">До / После</button>
 <p id="status">Левый на фото: 0/3 точек</p></div>
@@ -29,7 +29,7 @@ button[aria-pressed=true]{background:#6b447e}#notice{font-size:13px}
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id),canvas=$('view'),ctx=canvas.getContext('2d');
-let img=null,eye='left',before=false;
+let img=null,eye='left',before=false,zoom=1,moving=false,drag=null;
 const eyes={left:[],right:[]},keys=['length','density','curl','fox','thickness','opacity'];
 const values=()=>Object.fromEntries(keys.map(k=>[k,+$(k).value]));
 function curve(a,b,c,t){const u=1-t;return {x:u*u*a.x+2*u*t*b.x+t*t*c.x,y:u*u*a.y+2*u*t*b.y+t*t*c.y};}
@@ -76,20 +76,23 @@ $('photo').addEventListener('change',e=>{
  $('notice').textContent='Загружаю фотографию…'; const url=URL.createObjectURL(file),next=new Image();
  next.onload=()=>{img=next;const max=1600,scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
  canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);
- eyes.left=[];eyes.right=[];$('notice').textContent='Фото загружено локально: '+file.name;redraw();URL.revokeObjectURL(url);};
+ eyes.left=[];eyes.right=[];setZoom(1);$('viewport').scrollTo(0,0);$('notice').textContent='Фото загружено локально: '+file.name;redraw();URL.revokeObjectURL(url);};
  next.onerror=()=>{$('notice').textContent='Не удалось прочитать фото. Попробуй JPEG или PNG.';URL.revokeObjectURL(url);};
  next.src=url;
 });
+function setZoom(next){const vp=$('viewport');const prevW=canvas.getBoundingClientRect().width;const centerX=(vp.scrollLeft+vp.clientWidth/2)/Math.max(1,prevW);const centerY=(vp.scrollTop+vp.clientHeight/2)/Math.max(1,canvas.getBoundingClientRect().height);zoom=Math.max(1,Math.min(6,next));canvas.style.width=(zoom*100)+'%';$('zoomlevel').textContent=Math.round(zoom*100)+'%';const newW=canvas.getBoundingClientRect().width;vp.scrollLeft=centerX*newW-vp.clientWidth/2;vp.scrollTop=centerY*canvas.getBoundingClientRect().height-vp.clientHeight/2;}
+$('plus').onclick=()=>setZoom(zoom*1.5);$('minus').onclick=()=>setZoom(zoom/1.5);$('fit').onclick=()=>{setZoom(1);$('viewport').scrollTo(0,0);};$('move').onclick=()=>{moving=!moving;$('move').setAttribute('aria-pressed',String(moving));$('move').textContent=moving?'✓ Двигать фото':'✋ Двигать фото';};
 canvas.addEventListener('pointerdown',e=>{
+ if(moving){drag={x:e.clientX,y:e.clientY,left:$('viewport').scrollLeft,top:$('viewport').scrollTop};canvas.setPointerCapture(e.pointerId);return;}
  if(!img||eyes[eye].length>=3)return;
  const r=canvas.getBoundingClientRect();
  // account for object-fit: contain and actual canvas aspect ratio
- const scale=Math.min(r.width/canvas.width,r.height/canvas.height);
- const w=canvas.width*scale,h=canvas.height*scale;
- const x=(e.clientX-r.left-(r.width-w)/2)/scale,y=(e.clientY-r.top-(r.height-h)/2)/scale;
+ const x=(e.clientX-r.left)*canvas.width/r.width,y=(e.clientY-r.top)*canvas.height/r.height;
  if(x<0||y<0||x>canvas.width||y>canvas.height)return;
  eyes[eye].push({x,y});redraw();
 });
+canvas.addEventListener('pointermove',e=>{if(!moving||!drag)return;$('viewport').scrollLeft=drag.left+drag.x-e.clientX;$('viewport').scrollTop=drag.top+drag.y-e.clientY;});
+canvas.addEventListener('pointerup',()=>drag=null);canvas.addEventListener('pointercancel',()=>drag=null);
 for(const name of ['left','right'])$(name).onclick=()=>{eye=name;for(const k of ['left','right'])$(k).setAttribute('aria-pressed',String(k===eye));redraw();};
 $('reset').onclick=()=>{eyes[eye]=[];redraw();};
 $('toggle').onclick=()=>{before=!before;$('toggle').textContent=before?'Показать после':'До / После';redraw();};

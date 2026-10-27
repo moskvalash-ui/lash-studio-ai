@@ -210,6 +210,18 @@ test('7. carousel: under RTL, the first (rank-1) card sits at the RIGHT edge and
 // A. Document-level RTL wiring
 // ------------------------------------------------------------
 test('A1. lang="ar" (test-only forced) sets html lang=ar and dir=rtl; default (ru) stays lang=ru dir=ltr', async ({ page }) => {
+  // This test loads TWO full concurrent instances of index.html (1.2MB,
+  // in-browser Babel transpile) in the same browser context -- unlike
+  // every other similarly two-page-load-heavy test in this suite, it had
+  // no explicit timeout override and relied on Playwright's 30s default.
+  // Measured on this machine: page 1 load ~9.2s, page 2's CONCURRENT load
+  // ~17.7s (both pages transpiling simultaneously) = ~27s of real work
+  // alone, leaving teardown almost no margin inside 30s -- "tearing down
+  // context ran out of time" is PW's own message for exactly this, not a
+  // functional failure (the lang/dir assertions were never reached as
+  // wrong, just never reached before the clock ran out). Pre-existing gap
+  // in this test's own config, unrelated to Photo Preview.
+  test.setTimeout(60000);
   await page.goto('/index.html');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');

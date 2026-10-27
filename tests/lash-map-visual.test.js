@@ -344,9 +344,10 @@ test('RELEASE POLISH: PHOTO displays numeric labels for ONLY the 5 canonical zon
   assert.ok(items.some(item=>!item.isKey),'the mapping engine must still produce non-canonical interpolation samples');
 });
 
-test('PHOTO is default and DIAGRAM remains a secondary shared-engine view',()=>{
+test('PHOTO view is gated by PHOTO_LASH_PREVIEW_ENABLED; DIAGRAM is the active view while Photo Preview is off',()=>{
   assert.ok(src.includes("const [viewMode,setViewMode]=useState('photo')"));
-  assert.ok(src.includes("viewMode==='photo'?"));
+  assert.ok(src.includes("viewMode==='photo'&&PHOTO_LASH_PREVIEW_ENABLED?"),'the dormant PHOTO branch must still exist in source, just gated -- not deleted');
+  assert.ok(src.includes('const PHOTO_LASH_PREVIEW_ENABLED = false;'),'Photo Preview is currently OFF -- flip this one constant back to `true` to restore it (and update this assertion deliberately when you do)');
   const diagram=src.slice(src.indexOf('    function LegacyLashMapDiagram('),src.indexOf('\n    // Artist-facing map',src.indexOf('    function LegacyLashMapDiagram(')));
   assert.ok(diagram.includes('const items = expandLashMapSectors(zones, peakIdx, curve, zoneNames);'));
   assert.ok(src.includes('<LashMapDiagram clientDesign={diagramClientDesign}'));
@@ -479,7 +480,7 @@ test('manual PHOTO state is independent per eye, survives view changes, and neve
   assert.ok(screen.includes("setManualPhotoAdjustments(current=>({...current,[side]:next}))"));
   assert.ok(screen.includes('manualAdjustment:manualPhotoAdjustments'));
   assert.ok(screen.includes('clientDesign={photoClientDesign}'));
-  assert.ok(screen.includes("viewMode==='photo'?"));assert.ok(!diagram.includes('manualPhotoAdjustment'));assert.ok(!diagram.includes('applyManualPhotoAdjustment'));
+  assert.ok(screen.includes("viewMode==='photo'&&PHOTO_LASH_PREVIEW_ENABLED?"));assert.ok(!diagram.includes('manualPhotoAdjustment'));assert.ok(!diagram.includes('applyManualPhotoAdjustment'));
 });
 
 test('mobile editing has large hit targets, pointer capture, constrained PEAK, and one demoted baseline plus one length-driven profile path',()=>{

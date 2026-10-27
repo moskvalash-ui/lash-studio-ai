@@ -26,12 +26,14 @@ test('every effect that dereferences imageRef.current guards a missing <img> (it
   assert.ok(checked >= 1, 'expected at least one imageRef.current effect to check');
 });
 
-test('Lash Map opens on PHOTO for every result; live results render per-eye ProfessionalEyeMap cards, photo results the workspace', () => {
+test('Lash Map routes live results to ProfessionalEyeMap; photo results go to the workspace only while Photo Preview is enabled, otherwise to DIAGRAM', () => {
   assert.ok(src.includes("const [viewMode,setViewMode]=useState('photo');"));
   const branch = src.slice(src.indexOf("{viewMode==='photo'&&result.source!=='photo'?"), src.indexOf("<LashMapDiagram clientDesign={diagramClientDesign}"));
   assert.ok(branch.length > 0, 'live/photo routing branch must exist');
   assert.ok(branch.includes("<ProfessionalEyeMap key={side}") && branch.includes("['left','right'].map(side=>"), 'both live eye cards');
-  assert.ok(branch.indexOf('<ProfessionalEyeMap') < branch.indexOf(":viewMode==='photo'?") && branch.indexOf(":viewMode==='photo'?") < branch.indexOf('<PhotoLashEditorWorkspace'), 'photo results still go to the workspace in the else-branch');
+  assert.ok(branch.includes(":viewMode==='photo'&&PHOTO_LASH_PREVIEW_ENABLED?"), 'the photo-workspace branch must still exist in source, gated -- not deleted');
+  assert.ok(branch.indexOf('<ProfessionalEyeMap') < branch.indexOf(":viewMode==='photo'&&PHOTO_LASH_PREVIEW_ENABLED?") && branch.indexOf(":viewMode==='photo'&&PHOTO_LASH_PREVIEW_ENABLED?") < branch.indexOf('<PhotoLashEditorWorkspace'), 'ordering: live branch, then the gated photo-workspace branch, then the workspace itself');
+  assert.ok(src.includes('const PHOTO_LASH_PREVIEW_ENABLED = false;'), 'Photo Preview is currently OFF -- live AND photo results both land on DIAGRAM; flip this one constant to restore the workspace');
 });
 
 test('live ProfessionalEyeMap calls pass the COMPLETE current prop set with the side bound into the zone callback', () => {

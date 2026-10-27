@@ -11033,6 +11033,24 @@
       return d.name;
     }
 
+    // FEATURE FLAG — Photo Preview / photo-lash-render UI visibility.
+    // Set to `false` to temporarily hide the "SHOW LASH PREVIEW" button
+    // (PhotoLashPreviewPanel, both the Results/hero card and the Lash
+    // Map screen) and the photo-tab WYSIWYG editor (PhotoLashEditorWorkspace)
+    // from end users, pending a fix for a reported lash-root/upper-lid-line
+    // misalignment. Nothing else is touched: buildPhotoPreviewEyes,
+    // PhotoLashPreview.buildFibers/draw, PhotoLashEditorWorkspace itself,
+    // and every existing test for this feature are completely unchanged
+    // -- only the two UI call sites that decide whether to mount them are
+    // gated, so the feature can be restored by flipping this single
+    // constant back to `true` once the geometry issue is resolved and
+    // re-verified. The Lash Map screen's DIAGRAM view (LashMapDiagram,
+    // synthetic zone/curve chart, not photo-fiber rendering) and Live
+    // Scan's own ProfessionalEyeMap view are NOT gated by this flag --
+    // neither renders fibers onto a real photo, so neither is affected
+    // by the reported issue.
+    const PHOTO_LASH_PREVIEW_ENABLED = false;
+
     // PHOTO presentation bridge: canonical sectors and the existing eye projection.
     // v2-A BASE (approved optical-rendering experiment): optional 3rd
     // argument, `options.renderVariant`, defaulting to undefined for
@@ -11904,7 +11922,7 @@
                 <button onClick={() => { if (typeof Analytics !== 'undefined') Analytics.track('lash_map_opened', { design_id: best.id, origin: 'best_design' }); onViewMap(best.clientDesign); }} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)] mb-3">
                   {t('heroOpenLashMap', lang)}
                 </button>
-                <PhotoLashPreviewPanel result={result} clientDesign={best.clientDesign} lang={lang} origin="hero"/>
+                {PHOTO_LASH_PREVIEW_ENABLED&&<PhotoLashPreviewPanel result={result} clientDesign={best.clientDesign} lang={lang} origin="hero"/>}
                 {onSaveToClient && (
                   <button onClick={onSaveToClient} className="w-full py-2.5 rounded-md border border-border bg-white/[0.02] text-textSecondary text-[12px] font-semibold uppercase tracking-wide press-scale flex items-center justify-center gap-2">
                     <ClientsIcon className="w-3.5 h-3.5" />
@@ -12842,15 +12860,15 @@
             </div>
             <div className="px-4">
               {debugAvailable&&<CopyLashMapOrientationDebugButton data={orientationDebug}/>}
-              <PhotoLashPreviewPanel result={result} clientDesign={photoClientDesign} lang={lang} origin="lash_map"/>
-              <div className="mb-3 flex rounded-md border border-border bg-surface p-1" aria-label="Lash Map view">
+              {PHOTO_LASH_PREVIEW_ENABLED&&<PhotoLashPreviewPanel result={result} clientDesign={photoClientDesign} lang={lang} origin="lash_map"/>}
+              {(PHOTO_LASH_PREVIEW_ENABLED||result.source!=='photo')&&<div className="mb-3 flex rounded-md border border-border bg-surface p-1" aria-label="Lash Map view">
                 {['photo','diagram'].map(view=><button key={view} onClick={()=>setViewMode(view)} className={`flex-1 rounded-sm py-2 text-[10px] font-semibold uppercase tracking-[.14em] transition-colors ${viewMode===view?'bg-white/10 text-textPrimary':'text-textMuted'}`}>{view}</button>)}
-              </div>
+              </div>}
               {viewMode==='photo'&&result.source!=='photo'?<div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                 {/* LIVE SCAN results: the proven per-eye visual maps (captured frame + lash-length overlay).
                     PhotoLashEditorWorkspace intentionally renders only for source:'photo'. */}
                 {['left','right'].map(side=><ProfessionalEyeMap key={side} clientDesign={photoClientDesign} result={result} side={side} active={activeEye===side} onActivate={()=>setActiveEye(side)} lang={lang} editing={editingPhotoEye===side} onAdjustmentChange={next=>setPhotoAdjustment(side,next)} onEdit={()=>{setActiveEye(side);setEditingPhotoEye(side);setPhotoEditMode('mask');}} onReset={()=>photoEditMode==='mask'?resetPhotoAdjustment(side):resetDesignForSide(side)} onDone={()=>setEditingPhotoEye(null)} onZoneLengthChange={(idx,mm)=>applyZoneDrag(side,idx,mm)} editMode={photoEditMode} onEditModeChange={setPhotoEditMode}/>)}
-              </div>:viewMode==='photo'?
+              </div>:viewMode==='photo'&&PHOTO_LASH_PREVIEW_ENABLED?
                 <PhotoLashEditorWorkspace result={result} clientDesign={photoClientDesign} lang={lang} activeEye={activeEye} editingEye={editingPhotoEye} editMode={photoEditMode} onEdit={()=>{setEditingPhotoEye(activeEye);setPhotoEditMode('mask');}} onDone={()=>setEditingPhotoEye(null)} onEditModeChange={setPhotoEditMode} onAdjustmentChange={setPhotoAdjustment} onZoneLengthChange={applyZoneDrag} onResetFit={resetPhotoAdjustment} onResetDesign={resetDesignForSide}/>
               :<div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-surface">
                 <LashMapDiagram clientDesign={diagramClientDesign} hoveredZone={hoveredZone} setHoveredZone={setHoveredZone} lang={lang}/>

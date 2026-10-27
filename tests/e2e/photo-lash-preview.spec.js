@@ -1,107 +1,93 @@
 'use strict';
-const path=require('node:path');
-const {test,expect}=require('@playwright/test');
-async function reachResult(page){
- await page.goto('/index.html');
- const reject=page.getByRole('button',{name:'Отказаться',exact:true});
- await reject.waitFor({state:'visible',timeout:5000}).catch(()=>{});
- if(await reject.isVisible())await reject.click();
- const photo=page.getByRole('button',{name:'Анализ по фото',exact:true});
- await expect(photo).toBeEnabled({timeout:20000});await photo.click();
- await page.locator('input[type=file]').setInputFiles(path.join(__dirname,'fixtures/happy-path-face.png'));
- await expect(page.getByText('Подтверждение анализа',{exact:true})).toBeVisible({timeout:45000});
- await page.getByRole('button',{name:'Подтвердить и построить схемы',exact:true}).click();
- await expect(page.getByRole('button',{name:'ПОКАЗАТЬ LASH PREVIEW',exact:true})).toBeVisible();
-}
-test('real PHOTO -> calculated result -> preview has visible fibers on both eyes, stable reopen and map adjustments',async({page})=>{
- test.setTimeout(90000);
- const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await reachResult(page);
- await page.evaluate(()=>{
-   const build=PhotoLashPreview.buildFibers;
-   PhotoLashPreview.buildFibers=(points,width)=>{
-     const fibers=build(points,width);
-     (window.__compositionAudit??=[]).push({width,count:fibers.length,root:fibers[84].root,tip:fibers[84].tip,thickness:fibers[84].width});
-     return fibers;
-   };
- });
- await page.getByRole('button',{name:'ПОКАЗАТЬ LASH PREVIEW',exact:true}).click();
- const canvas=page.locator('[data-photo-lash-preview] canvas');
- await expect(canvas).toHaveAttribute('data-preview-status','ready');
- await expect(canvas).toHaveAttribute('data-left-fibers','582');
- await expect(canvas).toHaveAttribute('data-right-fibers','582');
- await expect(page.getByAltText('Исходное фото с Lash Preview')).toBeVisible();
- const pixels=await canvas.evaluate(c=>{
-   const data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
-   const boxes=[{n:0,minY:c.height,maxY:0},{n:0,minY:c.height,maxY:0}];
-   for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(data[(y*c.width+x)*4+3]>20){const b=boxes[x<c.width/2?0:1];b.n++;b.minY=Math.min(y,b.minY);b.maxY=Math.max(y,b.maxY);}
-   return boxes;
- });
- console.log('Composition audit',await page.evaluate(()=>window.__compositionAudit),pixels);
- const first=await canvas.evaluate(c=>c.toDataURL());
- await page.locator('[data-photo-lash-preview]').screenshot({path:'/tmp/lash-preview-refined-mobile.png'});
- await canvas.scrollIntoViewIfNeeded();
- // Fixed photo-relative crop: identical BEFORE/AFTER, independent of lash bounds.
- const eyeClip=await canvas.evaluate(c=>{
-   const r=c.getBoundingClientRect();
-   return {x:r.x+r.width*.36,y:r.y+r.height*.29,width:r.width*.26,height:r.height*.15};
- });
- await page.screenshot({path:process.env.LASH_PREVIEW_SHOT||'/tmp/lash-composition-after-eyes.png',clip:eyeClip});
- await page.locator('[data-photo-lash-preview]').screenshot({path:(process.env.LASH_PREVIEW_SHOT||'/tmp/lash-composition-after-eyes.png').replace('-eyes','-full')});
- for(const b of pixels){expect(b.n).toBeGreaterThan(100);expect(b.maxY-b.minY).toBeGreaterThan(8);}
- await page.getByRole('button',{name:'СКРЫТЬ LASH PREVIEW',exact:true}).click();
- await page.getByRole('button',{name:'ПОКАЗАТЬ LASH PREVIEW',exact:true}).click();
- await expect(canvas).toHaveAttribute('data-preview-status','ready');
- expect(await canvas.evaluate(c=>c.toDataURL())).toBe(first);
- await page.getByRole('button',{name:'ОТКРЫТЬ LASH MAP',exact:true}).click();
- await page.getByRole('button',{name:'ПОКАЗАТЬ LASH PREVIEW',exact:true}).click();
- await expect(canvas).toHaveAttribute('data-preview-status','ready');
- expect(await canvas.evaluate(c=>c.toDataURL())).toBe(first);
- const leftMap=page.locator('[aria-label="Left eye map"]');
- const lengths=await leftMap.locator('[data-length]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-length')));
- console.log('Visual strand budget:',JSON.stringify({beforePerEye:168,afterPerEye:294,derivedLengths:lengths}));
- await leftMap.getByRole('button',{name:'НАСТРОИТЬ СХЕМУ',exact:true}).click();
- const handle=leftMap.locator('[data-manual-handle="peak"]');
- await handle.scrollIntoViewIfNeeded();
- const box=await handle.boundingBox();
- await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
- await page.mouse.move(box.x+box.width/2+8,box.y+box.height/2-6,{steps:4});await page.mouse.up();
- await expect(canvas).toHaveAttribute('data-preview-status','ready');
- expect(await canvas.evaluate(c=>c.toDataURL())).not.toBe(first);
- expect(await leftMap.locator('[data-length]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('data-length')))).toEqual(lengths);
- await leftMap.getByRole('button',{name:'СБРОСИТЬ',exact:true}).click();
- await expect.poll(()=>canvas.evaluate(c=>c.toDataURL())).toBe(first);
- expect(errors).toEqual([]);
-});
-test('renderer failure leaves explicit diagnostic and a usable result',async({page})=>{
- test.setTimeout(90000);
- await reachResult(page);
- // Failure injection only after REAL analysis and design completion.
- await page.evaluate(()=>{window.PhotoLashPreview.buildFibers=()=>{throw new Error('geometry');};});
- await page.getByRole('button',{name:'ПОКАЗАТЬ LASH PREVIEW',exact:true}).click();
- await expect(page.getByRole('alert')).toContainText('обоих глазах');
- await expect(page.getByRole('button',{name:'ОТКРЫТЬ LASH MAP',exact:true})).toBeVisible();
-});
+// ============================================================
+// PHOTO LASH PREVIEW — permanent-disable regression guard.
+// ------------------------------------------------------------
+// This file used to exercise the ENABLED photo-fiber preview (fiber
+// counts, canvas pixel composition, manual-adjustment dragging,
+// reopen stability, EN copy, renderer-failure diagnostics). Product
+// decision: Photo Preview is permanently OFF for end users
+// (PHOTO_LASH_PREVIEW_ENABLED = false in index.html) — the renderer
+// itself (PhotoLashPreviewPanel, PhotoLashEditorWorkspace,
+// buildPhotoPreviewEyes, photo-lash-preview.js's buildFibers/draw) is
+// kept in source, just unreachable from the UI. Exercising the old
+// enabled behavior through a real browser is no longer meaningful, so
+// this file now asserts the OPPOSITE: that no path in the real app —
+// Hero, Lash Map, in any of RU/EN/AR — ever surfaces a lash-preview
+// button, canvas, or any related copy, while the schematic Lash Map
+// (LashMapDiagram) and the Live Scan per-eye map (ProfessionalEyeMap)
+// keep working normally. See tests/lash-map-visual.test.js and
+// tests/live-scan-result-to-lash-map.test.js for the source-level
+// (non-browser) half of this same guarantee.
+// ============================================================
+const { test, expect } = require('@playwright/test');
+const path = require('node:path');
+const fixture = path.join(__dirname, 'fixtures/happy-path-face.png');
 
-test('English PHOTO preview and missing original photo diagnostic',async({page})=>{
- test.setTimeout(90000);
- await page.goto('/index.html');
- const reject=page.getByRole('button',{name:'Отказаться',exact:true});
- await reject.waitFor({state:'visible',timeout:5000}).catch(()=>{});
- if(await reject.isVisible())await reject.click();
- await page.getByRole('button',{name:'EN',exact:true}).click();
- const photo=page.getByRole('button',{name:'Photo Analysis',exact:true});
- await expect(photo).toBeEnabled({timeout:20000});await photo.click();
- await page.locator('input[type=file]').setInputFiles(path.join(__dirname,'fixtures/happy-path-face.png'));
- await page.getByRole('button',{name:'Confirm and build designs',exact:true}).click({timeout:45000});
- await page.getByRole('button',{name:'SHOW LASH PREVIEW',exact:true}).click();
- const canvas=page.locator('[data-photo-lash-preview] canvas');
- await expect(canvas).toHaveAttribute('data-preview-status','ready');
- await expect(page.getByAltText('Original photo with Lash Preview')).toBeVisible();
- await page.getByRole('button',{name:'HIDE LASH PREVIEW',exact:true}).click();
- // Emulate the photo blob becoming unavailable without changing analysis.
- await page.getByRole('button',{name:'SHOW LASH PREVIEW',exact:true}).click();
- await expect(canvas).toHaveAttribute('data-preview-status','ready');
- await page.getByAltText('Original photo with Lash Preview').evaluate(img=>{img.src='data:image/png;base64,broken';});
- await expect(page.getByRole('alert')).toContainText('original photo is unavailable');
-});
+const LANG = {
+  ru: {
+    reject: 'Отказаться', langBtn: 'RU', photoBtn: 'Анализ по фото',
+    confirmHeading: 'Подтверждение анализа', confirmBtn: 'Подтвердить и построить схемы',
+    openMap: 'ОТКРЫТЬ LASH MAP',
+  },
+  en: {
+    reject: 'Отказаться', langBtn: 'EN', photoBtn: 'Photo Analysis',
+    confirmHeading: 'Confirm analysis', confirmBtn: 'Confirm and build designs',
+    openMap: 'OPEN LASH MAP',
+  },
+  ar: {
+    reject: 'Отказаться', langBtn: 'العربية', photoBtn: 'تحليل بالصورة',
+    confirmHeading: 'تأكيد التحليل', confirmBtn: 'تأكيد وبناء الخرائط',
+    openMap: 'فتح Lash Map',
+  },
+};
+
+async function reachLashMap(page, lang) {
+  const L = LANG[lang];
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e)));
+  page.on('console', m => { if (m.type() === 'error' && !m.text().includes('[BABEL]')) errors.push(m.text()); });
+
+  await page.goto('/index.html');
+  const reject = page.getByRole('button', { name: L.reject, exact: true });
+  await reject.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+  if (await reject.isVisible()) await reject.click();
+  if (lang !== 'ru') await page.getByRole('button', { name: L.langBtn, exact: true }).click();
+
+  const photoBtn = page.getByRole('button', { name: L.photoBtn, exact: true });
+  await expect(photoBtn).toBeEnabled({ timeout: 30000 });
+  await photoBtn.click();
+  await page.locator('input[type=file]').setInputFiles(fixture);
+  await expect(page.getByText(L.confirmHeading, { exact: true })).toBeVisible({ timeout: 60000 });
+  await page.getByRole('button', { name: L.confirmBtn, exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15000 });
+
+  // Hero check happens HERE, before navigating away — this is a single-page
+  // app with no real URL routing between screens, so page.goBack() does not
+  // return to Hero (an earlier version of this test wrongly assumed it would).
+  const noPreviewOnHero = await page.getByText(/LASH PREVIEW|معاينة الرموش/i).count();
+  expect(noPreviewOnHero, `[${lang}] Hero: no lash-preview text anywhere`).toBe(0);
+
+  const mapBtn = page.getByRole('button', { name: L.openMap, exact: true });
+  await expect(mapBtn).toBeVisible({ timeout: 10000 });
+  await mapBtn.click();
+  await page.waitForTimeout(500);
+
+  return errors;
+}
+
+for (const lang of ['ru', 'en', 'ar']) {
+  test(`[${lang}] no lash-preview button/canvas/copy anywhere on Hero or Lash Map; diagram still works; no console errors`, async ({ page }) => {
+    test.setTimeout(90000);
+    const errors = await reachLashMap(page, lang);
+
+    const noPreviewOnLashMap = await page.getByText(/LASH PREVIEW|معاينة الرموش/i).count();
+    expect(noPreviewOnLashMap, `[${lang}] Lash Map: no lash-preview text anywhere`).toBe(0);
+    expect(await page.locator('[data-photo-lash-preview]').count(), `[${lang}] no PhotoLashPreviewPanel mounted`).toBe(0);
+    expect(await page.locator('canvas[aria-label="Lash Preview"]').count(), `[${lang}] no lash-preview canvas mounted`).toBe(0);
+
+    // the schematic Lash Map (zone/curve chart) must still render real data
+    await expect(page.locator('svg').first()).toBeVisible({ timeout: 10000 });
+
+    expect(errors, `[${lang}] no console/page errors across the whole flow`).toEqual([]);
+  });
+}

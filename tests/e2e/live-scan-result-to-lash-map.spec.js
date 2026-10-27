@@ -159,7 +159,15 @@ const activeView = page => page.evaluate(() => {
   return active ? active.textContent.trim().toLowerCase() : null;
 });
 
-test('Photo Analysis result still opens Lash Map on the PHOTO view', async ({ page }) => {
+// Was "...still opens Lash Map on the PHOTO view" / expected
+// [data-photo-lash-editor-workspace] while PHOTO_LASH_PREVIEW_ENABLED
+// was true. Product decision: Photo Preview (and its WYSIWYG
+// workspace) is now permanently off, so a PHOTO-source result lands on
+// DIAGRAM instead -- see index.html's own
+// `(PHOTO_LASH_PREVIEW_ENABLED||result.source!=='photo')` gate on the
+// PHOTO/DIAGRAM toggle itself (hidden entirely for source:'photo' while
+// the flag is off, since there is only one view left to show).
+test('Photo Analysis result opens Lash Map on DIAGRAM (Photo Preview workspace is permanently disabled)', async ({ page }) => {
   test.setTimeout(120000);
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(e.message));
@@ -174,7 +182,9 @@ test('Photo Analysis result still opens Lash Map on the PHOTO view', async ({ pa
   await expect(page.getByText('Подтверждение анализа', { exact: true })).toBeVisible({ timeout: 90000 });
   await page.getByRole('button', { name: 'Подтвердить и построить схемы', exact: true }).click();
   await page.getByRole('button', { name: 'ОТКРЫТЬ LASH MAP', exact: true }).click();
-  await expect(page.locator('[data-photo-lash-editor-workspace]')).toBeVisible({ timeout: 30000 });
-  expect(await activeView(page)).toBe('photo');
+  await expect(page.locator('.aspect-\\[4\\/3\\] svg').first()).toBeVisible({ timeout: 30000 });
+  expect(await page.locator('[data-photo-lash-editor-workspace]').count()).toBe(0);
+  expect(await page.locator('[aria-label="Lash Map view"]').count()).toBe(0); // no PHOTO/DIAGRAM toggle to show -- DIAGRAM is the only view
+  expect(await page.getByText(/LASH PREVIEW/i).count()).toBe(0);
   expect(pageErrors).toEqual([]);
 });

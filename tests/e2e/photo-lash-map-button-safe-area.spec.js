@@ -78,9 +78,19 @@ function intersects(a, b) {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 
+// SKIPPED: Photo Preview is now permanently disabled
+// (PHOTO_LASH_PREVIEW_ENABLED = false in index.html, product decision)
+// — a photo-source result routes straight to DIAGRAM, so the PHOTO
+// workspace's [aria-label="Left/Right eye map"] cards this file
+// measures (CUSTOMIZE MAP button vs. zone-label getBoundingClientRect)
+// never mount. DIAGRAM is a static, non-editable chart with no
+// equivalent floating button, so this specific overlap concern may not
+// even have an analog there — not verified either way under this
+// change's time budget, flagged to the user rather than guessed at.
+// Not deleted: un-skip if Photo Preview is ever re-enabled.
 for (const width of VIEWPORT_WIDTHS) {
   for (const designName of ['FOX', 'CAT EYE']) {
-    test(`CUSTOMIZE MAP button never overlaps a canonical PHOTO label — ${designName} @ ${width}px (LEFT and RIGHT)`, async ({ page }) => {
+    test.skip(`CUSTOMIZE MAP button never overlaps a canonical PHOTO label — ${designName} @ ${width}px (LEFT and RIGHT)`, async ({ page }) => {
       test.setTimeout(90_000);
       await page.setViewportSize({ width, height: 844 });
       const { leftMap, rightMap } = await reachLashMapFor(page, designName);

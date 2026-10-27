@@ -105,10 +105,19 @@ async function reachLashMap(page, lang) {
 
   await page.getByRole('button', { name: STR[lang].openLashMap, exact: true }).click();
 
+  // View-agnostic: Photo Preview is permanently disabled
+  // (PHOTO_LASH_PREVIEW_ENABLED = false in index.html), so a
+  // photo-source result now lands directly on DIAGRAM (no PHOTO/
+  // DIAGRAM toggle, no "Left/Right eye map" cards at all) rather than
+  // the old PHOTO workspace this helper used to assert on. Callers that
+  // specifically need PHOTO-workspace data (none remain — see the
+  // skipped "PHOTO Lash Map... geometry" test below) would find
+  // leftMap/rightMap simply absent; callers that only need "Lash Map
+  // has loaded" (the HeroScreen id test, the curl/mm notation test, the
+  // DIAGRAM geometry test) are unaffected by this change.
   const leftMap = page.locator('[aria-label="Left eye map"]');
   const rightMap = page.locator('[aria-label="Right eye map"]');
-  await expect(leftMap, `${lang}: LEFT PHOTO Lash Map card must render`).toBeVisible({ timeout: 10000 });
-  await expect(rightMap, `${lang}: RIGHT PHOTO Lash Map card must render`).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.aspect-\\[4\\/3\\] svg, [aria-label="Left eye map"]').first(), `${lang}: Lash Map (DIAGRAM or PHOTO view) must render`).toBeVisible({ timeout: 10000 });
 
   expect(pageErrors, `${lang}: no fatal page errors reaching Lash Map: ${JSON.stringify(pageErrors)}`).toEqual([]);
   return { page, leftMap, rightMap, heroId, pageErrors };
@@ -347,7 +356,18 @@ test('back-chevron is NOT mirrored for RU (no transform under LTR)', async ({ pa
 // ------------------------------------------------------------
 // D/E/F/G/L. Lash Map PHOTO geometry is byte-identical RU vs AR.
 // ------------------------------------------------------------
-test('D/G. PHOTO Lash Map: extracted per-zone geometry (viewBox, cx/cy, zone-label sequence, PEAK) is identical between RU and forced-AR runs', async ({ page, browser, storageState }) => {
+// SKIPPED: Photo Preview (and its PHOTO-workspace "Left/Right eye map"
+// cards this test reads geometry from) is now permanently disabled —
+// PHOTO_LASH_PREVIEW_ENABLED = false in index.html, product decision.
+// A photo-source result lands directly on DIAGRAM now (no toggle, no
+// eye-map cards at all), so there is no PHOTO geometry left to compare
+// RU vs AR here. The equivalent claim for the view users actually see
+// is covered by the next test ("DIAGRAM Lash Map: ... byte-identical
+// between RU and forced-AR runs"), which already passes unmodified. Not
+// deleted, so the underlying ProfessionalEyeMap/LegacyProfessionalEyeMap
+// rendering this exercised is still validated the moment Photo Preview
+// is ever re-enabled (flip the flag back, then un-skip this).
+test.skip('D/G. PHOTO Lash Map: extracted per-zone geometry (viewBox, cx/cy, zone-label sequence, PEAK) is identical between RU and forced-AR runs', async ({ page, browser, storageState }) => {
   test.setTimeout(120000);
   const ruCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const ruPage = await ruCtx.newPage();
@@ -442,12 +462,14 @@ test('L. curl code + mm technical notation renders in stable Latin/numeric order
 // selector (a real click on العربية, no __FORCE_LANG anywhere in this
 // test) through the full real user journey: Home -> consent ->
 // Photo Analysis (upload, real face-api, real ~8s Photo Scan
-// choreography) -> Results Hero -> Details -> back -> Lash Map PHOTO
-// -> DIAGRAM -> Save to Client button reachable. Verifies real Arabic
-// text is genuinely present at every stop, and that navigating
-// (back buttons, view-mode toggle) works correctly under RTL.
+// choreography) -> Results Hero -> Details -> back -> Lash Map
+// (DIAGRAM -- Photo Preview is permanently disabled, so a photo-source
+// result lands straight on DIAGRAM with no PHOTO/toggle at all) ->
+// Save to Client button reachable. Verifies real Arabic text is
+// genuinely present at every stop, and that navigating (back buttons)
+// works correctly under RTL.
 // ------------------------------------------------------------
-test('E. real Arabic flow through the REAL LangToggle (no __FORCE_LANG): Home -> Photo Analysis -> Photo Scan -> Results Hero -> Details -> Lash Map PHOTO/DIAGRAM -> Save to Client, real Arabic text throughout', async ({ page }) => {
+test('E. real Arabic flow through the REAL LangToggle (no __FORCE_LANG): Home -> Photo Analysis -> Photo Scan -> Results Hero -> Details -> Lash Map DIAGRAM -> Save to Client, real Arabic text throughout', async ({ page }) => {
   test.setTimeout(120000);
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(e.message));
@@ -497,16 +519,16 @@ test('E. real Arabic flow through the REAL LangToggle (no __FORCE_LANG): Home ->
   await backSvg.click();
   await expect(heroHeading).toBeVisible({ timeout: 10000 });
 
-  // Lash Map: PHOTO view (default) then DIAGRAM view, both under a
-  // real Arabic-selected session -- proves the view-mode toggle and
-  // both renderers work correctly under RTL, not just via __FORCE_LANG.
+  // Lash Map: DIAGRAM view -- the only view a photo-source result ever
+  // reaches now (Photo Preview permanently disabled, no PHOTO/DIAGRAM
+  // toggle rendered at all for source:'photo' while the flag is off) --
+  // proves the diagram renderer works correctly under a real Arabic
+  // session, not just via __FORCE_LANG.
   await page.getByRole('button', { name: STR.ar.openLashMap, exact: true }).click();
-  const leftMap = page.locator('[aria-label="Left eye map"]');
-  await expect(leftMap, 'PHOTO Lash Map must render under real Arabic selection').toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.aspect-\\[4\\/3\\] svg').first(), 'DIAGRAM Lash Map must render under real Arabic selection').toBeVisible({ timeout: 10000 });
+  expect(await page.getByText(/LASH PREVIEW|معاينة الرموش/i).count(), 'no lash-preview surface under real Arabic selection').toBe(0);
   const lashMapBodyText = await page.locator('body').innerText();
-  expect(arabicRe.test(lashMapBodyText), 'expected real Arabic script on Lash Map PHOTO view').toBe(true);
-  await page.getByRole('button', { name: 'diagram', exact: true }).click();
-  await expect(page.locator('svg[dir="ltr"]').first()).toBeVisible({ timeout: 5000 });
+  expect(arabicRe.test(lashMapBodyText), 'expected real Arabic script on Lash Map DIAGRAM view').toBe(true);
 
   // Save to Client entry point remains reachable under real Arabic.
   await expect(page.getByText(STR.ar.saveToClient, { exact: true }).first()).toBeVisible({ timeout: 10000 });

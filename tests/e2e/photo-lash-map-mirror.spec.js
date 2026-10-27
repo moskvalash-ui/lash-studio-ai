@@ -110,8 +110,24 @@ function keyPoints(extracted) {
   return extracted.points.filter((p) => p.zoneLabel);
 }
 
+// SKIPPED: Photo Preview is now permanently disabled
+// (PHOTO_LASH_PREVIEW_ENABLED = false in index.html, product decision)
+// — a photo-source result routes straight to DIAGRAM now, so
+// reachLashMapFor's `[aria-label="Left/Right eye map"]` cards this
+// suite reads data-map-point/data-length/data-peak geometry from never
+// mount. The LEFT/RIGHT mirror invariant itself is not an orphaned
+// claim: the SAME shared data (expandLashMapSectors) feeds DIAGRAM too,
+// and is proven at the unit level (math only, no real DOM) by
+// tests/photo-lash-map-mirror-oracle.test.js, which is unaffected and
+// still runs. Re-pointing this file's real-DOM proof at
+// LegacyLashMapDiagram's structurally different SVG (no data-map-point/
+// data-photo-zone attributes; cx/cy/text read positionally instead) is
+// real, non-trivial follow-up work, not a quick swap — flagged to the
+// user rather than attempted under this change's time budget. Not
+// deleted: un-skip once either Photo Preview is re-enabled, or this is
+// deliberately rewritten against DIAGRAM.
 for (const designName of ['FOX', 'CAT EYE']) {
-  test(`real PHOTO Lash Map pipeline — ${designName}: LEFT/RIGHT semantic invariant holds on real rendered DOM`, async ({ page }) => {
+  test.skip(`real PHOTO Lash Map pipeline — ${designName}: LEFT/RIGHT semantic invariant holds on real rendered DOM`, async ({ page }) => {
     // Real face-api CDN load + real inference + a full multi-screen
     // navigation (Review -> confirm -> Hero -> All Designs -> Lash Map)
     // genuinely needs more headroom than the 30s config default -- same

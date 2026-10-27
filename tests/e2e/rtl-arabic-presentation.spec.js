@@ -400,10 +400,13 @@ test.skip('D/G. PHOTO Lash Map: extracted per-zone geometry (viewBox, cx/cy, zon
 // ------------------------------------------------------------
 test('D/G. DIAGRAM Lash Map: SVG path `d` strings + viewBox are byte-identical between RU and forced-AR runs', async ({ page, browser, storageState }) => {
   test.setTimeout(120000);
+  // No more PHOTO/DIAGRAM toggle to click: Photo Preview is permanently
+  // disabled, so a photo-source result's Lash Map already lands on
+  // DIAGRAM directly (see reachLashMap's own updated comment) — the
+  // "diagram" tab button this test used to click no longer exists.
   const ruCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const ruPage = await ruCtx.newPage();
   await reachLashMap(ruPage, 'ru');
-  await ruPage.getByRole('button', { name: 'diagram', exact: true }).click();
   await ruPage.waitForTimeout(300);
   const ruGeom = await extractDiagramGeometry(ruPage);
   await ruCtx.close();
@@ -411,7 +414,6 @@ test('D/G. DIAGRAM Lash Map: SVG path `d` strings + viewBox are byte-identical b
   const arCtx = await browser.newContext({ storageState, viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
   const arPage = await arCtx.newPage();
   await reachLashMap(arPage, 'ar');
-  await arPage.getByRole('button', { name: 'diagram', exact: true }).click();
   await arPage.waitForTimeout(300);
   const arGeom = await extractDiagramGeometry(arPage);
   await arCtx.close();

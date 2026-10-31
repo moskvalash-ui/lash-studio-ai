@@ -3786,7 +3786,31 @@
         landmarkStability: stabilityFactor('tilt'),
         imageQuality, lrAgreement: tiltLrAgreement, poseQuality,
       });
-      const tiltConfidence = tiltConf.score;
+      // Boundary-proximity dampening (ENGINEERING TASK 03): a measurement
+      // landing within ~1 degree of the +/-4 categorical cutoff above can
+      // flip tiltTendency between neutral/upturned/downturned from noise
+      // alone — confirmed via the real classifyFeatures pipeline, avgTilt
+      // 3.97 -> neutral vs 4.07 -> downturned (a 0.1deg difference), both
+      // reading ~0.88 raw confidence on either side. measurementAgreement
+      // above tracks |avgTilt| overall, not proximity to THIS boundary, so
+      // it does not cushion the line. Every DESIGN_CATALOG score() reads
+      // tiltTendency as a hard branch, so an uncushioned flip here swings
+      // individual effect scores by double digits for a sub-degree input
+      // change (see ENGINEERING TASK 03 report). Fix applied once, to the
+      // single shared tiltConfidence value every downstream consumer
+      // already reads (scoring, UI badge, curl/cautions, Lash Map) — not a
+      // per-formula patch; the 22 score() functions are byte-unchanged.
+      // Outside the 1-degree margin, dampening is exactly 1 (no behavior
+      // change for confidently upturned/downturned eyes). At the exact
+      // boundary, confidence is cut to 25% of its prior value — never to
+      // 0, consistent with this codebase's existing "never a confident 0
+      // or 100%" confidence convention (see computeConfidence's own floor
+      // rescale).
+      const TILT_BOUNDARY_DEG = 4;
+      const TILT_BOUNDARY_SOFT_MARGIN_DEG = 1;
+      const tiltBoundaryDist = Math.min(Math.abs(Math.abs(avgTilt) - TILT_BOUNDARY_DEG), TILT_BOUNDARY_SOFT_MARGIN_DEG);
+      const tiltBoundaryDampening = 0.25 + 0.75 * (tiltBoundaryDist / TILT_BOUNDARY_SOFT_MARGIN_DEG);
+      const tiltConfidence = tiltConf.score * tiltBoundaryDampening;
 
       // ---- Eyelid coverage / hooding — multi-signal classifier ----
       // Never a single brow->lid distance. Combines four independent

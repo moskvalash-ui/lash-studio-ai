@@ -503,11 +503,6 @@
     const zoneOccupancyLevel = zoneOccupancy.map(occ => occ > 0.38 ? 'high' : occ > 0.20 ? 'medium' : 'low');
     const zoneDensity = zoneOccupancyLevel; // compatibility alias, read directly by LashEyeCard — same values, not independent
 
-    const zoneDirection = zoneCounts.map((cnt, i) => {
-      if (cnt === 0) return 'unknown';
-      const avg = zoneDirSum[i] / cnt;
-      return avg < -8 ? 'upward' : avg > 8 ? 'downward' : 'straight';
-    });
     const zoneRelLenRaw = zoneCounts.map((cnt, i) => cnt === 0 ? null : (zoneLenSum[i] / cnt) / eyeH);
     const zoneRelLen = zoneRelLenRaw.map(v => v === null ? 'unknown' : v > 0.85 ? 'long' : v > 0.55 ? 'medium' : 'short');
     const overallLenBucket = (() => {
@@ -516,9 +511,6 @@
       const uniq = new Set(vals);
       return uniq.size > 1 ? 'mixed' : vals[0];
     })();
-
-    const dirValues = zoneDirection.filter(d => d !== 'unknown');
-    const dominantDirection = dirValues.length === 0 ? 'unknown' : (new Set(dirValues).size > 1 ? 'mixed' : dirValues[0]);
 
     const avgSupportRatio = agg.stable.reduce((a, c) => a + c.support / Math.max(agg.framesUsed, 1), 0) / n;
     const frameCounts = agg.perFrameCounts && agg.perFrameCounts.length ? agg.perFrameCounts : [n];
@@ -543,6 +535,29 @@
       const sampleAdequacy = clamp01(cnt / MIN_ZONE_SAMPLES);
       return clamp01(conf.score * sampleAdequacy);
     });
+
+    // zoneDirection moved here (ENGINEERING TASK 03, confidence gate):
+    // must run AFTER zoneConfidence exists, since a zone can now resolve
+    // to 'unknown' for TWO distinct reasons — no candidates at all
+    // (cnt===0, unchanged), or candidates present but the zone's own
+    // confidence is below the SAME MIN_SPARSE_CONFIDENCE bar sparseArea
+    // already uses a few lines below (reused, not a new invented
+    // threshold). Previously a zone with even one weak, low-confidence
+    // candidate could still resolve to a committed 'upward'/'downward'/
+    // 'straight' label — this field is still explicitly hint-only (see
+    // module doc and index.html's "HINT ONLY" UI label, both unchanged),
+    // but an unqualified committed label under low confidence silently
+    // overstated that hint's own reliability. 'unknown' here is never
+    // conflated with 'straight': 'straight' still means ONLY "confident
+    // reads average within +/-8 degrees of vertical", exactly as before.
+    const zoneDirection = zoneCounts.map((cnt, i) => {
+      if (cnt === 0) return 'unknown';
+      if (!(zoneConfidence[i] >= MIN_SPARSE_CONFIDENCE)) return 'unknown';
+      const avg = zoneDirSum[i] / cnt;
+      return avg < -8 ? 'upward' : avg > 8 ? 'downward' : 'straight';
+    });
+    const dirValues = zoneDirection.filter(d => d !== 'unknown');
+    const dominantDirection = dirValues.length === 0 ? 'unknown' : (new Set(dirValues).size > 1 ? 'mixed' : dirValues[0]);
 
     // Sparse-area is now a tri-state: true (confidently sparse),
     // false (confidently not sparse), or null (not enough confidence

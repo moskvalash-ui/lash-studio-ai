@@ -577,5 +577,98 @@ test('N24. Public condition contract contains no health/damage/load/count/mm cla
   assert.ok(!('countLow' in obs.condition) && !('countHigh' in obs.condition));
 });
 
+console.log('=== ENGINEERING TASK 03: zoneDirection confidence gate ===');
+
+test('CG1. Zone has candidates (cnt>0) but overall scan confidence is low -> direction must be "unknown", not a committed label', () => {
+  const steps = 60, eyeH = 20;
+  // Same deliberately-poor-confidence recipe as test 10 (weak support,
+  // inconsistent per-frame counts, bad image quality/distance/
+  // resolution) -- reused rather than re-invented, so this exercises
+  // the SAME MIN_SPARSE_CONFIDENCE gate already protecting sparseArea.
+  // Inner zone's two candidates (t=0.10/0.15, both < 1/3) are both
+  // strongly upward-biased (direction well past the +/-8 threshold) --
+  // BEFORE this fix, a committed 'upward' would still have been
+  // returned despite low confidence; that is exactly the gap this
+  // test guards against.
+  const agg = {
+    stable: [
+      { t: 0.10, direction: -20, lengthPx: 10, support: 3 },
+      { t: 0.15, direction: -22, lengthPx: 10, support: 3 },
+    ],
+    framesUsed: 8,
+    perFrameCounts: [0, 5, 1, 4, 0, 5, 1, 4],
+  };
+  const obs = computeLashObservations(agg, steps, eyeH, 'low', { sharpness: 2, widthFrac: 0.081, roiWidth: 61, roiHeight: 61 });
+  assert.ok(obs.confidence < 0.45, `test setup must produce confidence below the gate, got ${obs.confidence}`);
+  assert.strictEqual(obs.zones.inner.direction, 'unknown', 'low zone confidence must force unknown even with cnt>0 and a clear directional bias in the raw candidates');
+});
+
+test('CG2. Same zone shape, HIGH confidence -> a clear directional bias still resolves normally (gate does not suppress good data)', () => {
+  const steps = 60, eyeH = 20;
+  const agg = fakeAgg([{t:0.10,direction:-20,lengthPx:10},{t:0.15,direction:-22,lengthPx:10},{t:0.20,direction:-18,lengthPx:10}]);
+  const obs = computeLashObservations(agg, steps, eyeH, 'high', {sharpness:150,widthFrac:0.13,roiWidth:150,roiHeight:150});
+  // 0.45 == MIN_SPARSE_CONFIDENCE in lash-scan-core.js, same convention
+  // as test 10 above (it is a debug-only NLS2_THRESHOLDS export, not a
+  // stable top-level import — see Protected Contract F in CLAUDE.md).
+  assert.ok(obs.zones.inner.confidence >= 0.45, `expected confidence above the gate, got ${obs.zones.inner.confidence}`);
+  assert.strictEqual(obs.zones.inner.direction, 'upward', 'high-confidence zone with avg direction < -8 must still resolve to upward, unchanged from before this fix');
+});
+
+test('CG3. "unknown" (low confidence) is never reported as "straight" -- the two must stay distinguishable', () => {
+  const steps = 60, eyeH = 20;
+  // Near-zero average angle (within the existing +/-8 "straight" band)
+  // but under the SAME low-confidence setup as CG1 -- before this fix
+  // this zone would read 'straight' (a committed, specific claim);
+  // after this fix it must read 'unknown' (no claim at all). These are
+  // semantically different and must not collapse into each other.
+  const agg = {
+    stable: [
+      { t: 0.10, direction: 1, lengthPx: 10, support: 3 },
+      { t: 0.15, direction: -1, lengthPx: 10, support: 3 },
+    ],
+    framesUsed: 8,
+    perFrameCounts: [0, 5, 1, 4, 0, 5, 1, 4],
+  };
+  const obs = computeLashObservations(agg, steps, eyeH, 'low', { sharpness: 2, widthFrac: 0.081, roiWidth: 61, roiHeight: 61 });
+  assert.ok(obs.confidence < 0.45, `test setup must produce confidence below the gate, got ${obs.confidence}`);
+  assert.strictEqual(obs.zones.inner.direction, 'unknown');
+  assert.notStrictEqual(obs.zones.inner.direction, 'straight');
+});
+
+test('CG4. Zero candidates in a zone (cnt===0) still reports "unknown" -- the pre-existing path is unchanged by the reordering', () => {
+  const steps = 30;
+  const agg = fakeAgg([{t:0.5,direction:0,lengthPx:10}]); // only center has data
+  const obs = computeLashObservations(agg, steps, 20, 'high', {sharpness:150,widthFrac:0.13,roiWidth:150,roiHeight:150});
+  assert.strictEqual(obs.zones.inner.direction, 'unknown');
+  assert.strictEqual(obs.zones.outer.direction, 'unknown');
+});
+
+test('CG5. dominantDirection ignores confidence-gated zones exactly like it already ignores cnt=0 zones -- an all-low-confidence scan reports "unknown", not a spurious majority', () => {
+  const steps = 60, eyeH = 20;
+  const agg = {
+    stable: [
+      { t: 0.10, direction: -20, lengthPx: 10, support: 3 },
+      { t: 0.45, direction: -20, lengthPx: 10, support: 3 },
+      { t: 0.80, direction: -20, lengthPx: 10, support: 3 },
+    ],
+    framesUsed: 8,
+    perFrameCounts: [0, 5, 1, 4, 0, 5, 1, 4],
+  };
+  const obs = computeLashObservations(agg, steps, eyeH, 'low', { sharpness: 2, widthFrac: 0.081, roiWidth: 61, roiHeight: 61 });
+  assert.ok(obs.confidence < 0.45, `test setup must produce confidence below the gate, got ${obs.confidence}`);
+  LASH_ZONE_NAMES.forEach(name => assert.strictEqual(obs.zones[name].direction, 'unknown'));
+  assert.strictEqual(obs.dominantDirection, 'unknown', 'all three zones gated to unknown must not leave a stale/spurious dominant label behind');
+});
+
+test('CG6. Public per-zone object shape is unchanged -- every pre-existing key is still present alongside the gated direction value', () => {
+  const steps = 30;
+  const agg = fakeAgg([{t:0.5,direction:0,lengthPx:10}]);
+  const obs = computeLashObservations(agg, steps, 20, 'high', {sharpness:150,widthFrac:0.13,roiWidth:150,roiHeight:150});
+  const expectedKeys = ['occupancy','visibleLengthRatio','confidence','occupancyLevel','visibleLengthLevel','sparseArea','gaps','direction','estimatedCount','density'];
+  for (const name of LASH_ZONE_NAMES) {
+    for (const key of expectedKeys) assert.ok(key in obs.zones[name], `zones.${name} is missing pre-existing key "${key}"`);
+  }
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exitCode = 1;

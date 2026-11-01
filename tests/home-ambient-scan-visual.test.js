@@ -48,7 +48,7 @@ const ambientComponentSrc = slice(
 );
 
 const homeScreenSrc = slice(
-  'function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary }) {',
+  'function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary, aiPreparing, warmupFailed, onRetryWarmup, onboardingOpen, openOnboarding, closeOnboarding }) {',
   'function CreaseV2Plot('
 );
 
@@ -111,7 +111,7 @@ test('G. HomeScreen\'s existing modelsLoaded gating on the Live Scan / Photo Ana
 });
 
 test('H. HomeScreen\'s onboarding dialog wiring is unchanged', () => {
-  assert.ok(homeScreenSrc.includes('{onboardingOpen && <OnboardingDialog onClose={closeOnboarding} onStart={onLive} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={onRetry} />}'));
+  assert.ok(homeScreenSrc.includes('{onboardingOpen && <OnboardingDialog onClose={closeOnboarding} onStart={onLive} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={onRetry} aiPreparing={aiPreparing} warmupFailed={warmupFailed} onRetryWarmup={onRetryWarmup} />}'));
 });
 
 console.log(`${pass} passed, ${fail} failed`);

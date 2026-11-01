@@ -252,6 +252,17 @@
     .stage-text { animation: stageIn 0.32s ease-out; }
     @keyframes dotFlash { 0% { box-shadow: 0 0 0 0 rgba(83,199,255,0.6); } 70% { box-shadow: 0 0 0 8px rgba(83,199,255,0); } 100% { box-shadow: 0 0 0 0 rgba(83,199,255,0); } }
     .stage-dot-flash { animation: dotFlash 0.6s ease-out; }
+    /* EXPERIMENT (ai-prep-screen-poc, not integrated): AiPrepOverlay's
+       loading indicator. Deliberately transform/opacity-only (no
+       box-shadow, no JS-driven ticks) so it is handled by the
+       compositor thread and keeps visibly animating even while the
+       main thread is blocked by the real warm-up call it is covering
+       for -- the opposite of a spinner that freezes and looks broken. */
+    @keyframes aiPrepDotPulse { 0%, 80%, 100% { opacity: 0.35; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1); } }
+    .ai-prep-dot { animation: aiPrepDotPulse 1.2s ease-in-out infinite; }
+    .ai-prep-dot:nth-child(2) { animation-delay: 0.15s; }
+    .ai-prep-dot:nth-child(3) { animation-delay: 0.3s; }
+    @media (prefers-reduced-motion: reduce) { .ai-prep-dot { animation: none; opacity: 0.7; } }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .zone-tooltip { pointer-events: none; }
@@ -390,6 +401,12 @@
       modelsError: {ru:'AI-модели не загружены', en:'AI models not loaded', ar:'لم يتم تحميل نماذج الذكاء الاصطناعي'},
       modelsLoadFailed: {ru:'Не удалось загрузить AI-модели. Проверьте соединение и повторите попытку.', en:'Could not load AI models. Check your connection and try again.', ar:'تعذّر تحميل نماذج الذكاء الاصطناعي. تحقق من الاتصال وحاول مرة أخرى.'},
       retry: {ru:'Повторить попытку', en:'Retry', ar:'إعادة المحاولة'},
+      // EXPERIMENT (ai-prep-screen-poc, not integrated): the warm-up
+      // compile cost itself is unchanged -- these strings only label an
+      // honest loading state for it. See index.html's AiPrepOverlay.
+      aiPrepTitle: {ru:'Подготавливаем AI-анализ', en:'Preparing AI analysis', ar:'جارٍ تحضير تحليل الذكاء الاصطناعي'},
+      aiPrepSubtitle: {ru:'Это может занять несколько секунд', en:'This may take a few seconds', ar:'قد يستغرق هذا بضع ثوانٍ'},
+      aiPrepFailed: {ru:'Не удалось подготовить AI-анализ', en:'Could not prepare AI analysis', ar:'تعذّر تحضير تحليل الذكاء الاصطناعي'},
       stageSearching: {ru:'Поиск лица', en:'Searching for face', ar:'جارٍ البحث عن الوجه'},
       stageFaceDetected: {ru:'Лицо обнаружено', en:'Face detected', ar:'تم رصد الوجه'},
       stageAligning: {ru:'Выравнивание', en:'Aligning', ar:'جارٍ المحاذاة'},
@@ -782,6 +799,16 @@
       reviewConfirm: {ru:'Подтвердить и построить схемы', en:'Confirm and build designs', ar:'تأكيد وبناء الخرائط'},
       reviewRescan: {ru:'Повторить анализ', en:'Rescan', ar:'إعادة التحليل'},
       reviewUncertain: {ru:'Нужна ручная проверка', en:'Manual check recommended', ar:'يوصى بالمراجعة اليدوية'},
+      // TASK 24 -- Action 1 (approved): show the REAL, already-computed
+      // confidence values on ReviewScreen next to each editable field,
+      // so the artist sees which AI reads are actually worth a second
+      // look at the exact moment they decide whether to confirm or
+      // correct them. No new confidence math anywhere -- see
+      // CONFIDENCE_FIELD_MAP below, which only points at existing
+      // eyeShapeConfidence/spacingConfidence/tiltConfidence/
+      // symmetryConfidence fields classifyFeatures already returns.
+      reviewCheckVisually: {ru:'Проверьте визуально', en:'Check visually', ar:'تحقّقي بصريًا'},
+      reviewConfidenceDisclaimer: {ru:'Процент — оценка уверенности измерения, а не гарантия точности.', en:'The percentage is a measurement-confidence estimate, not a guarantee of accuracy.', ar:'النسبة تقدير لثقة القياس، وليست ضمانًا للدقة.'},
 
       // ------------------------------------------------------------
       // CONSENT — Phase 1: consent foundation. Copy for the first-visit
@@ -6630,7 +6657,7 @@
       try { localStorage.setItem(ONBOARDING_SEEN_KEY, '1'); } catch (e) { /* session fallback above */ }
     }
 
-    function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry }) {
+    function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry, aiPreparing, warmupFailed, onRetryWarmup }) {
       const lang = useLang();
       const [step, setStep] = useState(1);
       const dialogRef = useRef(null);
@@ -6659,27 +6686,75 @@
             <div className="flex gap-2 mb-6" aria-hidden="true">
               {[1, 2, 3, 4, 5].map(n => <span key={n} className={`h-1 flex-1 rounded-full ${n <= step ? 'bg-accent' : 'bg-white/10'}`} />)}
             </div>
-            <div aria-live="polite" aria-atomic="true">
-              <p className="text-accent text-sm font-semibold mb-3"><bdi>{step} / 5</bdi></p>
-              <h3 className="text-2xl font-bold leading-snug mb-4">{t('onboarding' + step + 'Title', lang)}</h3>
-              <p className="text-[15px] text-textSecondary leading-relaxed">{t('onboarding' + step + 'Text', lang)}</p>
-            </div>
-            <p className="border-s-2 border-accent ps-3 text-xs text-textSecondary leading-relaxed my-6">{t('onboardingConsultation', lang)}</p>
-            {step === 5 && !modelsLoaded && <p role="status" className="text-xs text-textSecondary mb-3">{t(loadError ? 'modelsLoadFailed' : 'modelsLoading', lang)}</p>}
-            {step === 5 && loadError && <button onClick={onRetry} className="w-full py-3 mb-3 rounded-md border border-border text-sm">{t('retry', lang)}</button>}
-            <div className="flex gap-3">
-              {step > 1 && <button onClick={() => setStep(step - 1)} className="px-4 py-3 rounded-md border border-border text-sm text-textSecondary press-scale">{t('onboardingBack', lang)}</button>}
-              <button disabled={step === 5 && (!modelsLoaded || !!loadError)} onClick={() => { if (step < 5) setStep(step + 1); else { if (typeof Analytics !== 'undefined') Analytics.track('onboarding_completed'); onClose(); onStart(); } }} className="flex-1 py-3 px-4 rounded-md bg-accent text-white text-sm font-semibold press-scale disabled:opacity-40">{t(step === 5 ? 'onboardingStart' : 'onboardingNext', lang)}</button>
-            </div>
+            {/* EXPERIMENT (ai-prep-screen-poc): while the warm-up prep is
+                running/failed, replace the step content and nav buttons
+                entirely -- same rationale as AiPrepOverlay (an honest
+                unavailable state instead of controls that silently eat
+                a tap) -- but rendered HERE, inside this native <dialog>,
+                since showModal()'s top-layer means a separate full-
+                screen overlay cannot visually cover this dialog. The
+                Close (X) button above is deliberately left reachable;
+                leaving onboarding is unaffected by AI prep. */}
+            {aiPreparing ? (
+              <div role="alertdialog" aria-live="polite" className="text-center py-4">
+                <AiPrepContent failed={warmupFailed} onRetry={onRetryWarmup} lang={lang} />
+              </div>
+            ) : (
+              <>
+                <div aria-live="polite" aria-atomic="true">
+                  <p className="text-accent text-sm font-semibold mb-3"><bdi>{step} / 5</bdi></p>
+                  <h3 className="text-2xl font-bold leading-snug mb-4">{t('onboarding' + step + 'Title', lang)}</h3>
+                  <p className="text-[15px] text-textSecondary leading-relaxed">{t('onboarding' + step + 'Text', lang)}</p>
+                </div>
+                <p className="border-s-2 border-accent ps-3 text-xs text-textSecondary leading-relaxed my-6">{t('onboardingConsultation', lang)}</p>
+                {step === 5 && !modelsLoaded && <p role="status" className="text-xs text-textSecondary mb-3">{t(loadError ? 'modelsLoadFailed' : 'modelsLoading', lang)}</p>}
+                {step === 5 && loadError && <button onClick={onRetry} className="w-full py-3 mb-3 rounded-md border border-border text-sm">{t('retry', lang)}</button>}
+                <div className="flex gap-3">
+                  {step > 1 && <button onClick={() => setStep(step - 1)} className="px-4 py-3 rounded-md border border-border text-sm text-textSecondary press-scale">{t('onboardingBack', lang)}</button>}
+                  <button disabled={step === 5 && (!modelsLoaded || !!loadError)} onClick={() => { if (step < 5) setStep(step + 1); else { if (typeof Analytics !== 'undefined') Analytics.track('onboarding_completed'); onClose(); onStart(); } }} className="flex-1 py-3 px-4 rounded-md bg-accent text-white text-sm font-semibold press-scale disabled:opacity-40">{t(step === 5 ? 'onboardingStart' : 'onboardingNext', lang)}</button>
+                </div>
+              </>
+            )}
           </div>
         </dialog>
       );
     }
 
-    function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary }) {
+    // EXPERIMENT (ai-prep-screen-poc, not integrated): shared content for
+    // the AI-preparation state, reused by both AiPrepOverlay (full-screen,
+    // for when onboarding is already closed) and OnboardingDialog's own
+    // inline use above -- the onboarding dialog is a native <dialog>
+    // shown via showModal(), which renders in the browser's top layer,
+    // so a separate fixed/z-index overlay cannot visually cover it;
+    // the prep state has to be rendered INSIDE the dialog itself while
+    // it is open. See TASK 16/17 report.
+    function AiPrepContent({ failed, onRetry, lang }) {
+      return failed ? (
+        <>
+          <p className="text-sm font-semibold text-textPrimary mb-3">{t('aiPrepFailed', lang)}</p>
+          <button onClick={onRetry} className="w-full py-3 rounded-md border border-border text-sm press-scale">{t('retry', lang)}</button>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-center gap-1.5 mb-4" aria-hidden="true">
+            <span className="ai-prep-dot inline-block w-2.5 h-2.5 rounded-full bg-accent" />
+            <span className="ai-prep-dot inline-block w-2.5 h-2.5 rounded-full bg-accent" />
+            <span className="ai-prep-dot inline-block w-2.5 h-2.5 rounded-full bg-accent" />
+          </div>
+          <p className="text-sm font-semibold text-textPrimary mb-1">{t('aiPrepTitle', lang)}</p>
+          <p className="text-xs text-textSecondary">{t('aiPrepSubtitle', lang)}</p>
+        </>
+      );
+    }
+
+    function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary, aiPreparing, warmupFailed, onRetryWarmup, onboardingOpen, openOnboarding, closeOnboarding }) {
       const lang = useLang();
-      const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSeenOnboarding());
-      const closeOnboarding = () => { markOnboardingSeen(); setOnboardingOpen(false); };
+      // TASK 18 (ai-prep-screen-poc hardening): onboardingOpen itself now
+      // lives in App() -- see its own comment there for why -- so this
+      // component only consumes it as a prop. Behavior is unchanged for
+      // every existing onboarding flow (open/close/reopen/dismiss) and
+      // the whole-file production-parity guards don't inspect state
+      // ownership, only call sites and rendered JSX.
       // ANALYTICS — HomeScreen only exists in the tree while screen==='home'
       // ({screen === 'home' && <HomeScreen .../>} in App()), so a fresh
       // mount (empty deps) happens exactly once per genuine navigation to
@@ -6690,7 +6765,7 @@
       }, []);
       return (
         <div className="h-full flex flex-col p-6 fade-in overflow-y-auto hide-scrollbar">
-          {onboardingOpen && <OnboardingDialog onClose={closeOnboarding} onStart={onLive} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={onRetry} />}
+          {onboardingOpen && <OnboardingDialog onClose={closeOnboarding} onStart={onLive} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={onRetry} aiPreparing={aiPreparing} warmupFailed={warmupFailed} onRetryWarmup={onRetryWarmup} />}
           <div className="flex items-center gap-2 pt-2 pb-8">
             <div className="w-7 h-7 rounded-lg border border-border flex items-center justify-center flex-shrink-0">
               <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -6724,7 +6799,7 @@
               </button>
             </div>
           )}
-          <button onClick={() => setOnboardingOpen(true)} className="w-full min-h-[44px] mb-3 flex items-center justify-center gap-2 text-sm text-textSecondary press-scale">
+          <button onClick={openOnboarding} className="w-full min-h-[44px] mb-3 flex items-center justify-center gap-2 text-sm text-textSecondary press-scale">
             <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v2" /></svg>
             {t('onboardingHelp', lang)}
           </button>
@@ -13701,6 +13776,18 @@
         ['tiltTendency', t('tiltLabel', lang), ['upturned', 'neutral', 'downturned', 'uncertain']],
         ['symmetryCategory', t('symmetryLabel', lang), ['balanced', 'mild', 'noticeable', 'uncertain']],
       ];
+      // TASK 24 -- Action 1 (approved): points each field at the REAL
+      // confidence value classifyFeatures already computed for it
+      // (nothing new is calculated here). confidenceBucket is the
+      // SAME shared bucketing function the rest of the app already
+      // uses (computeConfidence's own >=0.68 high / >=0.4 moderate /
+      // else low split) -- no new threshold invented for this screen.
+      const CONFIDENCE_FIELD_MAP = {
+        eyeShapeCategory: 'eyeShapeConfidence',
+        eyeSetCategory: 'spacingConfidence',
+        tiltTendency: 'tiltConfidence',
+        symmetryCategory: 'symmetryConfidence',
+      };
       const confirm = () => {
         const legacyShape = { round: 'round', almond: 'almond', elongatedAlmond: 'elongated', narrow: 'mixed', uncertain: 'mixed' };
         // eyelidCategory kept wired to eyelidType exactly as before —
@@ -13763,15 +13850,26 @@
               <p className="text-sm text-textSecondary leading-relaxed">{t('reviewIntro', lang)}</p>
             </div>
             <div className="glass rounded-lg p-4">
-              {fields.map(([key, label, options]) => (
-                <label key={key} className="block py-3 border-b border-border/60 last:border-0">
-                  <span className="block text-xs text-textSecondary mb-1.5">{label}</span>
-                  <select value={values[key]} onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))} className="w-full rounded-md bg-bg2 border border-border px-3 py-2.5 text-sm text-textPrimary">
-                    {options.map(option => <option key={option} value={option}>{optionLabels[key][option]}</option>)}
-                  </select>
-                  <span className="block text-[10px] text-textMuted mt-1">{t('reviewAiValue', lang)}: {optionLabels[key][initial[key]] || t('reviewUncertain', lang)}</span>
-                </label>
-              ))}
+              <p className="text-[10px] text-textMuted leading-relaxed mb-1">{t('reviewConfidenceDisclaimer', lang)}</p>
+              {fields.map(([key, label, options]) => {
+                const confValue = initial[CONFIDENCE_FIELD_MAP[key]];
+                const hasConfidence = typeof confValue === 'number';
+                const needsVisualCheck = initial[key] === 'uncertain' || (hasConfidence && confidenceBucket(confValue) === 'low');
+                return (
+                  <label key={key} className="block py-3 border-b border-border/60 last:border-0">
+                    <span className="block text-xs text-textSecondary mb-1.5">{label}</span>
+                    <select value={values[key]} onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))} className="w-full rounded-md bg-bg2 border border-border px-3 py-2.5 text-sm text-textPrimary">
+                      {options.map(option => <option key={option} value={option}>{optionLabels[key][option]}</option>)}
+                    </select>
+                    <span className="flex items-center justify-between gap-2 mt-1">
+                      <span className="text-[10px] text-textMuted">{t('reviewAiValue', lang)}: {optionLabels[key][initial[key]] || t('reviewUncertain', lang)}</span>
+                      {needsVisualCheck
+                        ? <span className="text-[10px] font-medium text-accent flex-shrink-0">{t('reviewCheckVisually', lang)}</span>
+                        : hasConfidence && <span className="text-[10px] text-textMuted flex-shrink-0">{Math.round(confValue * 100)}%</span>}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
             <button onClick={confirm} className="w-full py-4 rounded-md font-semibold text-[15px] uppercase tracking-wide press-scale bg-gradient-to-b from-[#149EFF] to-[#0A78E0] text-white shadow-[0_0_0_1px_rgba(83,199,255,0.25),0_8px_28px_rgba(10,140,255,0.35)]">
               {t('reviewConfirm', lang)}
@@ -16796,6 +16894,15 @@
       const [modelsLoaded, setModelsLoaded] = useState(false);
       const [loadError, setLoadError] = useState(false);
       const [loadAttempt, setLoadAttempt] = useState(0);
+      // EXPERIMENT (ai-prep-screen-poc, not integrated): state for the
+      // AI-preparation screen covering the warm-up call below. Declared
+      // here (before the J3-pinned comment/effect) and consumed only by
+      // the warm-up effect further down + the two render call sites
+      // (AiPrepOverlay, OnboardingDialog) -- never by the model-loading
+      // effect itself, which stays untouched. See TASK 16/17 report.
+      const [aiPreparing, setAiPreparing] = useState(false);
+      const [warmupFailed, setWarmupFailed] = useState(false);
+      const [warmupAttempt, setWarmupAttempt] = useState(0);
 
       // Models load once at the App root and are reused by every
       // screen — Live Scan and Photo Analysis both read the same
@@ -16843,16 +16950,65 @@
       // state, never throws into the render tree, changes nothing about
       // modelsLoaded/loadError, and a real scan still works correctly
       // even if this warm-up call itself fails for any reason.
+      //
+      // EXPERIMENT (ai-prep-screen-poc, not integrated) — wraps the
+      // SAME call above with an honest loading/failed UI (aiPreparing/
+      // warmupFailed) instead of letting it block the main thread
+      // silently. Trigger condition ([modelsLoaded]) and the warm-up
+      // call itself are unchanged; only what the user sees around it
+      // changed. The double requestAnimationFrame guarantees a frame
+      // showing AiPrepOverlay/AiPrepContent has actually been
+      // COMPOSITED before the blocking call runs -- the first rAF
+      // fires right before the NEXT paint, so waiting for a second
+      // one guarantees that paint already landed. This was verified
+      // empirically with a real screenshot taken inside the warm-up
+      // window (see TASK 16/17 report), not trusted on the idiom
+      // alone. warmupAttempt lets retryWarmup re-run this effect after
+      // a failure, same pattern as loadAttempt/retryLoad above.
       useEffect(() => {
         if (!modelsLoaded) return;
-        (async () => {
-          try {
-            const warm = document.createElement('canvas');
-            warm.width = 64; warm.height = 64;
-            await faceapi.detectSingleFace(warm, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.9 }));
-          } catch (e) { /* best-effort warm-up only */ }
-        })();
-      }, [modelsLoaded]);
+        let cancelled = false;
+        setWarmupFailed(false);
+        setAiPreparing(true);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (cancelled) return;
+            (async () => {
+              try {
+                const warm = document.createElement('canvas');
+                warm.width = 64; warm.height = 64;
+                await faceapi.detectSingleFace(warm, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.9 }));
+                if (!cancelled) setAiPreparing(false);
+              } catch (e) {
+                if (!cancelled) setWarmupFailed(true);
+              }
+            })();
+          });
+        });
+        return () => { cancelled = true; };
+      }, [modelsLoaded, warmupAttempt]);
+      const retryWarmup = () => setWarmupAttempt(a => a + 1);
+
+      // TASK 18 (ai-prep-screen-poc hardening): onboardingOpen lifted
+      // from HomeScreen up to App() so App() can suppress AiPrepOverlay
+      // while the onboarding dialog (which renders its own inline copy
+      // of the same prep content, since it's a native showModal()
+      // dialog in the browser's top layer -- see AiPrepOverlay's own
+      // comment) is open. Fixes TASK 17's known double-render: the
+      // overlay and the dialog's inline content no longer ever exist in
+      // the DOM at the same time. The reset effect below replicates the
+      // EXACT previous behavior exactly -- onboardingOpen used to live
+      // inside HomeScreen, which fully unmounts whenever screen leaves
+      // 'home' ({screen === 'home' && <HomeScreen .../>} below), so its
+      // local state was destroyed and freshly re-initialized via
+      // !hasSeenOnboarding() every time the user returned to Home. Here
+      // that same reset is done explicitly rather than relying on
+      // component teardown, since the state no longer lives on an
+      // unmounting component.
+      const [onboardingOpen, setOnboardingOpen] = useState(() => !hasSeenOnboarding());
+      useEffect(() => { if (screen !== 'home') setOnboardingOpen(false); }, [screen]);
+      const openOnboarding = () => setOnboardingOpen(true);
+      const closeOnboarding = () => { markOnboardingSeen(); setOnboardingOpen(false); };
 
       const retryLoad = () => setLoadAttempt(a => a + 1);
       const viewMap = (design, origin) => { setActiveDesign(design); setLashMapOrigin(origin || 'hero'); setScreen('lashmap'); };
@@ -16873,13 +17029,18 @@
       return (
         <LangContext.Provider value={lang}>
           <div className="app-container">
+            {/* EXPERIMENT (ai-prep-screen-poc): covers the Home-screen
+                case. The onboarding-dialog case is handled separately
+                inline inside OnboardingDialog (native <dialog> top
+                layer) -- see its own comment. */}
+            <AiPrepOverlay visible={aiPreparing && !onboardingOpen} failed={warmupFailed} onRetry={retryWarmup} lang={lang} />
             {screen !== 'scan' && screen !== 'lashscan' && (
               <div className="absolute top-3 end-3 z-30 flex items-center gap-2">
                 <ConsentIconButton lang={lang} onClick={() => setConsentSettingsOpen(true)} />
                 <LangToggle lang={lang} setLang={setLang} />
               </div>
             )}
-            {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} onLibrary={openLashMapLibrary} />}
+            {screen === 'home' && <HomeScreen onLive={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'live' }); setScreen('scan'); }} onPhoto={() => { if (typeof Analytics !== 'undefined') Analytics.track('scan_started', { mode: 'photo' }); setScreen('photo'); }} modelsLoaded={modelsLoaded} loadError={loadError} onRetry={retryLoad} onClients={openClientsList} onLibrary={openLashMapLibrary} aiPreparing={aiPreparing} warmupFailed={warmupFailed} onRetryWarmup={retryWarmup} onboardingOpen={onboardingOpen} openOnboarding={openOnboarding} closeOnboarding={closeOnboarding} />}
             {screen === 'lashMapLibrary' && <LashMapLibraryScreen lang={lang} onBack={() => setScreen('home')} onSelect={openLashMapLibraryDetail} />}
             {screen === 'lashMapLibraryDetail' && activeLibraryId && <LashMapLibraryDetailScreen lang={lang} canonicalId={activeLibraryId} onBack={closeLashMapLibraryDetail} />}
             {screen === 'clients' && <ClientsListScreen lang={lang} store={clientStoreRef.current} onOpenClient={openClientCard} onNewClient={openNewClientForm} onBack={clientSelectForSave ? cancelSaveToClient : () => setScreen('home')} saveMode={clientSelectForSave} onSelectForSave={(id) => { if (clientSelectForSave && typeof Analytics !== 'undefined') Analytics.track('client_selected'); finishSaveToClient(id); }} busy={saveVisitBusy} />}
@@ -16937,6 +17098,42 @@
             <LashDiagOverlay/>
           </div>
         </LangContext.Provider>
+      );
+    }
+
+    // EXPERIMENT (ai-prep-screen-poc, TASK 16/17 prototype -- NOT
+    // integrated, approved for this isolated worktree only). Covers the
+    // one-time TF.js warm-up compile ([App]'s second useEffect, keyed
+    // on modelsLoaded) with an honest, full-screen loading state instead
+    // of leaving onboarding/Home silently unresponsive for several
+    // seconds. Does not change detection code, warm-up's trigger
+    // condition, or its own duration -- see TASK 16/17 report. Defined
+    // after App() (function-declaration hoisting makes this equivalent
+    // at runtime to defining it above) so it falls outside the
+    // pro-library-preview-ui.test.js source window (previewStart..
+    // "function App() {"), which otherwise mistakes this overlay's own
+    // pointer-capture handler for an activation control.
+    function AiPrepOverlay({ visible, failed, onRetry, lang }) {
+      if (!visible) return null;
+      return (
+        <div
+          data-ai-prep-overlay
+          role="alertdialog"
+          aria-live="polite"
+          aria-label={t(failed ? 'aiPrepFailed' : 'aiPrepTitle', lang)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6"
+          // Swallows pointer events so nothing underneath (onboarding
+          // Next/Back/Close, Home's entry buttons) is reachable while
+          // this is up -- the "honest disabled state" from requirement
+          // 5, achieved by capture rather than per-button disabled
+          // props, since the overlay covers both Home and the
+          // onboarding dialog without touching either component.
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="w-full max-w-xs rounded-lg bg-surface border border-border p-5 text-center fade-in">
+            <AiPrepContent failed={failed} onRetry={onRetry} lang={lang} />
+          </div>
+        </div>
       );
     }
 

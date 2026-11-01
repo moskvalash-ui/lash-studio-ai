@@ -273,12 +273,37 @@ test('A/H. the real LangToggle exposes exactly RU, EN, and العربية -- thr
 });
 
 // ------------------------------------------------------------
-// B/C/D. Real selector drive: RU -> EN -> العربية -> RU, no __FORCE_LANG
-// anywhere in this test. Proves dir/lang wiring, persistence across
-// reload, and restoration to ltr on switch-back, all through the
-// SAME production setLang()/localStorage path RU/EN always used.
+// B/C/D (TASK 13 — split into 3 independent tests). The original
+// single test combined a real RU->EN->AR click sequence, a reload,
+// and a switch-back-to-RU into one ~30s+ test (root cause, per TASK 12's
+// actual trace analysis: NOT reload or app slowness -- the dominant
+// cost was Playwright's own continuous trace/snapshot recording
+// overhead compounding across many sequential actions within one
+// test, on a long-running machine; reload itself measured at ~1.9s).
+// Splitting reduces the number of actions-under-trace per test
+// without touching any timeout and without disabling trace.
+//
+// Each test below establishes its OWN starting state independently
+// (no test relies on another having run first, and Playwright gives
+// each test() a fresh page/context regardless) -- see each test's own
+// setup comment for exactly how.
+//
+// All original assertions are preserved, just redistributed:
+//   B keeps: initial ru/ltr, EN click+asserts, AR click+asserts,
+//            localStorage persistence check.
+//   C keeps: the reload -> lang=ar (10000ms)/dir=rtl assertion,
+//            now via an independent "already-Arabic" starting state
+//            (not __FORCE_LANG, which would short-circuit the very
+//            localStorage-read path being tested -- see index.html's
+//            real lang initializer, which checks __FORCE_LANG first
+//            and falls back to localStorage.getItem('lashStudioLang')
+//            only when it's absent) seeded via the SAME localStorage
+//            key the real setLang() path writes, so this still proves
+//            the real persistence mechanism, not a shortcut.
+//   D keeps: the RU click -> lang=ru/dir=ltr assertion, from the same
+//            kind of independent "already-Arabic" starting state.
 // ------------------------------------------------------------
-test('B/C/D. real selector: RU -> EN -> العربية sets lang=ar/dir=rtl, persists across reload, and switching back to RU restores dir=ltr', async ({ page }) => {
+test('B. real selector: RU -> EN -> العربية sets lang=ar/dir=rtl and persists to localStorage', async ({ page }) => {
   await page.goto('/index.html');
   await dismissConsent(page, 'ru');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
@@ -293,13 +318,31 @@ test('B/C/D. real selector: RU -> EN -> العربية sets lang=ar/dir=rtl, per
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   const stored = await page.evaluate(() => localStorage.getItem('lashStudioLang'));
   expect(stored, 'Arabic must persist via the exact same localStorage key RU/EN always used').toBe('ar');
+});
 
-  // C. Reload preserves Arabic, exactly like RU/EN always did.
+test('C. Arabic persists across reload (independent setup: localStorage pre-seeded, not __FORCE_LANG)', async ({ page }) => {
+  // Independent starting state: seed the REAL localStorage key a prior
+  // session's real AR selection would have left behind -- exercises
+  // the real read-on-mount path (index.html: __FORCE_LANG first, then
+  // localStorage.getItem('lashStudioLang')), not a test-only shortcut.
+  await page.addInitScript(() => { localStorage.setItem('lashStudioLang', 'ar'); });
+  await page.goto('/index.html');
+  await dismissConsent(page, 'ar');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ar', { timeout: 10000 });
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+});
 
-  // D. Switching back to RU restores ltr.
+test('D. switching from Arabic back to RU restores dir=ltr (independent setup: localStorage pre-seeded, not __FORCE_LANG)', async ({ page }) => {
+  await page.addInitScript(() => { localStorage.setItem('lashStudioLang', 'ar'); });
+  await page.goto('/index.html');
+  await dismissConsent(page, 'ar');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
   await page.getByRole('button', { name: 'RU', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');

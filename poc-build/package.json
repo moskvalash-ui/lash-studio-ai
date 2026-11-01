@@ -1,0 +1,9 @@
+{
+  "name": "lash-studio-ai-precompile-build",
+  "private": true,
+  "description": "JSX precompile build tool for LASH STUDIO AI (TASK 11). Scoped to this directory so its node_modules never touch the rest of the repo, which otherwise has zero build tooling by design — same isolation pattern as tests/e2e/package.json.",
+  "devDependencies": {
+    "@babel/core": "8.0.1",
+    "@babel/preset-react": "8.0.1"
+  }
+}

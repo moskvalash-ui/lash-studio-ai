@@ -191,7 +191,7 @@ test('Live Scan processes frames at a lower resolution cap (640px) than Photo An
 // ------------------------------------------------------------
 test('the TF.js first-inference warm-up call is additive, gated on modelsLoaded, and never sets modelsLoaded/loadError itself', () => {
   const start = src.indexOf('useEffect(() => {\n        if (!modelsLoaded) return;');
-  const end = src.indexOf('}, [modelsLoaded]);', start) + '}, [modelsLoaded]);'.length;
+  const end = src.indexOf('}, [modelsLoaded, warmupAttempt]);', start) + '}, [modelsLoaded, warmupAttempt]);'.length;
   assert.ok(start !== -1 && end > start, 'expected to locate the warm-up effect');
   const body = src.slice(start, end);
   assert.ok(!body.includes('setModelsLoaded'), 'the warm-up effect must never set modelsLoaded itself');

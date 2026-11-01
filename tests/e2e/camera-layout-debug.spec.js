@@ -134,11 +134,17 @@ test('successful diagnostic session stays live and copyable through subsequent n
   await page.route('**/?cameraLayoutDebug=1', async route => {
     const response = await route.fetch();
     let source = await response.text();
-    const start = source.indexOf("          if (cameraLayoutDebugEnabled) { decideStage('stageComplete');");
-    const end = source.indexOf('          doneRef.current = true;', start);
-    expect(start).toBeGreaterThan(0);
-    const guard = source.slice(start, end);
-    source = source.replace('      tickImplRef.current = async () => {', `
+    // Locate the real debug-mode early-return guard by its token
+    // sequence, not by exact source formatting. The precompiled build
+    // (Babel, retainLines) keeps original line numbers but re-indents
+    // and re-spaces statements, so a literal indexOf() of this exact
+    // text breaks against that build while the real guard is unchanged.
+    const guardMatch = source.match(
+      /if\s*\(\s*cameraLayoutDebugEnabled\s*\)\s*\{\s*decideStage\(\s*'stageComplete'\s*\)\s*;\s*decideHint\(\s*null\s*\)\s*;\s*return\s*;\s*\}/
+    );
+    expect(guardMatch).toBeTruthy();
+    const guard = guardMatch[0];
+    source = source.replace(/tickImplRef\.current\s*=\s*async\s*\(\)\s*=>\s*\{/, `
       window.__exerciseDiagnosticSuccess = () => {
         const decideStage = setStageKey, decideHint = setHintKey;
         recordDetectorSample({hasFace:true, detectorScore:0.9, faceRatio:0.5,
@@ -148,7 +154,7 @@ test('successful diagnostic session stays live and copyable through subsequent n
         ${guard}
         throw new Error('diagnostic completion must return before production navigation');
       };
-      tickImplRef.current = async () => {`);
+      $&`);
     await route.fulfill({response, body:source});
   });
   await page.addInitScript(() => {

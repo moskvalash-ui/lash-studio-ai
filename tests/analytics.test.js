@@ -577,13 +577,13 @@ test('G5. all 6 new events are gated by consent exactly like every existing even
 });
 
 test('G6 (source-guard). onboarding_started fires from a useEffect with an empty dependency array (fires once per OnboardingDialog mount, i.e. once per genuine "shown to the user", never merely from a re-render)', () => {
-  const dialogSpan = extractBodyAfterHeader(src, 'function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry }) {');
+  const dialogSpan = extractBodyAfterHeader(src, 'function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry, aiPreparing, warmupFailed, onRetryWarmup }) {');
   assert.ok(dialogSpan !== null, 'expected to locate OnboardingDialog');
   assert.ok(/Analytics\.track\('onboarding_started'\);\s*\n\s*\}, \[\]\);/.test(dialogSpan), 'onboarding_started\'s effect must close with an empty-deps array');
 });
 
 test('G7 (source-guard). onboarding_completed fires only from the step-5 "complete and proceed" branch of the primary button, never from the plain onClose() dismiss path (X button / Escape / backdrop cancel)', () => {
-  const dialogSpan = extractBodyAfterHeader(src, 'function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry }) {');
+  const dialogSpan = extractBodyAfterHeader(src, 'function OnboardingDialog({ onClose, onStart, modelsLoaded, loadError, onRetry, aiPreparing, warmupFailed, onRetryWarmup }) {');
   assert.ok(dialogSpan !== null, 'expected to locate OnboardingDialog');
   assert.strictEqual((dialogSpan.match(/Analytics\.track\('onboarding_completed'\)/g) || []).length, 1, 'expected exactly one onboarding_completed call site');
   assert.ok(dialogSpan.includes("Analytics.track('onboarding_completed'); onClose(); onStart(); }"), 'onboarding_completed must fire immediately before the existing onClose()+onStart() completion path, not inside the plain dismiss handler');
@@ -592,7 +592,7 @@ test('G7 (source-guard). onboarding_completed fires only from the step-5 "comple
 });
 
 test('G8 (source-guard). home_viewed fires from a useEffect with an empty dependency array inside HomeScreen itself (fires once per HomeScreen mount = once per genuine navigation to Home, including navigating away and back, never from an ordinary re-render while already on Home)', () => {
-  const homeSpan = extractBodyAfterHeader(src, 'function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary }) {');
+  const homeSpan = extractBodyAfterHeader(src, 'function HomeScreen({ onLive, onPhoto, modelsLoaded, loadError, onRetry, onClients, onLibrary, aiPreparing, warmupFailed, onRetryWarmup, onboardingOpen, openOnboarding, closeOnboarding }) {');
   assert.ok(homeSpan !== null, 'expected to locate HomeScreen');
   assert.ok(/Analytics\.track\('home_viewed'\);\s*\n\s*\}, \[\]\);/.test(homeSpan), 'home_viewed\'s effect must close with an empty-deps array');
   assert.strictEqual((homeSpan.match(/Analytics\.track\('home_viewed'\)/g) || []).length, 1, 'expected exactly one home_viewed call site');

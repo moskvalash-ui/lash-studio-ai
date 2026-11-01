@@ -1,0 +1,28 @@
+{
+  "builtAt": "2026-11-01T15:38:30.388Z",
+  "sourceJsxSha256": "2cc1ef292305039b3c5421197780014af49c44012b79f2af9837d48563321465",
+  "compiler": {
+    "babelCore": "8.0.1",
+    "babelPresetReact": "8.0.1",
+    "pinned": true,
+    "source": "poc-build/package.json + package-lock.json (npm install --save-exact)"
+  },
+  "requiredMarkersVerified": [
+    "const tiltBoundaryDampening = ",
+    "const TILT_BOUNDARY_DEG = 4;",
+    "MIN_SPARSE_CONFIDENCE"
+  ],
+  "localScriptsCopied": [
+    "analytics.js",
+    "auto-lash-fit-hybrid-c.js",
+    "client-data-consent.js",
+    "client-store.js",
+    "consent-manager.js",
+    "lash-design-domain.js",
+    "lash-scan-core.js",
+    "photo-lash-preview.js",
+    "professional-lash-library.js",
+    "visit-snapshot.js"
+  ],
+  "outputDir": "/Users/viktoriaermolenko/Downloads/lash-studio-ai-worktree-integration-rc/publish"
+}

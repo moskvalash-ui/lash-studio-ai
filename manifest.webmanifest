@@ -1,0 +1,33 @@
+{
+  "name": "LASH STUDIO AI",
+  "short_name": "LASH AI",
+  "description": "LASH STUDIO AI — professional eye analysis and lash mapping",
+  "start_url": "/lash-studio-ai/",
+  "scope": "/lash-studio-ai/",
+  "id": "/lash-studio-ai/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060e20",
+  "theme_color": "#3d7bff",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "builtAt": "2026-11-11T06:48:18.678Z",
+  "sourceJsxSha256": "5898fc37321297b6ba435e157c43eda6a6f0972fd1676158257ef5b369ef3268",
+  "compiler": {
+    "babelCore": "8.0.1",
+    "babelPresetReact": "8.0.1",
+    "pinned": true,
+    "source": "poc-build/package.json + package-lock.json (npm install --save-exact)"
+  },
+  "requiredMarkersVerified": [
+    "const tiltBoundaryDampening = ",
+    "const TILT_BOUNDARY_DEG = 4;",
+    "MIN_SPARSE_CONFIDENCE"
+  ],
+  "localScriptsCopied": [
+    "analytics.js",
+    "auto-lash-fit-hybrid-c.js",
+    "client-data-consent.js",
+    "client-store.js",
+    "consent-manager.js",
+    "lash-design-domain.js",
+    "lash-scan-core.js",
+    "photo-lash-preview.js",
+    "professional-lash-library.js",
+    "visit-snapshot.js"
+  ],
+  "staticAssetsCopied": [
+    "manifest.webmanifest",
+    "favicon-32.png",
+    "apple-touch-icon.png",
+    "icons/icon-192.png",
+    "icons/icon-512.png",
+    "icons/icon-1024.png"
+  ],
+  "outputDir": "/Users/viktoriaermolenko/Downloads/lash-studio-ai-worktree-release-candidate/publish"
+}
